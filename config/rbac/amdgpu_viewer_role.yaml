@@ -1,0 +1,27 @@
+# permissions for end users to view amdgpus.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  labels:
+    app.kubernetes.io/name: clusterrole
+    app.kubernetes.io/instance: amdgpu-viewer-role
+    app.kubernetes.io/component: rbac
+    app.kubernetes.io/created-by: gpu-operator
+    app.kubernetes.io/part-of: gpu-operator
+    app.kubernetes.io/managed-by: kustomize
+  name: amdgpu-viewer-role
+rules:
+- apiGroups:
+  - charts.amd.com
+  resources:
+  - amdgpus
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - charts.amd.com
+  resources:
+  - amdgpus/status
+  verbs:
+  - get

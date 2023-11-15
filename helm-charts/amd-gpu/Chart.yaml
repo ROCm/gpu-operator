@@ -1,0 +1,23 @@
+apiVersion: v2
+appVersion: 1.25.2.5
+dependencies:
+- condition: nfd.enabled
+  name: node-feature-discovery
+  repository: https://kubernetes-sigs.github.io/node-feature-discovery/charts
+  version: '>= 0.8.1-0'
+description: A Helm chart for deploying Kubernetes AMD GPU device plugin
+home: https://github.com/RadeonOpenCompute/k8s-device-plugin
+icon: https://raw.githubusercontent.com/RadeonOpenCompute/k8s-device-plugin/master/helm/logo.png
+keywords:
+- kubernetes
+- cluster
+- hardware
+- gpu
+kubeVersion: '>= 1.18.0-0'
+maintainers:
+- name: Kenny Ho <Kenny.Ho@amd.com>
+name: amd-gpu
+sources:
+- https://github.com/RadeonOpenCompute/k8s-device-plugin
+type: application
+version: 0.10.0

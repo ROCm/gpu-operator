@@ -1,0 +1,6 @@
+dependencies:
+- name: node-feature-discovery
+  repository: https://kubernetes-sigs.github.io/node-feature-discovery/charts
+  version: 0.14.3
+digest: sha256:a1651e3e727f3f60f286930ab341af1009cce742b181d19b9ec75d392c5c339b
+generated: "2023-11-13T15:56:32.500037334-05:00"

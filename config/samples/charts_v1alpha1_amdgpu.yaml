@@ -1,0 +1,35 @@
+apiVersion: charts.amd.com/v1alpha1
+kind: AMDGPU
+metadata:
+  name: amdgpu-sample
+spec:
+  # Default values copied from <project_dir>/helm-charts/amd-gpu/values.yaml
+  dp:
+    image:
+      repository: docker.io/rocm/k8s-device-plugin
+      tag: 1.25.2.5
+    resources: {}
+  imagePullSecrets: []
+  labeller:
+    enabled: false
+  lbl:
+    image:
+      repository: docker.io/rocm/k8s-device-plugin
+      tag: labeller-1.25.2.5
+    resources: {}
+  namespace: kube-system
+  nfd:
+    enabled: false
+  node_selector:
+    feature.node.kubernetes.io/pci-0300_1002.present: "true"
+    kubernetes.io/arch: amd64
+  securityContext:
+    allowPrivilegeEscalation: false
+    capabilities:
+      drop:
+      - ALL
+  tolerations:
+  - key: CriticalAddonsOnly
+    operator: Exists
+  
+  
