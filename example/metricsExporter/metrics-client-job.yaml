@@ -1,0 +1,20 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: amd-curl
+  namespace: metrics-reader  # default SA in namespace has the rbac permissions
+spec:
+  template:
+    metadata:
+      name: amd-curl
+    spec:
+      containers:
+      - name: amd-curl
+        image: curlimages/curl:7.78.0  # Use curl-specific image
+        command: ["/bin/sh", "-c"]
+        args:
+          - |
+            curl -v -s -k -H "Authorization: Bearer $(cat /var/run/secrets/kubernetes.io/serviceaccount/token)" \
+            https://<service-endpoint-ip>:8443/metrics
+      restartPolicy: Never
+  backoffLimit: 4
