@@ -15,12 +15,10 @@ spec:
     # you can create the docker-registry type secret by running command like:
     # kubectl create secret docker-registry mysecret -n kube-amd-gpu --docker-username=xxx --docker-password=xxx
     # Make sure you created the secret within the namespace that KMM operator is running
-    imageRegistrySecret:
-      name: docker-auth
+    #imageRegistrySecret:
+    #  name: docker-auth
 
     # Specify the driver version
-    # when you need to upgrade the driver, just update this field
-    # we will unload the old version driver and load the new version driver
     version: "6.2.1"
 
   devicePlugin:
@@ -44,7 +42,7 @@ spec:
      nodePort: 32500
 
      # exporter image
-     image: docker.io/rocm/amd/exporter:v1
+     image: docker.io/rocm/device-metrics-exporter:v1.0.0
 
      # metrics config in configmap
      config:
