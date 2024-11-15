@@ -1,0 +1,8 @@
+apiVersion: cert-manager.io/v1
+kind: Issuer
+metadata:
+  name: {{ include "kmm.fullname" . }}-selfsigned-issuer
+  labels:
+  {{- include "kmm.labels" . | nindent 4 }}
+spec:
+  selfSigned: {}

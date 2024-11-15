@@ -1,0 +1,135 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ include "kmm.fullname" . }}-manager-role
+  labels:
+    app.kubernetes.io/component: kmm
+    app.kubernetes.io/part-of: kmm
+  {{- include "kmm.labels" . | nindent 4 }}
+rules:
+- apiGroups:
+  - apps
+  resources:
+  - daemonsets
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - watch
+- apiGroups:
+  - cluster.open-cluster-management.io
+  resources:
+  - clusterclaims
+  verbs:
+  - create
+  - get
+  - list
+  - watch
+- apiGroups:
+  - cluster.open-cluster-management.io
+  resourceNames:
+  - kernel-versions.kmm.node.kubernetes.io
+  resources:
+  - clusterclaims
+  verbs:
+  - delete
+  - patch
+  - update
+- apiGroups:
+  - ""
+  resources:
+  - configmaps
+  - secrets
+  - serviceaccounts
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - ""
+  resources:
+  - namespaces
+  - nodes
+  verbs:
+  - get
+  - list
+  - patch
+  - watch
+- apiGroups:
+  - ""
+  resources:
+  - pods
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - watch
+- apiGroups:
+  - kmm.sigs.x-k8s.io
+  resources:
+  - modules
+  verbs:
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - kmm.sigs.x-k8s.io
+  resources:
+  - modules/status
+  - preflightvalidations/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
+  - kmm.sigs.x-k8s.io
+  resources:
+  - nodemodulesconfigs
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - watch
+- apiGroups:
+  - kmm.sigs.x-k8s.io
+  resources:
+  - nodemodulesconfigs/status
+  verbs:
+  - patch
+- apiGroups:
+  - kmm.sigs.x-k8s.io
+  resources:
+  - preflightvalidations
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: {{ include "kmm.fullname" . }}-manager-rolebinding
+  labels:
+    app.kubernetes.io/component: kmm
+    app.kubernetes.io/part-of: kmm
+  {{- include "kmm.labels" . | nindent 4 }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: '{{ include "kmm.fullname" . }}-manager-role'
+subjects:
+- kind: ServiceAccount
+  name: '{{ include "kmm.fullname" . }}-controller'
+  namespace: '{{ .Release.Namespace }}'

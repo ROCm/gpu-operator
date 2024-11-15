@@ -1,6 +1,0 @@
-# Use the 'create api' subcommand to add watches to this file.
-- group: charts.amd.com
-  version: v1alpha1
-  kind: AMDGPU
-  chart: helm-charts/amd-gpu
-#+kubebuilder:scaffold:watch
