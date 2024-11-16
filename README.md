@@ -32,26 +32,22 @@ AMD GPU Operator simplifies the deployment and management of AMD Instinct GPU ac
 - Kubernetes v1.29.0+
 - Helm v3.2.0+
 - `kubectl` CLI tool configured to access your cluster
+- [Cert Manager](https://cert-manager.io/docs/) Install it by running these commands if not already installed in the cluster:
+
+```bash
+helm repo add jetstack https://charts.jetstack.io --force-update
+
+helm install cert-manager jetstack/cert-manager \
+  --namespace cert-manager \
+  --create-namespace \
+  --version v1.15.1 \
+  --set crds.enabled=true
+```
 
 ## Quick Start
 
-1. Add the Helm repository:
-
 ```bash
-helm repo add rocm https://rocm.github.io/gpu-operator
-helm repo update
-```
-
-2. Install the AMD GPU Operator:
-
-```bash
-helm install amd-gpu-operator rocm/gpu-operator --namespace kube-amd-gpu --create-namespace
-```
-
-3. Verify the installation:
-
-```bash
-kubectl get pods -n kube-amd-gpu
+helm install amd-gpu-operator --namespace kube-amd-gpu --create-namespace https://github.com/ROCm/gpu-operator/releases/download/v1.0.0/gpu-operator-charts-v1.0.0.tgz
 ```
 
 ## Support
