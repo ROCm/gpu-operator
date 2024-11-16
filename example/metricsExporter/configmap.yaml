@@ -2,7 +2,7 @@ apiVersion: v1
 kind: ConfigMap
 metadata:
   name: gpu-config
-  namespace: mynamespace
+  namespace: kube-amd-gpu
 data:
   config.json: |
     {

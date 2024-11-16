@@ -35,6 +35,13 @@ AMD GPU Operator simplifies the deployment and management of AMD Instinct GPU ac
 
 ## Quick Start
 
+### Method 1 - Install by downloading the released helm charts
+
+```bash
+helm install amd-gpu-operator --namespace kube-amd-gpu --create-namespace https://github.com/ROCm/gpu-operator/releases/download/v1.0.0/gpu-operator-charts-v1.0.0.tgz
+```
+
+### Method 2 - Install from hosted helm repository
 1. Add the Helm repository:
 
 ```bash
