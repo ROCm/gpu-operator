@@ -50,6 +50,14 @@ helm install cert-manager jetstack/cert-manager \
 helm install amd-gpu-operator --namespace kube-amd-gpu --create-namespace https://github.com/ROCm/gpu-operator/releases/download/v1.0.0/gpu-operator-charts-v1.0.0.tgz
 ```
 
+### Grafana Dashboards
+
+Following dashboards are provided for visualizing GPU metrics collected from device-metrics-exporter:
+- Overview Dashboard: Provides a comprehensive view of the GPU cluster.
+- GPU Detail Dashboard: Offers a detailed look at individual GPUs.
+- Job Detail Dashboard: Presents detailed GPU usage for specific jobs in SLURM and Kubernetes environments.
+- Node Detail Dashboard: Displays detailed GPU usage at the host level.
+
 ## Support
 
 For bugs and feature requests, please file an issue on our [GitHub Issues](https://github.com/ROCm/gpu-operator/issues) page.
