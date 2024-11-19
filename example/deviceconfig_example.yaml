@@ -1,7 +1,8 @@
 apiVersion: amd.com/v1alpha1
 kind: DeviceConfig
 metadata:
-  name: test-deviceconfig
+  # the names for the device plugin, metrics exporter and node labeler pods will be prefixed with this name
+  name: gpu-operator
   # it is highly recommended to use the namespace where AMD GPU Operator is running
   namespace: kube-amd-gpu
 spec:
