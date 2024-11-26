@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+    <meta charset="utf-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+      <link rel="shortcut icon" href="../../img/favicon.ico" />
+    <title>Kube Rbac Proxy - AMD GPU Operator</title>
+    <link rel="stylesheet" href="../../css/theme.css" />
+    <link rel="stylesheet" href="../../css/theme_extra.css" />
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/styles/github.min.css" />
+    
+      <script>
+        // Current page data
+        var mkdocs_page_name = "Kube Rbac Proxy";
+        var mkdocs_page_input_path = "metrics/kube-rbac-proxy.md";
+        var mkdocs_page_url = null;
+      </script>
+    
+    <!--[if lt IE 9]>
+      <script src="../../js/html5shiv.min.js"></script>
+    <![endif]-->
+      <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/highlight.min.js"></script>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/languages/dockerfile.min.js"></script>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/languages/shell.min.js"></script>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/languages/yaml.min.js"></script>
+      <script>hljs.highlightAll();</script> 
+</head>
+
+<body class="wy-body-for-nav" role="document">
+
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side stickynav">
+    <div class="wy-side-scroll">
+      <div class="wy-side-nav-search">
+          <a href="../.." class="icon icon-home"> AMD GPU Operator
+        </a><div role="search">
+  <form id ="rtd-search-form" class="wy-form" action="../../search.html" method="get">
+      <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" title="Type search term here" />
+  </form>
+</div>
+      </div>
+
+      <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../..">Home</a>
+                </li>
+              </ul>
+              <p class="caption"><span class="caption-text">Getting Started</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../../overview/">Overview</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">User Guide</span></p>
+              <ul class="current">
+                  <li class="toctree-l1"><a class="reference internal" >Install Operator</a>
+    <ul>
+                <li class="toctree-l2"><a class="reference internal" href="../../installation/kubernetes-helm/">Kubernetes (Helm)</a>
+                </li>
+    </ul>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" >Install Custom Resource</a>
+    <ul>
+                <li class="toctree-l2"><a class="reference internal" href="../../drivers/installation/">Installation</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../drivers/precompiled-driver/">Using Pre-Compiled Driver Image</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../drivers/secure-boot/">Secure Boot</a>
+                </li>
+    </ul>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" >Upgrades</a>
+    <ul>
+                <li class="toctree-l2"><a class="reference internal" href="../../drivers/upgrading/">Driver Upgrade</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../upgrades/kernel/">Kernel Upgrade</a>
+                </li>
+    </ul>
+                  </li>
+                  <li class="toctree-l1 current"><a class="reference internal current" >Metrics</a>
+    <ul class="current">
+                <li class="toctree-l2"><a class="reference internal" href="../exporter/">Exporter</a>
+                </li>
+                <li class="toctree-l2 current"><a class="reference internal current" href="#">Kube Rbac Proxy</a>
+    <ul class="current">
+    <li class="toctree-l3"><a class="reference internal" href="#configure-kube-rbac-proxy">Configure Kube-RBAC-Proxy</a>
+        <ul>
+    <li class="toctree-l4"><a class="reference internal" href="#example-deviceconfig-cr-with-kube-rbac-proxy">Example: DeviceConfig CR with kube-rbac-proxy</a>
+    </li>
+        </ul>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#provide-custom-tls-certificates">Provide Custom TLS Certificates</a>
+        <ul>
+    <li class="toctree-l4"><a class="reference internal" href="#example-create-tls-secret">Example: Create TLS Secret</a>
+    </li>
+    <li class="toctree-l4"><a class="reference internal" href="#apply-the-secret-and-crd-update">Apply the Secret and CRD Update</a>
+    </li>
+        </ul>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#accessing-metrics">Accessing Metrics</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#conclusion">Conclusion</a>
+    </li>
+    </ul>
+                </li>
+    </ul>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../usage/">Usage</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../uninstallation/uninstallation/">Uninstallation</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../troubleshooting/">Troubleshooting</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">Specialized Networks</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../../specialized_networks/http-proxy/">HTTP Proxy</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../specialized_networks/airgapped-install/">Air-Gapped Installation</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">Contributing</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../../contributing/developer-guide/">Developer Guide</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../contributing/documentation-standards/">Documentation Standards</a>
+                  </li>
+              </ul>
+      </div>
+    </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+      <nav class="wy-nav-top" role="navigation" aria-label="Mobile navigation menu">
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../..">AMD GPU Operator</a>
+        
+      </nav>
+      <div class="wy-nav-content">
+        <div class="rst-content"><div role="navigation" aria-label="breadcrumbs navigation">
+  <ul class="wy-breadcrumbs">
+    <li><a href="../.." class="icon icon-home" aria-label="Docs"></a></li>
+          <li class="breadcrumb-item">User Guide</li>
+          <li class="breadcrumb-item">Metrics</li>
+      <li class="breadcrumb-item active">Kube Rbac Proxy</li>
+    <li class="wy-breadcrumbs-aside">
+          <a href="https://github.com/ROCm/gpu-operator/blob/main/docs/docs/metrics/kube-rbac-proxy.md" class="icon icon-github"> Edit on GitHub</a>
+    </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+            <div class="section" itemprop="articleBody">
+              
+                <h1 id="kube-rbac-proxy-with-metrics-exporter">Kube-RBAC-Proxy with Metrics Exporter</h1>
+<p>The <strong>kube-rbac-proxy</strong> sidecar container is used to secure the metrics endpoint by enforcing <strong>Role-Based Access Control (RBAC)</strong>. By enabling the <strong>kube-rbac-proxy</strong>, only authorized users can access the <code>/metrics</code> URL, ensuring the security of your metrics data.</p>
+<h2 id="configure-kube-rbac-proxy">Configure Kube-RBAC-Proxy</h2>
+<p>To enable and configure the <strong>kube-rbac-proxy</strong> sidecar container, add the <code>rbacConfig</code> section to the <strong>Metrics Exporter</strong> configuration in the <strong>DeviceConfig</strong> CR. Here's a quick overview of the settings for <strong>kube-rbac-proxy</strong>:</p>
+<ul>
+<li><strong>enable</strong>: Set to <code>true</code> to enable the <strong>kube-rbac-proxy</strong> sidecar container.</li>
+<li><strong>image</strong>: Specify the image for the <strong>kube-rbac-proxy</strong> container. If not specified, the default image is used.</li>
+<li><strong>secret</strong>: Provide the secret name that contains the TLS certificates and private keys for securing the metrics endpoint with HTTPS.</li>
+<li><strong>disableHttps</strong>: If set to <code>true</code>, the HTTPS protection for the metrics endpoint is disabled. By default, this is <code>false</code>, and HTTPS is enabled for secure communication.</li>
+</ul>
+<h3 id="example-deviceconfig-cr-with-kube-rbac-proxy">Example: DeviceConfig CR with kube-rbac-proxy</h3>
+<pre><code class="language-yaml">metricsExporter:
+    enable: true
+    serviceType: &quot;NodePort&quot;
+    nodePort: 32500
+    image: &quot;amd/device-metrics-exporter/exporter:v1&quot;
+
+    # Enable Kube-RBAC-Proxy
+    rbacConfig:
+        enable: true  # Enable the kube-rbac-proxy sidecar
+        image: &quot;quay.io/brancz/kube-rbac-proxy:v0.18.1&quot;  # Image for the kube-rbac-proxy sidecar container
+        secret:
+            name: &quot;my-tls-secret&quot;  # Secret containing the TLS certificate and key for kube-rbac-proxy
+        disableHttps: false  # Set to true if you want to disable HTTPS protection
+</code></pre>
+<h2 id="provide-custom-tls-certificates">Provide Custom TLS Certificates</h2>
+<p>If you want to provide custom TLS certificates, create a Kubernetes secret containing the <strong>TLS certificate</strong> (<code>tls.crt</code>) and <strong>private key</strong> (<code>tls.key</code>), and reference this secret in the <code>rbacConfig.secret.name</code> field.</p>
+<h3 id="example-create-tls-secret">Example: Create TLS Secret</h3>
+<p>To create the secret containing your custom certificates, run the following command:</p>
+<pre><code class="language-bash">kubectl create secret tls my-tls-secret --cert=path/to/cert.crt --key=path/to/cert.key -n kube-amd-gpu
+</code></pre>
+<h3 id="apply-the-secret-and-crd-update">Apply the Secret and CRD Update</h3>
+<p>Once the TLS secret is created, the <strong>DeviceConfig</strong> CR will automatically apply the secret to the <strong>kube-rbac-proxy</strong> sidecar, securing the metrics endpoint with TLS.</p>
+<h2 id="accessing-metrics">Accessing Metrics</h2>
+<p>For a complete guide on how to access the metrics securely (including the generation of tokens, applying RBAC roles, and accessing the metrics inside and outside the cluster), please refer to the example <a href="https://github.com/rocm/gpu-operator/blob/main/example/metricsExporter/README.md">README</a> in the repository. This includes detailed steps on:</p>
+<ul>
+<li>Deploying the metrics-reader roles</li>
+<li>Generating tokens for the service account</li>
+<li>Accessing the metrics from inside and outside the Kubernetes cluster</li>
+</ul>
+<h2 id="conclusion">Conclusion</h2>
+<p>By following these steps, you will have a fully functional setup for accessing metrics from your AMD GPU cluster using the <strong>Metrics Exporter</strong> and <strong>kube-rbac-proxy</strong>. The <strong>kube-rbac-proxy</strong> ensures that only authorized users can access the metrics, and the setup supports both internal and external access with appropriate security mechanisms (including TLS and RBAC).</p>
+<p>For more detailed configuration guidance, refer to the example <a href="https://github.com/rocm/gpu-operator/blob/main/example/metricsExporter/README.md">README</a> for information on token generation, cluster role deployment, and accessing metrics both inside and outside the cluster.</p>
+              
+            </div>
+          </div><footer>
+    <div class="rst-footer-buttons" role="navigation" aria-label="Footer Navigation">
+        <a href="../exporter/" class="btn btn-neutral float-left" title="Exporter"><span class="icon icon-circle-arrow-left"></span> Previous</a>
+        <a href="../../usage/" class="btn btn-neutral float-right" title="Usage">Next <span class="icon icon-circle-arrow-right"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <!-- Copyright etc -->
+      <p>Copyright © 2024-2025, Advanced Micro Devices, Inc.</p>
+  </div>
+
+  Built with <a href="https://www.mkdocs.org/">MkDocs</a> using a <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>.
+</footer>
+          
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+
+  <div class="rst-versions" role="note" aria-label="Versions">
+  <span class="rst-current-version" data-toggle="rst-current-version">
+    
+        <span>
+          <a href="https://github.com/ROCm/gpu-operator" class="fa fa-github" style="color: #fcfcfc"> GitHub</a>
+        </span>
+    
+    
+      <span><a href="../exporter/" style="color: #fcfcfc">&laquo; Previous</a></span>
+    
+    
+      <span><a href="../../usage/" style="color: #fcfcfc">Next &raquo;</a></span>
+    
+  </span>
+</div>
+    <script src="../../js/jquery-3.6.0.min.js"></script>
+    <script>var base_url = "../..";</script>
+    <script src="../../js/theme_extra.js"></script>
+    <script src="../../js/theme.js"></script>
+      <script src="../../search/main.js"></script>
+    <script>
+        jQuery(function () {
+            SphinxRtdTheme.Navigation.enable(true);
+        });
+    </script>
+
+</body>
+</html>
