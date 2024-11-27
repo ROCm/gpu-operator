@@ -45,7 +45,7 @@ The components work together in the following sequence:
 5. Node Labeller adds detailed GPU information to node labels
 6. Metrics Exporter provides ongoing monitoring
 
-[Placeholder: Architecture diagram]
+![Architecture diagram](./_static/amd-gpu-operator-diagram.png)
 
 ## Plugins and Extensions
 
@@ -59,7 +59,7 @@ The [AMD GPU Device Plugin](https://github.com/ROCm/k8s-device-plugin) enables G
 
 ### Node Labeller
 
-The [Node Labeller](https://github.com/ROCm/k8s-device-plugin/blob/master/cmd/k8s-node-labeller/README) provides detailed GPU information through node labels:
+The [Node Labeller](https://github.com/ROCm/k8s-device-plugin/blob/master/cmd/k8s-node-labeller/README.md) provides detailed GPU information through node labels:
 
 - Automatically detects GPU properties
 - Adds detailed GPU-specific labels to nodes
