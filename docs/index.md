@@ -19,7 +19,7 @@ The AMD GPU Operator simplifies the deployment and management of AMD Instinct GP
 ## Prerequisites
 
 - Helm v3.2.0+
-- `kubectl` or `oc` CLI tool configured to access your cluster
+- `kubectl` CLI tool configured to access your cluster
 
 ## Quick Start
 
