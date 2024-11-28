@@ -16,10 +16,11 @@ copyright = "Copyright (c) 2024 Advanced Micro Devices, Inc. All rights reserved
 html_theme = "rocm_docs_theme"
 html_theme_options = {
     "flavor": "generic",
-    "header_title": "AMD Instinct Documentation",
+    "header_title": "Instinct&#8482 Hub",
     "nav_secondary_items": {
-        "GitHub": "https://github.com/rocm/gpu-operator",
-        "Documentation": "https://dcgpu.docs.amd.com"
+        "Community": "https://github.com/ROCm/ROCm/discussions",
+        "Blogs": "https://rocm.blogs.amd.com/",
+        "ROCm&#8482 docs": "https://rocm.docs.amd.com"
     },
     # Add any additional theme options here
 }
