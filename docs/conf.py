@@ -5,7 +5,7 @@ external_projects_remote_repository = ""
 external_projects = ["amd-gpu-operator"]
 external_projects_current_project = "amd-gpu-operator"
 
-project = "AMD GPU Operator"
+project = "AMD Instinct Hub"
 version = "1.0.0"
 release = version
 html_title = f"AMD GPU Operator {version}"
@@ -17,7 +17,7 @@ html_theme = "rocm_docs_theme"
 html_theme_options = {
     "flavor": "generic",
     "header_title": "Instinct&#8482 Hub",
-    "main_doc_link": {"AMD Instinct Hub": "https://dcgpu.docs.amd.com"},
+    "main_doc_link": "https://dcgpu.docs.amd.com",
     "nav_secondary_items": {
         "Community": "https://github.com/ROCm/ROCm/discussions",
         "Blogs": "https://rocm.blogs.amd.com/",
