@@ -14,6 +14,9 @@ copyright = "Copyright (c) 2024 Advanced Micro Devices, Inc. All rights reserved
 
 # Required settings
 html_theme = "rocm_docs_theme"
+"main_doc_link": {
+    "Instinct&#8482 Hub": "https://dcgpu.docs.amd.com"
+},
 html_theme_options = {
     "flavor": "generic",
     "header_title": "Instinct&#8482 Hub",
