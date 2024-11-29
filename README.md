@@ -12,7 +12,7 @@ AMD GPU Operator simplifies the deployment and management of AMD Instinct GPU ac
 * K8s Node Labeller
 * Device Metrics Exporter
 * Node Feature Discovery Operator
-* Kernel Module Management Operator
+* Kernel Module Management Operator123
 
 ## Features
 
