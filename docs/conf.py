@@ -17,7 +17,9 @@ html_theme = "rocm_docs_theme"
 html_theme_options = {
     "flavor": "generic",
     "header_title": "Instinct&#8482 Hub",
-    "main_doc_link": "https://dcgpu.docs.amd.com",
+    "main_doc_link": {
+        "Instinct&#8482 Hub": "https://dcgpu.docs.amd.com"
+    },
     "nav_secondary_items": {
         "Community": "https://github.com/ROCm/ROCm/discussions",
         "Blogs": "https://rocm.blogs.amd.com/",
