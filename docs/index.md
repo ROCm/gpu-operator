@@ -14,7 +14,7 @@ The AMD GPU Operator simplifies the deployment and management of AMD Instinct GP
 ## Compatibility
 
 - **Kubernetes**: 1.29.0
-- Please refer to the [ROCM documentaiton](https://rocm.docs.amd.com/en/latest/compatibility/compatibility-matrix.html) for the compatability matrix for the AMD GPU DKMS driver.
+- Please refer to the [ROCm documentation](https://rocm.docs.amd.com/en/latest/compatibility/compatibility-matrix.html) for the compatability matrix for the AMD GPU DKMS driver.
 
 ## Prerequisites
 
