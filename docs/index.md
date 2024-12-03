@@ -33,7 +33,7 @@ helm repo update
 - Install the AMD GPU Operator:
 
 ```bash
-helm install amd-gpu-operator rocm/gpu-operator-helm --namespace kube-amd-gpu --create-namespace
+helm install amd-gpu-operator rocm/gpu-operator-charts --namespace kube-amd-gpu --create-namespace
 ```
 
 - Verify the installation:
