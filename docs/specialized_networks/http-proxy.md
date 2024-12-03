@@ -30,7 +30,7 @@ There are two ways to apply these proxy settings:
 You can specify the proxy settings directly in the `helm install` command using the `--set` flag.
 
 ```bash
-helm install amd-gpu-operator rocm/gpu-operator-helm \
+helm install amd-gpu-operator rocm/gpu-operator-charts \
   --namespace kube-amd-gpu \
   --create-namespace \
   --set global.proxy.env.HTTP_PROXY=http://myproxy.com:123 \
@@ -56,7 +56,7 @@ global:
 - Use this file when installing the Helm chart:
 
 ```bash
-helm install amd-gpu-operator rocm/gpu-operator-helm \
+helm install amd-gpu-operator rocm/gpu-operator-charts \
   --namespace kube-amd-gpu \
   --create-namespace \
   -f custom-values.yaml
