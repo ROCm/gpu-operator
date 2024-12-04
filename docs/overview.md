@@ -21,7 +21,6 @@ The [Node Feature Discovery (NFD)](https://github.com/kubernetes-sigs/node-featu
 - Automatic node labeling with `feature.node.kubernetes.io/amd-gpu: "true"`
 - Hardware capability discovery and reporting
 
-
 ### Kernel Module Management (KMM)
 
 The [Kernel Module Management (KMM) Operator](https://github.com/kubernetes-sigs/kernel-module-management) handles the lifecycle of GPU driver kernel modules. Its responsibilities include:
