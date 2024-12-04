@@ -120,7 +120,7 @@ buildArgs:
 - Install the operator:
 
 ```bash
-helm install amd-gpu-operator rocm/gpu-operator-helm \
+helm install amd-gpu-operator rocm/gpu-operator-charts \
   --namespace kube-amd-gpu \
   --create-namespace \
   -f operator-values.yaml

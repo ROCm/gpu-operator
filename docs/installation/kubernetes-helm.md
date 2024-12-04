@@ -96,7 +96,7 @@ cert-manager-webhook-6d5cb854fc-h6vbk     1/1     Running   0          2m
 ### 1. Add the AMD Helm Repository
 
 ```bash
-helm repo add amd https://rocm.github.io/gpu-operator
+helm repo add rocm https://rocm.github.io/gpu-operator
 helm repo update
 ```
 
@@ -105,7 +105,7 @@ helm repo update
 Basic installation:
 
 ```bash
-helm install amd-gpu-operator amd/gpu-operator-helm \
+helm install amd-gpu-operator rocm/gpu-operator-charts \
   --namespace kube-amd-gpu \
   --create-namespace \
   --version=v1.0.0
@@ -128,14 +128,14 @@ Installation with custom options:
 - Prepare your custom configuration in a YAML file (e.g. ``values.yaml``), then use it with ``helm install`` command to deploy your helm charts. An example values.yaml file can be found here for you to edit and use: [here](https://github.com/ROCm/gpu-operator/blob/master/example/helm_charts_k8s_values_example.yaml)
 
 ```bash
-helm install amd-gpu-operator amd/gpu-operator-helm \
+helm install amd-gpu-operator rocm/gpu-operator-charts \
   --namespace kube-amd-gpu \
   --create-namespace \
   --version=v1.0.0 \
   -f values.yaml
 ```
 
-The following parameters are able to be configued when using the Helm Chart. In order to view all available options, please refer to this section or run the command ```helm show values amd/gpu-operator-helm```.
+The following parameters are able to be configued when using the Helm Chart. In order to view all available options, please refer to this section or run the command ```helm show values rocm/gpu-operator-charts```.
 
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
