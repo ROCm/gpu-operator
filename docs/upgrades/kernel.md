@@ -17,7 +17,7 @@ Before performing the kernel upgrade, you can validate whether the AMD GPU drive
 
 For validation steps:
 
-- Kubernetes users: See [KMM PreFlight Validation Documentation](https://kmm.sigs.k8s.io/documentation/preflight_validation/)
+- Kubernetes users: See [KMM Pre-flight Validation Documentation](https://kmm.sigs.k8s.io/documentation/preflight_validation/)
 
 ## Upgrade Process
 

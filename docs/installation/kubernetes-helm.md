@@ -160,7 +160,7 @@ The following parameters are able to be configued when using the Helm Chart. In 
 | kmm.controller.nodeSelector | object | `{}` | Node selector for the KMM controller manager deployment |
 | kmm.enabled | bool | `true` | Set to true/false to enable/disable the installation of kernel module management (KMM) operator |
 | kmm.webhookServer.nodeAffinity.nodeSelectorTerms | list | `[{"key":"node-role.kubernetes.io/control-plane","operator":"Exists"},{"key":"node-role.kubernetes.io/master","operator":"Exists"}]` | Node affinity selector terms config for the KMM webhook deployment, set it to [] if you want to make affinity config empty |
-| kmm.webhookServer.nodeSelector | object | `{}` | KMM webhook's deployment node selector |
+| kmm.webhookServer.nodeSelector | object | `{}` | KMM webhook deployment node selector |
 | kmm.webhookServer.webhookServer.image.repository | string | `"rocm/kernel-module-management-webhook-server:v1.0.0"` | KMM webhook image repository |
 | kmm.webhookServer.webhookServer.image.tag | string | `"dev"` | KMM webhook image tag |
 | kmm.webhookServer.webhookServer.imagePullPolicy | string | `"Always"` | Image pull policy for KMM webhook pod |

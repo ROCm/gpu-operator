@@ -55,6 +55,7 @@ helm install amd-gpu-operator --namespace kube-amd-gpu --create-namespace https:
 ### Grafana Dashboards
 
 Following dashboards are provided for visualizing GPU metrics collected from device-metrics-exporter:
+
 * Overview Dashboard: Provides a comprehensive view of the GPU cluster.
 * GPU Detail Dashboard: Offers a detailed look at individual GPUs.
 * Job Detail Dashboard: Presents detailed GPU usage for specific jobs in SLURM and Kubernetes environments.

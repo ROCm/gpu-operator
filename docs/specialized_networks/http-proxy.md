@@ -1,6 +1,6 @@
 # HTTP Proxy Configuration
 
-The AMD GPU Operator supports usage within a Kubernetes cluster behind an HTTP Proxy. Generally, the AMD GPU Operator requires Internet access for two reaons:
+The AMD GPU Operator supports usage within a Kubernetes cluster behind an HTTP Proxy. Generally, the AMD GPU Operator requires Internet access for two reasons:
 
 1. Pulling he container images from the registry during installation.
 2. Downloading the AMD GPU driver installer.
