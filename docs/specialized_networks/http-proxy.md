@@ -1,6 +1,6 @@
 # HTTP Proxy Configuration
 
-The AMD GPU Operator supports usage within a Kubernetes cluster behind an HTTP Proxy. Generally, the AMD GPU Operator requires Internet access for two reaons:
+The AMD GPU Operator supports usage within a Kubernetes cluster behind an HTTP Proxy. Generally, the AMD GPU Operator requires Internet access for two reasons:
 
 1. Pulling he container images from the registry during installation.
 2. Downloading the AMD GPU driver installer.
@@ -30,7 +30,7 @@ There are two ways to apply these proxy settings:
 You can specify the proxy settings directly in the `helm install` command using the `--set` flag.
 
 ```bash
-helm install amd-gpu-operator rocm/gpu-operator-helm \
+helm install amd-gpu-operator rocm/gpu-operator-charts \
   --namespace kube-amd-gpu \
   --create-namespace \
   --set global.proxy.env.HTTP_PROXY=http://myproxy.com:123 \
@@ -56,7 +56,7 @@ global:
 - Use this file when installing the Helm chart:
 
 ```bash
-helm install amd-gpu-operator rocm/gpu-operator-helm \
+helm install amd-gpu-operator rocm/gpu-operator-charts \
   --namespace kube-amd-gpu \
   --create-namespace \
   -f custom-values.yaml

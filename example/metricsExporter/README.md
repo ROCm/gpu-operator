@@ -50,19 +50,19 @@ This command will show you the metrics retrieved from the metrics exporter.
 
 If you want to pull metrics from outside the cluster using the NodePort service, you can do so with the following steps:
 
-#### 1. Create a token for the reader service account:
+#### 1. Create a token for the reader service account
 
 ```bash
 kubectl create token -n metrics-reader default --duration=24h
 ```
 
-#### 2. Save the generated token in a variable called TOKEN:
+#### 2. Save the generated token in a variable called TOKEN
 
 ```bash
 TOKEN=<your-token-here>
 ```
 
-#### 3. Use curl to access the metrics endpoint:
+#### 3. Use curl to access the metrics endpoint
 
 ```bash
 curl -v -s -k -H "Authorization: Bearer $TOKEN" https://<node-ip>:<nodePort>/metrics
