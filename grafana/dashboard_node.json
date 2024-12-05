@@ -308,6 +308,9 @@
           "values": false
         },
         "showPercentChange": false,
+        "text": {
+          "titleSize": 13
+        },
         "textMode": "auto",
         "wideLayout": true
       },
@@ -323,9 +326,10 @@
           "exemplar": false,
           "expr": "sum(group by(gpu_id) (gpu_gfx_activity{hostname=\"$g_hostname\", job_id!=\"\"}))",
           "fullMetaSearch": false,
+          "hide": false,
           "includeNullMetadata": true,
           "instant": true,
-          "legendFormat": "Used GPUs (jobs)",
+          "legendFormat": "Allocated by Jobs",
           "range": false,
           "refId": "A",
           "useBackend": false
@@ -343,7 +347,7 @@
           "hide": false,
           "includeNullMetadata": true,
           "instant": true,
-          "legendFormat": "Used GPUs (pods)",
+          "legendFormat": "Allocated by Pods",
           "range": false,
           "refId": "B",
           "useBackend": false
@@ -354,14 +358,14 @@
             "uid": "${DS_PROMETHEUS}"
           },
           "disableTextWrap": false,
-          "editorMode": "builder",
+          "editorMode": "code",
           "exemplar": false,
-          "expr": "sum(group by(gpu_id) (gpu_gfx_activity{hostname=\"$g_hostname\"}))",
+          "expr": "sum(group by(gpu_id) (gpu_gfx_activity{hostname=\"$g_hostname\"} > 0))",
           "fullMetaSearch": false,
-          "hide": true,
+          "hide": false,
           "includeNullMetadata": true,
           "instant": true,
-          "legendFormat": "Available GPUs",
+          "legendFormat": "Busy GPUs",
           "range": false,
           "refId": "C",
           "useBackend": false
@@ -2055,8 +2059,7 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green",
-                "value": null
+                "color": "green"
               }
             ]
           }
