@@ -1,4 +1,4 @@
-# Upgrade
+# Upgrading GPU Operator
 
 This guide outlines the steps to upgrade the AMD GPU Operator on a Kubernetes cluster using Helm. **This is only applicable for Kubernetes Helm chart deployments and not for OLM-based OpenShift deployments.**
 

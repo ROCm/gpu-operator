@@ -27,7 +27,7 @@ subtrees:
       - file: drivers/precompiled-driver
       - file: drivers/secure-boot
       - file: drivers/upgrading
-      - file: upgrades/kernel
+      - file: drivers/kernel
   - caption: Metrics
     entries:
       - file: metrics/exporter
