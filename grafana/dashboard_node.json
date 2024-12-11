@@ -14,13 +14,6 @@
       "description": "",
       "type": "datasource",
       "pluginId": "__expr__"
-    },
-    {
-      "name": "VAR_G_MI300_MODEL",
-      "type": "constant",
-      "label": "MI300 Model",
-      "value": "102-G30211-00",
-      "description": ""
     }
   ],
   "__elements": {},
@@ -260,7 +253,7 @@
         "type": "prometheus",
         "uid": "${DS_PROMETHEUS}"
       },
-      "description": "\\# of GPUs being used by jobs",
+      "description": "\\# of GPUs allocated by jobs",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -298,7 +291,7 @@
         "colorMode": "value",
         "graphMode": "area",
         "justifyMode": "auto",
-        "orientation": "auto",
+        "orientation": "vertical",
         "percentChangeColorMode": "standard",
         "reduceOptions": {
           "calcs": [
@@ -371,7 +364,7 @@
           "useBackend": false
         }
       ],
-      "title": "Used GPUs",
+      "title": "Allocated GPUs",
       "type": "stat"
     },
     {
@@ -794,10 +787,6 @@
               {
                 "color": "green",
                 "value": null
-              },
-              {
-                "color": "red",
-                "value": 80
               }
             ]
           },
@@ -1629,13 +1618,26 @@
           },
           "disableTextWrap": false,
           "editorMode": "builder",
-          "expr": "avg(gpu_package_power{hostname=\"$g_hostname\"})",
+          "expr": "avg(gpu_package_power{hostname=\"$g_hostname\", card_model=~\"102-G30211-00|102-G30211-0C|102-G30211-4C|102-G30212-0C|102-G30213-00|102-G30213-0C\"})",
           "fullMetaSearch": false,
           "includeNullMetadata": true,
           "legendFormat": "__auto",
           "range": true,
           "refId": "A",
           "useBackend": false
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "editorMode": "builder",
+          "expr": "avg(gpu_average_package_power{hostname=\"$g_hostname\", card_model!~\"102-G30211-00|102-G30211-0C|102-G30211-4C|102-G30212-0C|102-G30213-00|102-G30213-0C\"})",
+          "hide": false,
+          "instant": false,
+          "legendFormat": "__auto",
+          "range": true,
+          "refId": "B"
         }
       ],
       "title": "Average GPU Power",
@@ -1758,8 +1760,9 @@
           },
           "disableTextWrap": false,
           "editorMode": "builder",
-          "expr": "avg(gpu_edge_temperature{hostname=\"$g_hostname\", card_model!=\"$g_mi300_model\"})",
+          "expr": "avg(gpu_edge_temperature{hostname=\"$g_hostname\", card_model!~\"102-G30211-00|102-G30211-0C|102-G30211-4C|102-G30212-0C|102-G30213-00|102-G30213-0C\"})",
           "fullMetaSearch": false,
+          "hide": false,
           "includeNullMetadata": true,
           "legendFormat": "Edge Temperature",
           "range": true,
@@ -1773,7 +1776,7 @@
           },
           "disableTextWrap": false,
           "editorMode": "builder",
-          "expr": "avg(gpu_junction_temperature{hostname=\"$g_hostname\", card_model=\"$g_mi300_model\"})",
+          "expr": "avg(gpu_junction_temperature{hostname=\"$g_hostname\", card_model=~\"102-G30211-00|102-G30211-0C|102-G30211-4C|102-G30212-0C|102-G30213-00|102-G30213-0C\"})",
           "fullMetaSearch": false,
           "hide": false,
           "includeNullMetadata": true,
@@ -2227,26 +2230,6 @@
         "skipUrlSync": false,
         "sort": 0,
         "type": "query"
-      },
-      {
-        "hide": 2,
-        "label": "MI300 Model",
-        "name": "g_mi300_model",
-        "query": "${VAR_G_MI300_MODEL}",
-        "skipUrlSync": false,
-        "type": "constant",
-        "current": {
-          "value": "${VAR_G_MI300_MODEL}",
-          "text": "${VAR_G_MI300_MODEL}",
-          "selected": false
-        },
-        "options": [
-          {
-            "value": "${VAR_G_MI300_MODEL}",
-            "text": "${VAR_G_MI300_MODEL}",
-            "selected": false
-          }
-        ]
       }
     ]
   },
