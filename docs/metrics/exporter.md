@@ -9,16 +9,12 @@ configure ``` enable ``` field in deviceconfig Custom Resource(CR) to enable/dis
 metricsExporter:
     # To enable/disable the metrics exporter, disabled by default
     enable: True
-
     # kubernetes service type for metrics exporter, clusterIP(default) or NodePort
     serviceType: "NodePort"
-
     # Node port for metrics exporter service, metrics endpoint $node-ip:$nodePort
     nodePort: 32500
-
     # image for the metrics-exporter container
     image: "amd/device-metrics-exporter/exporter:v1"
- 
 ```
 
 **metrics-exporter** pods start after updating the **DeviceConfig** CR
@@ -33,7 +29,7 @@ test-deviceconfig-metrics-exporter-q8hbb   1/1     Running   0          74s
 |----------------------------|----------------------------------------------|
 | **Enable**                 | Enable/Disable metrics exporter              |
 | **Port**                   | Service port exposed by metrics exporter     |
-| **serviceType**            | service type for metrics, clusterIP/Nodeport |
+| **serviceType**            | service type for metrics, clusterIP/NodePort |
 | **nodePort**               | Node port for  metrics exporter service      |
 | **selector**               | Node selector for metrics exporter daemonset |
 | **image**                  | metrics exporter image                       |
