@@ -63,6 +63,8 @@ helm upgrade amd-gpu-operator helm-charts-k8s/gpu-operator-helm-k8s-v1.0.0.tgz \
   -f helm-charts-k8s/values.yaml \
 ```
 
+-> In helm-charts-k8s/values.yaml, the node feature discovery and kmm controller images can be changed before running the helm-upgrade. This will upgrade the nfd and kmm operators respectively when helm upgrade is run.
+
 If you encounter the pre-upgrade hook failure and wish to bypass it:
 
 ```bash

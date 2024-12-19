@@ -21,6 +21,7 @@ subtrees:
   - caption: Upgrades 
     entries:
       - file: upgrades/upgrade.md
+      - file: upgrades/componentupgrades.md
   - caption: Driver Management
     entries:
       - file: drivers/installation
