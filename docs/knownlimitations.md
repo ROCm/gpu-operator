@@ -2,7 +2,7 @@
 
 1. **GPU operator driver installs only DKMS package**
    - *****Impact:***** Applications which require ROCM packages will need to install respective packages.
-   - ***Affectioned Configurations:*** All configurations
+   - ***Affected Configurations:*** All configurations
    - ***Workaround:*** None as this is the intended behaviour
 </br></br>
 

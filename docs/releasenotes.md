@@ -13,7 +13,7 @@ The GPU Operator v1.1.0 release adds support for Red Hat OpenShift versions 4.16
 
 ### New Platform Support
 
-- **Red Hat Openshift 4.16-4.17**
+- **Red Hat OpenShift 4.16-4.17**
   - Supported features:
     - Driver management
     - Workload scheduling
@@ -25,7 +25,7 @@ The GPU Operator v1.1.0 release adds support for Red Hat OpenShift versions 4.16
 
 1. **Due to issue with KMM 2.2 deletion of DeviceConfig Custom Resource gets stuck in Red Hat OpenShift**
    - *Impact:* Not able to delete the DeviceConfig Custom Resource if the node reboots during uninstall.
-   - *Affectioned Configurations:* This issue only affects Red Hat OpenShift
+   - *Affected Configurations:* This issue only affects Red Hat OpenShift
    - *Workaround:* This issue will be fixed in the next release of KMM. For the time being you can use a previous version of KMM aside from 2.2 or manually remove the status from NMC:
     1. List all the NMC resources and pick up the correct NMC (there is one nmc per node, named the same as the node it related to).
 
@@ -107,7 +107,7 @@ Not Applicable as this is the initial release.
 
 1. **GPU operator driver installs only DKMS package**
    - *Impact:* Applications which require ROCM packages will need to install respective packages.
-   - *Affectioned Configurations:* All configurations
+   - *Affected Configurations:* All configurations
    - *Workaround:* None as this is the intended behaviour
 
 2. **When Using Operator to install amdgpu 6.1.3/6.2 a reboot is required to complete install**
@@ -122,7 +122,7 @@ Not Applicable as this is the initial release.
 
 4. **When GPU Operator is used in SKIP driver install mode, if amdgpu module is removed with device plugin installed it will not reflect active GPU available on the server**
    - *Impact:* Scheduling Workloads will have impact as it will scheduled on nodes which does have active GPU.
-   - *Affectioned Configurations:* All configurations
+   - *Affected Configurations:* All configurations
    - *Workaround:* Restart the Device plugin pod deployed.
 
 5. **Worker nodes where Kernel needs to be upgraded needs to taken out of the cluster and readded with Operator installed**
@@ -136,7 +136,7 @@ Not Applicable as this is the initial release.
 
 6. **When GPU Operator is installed with Exporter enabled, upgrade of driver is blocked as exporter is actively using the amdgpu module**
    - *Impact:* Driver upgrade is blocked
-   - *Affectioned Configurations:* All configurations
+   - *Affected Configurations:* All configurations
    - *Workaround:* Disable the Metrics Exporter on specific node to allow driver upgrade as follows:
 
     1. Label all nodes with new label:

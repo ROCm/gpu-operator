@@ -38,7 +38,7 @@ gpu-operator-metrics-exporter-q8hbb   1/1     Running   0          74s
 |----------------------------|----------------------------------------------|
 | **Enable**                 | Enable/Disable metrics exporter              |
 | **Port**                   | Service port exposed by metrics exporter     |
-| **serviceType**            | service type for metrics, clusterIP/Nodeport |
+| **serviceType**            | service type for metrics, clusterIP/NodePort |
 | **nodePort**               | Node port for  metrics exporter service      |
 | **selector**               | Node selector for metrics exporter daemonset |
 | **image**                  | metrics exporter image                       |
