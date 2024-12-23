@@ -52,3 +52,6 @@ verison
 webhook
 CRD
 uninstallation
+OpenShift
+Autobuild
+NMC
