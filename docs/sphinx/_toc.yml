@@ -6,8 +6,12 @@ subtrees:
   - caption: Usage
     entries:
     - file: overview
+    - file: releasenotes
+      title: Release Notes
     - file: usage
-    - file: troubleshooting     
+    - file: troubleshooting
+    - file: knownlimitations
+      title: Known Limitations    
   - caption: Installation
     entries:
       - file: installation/kubernetes-helm
@@ -27,3 +31,8 @@ subtrees:
     entries:
       - file: specialized_networks/airgapped-install
       - file: specialized_networks/http-proxy
+  - caption: Contributing
+    entries:
+      - file: contributing/documentation-build-guide
+      - file: contributing/documentation-standards
+
