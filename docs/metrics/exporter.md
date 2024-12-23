@@ -55,4 +55,4 @@ To customize metrics fields/labels, create a configmap with fields/labels and us
 kubectl create configmap <name> --from-file=examples/metricsExporter/config.json
 ```
 
-Example config file is available here: [config.json](https://github.com/pensando/device-metrics-exporter/blob/main/example/config.json)
+Example config file is available here: [config.json](https://github.com/rocm/device-metrics-exporter/blob/main/example/config.json)
