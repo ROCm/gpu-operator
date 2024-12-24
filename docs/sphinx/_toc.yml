@@ -15,8 +15,8 @@ subtrees:
   - caption: Installation
     entries:
       - file: installation/kubernetes-helm
-      - file: installation/openshift-helm
-      - file: installation/openshift-olm    
+      - file: installation/openshift-olm
+      - file: installation/openshift-helm   
       - file: uninstallation/uninstallation
   - caption: Driver Management
     entries:
