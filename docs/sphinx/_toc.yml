@@ -5,13 +5,13 @@ defaults:
 subtrees:
   - caption: Usage
     entries:
-    - file: overview
-    - file: releasenotes
-      title: Release Notes
-    - file: usage
-    - file: troubleshooting
-    - file: knownlimitations
-      title: Known Limitations    
+      - file: overview
+      - file: releasenotes
+        title: Release Notes
+      - file: usage
+      - file: troubleshooting
+      - file: knownlimitations
+        title: Known Limitations    
   - caption: Installation
     entries:
       - file: installation/kubernetes-helm
