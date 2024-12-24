@@ -1,1 +1,3 @@
-docs/_build/
+# Sphinx documentation
+_build/
+.venv/
