@@ -35,6 +35,12 @@ subtrees:
       - file: metrics/kube-rbac-proxy
       - file: metrics/health
         title: Health Checks
+  - caption: Test Runner
+    entries:
+      - file: test/auto-unhealthy-device-test
+      - file: test/manual-test
+      - file: test/pre-start-job-test
+      - file: test/appendix-test-recipe
   - caption: Specialized Networks
     entries:
       - file: specialized_networks/airgapped-install
