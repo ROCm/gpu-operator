@@ -33,6 +33,8 @@ subtrees:
     entries:
       - file: metrics/exporter
       - file: metrics/kube-rbac-proxy
+      - file: metrics/health
+        title: Health Checks
   - caption: Specialized Networks
     entries:
       - file: specialized_networks/airgapped-install
