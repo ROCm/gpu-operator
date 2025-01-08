@@ -32,6 +32,7 @@ This guide provides information for developers who want to contribute to the AMD
 5. You can now view the docs site by going to http://localhost:8000
 
 ## Auto-building the docs
+
 The below will allow you to watch the docs directory and rebuild the documenatation each time you make a change to the documentation files:
 
 1. Install Sphinx Autobuild package
