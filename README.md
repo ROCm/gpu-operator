@@ -1,7 +1,5 @@
 # AMD GPU Operator
 
-:book: GPU Operator Documentation Site: https://dcgpu.docs.amd.com/projects/gpu-operator
-
 ## Introduction
 
 AMD GPU Operator simplifies the deployment and management of AMD Instinct GPU accelerators within Kubernetes clusters. This project enables seamless configuration and operation of GPU-accelerated workloads, including machine learning, Generative AI, and other GPU-intensive applications.
