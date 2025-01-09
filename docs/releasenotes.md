@@ -1,4 +1,6 @@
-# GPU Operator v1.1.0 Release Notes
+# GPU Operator Release Notes
+
+## v1.1.0 Release Notes
 
 The GPU Operator v1.1.0 release adds support for Red Hat OpenShift versions 4.16 and 4.17. The AMD GPU Operator has gone through a rigourous validation process and is now *certified* for use on OpenShift. It can now be deployed via [the Red Hat Catalog](https://catalog.redhat.com/software/container-stacks/detail/6722781e65e61b6d4caccef8).
 
@@ -6,14 +8,14 @@ The GPU Operator v1.1.0 release adds support for Red Hat OpenShift versions 4.16
 The latest AMD GPU Operator OLM Bundle for OpenShift is tagged with version v1.1.1 as the operator image has been updated to include a minor driver fix.
 ```
 
-## Release Highlights
+### Release Highlights
 
 - The AMD GPU Operator has now been certified for use with Red Hat OpenShift v4.16 and v4.17
 - Updated documentation with installationa and configuration steps for Red Hat OpenShift
 
-## Platform Support
+### Platform Support
 
-### New Platform Support
+#### New Platform Support
 
 - **Red Hat OpenShift 4.16-4.17**
   - Supported features:
@@ -23,7 +25,7 @@ The latest AMD GPU Operator OLM Bundle for OpenShift is tagged with version v1.1
   - Requirements: Red Hat OpenShift version 4.16 or 4.17
 </br>
 
-## Known Limitations
+### Known Limitations
 
 1. **Due to issue with KMM 2.2 deletion of DeviceConfig Custom Resource gets stuck in Red Hat OpenShift**
    - *Impact:* Not able to delete the DeviceConfig Custom Resource if the node reboots during uninstall.
@@ -45,20 +47,20 @@ The latest AMD GPU Operator OLM Bundle for OpenShift is tagged with version v1.1
 
 </br></br>
 
-# GPU Operator v1.0.0 Release Notes
+### v1.0.0 Release Notes
 
 This release is the first major release of AMD GPU Operator. The AMD GPU Operator simplifies the deployment and management of AMD Instinct™ GPU accelerators within Kubernetes clusters. This project enables seamless configuration and operation of GPU-accelerated workloads, including machine learning, Generative AI, and other GPU-intensive applications.
 
-## Release Highlights
+#### Release Highlights
 
 - Manage AMD GPU drivers with desired versions on Kubernetes cluster nodes
 - Customized scheduling of AMD GPU workloads within Kubernetes cluster
 - Metrics and statistics monitoring solution for AMD GPU hardware and workloads
 - Support specialized networking environment like HTTP proxy or Air-gapped network
 
-## Hardware Support
+### Hardware Support
 
-### New Hardware Support
+#### New Hardware Support
 
 - **AMD Instinct™ MI300**
   - Required driver version: ROCm 6.2+
@@ -69,9 +71,9 @@ This release is the first major release of AMD GPU Operator. The AMD GPU Operato
 - **AMD Instinct™ MI210**
   - Required driver version: ROCm 6.2+
 
-## Platform Support
+#### Platform Support
 
-### New Platform Support
+#### New Platform Support
 
 - **Kubernetes 1.29+**
   - Supported features:
@@ -80,14 +82,14 @@ This release is the first major release of AMD GPU Operator. The AMD GPU Operato
     - Metrics monitoring
   - Requirements: Kubernetes version 1.29+
 
-## Breaking Changes
+#### Breaking Changes
 
 Not Applicable as this is the initial release.
 </br>
 
-## New Features
+#### New Features
 
-### Feature Category
+##### Feature Category
 
 - **Driver management**
   - *Managed Driver Installations:* Users will be able to install ROCm 6.2+ dkms driver on Kubernetes worker nodes, they can also optionally choose to use inbox or pre-installed driver on the worker nodes
@@ -95,17 +97,17 @@ Not Applicable as this is the initial release.
 
 - **GPU Workload Scheduling**
   - *Custom Resource Allocation "amd.com/gpu":* After the deployment of the GPU Operator a new custom resource allocation will be present on each GPU node, `amd.com/gpu`, which will list the allocatable GPU resources on the node for which GPU workloads can be scheduled against
-  - *Assign Multiple GPUs:* Users can easily specify the number of AMD GPUs required by each workload in the [deployment/pod spec](https://dcgpu.docs.amd.com/projects/gpu-operator/en/release-v1.0.0/usage.html#creating-a-gpu-enabled-pod) and the Kubernetes scheduler wiill automatically take care of assigning the correct GPU resources
+  - *Assign Multiple GPUs:* Users can easily specify the number of AMD GPUs required by each workload in the [deployment/pod spec](https://instinct.docs.amd.com/projects/gpu-operator/en/release-v1.0.0/usage.html#creating-a-gpu-enabled-pod) and the Kubernetes scheduler wiill automatically take care of assigning the correct GPU resources
 
 - **Metrics Monitoring for GPUs and Workloads**:
   - *Out-of-box Metrics:* Users can optionally enable the AMD Device Metrics Exporter when installing the AMD GPU Operator to enable a robust out-of-box monitoring solution for prometheus to consume
-  - *Custom Metrics Configurations:* Users can utilize a [configmap](https://dcgpu.docs.amd.com/projects/gpu-operator/en/release-v1.0.0/metrics/exporter.html#configure-metrics-exporter) to customize the configuration and behavior of Device Metrics Exporter
+  - *Custom Metrics Configurations:* Users can utilize a [configmap](https://instinct.docs.amd.com/projects/gpu-operator/en/release-v1.0.0/metrics/exporter.html#configure-metrics-exporter) to customize the configuration and behavior of Device Metrics Exporter
 
 - **Specialized Network Setups**:
-  - *Air-gapped Installation:* Users can install the GPU Operator in a secure [air-gapped environment](https://dcgpu.docs.amd.com/projects/gpu-operator/en/release-v1.0.0/specialized_networks/airgapped-install.html) where the Kubernetes cluster has no external network connectivity
-  - *HTTP Proxy Support:* The AMD GPU Operator supports usage within a Kubernetes cluster that is behind an [HTTP Proxy](https://dcgpu.docs.amd.com/projects/gpu-operator/en/release-v1.0.0/specialized_networks/http-proxy.html). Support for HTTPS Proxy will be added in a future version of the GPU Operator.
+  - *Air-gapped Installation:* Users can install the GPU Operator in a secure [air-gapped environment](https://instinct.docs.amd.com/projects/gpu-operator/en/release-v1.0.0/specialized_networks/airgapped-install.html) where the Kubernetes cluster has no external network connectivity
+  - *HTTP Proxy Support:* The AMD GPU Operator supports usage within a Kubernetes cluster that is behind an [HTTP Proxy](https://instinct.docs.amd.com/projects/gpu-operator/en/release-v1.0.0/specialized_networks/http-proxy.html). Support for HTTPS Proxy will be added in a future version of the GPU Operator.
 
-## Known Limitations
+### Known Limitations
 
 1. **GPU operator driver installs only DKMS package**
    - *Impact:* Applications which require ROCM packages will need to install respective packages.
@@ -120,7 +122,7 @@ Not Applicable as this is the initial release.
 3. **GPU Operator unable to install amdgpu driver if existing driver is already installed**
    - *Impact:* Driver install will fail if amdgpu in-box Driver is present/already installed
    - *Affected Configurations:* All configurations
-   - *Workaround:* When installing the amdgpu drivers using the GPU Operator, worker nodes should have amdgpu blacklisted or amdgpu drivers should not be pre-installed on the node. [Blacklist in-box driver](https://dcgpu.docs.amd.com/projects/gpu-operator/en/release-v1.0.0/drivers/installation.html#blacklist-inbox-driver) so that it is not loaded or remove the pre-installed driver
+   - *Workaround:* When installing the amdgpu drivers using the GPU Operator, worker nodes should have amdgpu blacklisted or amdgpu drivers should not be pre-installed on the node. [Blacklist in-box driver](https://instinct.docs.amd.com/projects/gpu-operator/en/release-v1.0.0/drivers/installation.html#blacklist-inbox-driver) so that it is not loaded or remove the pre-installed driver
 
 4. **When GPU Operator is used in SKIP driver install mode, if amdgpu module is removed with device plugin installed it will not reflect active GPU available on the server**
    - *Impact:* Scheduling Workloads will have impact as it will scheduled on nodes which does have active GPU.

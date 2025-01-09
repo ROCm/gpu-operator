@@ -15,7 +15,7 @@
 3. **GPU Operator unable to install amdgpu driver if existing driver is already installed**
    - ***Impact:*** Driver install will fail if amdgpu in-box Driver is present/already installed
    - ***Affected Configurations:*** All configurations
-   - ***Workaround:*** When installing the amdgpu drivers using the GPU Operator, worker nodes should have amdgpu blacklisted or amdgpu drivers should not be pre-installed on the node. [Blacklist in-box driver](https://dcgpu.docs.amd.com/projects/gpu-operator/en/release-v1.0.0/drivers/installation.html#blacklist-inbox-driver) so that it is not loaded or remove the pre-installed driver
+   - ***Workaround:*** When installing the amdgpu drivers using the GPU Operator, worker nodes should have amdgpu blacklisted or amdgpu drivers should not be pre-installed on the node. [Blacklist in-box driver](https://instinct.docs.amd.com/projects/gpu-operator/en/latest/drivers/installation.html#blacklist-inbox-driver) so that it is not loaded or remove the pre-installed driver
 </br></br>
 
 4. **When GPU Operator is used in SKIP driver install mode, if amdgpu module is removed with device plugin installed it will not reflect active GPU available on the server**
