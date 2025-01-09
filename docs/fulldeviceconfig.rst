@@ -55,7 +55,7 @@ Below is an example of a full DeviceConfig CR that can be used to install the AM
       version: "6.3" # Specify the driver version you would like to be installed that coincides with a ROCm version number
       upgradePolicy:
         enable: true
-        maxParallelUpgrades: 3 # (Optional) Number of nodes that will be upgraded in parallel. Default is 3
+        maxParallelUpgrades: 3 # (Optional) Number of nodes that will be upgraded in parallel. Default is 1
       ## AMD K8s Device Plugin Configuration ##
       devicePlugin: 
         # (Optional) Specifying image names are optional. Default image names for shown here if not specified.

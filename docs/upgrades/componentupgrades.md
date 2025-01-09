@@ -81,10 +81,9 @@ Updated CR:
 ```
     devicePlugin:
         devicePluginImage: rocm/k8s-device-plugin:latest
-        upgradePolicy: &DaemonSetUpgradeSpec {
-        upgradeStrategy: RollingUpdate,
-        maxUnavailable: 1
-        }
+        upgradePolicy:
+          upgradeStrategy: RollingUpdate
+          maxUnavailable: 1
 ```
 
 Once the new CR is applied, each device plugin pod will go down 1 at a time and come back with the new image mentioned in the CR.
@@ -111,7 +110,7 @@ Old CR:
     enable: True
     serviceType: "ClusterIP"
     port: 5000
-    image: "image-name-1"
+    image: rocm/device-metrics-exporter:v1.1.0
 ```
 
 Updated CR:
@@ -121,12 +120,12 @@ Updated CR:
     enable: True
     serviceType: "ClusterIP"
     port: 5000
-    image: "image-name-2"
-    upgradePolicy: &DaemonSetUpgradeSpec {
+    image: rocm/device-metrics-exporter:latest
+    upgradePolicy:
       upgradeStrategy: OnDelete
-    }
 ```
 Once the new CR is applied, each metrics exporter pod has to be brought down manually by user intervention to trigger upgrade for that pod. This is because, in this case, `OnDelete` option is used as upgradeStrategy. The image can be verified the same way as device plugin pod.
+
 
 #### **Notes**
 
