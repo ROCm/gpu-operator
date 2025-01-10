@@ -29,11 +29,12 @@ NAME                                       READY   STATUS    RESTARTS   AGE
 gpu-operator-metrics-exporter-q8hbb   1/1     Running   0          74s
 ```
 
-<div style="background-color: #d0e7f; border-left: 6px solid #2196F3; padding: 10px;">
-<strong>Note:</strong> The Device Metrics Exporter name will be prefixed with the name of your DeviceConfig custom resource ("gpu-operator" in the default helm installation)
-</div></br>
+```{note}
+**Note:** The Device Metrics Exporter name will be prefixed with the name of your DeviceConfig custom resource ("gpu-operator" in the default helm installation)
+```
 
 ## Metrics Exporter DeviceConfig
+
 | Field Name                 | Details                                      |
 |----------------------------|----------------------------------------------|
 | **Enable**                 | Enable/Disable metrics exporter              |
@@ -45,7 +46,6 @@ gpu-operator-metrics-exporter-q8hbb   1/1     Running   0          74s
 | **config**                 | metrics configurations (fields/labels)       |
 |                            |                                              |
 | **name**                   | configmap name for custom fields/labels      |
-</br>
 
 ## Customize metrics fields/labels
 
