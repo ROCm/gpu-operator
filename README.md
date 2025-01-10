@@ -48,8 +48,15 @@ helm install cert-manager jetstack/cert-manager \
 
 ## Quick Start
 
+Add the Helm repository:
 ```bash
-helm install amd-gpu-operator --namespace kube-amd-gpu --create-namespace https://github.com/ROCm/gpu-operator/releases/download/v1.0.0/gpu-operator-charts-v1.0.0.tgz
+helm repo add rocm https://rocm.github.io/gpu-operator
+helm repo update
+```
+
+Install the AMD GPU Operator:
+```bash
+helm install amd-gpu-operator rocm/gpu-operator-charts --namespace kube-amd-gpu --create-namespace
 ```
 
 ### Grafana Dashboards
