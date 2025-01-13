@@ -96,39 +96,23 @@ oc get pods -n openshift-image-registry
 
 ### 2. Install AMD GPU Operator
 
-Currently, the AMD GPU Operator is not available in OperatorHub. Install it using the Operator SDK:
-
-1. Set up your environment:
-   - Install the `kubectl` binary
-   - Configure access to your OpenShift cluster
-   - Install [Operator SDK](https://sdk.operatorframework.io/docs/installation/)
-
-2. Deploy the operator bundle:
-
-```bash
-operator-sdk run bundle docker.io/amd/gpu-operator-bundle:v0.0.1 --namespace=default
-```
-
-> **Note**: The bundle image URL and tag will be updated in future releases.
-
-1. Verify the operator deployment:
-
-```bash
-oc get pods
-```
+1. Navigate to the OpenShift Web Console
+2. Go to OperatorHub
+3. Search for "amd"
+4. Select and install the certified AMD GPU Operator
 
 ## Configuration
 
 ### 1. Create Node Feature Discovery Rule
 
-Create an NFD rule to detect AMD GPU hardware:
+Create an NFD rule to detect AMD GPU hardware, please create the ```NodeFeatureDiscovery``` under the namespace where NFD operator is running:
 
 ```yaml
 apiVersion: nfd.openshift.io/v1
 kind: NodeFeatureDiscovery
 metadata:
   name: amd-gpu-operator-nfd-instance
-  namespace: default
+  namespace: openshift-nfd
 spec:
   operand:
     image: quay.io/openshift/origin-node-feature-discovery:4.16
