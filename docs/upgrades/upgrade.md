@@ -59,18 +59,23 @@ Upgrade the operator using the following command:
 
 ```bash
 helm upgrade amd-gpu-operator helm-charts-k8s/gpu-operator-helm-k8s-v1.0.0.tgz \
-  --namespace kube-amd-gpu \
-  -f helm-charts-k8s/values.yaml \
+  --namespace kube-amd-gpu
 ```
 
--> In helm-charts-k8s/values.yaml, the node feature discovery and kmm controller images can be changed before running the helm-upgrade. This will upgrade the nfd and kmm operators respectively when helm upgrade is run.
-
-If you encounter the pre-upgrade hook failure and wish to bypass it:
+* By default, the default ```values.yaml``` from the new helm charts will be applied
+* (Optional) You can prepare a new ```values.yaml``` with customized values and apply it along with ```helm upgrade``` command. The node feature discovery and kmm controller images can be changed before running the helm-upgrade. This will upgrade the nfd and kmm operators respectively when helm upgrade is run. For example: 
 
 ```bash
 helm upgrade amd-gpu-operator helm-charts-k8s/gpu-operator-helm-k8s-v1.0.0.tgz \
   --namespace kube-amd-gpu \
-  -f helm-charts-k8s/values.yaml \
+  -f new_values.yaml
+```
+
+If you encounter the pre-upgrade hook failure and wish to bypass it, please use ```--no-hooks``` option:
+
+```bash
+helm upgrade amd-gpu-operator helm-charts-k8s/gpu-operator-helm-k8s-v1.0.0.tgz \
+  --namespace kube-amd-gpu \
   --no-hooks
 ```
 
