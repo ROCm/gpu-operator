@@ -946,7 +946,7 @@
         "type": "prometheus",
         "uid": "${DS_PROMETHEUS}"
       },
-      "description": "Latest total power usage, in Watts",
+      "description": "Total package power usage, in Watts",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -1000,11 +1000,12 @@
           },
           "disableTextWrap": false,
           "editorMode": "builder",
-          "expr": "sum(gpu_power_usage{job_id!=\"\", job_id=\"$g_job_id\"})",
+          "expr": "sum(gpu_average_package_power{job_id!=\"\", job_id=\"$g_job_id\"})",
           "fullMetaSearch": false,
+          "hide": true,
           "includeNullMetadata": true,
           "instant": false,
-          "legendFormat": "Power Usage",
+          "legendFormat": "Average Job Package Power Usage",
           "range": true,
           "refId": "A",
           "useBackend": false
@@ -1016,15 +1017,69 @@
           },
           "disableTextWrap": false,
           "editorMode": "builder",
-          "expr": "sum(gpu_power_usage{pod!=\"\", pod=\"$g_pod\"})",
+          "expr": "sum(gpu_package_power{job_id!=\"\", job_id=\"$g_job_id\"})",
           "fullMetaSearch": false,
-          "hide": false,
+          "hide": true,
           "includeNullMetadata": true,
           "instant": false,
-          "legendFormat": "Power Usage",
+          "legendFormat": "Job Package Power Usage",
           "range": true,
           "refId": "B",
           "useBackend": false
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "disableTextWrap": false,
+          "editorMode": "builder",
+          "expr": "sum(gpu_average_package_power{pod!=\"\", pod=\"$g_pod\"})",
+          "fullMetaSearch": false,
+          "hide": true,
+          "includeNullMetadata": true,
+          "instant": false,
+          "legendFormat": "Average Pod Package Power Usage",
+          "range": true,
+          "refId": "C",
+          "useBackend": false
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "disableTextWrap": false,
+          "editorMode": "builder",
+          "expr": "sum(gpu_package_power{pod!=\"\", pod=\"$g_pod\"})",
+          "fullMetaSearch": false,
+          "hide": true,
+          "includeNullMetadata": true,
+          "instant": false,
+          "legendFormat": "Pod Package Power Usage",
+          "range": true,
+          "refId": "D",
+          "useBackend": false
+        },
+        {
+          "datasource": {
+            "type": "__expr__",
+            "uid": "${DS_EXPRESSION}"
+          },
+          "expression": "$A+$B",
+          "hide": false,
+          "refId": "Total Job Package Power Usage",
+          "type": "math"
+        },
+        {
+          "datasource": {
+            "type": "__expr__",
+            "uid": "${DS_EXPRESSION}"
+          },
+          "expression": "$C+$D",
+          "hide": false,
+          "refId": "Total Pod Package Power Usage",
+          "type": "math"
         }
       ],
       "title": "Total Power Usage",
@@ -2503,6 +2558,7 @@
   "templating": {
     "list": [
       {
+        "allValue": "+",
         "current": {},
         "datasource": {
           "type": "prometheus",
@@ -2527,6 +2583,7 @@
         "type": "query"
       },
       {
+        "allValue": "+",
         "current": {},
         "datasource": {
           "type": "prometheus",
