@@ -774,7 +774,7 @@
         "type": "prometheus",
         "uid": "${DS_PROMETHEUS}"
       },
-      "description": "Total power usage, in Watts",
+      "description": "Total package power usage, in Watts",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -828,13 +828,41 @@
           },
           "disableTextWrap": false,
           "editorMode": "builder",
-          "expr": "sum(gpu_power_usage{hostname=\"$g_hostname\"})",
+          "expr": "sum(gpu_average_package_power{hostname=\"$g_hostname\"})",
           "fullMetaSearch": false,
+          "hide": true,
           "includeNullMetadata": true,
-          "legendFormat": "Power Usage (W)",
+          "legendFormat": "Average Package Power Usage",
           "range": true,
           "refId": "A",
           "useBackend": false
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "disableTextWrap": false,
+          "editorMode": "builder",
+          "expr": "sum(gpu_package_power{hostname=\"$g_hostname\"})",
+          "fullMetaSearch": false,
+          "hide": true,
+          "includeNullMetadata": true,
+          "instant": false,
+          "legendFormat": "Package Power Usage",
+          "range": true,
+          "refId": "B",
+          "useBackend": false
+        },
+        {
+          "datasource": {
+            "type": "__expr__",
+            "uid": "${DS_EXPRESSION}"
+          },
+          "expression": "$A+$B",
+          "hide": false,
+          "refId": "Total Package Power Usage",
+          "type": "math"
         }
       ],
       "title": "Total Power Usage",
