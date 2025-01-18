@@ -98,7 +98,7 @@ ${KUBECTL} version >${TECH_SUPPORT_FILE}/kubectl.txt || die "${KUBECTL} failed"
 
 NFD_NS=$(${KUBECTL} get pods --no-headers -A -l app.kubernetes.io/name=node-feature-discovery | awk '{ print $1 }' | sort -u | head -n1)
 KMM_NS=$(${KUBECTL} get pods --no-headers -A -l app.kubernetes.io/name=kmm | awk '{ print $1 }' | sort -u | head -n1)
-GPUOPER_NS=$(${KUBECTL} get pods --no-headers -A -l app.kubernetes.io/name=gpu-operator | awk '{ print $1 }' | sort -u | head -n1)
+GPUOPER_NS=$(${KUBECTL} get pods --no-headers -A -l app.kubernetes.io/name=gpu-operator-charts | awk '{ print $1 }' | sort -u | head -n1)
 [ -z "${GPUOPER_NS}" ] && die "no gpu operator"
 
 echo -e "NFD_NAMESPACE:$NFD_NS \nKMM_NAMESPACE:$KMM_NS \nGPUOPER_NAMESPACE:$GPUOPER_NS" >${TECH_SUPPORT_FILE}/namespace.txt
@@ -177,6 +177,12 @@ spec:
 EOF
 ${KUBECTL} apply -f /tmp/techsupport.json
 
+cleanup() {
+        ${KUBECTL} delete -f /tmp/techsupport.json
+}
+
+trap cleanup EXIT
+
 log "logs:"
 for node in ${NODES}; do
 	log " ${node}:"
@@ -205,7 +211,7 @@ for node in ${NODES}; do
 		done
 	done
 
-	GPUOPER_PODS=$(${KNS} get pods -o name --field-selector spec.nodeName=${node} -l "app.kubernetes.io/name=gpu-operator")
+	GPUOPER_PODS=$(${KNS} get pods -o name --field-selector spec.nodeName=${node} -l "app.kubernetes.io/name=gpu-operator-charts")
 	pod_logs $GPUOPER_NS "gpu-operator" $node $GPUOPER_PODS
 
 	# node logs
@@ -220,6 +226,5 @@ for node in ${NODES}; do
 		${KUBECTL} exec -it ${dbgpod} -- sh -c "dmesg || true" >${TECH_SUPPORT_FILE}/${node}/dmesg.txt
 	done
 done
-${KUBECTL} delete -f /tmp/techsupport.json
 
 tar cfz ${TECH_SUPPORT_FILE}.tgz ${TECH_SUPPORT_FILE} && rm -rf ${TECH_SUPPORT_FILE} && log "${TECH_SUPPORT_FILE}.tgz is ready"
