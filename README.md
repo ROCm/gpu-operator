@@ -14,3 +14,6 @@ helm repo add rocm https://rocm.github.io/gpu-operator
 helm repo update
 helm install amd-gpu-operator rocm/gpu-operator-charts --namespace kube-amd-gpu --create-namespace
 ```
+
+# Install Custom Resource
+https://instinct.docs.amd.com/projects/gpu-operator/en/latest/installation/kubernetes-helm.html#install-custom-resource 
