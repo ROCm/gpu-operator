@@ -9,6 +9,8 @@ subtrees:
       - file: releasenotes
         title: Release Notes
       - file: usage
+      - file: fulldeviceconfig
+        title: Full Reference Config
       - file: troubleshooting
       - file: knownlimitations
         title: Known Limitations    
