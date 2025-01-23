@@ -148,13 +148,7 @@ in the above example ```42924``` is the GPU's GUID, ```gpustress-3000-dgemm-fals
 * ```type``` classifies the event into different level. For test runner generated event, ```TestPassed``` events are assigned with ```Normal``` event type while ```TestFailed``` and ```TestTimedOut``` events are assigned with ```Warning``` event type.
 
 ## Advanced Configuration - ConfigMap
-You can provide a config map to specify test recipe details for the test runner. Create the config map then specify the config map name in the deviceconfig Custom Resource(CR) for test runner to pick up the config. 
-
-```{note}
-  If you want to update the config for test runner on the fly, directly update the configmap then the test runner can pick up the new config. After reading the new config, test runner's ongoing test won't be interrupted and still going with old config. The new config will be applied to the next test run.
-```
-
-Here is an example config map:
+You can provide a config map to specify test recipe details for the test runner. Create the config map then specify the config map name in the deviceconfig Custom Resource(CR) for test runner to pick up the config. Here is an example config map:
 
 ```yaml
 apiVersion: v1
@@ -233,17 +227,16 @@ Config map explanation:
 
   * Recipe:
 
-    Please check the [Appendix](./appendix-test-recipe.md) for more details about all available test recipes. Default test recipe is ```gst_single```.
+    Please check the [Appendix](./appendix-test-recipe.md) for more details about all available test recipes.
 
   * Iterations:
   
-    Number of iterations to run for each test run. Default value is ```1```.
+    Number of iterations to run for each test run.
 
   * StopOnFailure:
   
-    If any iteration of test run failed, whether to stop the entire test run or not. Default is ```true```.
+    If any iteration of test run failed, whether to stop the entire test run or not.
 
   * TimeoutSeconds:
 
-    Total timeout for the whole test run. Default value is ```600```.
-
+    Total timeout for the whole test run.
