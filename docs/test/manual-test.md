@@ -220,8 +220,8 @@ LAST SEEN   TYPE     REASON       OBJECT                                    MESS
 ```
 More detailed information about test result events can be found in [this section](./auto-unhealthy-device-test.md#check-test-result-event).
 
-## Advanced Configuration - Test Recipes
-You can create a config map to customize the test triggger and recipe configs. For the example config map and explanation please check [this section](./auto-unhealthy-device-test.md#advanced-configuration---test-recipes).
+## Advanced Configuration - ConfigMap
+You can create a config map to customize the test triggger and recipe configs. For the example config map and explanation please check [this section](./auto-unhealthy-device-test.md#advanced-configuration---configmap).
 
 After creating the config map, you can specify the volume and volume mount to mount the config map into test runner container. 
 

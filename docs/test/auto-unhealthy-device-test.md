@@ -145,7 +145,7 @@ in the above example ```35824``` is the GPU's GUID, ```gpustress-8000-device-fal
 * ```source``` shows where the event came from, including component name ```amd-test-runner``` and worker node's host name.
 * ```type``` classifies the event into different level. For test runner generated event, ```TestPassed``` events are assigned with ```Normal``` event type while ```TestFailed``` and ```TestTimedOut``` events are assigned with ```Warning``` event type.
 
-## Advanced Configuration - Test Recipes
+## Advanced Configuration - ConfigMap
 You can provide a config map to specify test recipe details for the test runner. Create the config map then specify the config map name in the deviceconfig Custom Resource(CR) for test runner to pick up the config. Here is an example config map:
 
 ```yaml
@@ -218,7 +218,24 @@ Config map explanation:
   
   Under ```TestParameters``` there is a map from test trigger to specific test case configs, which means the configs are setup for the corresponding test triggers (```AUTO_UNHEALTHY_GPU_WATCH```, ```MANUAL``` and ```PRE_START_JOB_CHECK```) 
 
-* Test Recipes:
+* Test Cases:
+  ```{note}
+  Test case is a list under each test trigger, in the current release only the first test case in the list will be executed.
+  ```
 
-  Please check the [Appendix](./appendix-test-recipe.md) for more details about all available test recipes.
+  * Recipe:
+
+    Please check the [Appendix](./appendix-test-recipe.md) for more details about all available test recipes.
+
+  * Iterations:
+  
+    Number of iterations to run for each test run.
+
+  * StopOnFailure:
+  
+    If any iteration of test run failed, whether to stop the entire test run or not.
+
+  * TimeoutSeconds:
+
+    Total timeout for the whole test run.
 

@@ -130,7 +130,7 @@ LAST SEEN   TYPE     REASON       OBJECT                                    MESS
 ```
 More detailed information about test result events can be found in [this section](./auto-unhealthy-device-test.md#check-test-result-event).
 
-## Advanced Configuration - Test Recipes
+## Advanced Configuration - ConfigMap
 You can create a config map to customize the test triggger and recipe configs. For the example config map and explanation please check [this section](./auto-unhealthy-device-test.md#advanced-test-configuration).
 
 After creating the config map, you can specify the volume and volume mount to mount the config map into test runner container. 
@@ -138,7 +138,7 @@ After creating the config map, you can specify the volume and volume mount to mo
 * In the config map the file name must be named as ```config.json```
 * Within the test runner container the mount path should be ```/etc/test-runner/```
 
-The example of mounting config map into test runner container can be found in [this section](./manual-test.md#advanced-configuration---test-recipes).
+The example of mounting config map into test runner container can be found in [this section](./manual-test.md#advanced-configuration---configmap).
 
 ## Advanced Configuration - Logs Mount
 
