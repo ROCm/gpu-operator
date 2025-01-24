@@ -2558,28 +2558,27 @@
   "templating": {
     "list": [
       {
-        "allValue": "+",
         "current": {},
         "datasource": {
           "type": "prometheus",
           "uid": "${DS_PROMETHEUS}"
         },
-        "definition": "label_values(job_id)",
+        "definition": "label_values(cluster_name)",
         "hide": 0,
         "includeAll": false,
-        "label": "Job",
+        "label": "Cluster",
         "multi": false,
-        "name": "g_job_id",
+        "name": "g_cluster_name",
         "options": [],
         "query": {
           "qryType": 1,
-          "query": "label_values(job_id)",
+          "query": "label_values(cluster_name)",
           "refId": "PrometheusVariableQueryEditor-VariableQuery"
         },
         "refresh": 2,
         "regex": "",
         "skipUrlSync": false,
-        "sort": 0,
+        "sort": 7,
         "type": "query"
       },
       {
@@ -2589,7 +2588,32 @@
           "type": "prometheus",
           "uid": "${DS_PROMETHEUS}"
         },
-        "definition": "label_values(pod)",
+        "definition": "label_values({cluster_name=\"$g_cluster_name\"},job_id)",
+        "hide": 0,
+        "includeAll": false,
+        "label": "Job",
+        "multi": false,
+        "name": "g_job_id",
+        "options": [],
+        "query": {
+          "qryType": 1,
+          "query": "label_values({cluster_name=\"$g_cluster_name\"},job_id)",
+          "refId": "PrometheusVariableQueryEditor-VariableQuery"
+        },
+        "refresh": 2,
+        "regex": "",
+        "skipUrlSync": false,
+        "sort": 7,
+        "type": "query"
+      },
+      {
+        "allValue": "+",
+        "current": {},
+        "datasource": {
+          "type": "prometheus",
+          "uid": "${DS_PROMETHEUS}"
+        },
+        "definition": "label_values({cluster_name=\"$g_cluster_name\"},pod)",
         "hide": 0,
         "includeAll": false,
         "label": "Pod",
@@ -2598,13 +2622,13 @@
         "options": [],
         "query": {
           "qryType": 1,
-          "query": "label_values(pod)",
+          "query": "label_values({cluster_name=\"$g_cluster_name\"},pod)",
           "refId": "PrometheusVariableQueryEditor-VariableQuery"
         },
         "refresh": 2,
         "regex": "",
         "skipUrlSync": false,
-        "sort": 0,
+        "sort": 7,
         "type": "query"
       }
     ]
