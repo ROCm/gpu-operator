@@ -1,9 +1,9 @@
 # Release Helm Chart Repository
 
 ```bash
-# Build Helm Charts from main/master branch
+# Build Helm Charts from a release branch branch
 cd helm-charts; helm dependency update; helm lint; cd ..; helm package helm-charts/
-git checkout gh-pages
+git checkout -- helm-charts/; git checkout gh-pages
 mv gpu-operator*.tgz ./charts/
 
 # Update the index.yml
