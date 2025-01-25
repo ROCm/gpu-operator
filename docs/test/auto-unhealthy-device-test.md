@@ -50,14 +50,14 @@ Once device metrics exporter and test runner were brought up by applying the cor
 ```kubectl logs -n kube-amd-gpu test-deviceconfig-test-runner-r9gjr```
 
 ## Check test running node labels
-When the test is ongoing the corresponding label will be added to the node resource: ```"amd.testrunner.GPU_HEALTH_CHECK.gst_single": "running"```, the test running label will be removed once the test completed.
+When the test is ongoing the corresponding label will be added to the node resource: ```"amd.testrunner.gpu_health_check.gst_single": "running"```, the test running label will be removed once the test completed.
 
 ## Check test result event
 The test runner generated event can be found from the operator's namespace: 
 ```bash
 $ kubectl get events -n kube-amd-gpu
-LAST SEEN   TYPE     REASON       OBJECT                                    MESSAGE
-107s        Normal   TestPassed   pod/test-deviceconfig-test-runner-r9gjr   {"35824":{"gpustress-8000-device-false":"success","gpustress-8000-dgemm-false":"success","gpustress-8000-dgemm-true":"success","gpustress-8000-hgemm-false":"success","gpustress-8000-hgemm-true":"success","gpustress-8000-sgemm-true":"success","gpustress-9000-sgemm-false":"success"}}
+LAST SEEN   TYPE      REASON                    OBJECT                                            MESSAGE
+8m8s        Normal    TestFailed                pod/test-runner-manual-trigger-c4hpw              [{"number":1,"suitesResult":{"42924":{"gpustress-3000-dgemm-false":"success","gpustress-41000-fp32-false":"failure","gst-1215Tflops-4K4K8K-rand-fp8":"failure","gst-8096-150000-fp16":"success"}}}]
 ```
 
 Test runner generated event can be retrieved by filtering the source component: ```kubectl get events -n kube-amd-gpu -o=jsonpath='{.items[?(@.source.component=="amd-test-runner")]}'``` Here is an example event resource:
@@ -67,18 +67,18 @@ Test runner generated event can be retrieved by filtering the source component: 
   "apiVersion": "v1",
   "count": 1,
   "eventTime": null,
-  "firstTimestamp": "2025-01-06T21:55:55Z",
+  "firstTimestamp": "2025-01-24T09:58:22Z",
   "involvedObject": {
     "kind": "Pod",
-    "name": "test-deviceconfig-test-runner-r9gjr",
-    "namespace": "kube-amd-gpu"
+    "name": "test-runner-manual-trigger-b8vwt",
+    "namespace": "default"
   },
   "kind": "Event",
-  "lastTimestamp": "2025-01-06T21:55:55Z",
-  "message": "{\"35824\":{\"gpustress-8000-device-false\":\"success\",\"gpustress-8000-dgemm-false\":\"success\",\"gpustress-8000-dgemm-true\":\"success\",\"gpustress-8000-hgemm-false\":\"success\",\"gpustress-8000-hgemm-true\":\"success\",\"gpustress-8000-sgemm-true\":\"success\",\"gpustress-9000-sgemm-false\":\"success\"}}",
+  "lastTimestamp": "2025-01-24T09:58:22Z",
+  "message": "[{\"number\":1,\"suitesResult\":{\"42924\":{\"gpustress-3000-dgemm-false\":\"success\",\"gpustress-41000-fp32-false\":\"failure\",\"gst-1215Tflops-4K4K8K-rand-fp8\":\"failure\",\"gst-8096-150000-fp16\":\"failure\"}}}]",
   "metadata": {
-    "creationTimestamp": "2025-01-06T21:55:55Z",
-    "generateName": "amd-test-runner-gpu_health_check-auto_unhealthy_gpu_watch-gst_single-",
+    "creationTimestamp": "2025-01-24T09:58:22Z",
+    "generateName": "amd-test-runner-gpu_health_check-manual-gst_single-",
     "managedFields": [
       {
         "apiVersion": "v1",
@@ -101,20 +101,20 @@ Test runner generated event can be retrieved by filtering the source component: 
         },
         "manager": "amd-test-runner",
         "operation": "Update",
-        "time": "2025-01-06T21:55:55Z"
+        "time": "2025-01-24T09:58:22Z"
       }
     ],
-    "name": "amd-test-runner-gpu_health_check-auto_unhealthy_gpu_watch-8q8xc",
-    "namespace": "kube-amd-gpu",
-    "resourceVersion": "10788979",
-    "uid": "edf07bd9-cd50-4606-8138-9782ce1b4ee4"
+    "name": "amd-test-runner-gpu_health_check-manual-gst_single-ltbrw",
+    "namespace": "default",
+    "resourceVersion": "18593802",
+    "uid": "2542dd42-b097-4123-870b-d4b11ccbdb2e"
   },
-  "reason": "TestPassed",
+  "reason": "TestFailed",
   "reportingComponent": "",
   "reportingInstance": "",
   "source": {
     "component": "amd-test-runner",
-    "host": "leto"
+    "host": "node1"
   },
   "type": "Normal"
 }
@@ -126,19 +126,21 @@ Test runner generated event can be retrieved by filtering the source component: 
  
 ```bash
 $ kubectl get events -o=jsonpath='{.items[?(@.source.component=="amd-test-runner")]}' -n kube-amd-gpu | jq -r .message | jq .
-{
-  "35824": {
-    "gpustress-8000-device-false": "success",
-    "gpustress-8000-dgemm-false": "success",
-    "gpustress-8000-dgemm-true": "success",
-    "gpustress-8000-hgemm-false": "success",
-    "gpustress-8000-hgemm-true": "success",
-    "gpustress-8000-sgemm-true": "success",
-    "gpustress-9000-sgemm-false": "success"
+[
+  {
+    "number": 1,
+    "suitesResult": {
+      "42924": {
+        "gpustress-3000-dgemm-false": "success",
+        "gpustress-41000-fp32-false": "failure",
+        "gst-1215Tflops-4K4K8K-rand-fp8": "failure",
+        "gst-8096-150000-fp16": "failure"
+      }
+    }
   }
-}
+]
 ```
-in the above example ```35824``` is the GPU's GUID, ```gpustress-8000-device-false``` represents a specific test action and ```success``` is the action's result.
+in the above example ```42924``` is the GPU's GUID, ```gpustress-3000-dgemm-false``` represents a specific test action and ```success``` is the action's result.
 
 * ```metadata``` contains the basic information of event.
 * ```reason``` gives an overall result of the whole test run, it could be ```TestPassed```, ```TestFailed``` or ```TestTimedOut```.
@@ -146,7 +148,13 @@ in the above example ```35824``` is the GPU's GUID, ```gpustress-8000-device-fal
 * ```type``` classifies the event into different level. For test runner generated event, ```TestPassed``` events are assigned with ```Normal``` event type while ```TestFailed``` and ```TestTimedOut``` events are assigned with ```Warning``` event type.
 
 ## Advanced Configuration - ConfigMap
-You can provide a config map to specify test recipe details for the test runner. Create the config map then specify the config map name in the deviceconfig Custom Resource(CR) for test runner to pick up the config. Here is an example config map:
+You can provide a config map to specify test recipe details for the test runner. Create the config map then specify the config map name in the deviceconfig Custom Resource(CR) for test runner to pick up the config. 
+
+```{note}
+  If you want to update the config for test runner on the fly, directly update the configmap then the test runner can pick up the new config. After reading the new config, test runner's ongoing test won't be interrupted and still going with old config. The new config will be applied to the next test run.
+```
+
+Here is an example config map:
 
 ```yaml
 apiVersion: v1

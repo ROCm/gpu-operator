@@ -42,7 +42,7 @@ subjects:
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: test-runner-config-map
+  name: pre-job-test-config-map
   namespace: default
 data: # file name within configmap should be config.json
   config.json: |
@@ -104,7 +104,7 @@ spec:
       volumes:
       - name: config-volume
         configMap:
-          name: test-runner-config-map
+          name: pre-job-test-config-map
       initContainers:
       - name: init-test-runner
         image: registry.test.pensando.io:5000/test-runner/test-runner:dev

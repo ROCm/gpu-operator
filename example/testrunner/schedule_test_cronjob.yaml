@@ -42,7 +42,7 @@ subjects:
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: test-runner-config-map
+  name: manual-scheduled-config-map
   namespace: default
 data: # file name within configmap should be config.json
   config.json: |
@@ -88,26 +88,40 @@ kind: CronJob
 metadata:
   name: test-runner-manual-trigger-cron-job-midnight
 spec:
+  # check specific schedule config at https://kubernetes.io/docs/concepts/workloads/controllers/cron-jobs/#writing-a-cronjob-spec
   schedule: "0 0 * * *" # This schedule runs the job daily at midnight
   jobTemplate:
     spec:
       template:
         spec:
           serviceAccountName: test-run
-          volumes:
+          nodeSelector:
+            kubernetes.io/hostname: node1 # requesting to run test on node1
+          volumes: # mount driver related directory and device interface
+          - name: kfd
+            hostPath:
+              path: /dev/kfd
+              type: CharDevice
+          - name: dri
+            hostPath:
+              path: /dev/dri
+              type: Directory
           - name: config-volume
             configMap:
-              name: test-runner-config-map
+              name: manual-scheduled-config-map
           containers:
           - name: init-test-runner
             image: registry.test.pensando.io:5000/test-runner/test-runner:dev
             imagePullPolicy: IfNotPresent
-            resources:
-              limits:
-                amd.com/gpu: 1 # requesting a GPU
-            volumeMounts: # mount config map into /etc/test-runner/ within container
-            - name: config-volume
-              mountPath: /etc/test-runner/
+            securityContext: # setup security context for container to get access to device related interfaces
+              privileged: true
+            volumeMounts:
+            - mountPath: /dev/dri
+              name: dri
+            - mountPath: /dev/kfd
+              name: kfd
+            - mountPath: /etc/test-runner/
+              name: config-volume
             env:
             - name: TEST_TRIGGER
               value: "MANUAL"

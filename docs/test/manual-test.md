@@ -2,10 +2,10 @@
 
 ## Manual test trigger
 
-To start the manual test, test runner doesn't need to be brought up by operator. Just directly create the Kubernetes job resource by using the test runner image with proper configuration, then the test will be triggered.
+To start the manual test, directly use the test runner image to create the Kubernetes job and related resources, then the test will be triggered manually.
 
-## Configure manual test job
-The test job requires RBAC config to grant the test runner access to export events and add node labels to the cluster. Here is an example of configuring the RBAC and Job resources:
+## Use Case 1 - GPU is unhealthy on the node
+When any GPU on a specific worker node is unhealthy, you can manually trigger a test / benchmark run on that worker node to check more details on the unhealthy state. The test job requires RBAC config to grant the test runner access to export events and add node labels to the cluster. Here is an example of configuring the RBAC and Job resources:
 
 ```yaml
 apiVersion: v1
@@ -58,13 +58,28 @@ spec:
   template:
     spec:
       serviceAccountName: test-run
+      nodeSelector:
+        kubernetes.io/hostname: node1 # requesting to run test on node1
+      volumes: # mount driver related directory and device interface
+      - name: kfd
+        hostPath:
+          path: /dev/kfd
+          type: CharDevice
+      - name: dri
+        hostPath:
+          path: /dev/dri
+          type: Directory
       containers:
       - name: amd-test-runner
         image: registry.test.pensando.io:5000/test-runner/test-runner:dev
         imagePullPolicy: IfNotPresent
-        resources:
-          limits:
-            amd.com/gpu: 1 # requesting a GPU
+        securityContext: # setup security context for container to get access to device related interfaces
+          privileged: true
+        volumeMounts:
+        - mountPath: /dev/dri
+          name: dri
+        - mountPath: /dev/kfd
+          name: kfd
         env:
         - name: TEST_TRIGGER
           value: "MANUAL" # Set the TEST_TRIGGER environment variable to MANUAL for manual test
@@ -85,7 +100,88 @@ spec:
   ttlSecondsAfterFinished: 120 # TTL for the job to be auto cleaned
 ```
 
-## Check test runner job and pod
+## Use Case 2 - GPUs are healthy on the node
+When all the GPUs on a specific worker node are healthy, you can manually trigger a benchmark test run by requesting all the GPU resources ```amd.com/gpu``` on that worker node. The test job requires RBAC config to grant the test runner access to export events and add node labels to the cluster. Here is an example of configuring the RBAC and Job resources:
+
+```yaml
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: test-run
+  namespace: default
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: test-run-cluster-role
+rules:
+- apiGroups:
+  - ""
+  resources:
+  - events
+  verbs:
+  - get
+  - list
+  - watch
+  - create
+  - update
+- apiGroups:
+  - ""
+  resources:
+  - nodes
+  verbs:
+  - patch
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: test-run-rb
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: test-run-cluster-role
+subjects:
+- kind: ServiceAccount
+  name: test-run
+  namespace: default
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: test-runner-manual-trigger
+  namespace: default
+spec:
+  template:
+    spec:
+      serviceAccountName: test-run
+      nodeSelector:
+        kubernetes.io/hostname: node1 # requesting to run test on node1
+      containers:
+      - resources:
+          limits:
+            amd.com/gpu: 8 # requesting all GPUs on the node
+        name: amd-test-runner
+        image: registry.test.pensando.io:5000/test-runner/test-runner:dev
+        imagePullPolicy: IfNotPresent
+        env:
+        - name: TEST_TRIGGER
+          value: "MANUAL" # Set the TEST_TRIGGER environment variable to MANUAL for manual test
+        - name: POD_NAME # Use downward API to pass pod name to test runner container
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
+        - name: POD_NAMESPACE # Use downward API to pass pod namespace to test runner container
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
+        - name: NODE_NAME # Use downward API to pass host name to test runner container
+          valueFrom:
+            fieldRef:
+              fieldPath: spec.nodeName
+      restartPolicy: Never
+  backoffLimit: 1
+  ttlSecondsAfterFinished: 120 # TTL for the job to be auto cleaned
+```
 
 When test is running:
 ```
@@ -110,7 +206,7 @@ test-runner-manual-trigger-fnvhn   0/1     Completed   0          7m19s
 ```
 
 ## Scheduled Job
-Furthermore, test runner images can also be utilized in Kubernetes CrobJob, which allow the test job to be regularly scheduled in the system.
+Furthermore, test runner images can also be utilized in Kubernetes CronJob, which allows the test job to be scheduled in the cluster.
 
 ```yaml
 apiVersion: v1
@@ -166,13 +262,28 @@ spec:
       template:
         spec:
           serviceAccountName: test-run
+          nodeSelector:
+            kubernetes.io/hostname: node1 # requesting to run test on node1
+          volumes: # mount driver related directory and device interface
+          - name: kfd
+            hostPath:
+              path: /dev/kfd
+              type: CharDevice
+          - name: dri
+            hostPath:
+              path: /dev/dri
+              type: Directory
           containers:
           - name: init-test-runner
             image: registry.test.pensando.io:5000/test-runner/test-runner:dev
             imagePullPolicy: IfNotPresent
-            resources:
-              limits:
-                amd.com/gpu: 1 # requesting a GPU
+            securityContext: # setup security context for container to get access to device related interfaces
+              privileged: true
+            volumeMounts:
+            - mountPath: /dev/dri
+              name: dri
+            - mountPath: /dev/kfd
+              name: kfd
             env:
             - name: TEST_TRIGGER
               value: "MANUAL"
@@ -209,14 +320,14 @@ test-runner-manual-trigger-cron-job-midnight-28936820-kkqnj   1/1     Running   
 ```
 
 ## Check test running node labels
-When the test is ongoing the corresponding label will be added to the node resource: ```"amd.testrunner.GPU_HEALTH_CHECK.gst_single": "running"```, the test running label will be removed once the test completed.
+When the test is ongoing the corresponding label will be added to the node resource: ```"amd.testrunner.gpu_health_check.gst_single": "running"```, the test running label will be removed once the test completed.
 
 ## Check test result event
 The test runner generated event can be found from Job resource defined namespace
 ```bash
-$ kubectl get events
-LAST SEEN   TYPE     REASON       OBJECT                                    MESSAGE
-107s        Normal   TestPassed   pod/test-deviceconfig-test-runner-r9gjr   {"35824":{"gpustress-8000-device-false":"success","gpustress-8000-dgemm-false":"success","gpustress-8000-dgemm-true":"success","gpustress-8000-hgemm-false":"success","gpustress-8000-hgemm-true":"success","gpustress-8000-sgemm-true":"success","gpustress-9000-sgemm-false":"success"}}
+$ kubectl get events -n kube-amd-gpu
+LAST SEEN   TYPE      REASON                    OBJECT                                            MESSAGE
+8m8s        Normal    TestFailed                pod/test-runner-manual-trigger-c4hpw              [{"number":1,"suitesResult":{"42924":{"gpustress-3000-dgemm-false":"success","gpustress-41000-fp32-false":"failure","gst-1215Tflops-4K4K8K-rand-fp8":"failure","gst-8096-150000-fp16":"success"}}}]
 ```
 More detailed information about test result events can be found in [this section](./auto-unhealthy-device-test.md#check-test-result-event).
 
@@ -272,6 +383,50 @@ subjects:
   name: test-run
   namespace: default
 ---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: manual-config-map
+  namespace: default
+data:
+  config.json: |
+    {
+      "TestConfig": {
+        "GPU_HEALTH_CHECK": {
+          "TestLocationTrigger": {
+            "global": {
+              "TestParameters": {
+                "MANUAL": {
+                  "TestCases": [
+                    {
+                      "Recipe": "gst_single",
+                      "Iterations": 1,
+                      "StopOnFailure": true,
+                      "TimeoutSeconds": 600
+                    }
+                  ]
+                }
+              }
+            },
+            "node1": {
+              "TestParameters": {
+                "MANUAL": {
+                  "TestCases": [
+                    {
+                      "Recipe": "babel",
+                      "Iterations": 1,
+                      "StopOnFailure": true,
+                      "TimeoutSeconds": 600
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+---
 apiVersion: batch/v1
 kind: Job
 metadata:
@@ -281,20 +436,33 @@ spec:
   template:
     spec:
       serviceAccountName: test-run
-      volumes:
+      nodeSelector:
+        kubernetes.io/hostname: node1 # requesting to run test on node1
+      volumes: # mount driver related directory and device interface
+      - name: kfd
+        hostPath:
+          path: /dev/kfd
+          type: CharDevice
+      - name: dri
+        hostPath:
+          path: /dev/dri
+          type: Directory
       - name: config-volume
         configMap:
-          name: test-runner-config-map
+          name: manual-config-map
       containers:
       - name: amd-test-runner
         image: registry.test.pensando.io:5000/test-runner/test-runner:dev
         imagePullPolicy: IfNotPresent
-        resources:
-          limits:
-            amd.com/gpu: 1 # requesting a GPU
+        securityContext: # setup security context for container to get access to device related interfaces
+          privileged: true
         volumeMounts:
-        - name: config-volume
-          mountPath: /etc/test-runner/
+        - mountPath: /dev/dri
+          name: dri
+        - mountPath: /dev/kfd
+          name: kfd
+        - mountPath: /etc/test-runner/
+          name: config-volume
         env:
         - name: TEST_TRIGGER
           value: "MANUAL" # Set the TEST_TRIGGER environment variable to MANUAL for manual test
@@ -367,6 +535,50 @@ subjects:
   name: test-run
   namespace: default
 ---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: manual-config-map
+  namespace: default
+data:
+  config.json: |
+    {
+      "TestConfig": {
+        "GPU_HEALTH_CHECK": {
+          "TestLocationTrigger": {
+            "global": {
+              "TestParameters": {
+                "MANUAL": {
+                  "TestCases": [
+                    {
+                      "Recipe": "gst_single",
+                      "Iterations": 1,
+                      "StopOnFailure": true,
+                      "TimeoutSeconds": 600
+                    }
+                  ]
+                }
+              }
+            },
+            "node1": {
+              "TestParameters": {
+                "MANUAL": {
+                  "TestCases": [
+                    {
+                      "Recipe": "babel",
+                      "Iterations": 1,
+                      "StopOnFailure": true,
+                      "TimeoutSeconds": 600
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+---
 apiVersion: batch/v1
 kind: Job
 metadata:
@@ -376,7 +588,20 @@ spec:
   template:
     spec:
       serviceAccountName: test-run
-      volumes:
+      nodeSelector:
+        kubernetes.io/hostname: node1 # requesting to run test on node1
+      volumes: # mount driver related directory and device interface
+      - name: kfd
+        hostPath:
+          path: /dev/kfd
+          type: CharDevice
+      - name: dri
+        hostPath:
+          path: /dev/dri
+          type: Directory
+      - name: config-volume
+        configMap:
+          name: manual-config-map
       - hostPath: # Specify to use this directory on the host as volume
           path: /var/log/amd-test-runner
           type: DirectoryOrCreate
@@ -385,11 +610,14 @@ spec:
       - name: amd-test-runner
         image: registry.test.pensando.io:5000/test-runner/test-runner:dev
         imagePullPolicy: IfNotPresent
-        resources:
-          limits:
-            amd.com/gpu: 1 # requesting a GPU
-        volumeMounts: # Specify to mount host path volume into specific directory
-        - mountPath: /var/log/amd-test-runner
+        securityContext: # setup security context for container to get access to device related interfaces
+          privileged: true
+        volumeMounts:
+        - mountPath: /dev/dri
+          name: dri
+        - mountPath: /dev/kfd
+          name: kfd
+        - mountPath: /var/log/amd-test-runner # Specify to mount host path volume into specific directory
           name: test-runner-volume
         env:
         - name: LOG_MOUNT_DIR # Use LOG_MOUNT_DIR envrionment variable to ask test runner to save logs in mounted directory
@@ -411,6 +639,14 @@ spec:
       restartPolicy: Never
   backoffLimit: 1
   ttlSecondsAfterFinished: 120 # TTL for the job to be auto cleaned
+```
+
+## Cleanup Manual / Scheduled Test
+
+When you create the manual or scheduled test resources, it is recommended to put all of them into one YAML file. By running commands like ```kubectl apply -f xxx.yaml``` all the related resources will be created. When you want to remove those resources jus run commands ```kubectl delete -f xxx.yaml``` to remove those resources from the cluster.
+
+```{warning}
+  For the Manual or Scheduled Test run, when you delete the resources that interrupts the test run, you need to double check the node labels to manually remove the test running label like ```"amd.testrunner.gpu_health_check.gst_single": "running"```.
 ```
 
 
