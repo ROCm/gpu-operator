@@ -320,7 +320,7 @@ test-runner-manual-trigger-cron-job-midnight-28936820-kkqnj   1/1     Running   
 ```
 
 ## Check test running node labels
-When the test is ongoing the corresponding label will be added to the node resource: ```"testrunner.amd.com.gpu_health_check.gst_single": "running"```, the test running label will be removed once the test completed.
+When the test is ongoing the corresponding label will be added to the node resource: ```"amd.testrunner.gpu_health_check.gst_single": "running"```, the test running label will be removed once the test completed.
 
 ## Check test result event
 The test runner generated event can be found from Job resource defined namespace
@@ -646,7 +646,5 @@ spec:
 When you create the manual or scheduled test resources, it is recommended to put all of them into one YAML file. By running commands like ```kubectl apply -f xxx.yaml``` all the related resources will be created. When you want to remove those resources jus run commands ```kubectl delete -f xxx.yaml``` to remove those resources from the cluster.
 
 ```{warning}
-  For the Manual or Scheduled Test run, when you delete the resources that interrupts the test run, you need to double check the node labels to manually remove the test running label like ```"testrunner.amd.com.gpu_health_check.gst_single": "running"```.
+  For the Manual or Scheduled Test run, when you delete the resources that interrupts the test run, you need to double check the node labels to manually remove the test running label like ```"amd.testrunner.gpu_health_check.gst_single": "running"```.
 ```
-
-

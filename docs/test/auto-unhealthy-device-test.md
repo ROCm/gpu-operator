@@ -50,7 +50,7 @@ Once device metrics exporter and test runner were brought up by applying the cor
 ```kubectl logs -n kube-amd-gpu test-deviceconfig-test-runner-r9gjr```
 
 ## Check test running node labels
-When the test is ongoing the corresponding label will be added to the node resource: ```"testrunner.amd.com.gpu_health_check.gst_single": "running"```, the test running label will be removed once the test completed.
+When the test is ongoing the corresponding label will be added to the node resource: ```"amd.testrunner.gpu_health_check.gst_single": "running"```, the test running label will be removed once the test completed.
 
 ## Check test result event
 The test runner generated event can be found from the operator's namespace: 
@@ -148,7 +148,13 @@ in the above example ```42924``` is the GPU's GUID, ```gpustress-3000-dgemm-fals
 * ```type``` classifies the event into different level. For test runner generated event, ```TestPassed``` events are assigned with ```Normal``` event type while ```TestFailed``` and ```TestTimedOut``` events are assigned with ```Warning``` event type.
 
 ## Advanced Configuration - ConfigMap
-You can provide a config map to specify test recipe details for the test runner. Create the config map then specify the config map name in the deviceconfig Custom Resource(CR) for test runner to pick up the config. Here is an example config map:
+You can provide a config map to specify test recipe details for the test runner. Create the config map then specify the config map name in the deviceconfig Custom Resource(CR) for test runner to pick up the config. 
+
+```{note}
+  If you want to update the config for test runner on the fly, directly update the configmap then the test runner can pick up the new config. After reading the new config, test runner's ongoing test won't be interrupted and still going with old config. The new config will be applied to the next test run.
+```
+
+Here is an example config map:
 
 ```yaml
 apiVersion: v1
