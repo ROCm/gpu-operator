@@ -14,13 +14,6 @@
       "description": "",
       "type": "datasource",
       "pluginId": "__expr__"
-    },
-    {
-      "name": "VAR_G_MI300_MODEL",
-      "type": "constant",
-      "label": "MI300 Model",
-      "value": "102-G30211-00",
-      "description": ""
     }
   ],
   "__elements": {},
@@ -34,7 +27,7 @@
       "type": "grafana",
       "id": "grafana",
       "name": "Grafana",
-      "version": "11.2.2+security-01"
+      "version": "11.2.2"
     },
     {
       "type": "datasource",
@@ -117,7 +110,7 @@
       },
       "gridPos": {
         "h": 6,
-        "w": 3,
+        "w": 2,
         "x": 0,
         "y": 0
       },
@@ -139,7 +132,7 @@
         "textMode": "auto",
         "wideLayout": true
       },
-      "pluginVersion": "11.2.2+security-01",
+      "pluginVersion": "11.2.2",
       "targets": [
         {
           "datasource": {
@@ -167,6 +160,99 @@
         "type": "prometheus",
         "uid": "${DS_PROMETHEUS}"
       },
+      "description": "Number of jobs",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "links": [
+            {
+              "targetBlank": true,
+              "title": "Go to Job Dashboard",
+              "url": "/d/ce1x81pyv3dvkb/job"
+            }
+          ],
+          "mappings": [],
+          "noValue": "0",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 2,
+        "x": 2,
+        "y": 0
+      },
+      "id": 22,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "percentChangeColorMode": "standard",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "pluginVersion": "11.2.2",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "disableTextWrap": false,
+          "editorMode": "builder",
+          "exemplar": false,
+          "expr": "sum(group by(job_id) (gpu_gfx_activity{job_id!=\"\"}))",
+          "fullMetaSearch": false,
+          "includeNullMetadata": true,
+          "instant": false,
+          "legendFormat": "Jobs",
+          "range": true,
+          "refId": "A",
+          "useBackend": false
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "editorMode": "builder",
+          "exemplar": false,
+          "expr": "sum(group by(pod) (gpu_gfx_activity{pod!=\"\"}))",
+          "hide": false,
+          "instant": false,
+          "legendFormat": "Pods",
+          "range": true,
+          "refId": "B"
+        }
+      ],
+      "title": "Jobs",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
       "description": "Total power usage, in Watts",
       "fieldConfig": {
         "defaults": {
@@ -180,10 +266,6 @@
               {
                 "color": "green",
                 "value": null
-              },
-              {
-                "color": "red",
-                "value": 80
               }
             ]
           },
@@ -193,8 +275,8 @@
       },
       "gridPos": {
         "h": 4,
-        "w": 5,
-        "x": 3,
+        "w": 4,
+        "x": 4,
         "y": 0
       },
       "id": 2,
@@ -216,7 +298,7 @@
         "textMode": "auto",
         "wideLayout": true
       },
-      "pluginVersion": "11.2.2+security-01",
+      "pluginVersion": "11.2.2",
       "targets": [
         {
           "datasource": {
@@ -225,14 +307,42 @@
           },
           "disableTextWrap": false,
           "editorMode": "builder",
-          "expr": "sum(gpu_power_usage)",
+          "expr": "sum(gpu_average_package_power)",
           "fullMetaSearch": false,
+          "hide": true,
           "includeNullMetadata": true,
           "instant": false,
-          "legendFormat": "Power Usage (W)",
+          "legendFormat": "Average Package Power (W)",
           "range": true,
           "refId": "A",
           "useBackend": false
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "disableTextWrap": false,
+          "editorMode": "builder",
+          "expr": "sum(gpu_package_power)",
+          "fullMetaSearch": false,
+          "hide": true,
+          "includeNullMetadata": true,
+          "instant": false,
+          "legendFormat": "Current Package Power (W)",
+          "range": true,
+          "refId": "B",
+          "useBackend": false
+        },
+        {
+          "datasource": {
+            "type": "__expr__",
+            "uid": "${DS_EXPRESSION}"
+          },
+          "expression": "$A+$B",
+          "hide": false,
+          "refId": "Total Package Power Usage",
+          "type": "math"
         }
       ],
       "title": "Total Power Usage",
@@ -287,7 +397,7 @@
         "textMode": "auto",
         "wideLayout": true
       },
-      "pluginVersion": "11.2.2+security-01",
+      "pluginVersion": "11.2.2",
       "targets": [
         {
           "datasource": {
@@ -375,7 +485,7 @@
         "textMode": "auto",
         "wideLayout": true
       },
-      "pluginVersion": "11.2.2+security-01",
+      "pluginVersion": "11.2.2",
       "targets": [
         {
           "datasource": {
@@ -480,7 +590,7 @@
             {
               "targetBlank": true,
               "title": "Go to GPU dashboard",
-              "url": "/d/ae0aj8euc43r4b/gpu?var-g_gpu_uuid=${__field.labels.gpu_uuid}"
+              "url": "/d/ae0aj8euc43r4b/gpu?var-g_gpu_uuid=${__field.labels.gpu_uuid}&var-g_hostname=${__field.labels.hostname}&var-g_gpu_id=${__field.labels.gpu_id}"
             }
           ],
           "mappings": [],
@@ -526,7 +636,7 @@
         "textMode": "auto",
         "wideLayout": true
       },
-      "pluginVersion": "11.2.2+security-01",
+      "pluginVersion": "11.2.2",
       "targets": [
         {
           "datasource": {
@@ -603,7 +713,7 @@
         "textMode": "auto",
         "wideLayout": true
       },
-      "pluginVersion": "11.2.2+security-01",
+      "pluginVersion": "11.2.2",
       "targets": [
         {
           "datasource": {
@@ -676,7 +786,7 @@
         "textMode": "auto",
         "wideLayout": true
       },
-      "pluginVersion": "11.2.2+security-01",
+      "pluginVersion": "11.2.2",
       "targets": [
         {
           "datasource": {
@@ -729,8 +839,8 @@
       },
       "gridPos": {
         "h": 4,
-        "w": 5,
-        "x": 3,
+        "w": 4,
+        "x": 4,
         "y": 4
       },
       "id": 24,
@@ -751,7 +861,7 @@
         "textMode": "auto",
         "wideLayout": true
       },
-      "pluginVersion": "11.2.2+security-01",
+      "pluginVersion": "11.2.2",
       "targets": [
         {
           "datasource": {
@@ -805,7 +915,7 @@
         "type": "prometheus",
         "uid": "${DS_PROMETHEUS}"
       },
-      "description": "Number of jobs",
+      "description": "\\# of GPUs allocated by jobs",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -814,8 +924,8 @@
           "links": [
             {
               "targetBlank": true,
-              "title": "Go to Job Dashboard",
-              "url": "/d/ce1x81pyv3dvkb/job"
+              "title": "Go to GPU Dashboard",
+              "url": "/d/ae0aj8euc43r4b/gpu"
             }
           ],
           "mappings": [],
@@ -834,16 +944,16 @@
       },
       "gridPos": {
         "h": 6,
-        "w": 3,
+        "w": 4,
         "x": 0,
         "y": 6
       },
-      "id": 22,
+      "id": 34,
       "options": {
         "colorMode": "value",
-        "graphMode": "none",
+        "graphMode": "area",
         "justifyMode": "auto",
-        "orientation": "auto",
+        "orientation": "vertical",
         "percentChangeColorMode": "standard",
         "reduceOptions": {
           "calcs": [
@@ -853,27 +963,26 @@
           "values": false
         },
         "showPercentChange": false,
+        "text": {
+          "titleSize": 13
+        },
         "textMode": "auto",
         "wideLayout": true
       },
-      "pluginVersion": "11.2.2+security-01",
+      "pluginVersion": "11.2.2",
       "targets": [
         {
           "datasource": {
             "type": "prometheus",
             "uid": "${DS_PROMETHEUS}"
           },
-          "disableTextWrap": false,
           "editorMode": "builder",
           "exemplar": false,
-          "expr": "sum(group by(job_id) (gpu_gfx_activity{job_id!=\"\"}))",
-          "fullMetaSearch": false,
-          "includeNullMetadata": true,
-          "instant": false,
-          "legendFormat": "Jobs",
-          "range": true,
-          "refId": "A",
-          "useBackend": false
+          "expr": "sum(group by(gpu_uuid) (gpu_gfx_activity{job_id!=\"\"}))",
+          "instant": true,
+          "legendFormat": "Allocated by Jobs",
+          "range": false,
+          "refId": "A"
         },
         {
           "datasource": {
@@ -882,15 +991,29 @@
           },
           "editorMode": "builder",
           "exemplar": false,
-          "expr": "sum(group by(pod) (gpu_gfx_activity{pod!=\"\"}))",
+          "expr": "sum(group by(gpu_uuid) (gpu_gfx_activity{pod!=\"\"}))",
           "hide": false,
-          "instant": false,
-          "legendFormat": "Pods",
-          "range": true,
+          "instant": true,
+          "legendFormat": "Allocated by Pods",
+          "range": false,
           "refId": "B"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "editorMode": "code",
+          "exemplar": false,
+          "expr": "sum(group by(gpu_uuid) (gpu_gfx_activity > 0))",
+          "hide": false,
+          "instant": true,
+          "legendFormat": "Busy GPUs",
+          "range": false,
+          "refId": "C"
         }
       ],
-      "title": "Jobs",
+      "title": "Allocated GPUs",
       "type": "stat"
     },
     {
@@ -1027,8 +1150,8 @@
       },
       "gridPos": {
         "h": 4,
-        "w": 5,
-        "x": 3,
+        "w": 4,
+        "x": 4,
         "y": 8
       },
       "id": 8,
@@ -1050,7 +1173,7 @@
         "textMode": "auto",
         "wideLayout": true
       },
-      "pluginVersion": "11.2.2+security-01",
+      "pluginVersion": "11.2.2",
       "targets": [
         {
           "datasource": {
@@ -1408,7 +1531,7 @@
           },
           "disableTextWrap": false,
           "editorMode": "builder",
-          "expr": "avg(gpu_package_power)",
+          "expr": "avg(gpu_package_power{card_model=~\"102-G30211-00|102-G30211-0C|102-G30211-4C|102-G30212-0C|102-G30213-00|102-G30213-0C\"})",
           "fullMetaSearch": false,
           "includeNullMetadata": true,
           "instant": false,
@@ -1416,6 +1539,19 @@
           "range": true,
           "refId": "A",
           "useBackend": false
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "editorMode": "builder",
+          "expr": "avg(gpu_average_package_power{card_model!~\"102-G30211-00|102-G30211-0C|102-G30211-4C|102-G30212-0C|102-G30213-00|102-G30213-0C\"})",
+          "hide": false,
+          "instant": false,
+          "legendFormat": "GPU Power",
+          "range": true,
+          "refId": "B"
         }
       ],
       "title": "Average GPU Power",
@@ -1512,7 +1648,7 @@
           },
           "disableTextWrap": false,
           "editorMode": "builder",
-          "expr": "avg(gpu_edge_temperature{card_model!=\"$g_mi300_model\"})",
+          "expr": "avg(gpu_edge_temperature{card_model!~\"102-G30211-00|102-G30211-0C|102-G30211-4C|102-G30212-0C|102-G30213-00|102-G30213-0C\"})",
           "fullMetaSearch": false,
           "hide": false,
           "includeNullMetadata": true,
@@ -1529,7 +1665,7 @@
           },
           "disableTextWrap": false,
           "editorMode": "builder",
-          "expr": "avg(gpu_junction_temperature{card_model=\"$g_mi300_model\"})",
+          "expr": "avg(gpu_junction_temperature{card_model=~\"102-G30211-00|102-G30211-0C|102-G30211-4C|102-G30212-0C|102-G30213-00|102-G30213-0C\"})",
           "fullMetaSearch": false,
           "hide": false,
           "includeNullMetadata": true,
@@ -1812,7 +1948,7 @@
             {
               "targetBlank": true,
               "title": "Go to GPU Dashboard",
-              "url": "/d/ae0aj8euc43r4b/gpu?var-g_gpu_uuid=${__data.fields[\"gpu_uuid\"]}"
+              "url": "/d/ae0aj8euc43r4b/gpu?var-g_gpu_uuid=${__data.fields[\"gpu_uuid\"]}&var-g_hostname=${__data.fields.HOSTNAME}&var-g_gpu_id=${__data.fields[\"GPU ID\"]}"
             }
           ],
           "mappings": [],
@@ -1820,8 +1956,7 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green",
-                "value": null
+                "color": "green"
               }
             ]
           }
@@ -1883,7 +2018,7 @@
           }
         ]
       },
-      "pluginVersion": "11.2.2+security-01",
+      "pluginVersion": "11.2.2",
       "targets": [
         {
           "datasource": {
@@ -2030,26 +2165,6 @@
         "skipUrlSync": false,
         "sort": 0,
         "type": "query"
-      },
-      {
-        "hide": 2,
-        "label": "MI300 Model",
-        "name": "g_mi300_model",
-        "query": "${VAR_G_MI300_MODEL}",
-        "skipUrlSync": false,
-        "type": "constant",
-        "current": {
-          "value": "${VAR_G_MI300_MODEL}",
-          "text": "${VAR_G_MI300_MODEL}",
-          "selected": false
-        },
-        "options": [
-          {
-            "value": "${VAR_G_MI300_MODEL}",
-            "text": "${VAR_G_MI300_MODEL}",
-            "selected": false
-          }
-        ]
       }
     ]
   },
