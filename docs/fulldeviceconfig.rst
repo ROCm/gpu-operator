@@ -32,7 +32,7 @@ Below is an example of a full DeviceConfig CR that can be used to install the AM
     metadata:
       # Name of the DeviceConfig CR. Note that the name of device plugin, node-labeller and metric-explorter pods will be prefixed with 
       name: gpu-operator
-      # Namespace for the GPU Operator and it's components
+      # Namespace where the GPU Operator and its components will run
       namespace: kube-amd-gpu
     spec: 
       ## AMD GPU Driver Configuration ##
