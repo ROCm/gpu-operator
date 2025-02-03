@@ -37,9 +37,10 @@ Below is an example of a full DeviceConfig CR that can be used to install the AM
     spec: 
       ## AMD GPU Driver Configuration ##
       driver:
-        # Set enable to false to skip driver installation to use inbox or pre-installed driver on worker nodes
-        # Set enable to true to enable operator to install out-of-tree amdgpu kernel module
-        # Default value is true
+        # Set to false to use existing in-tree/pre-installed driver
+        # Set to true to install out-of-tree amdgpu kernel module
+        # Default: true
+``
         enable: false 
         # Set blacklist to true to blacklist the inbox / pre-installed amdgpu kernel module
         # Required when spec.driver.enable is true
