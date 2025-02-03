@@ -30,7 +30,7 @@ Below is an example of a full DeviceConfig CR that can be used to install the AM
     apiVersion: amd.com/v1alpha1 
     kind: DeviceConfig # New Custom Resource Definition used by the GPU Operator
     metadata:
-      # Name of the DeviceConfig CR. Note that the name of device plugin, node-labeller and metric-explorter pods will be prefixed with 
+      # Name that will prefix device plugin, node-labeller and metrics-exporter pods
       name: gpu-operator
       # Namespace where the GPU Operator and its components will run
       namespace: kube-amd-gpu
