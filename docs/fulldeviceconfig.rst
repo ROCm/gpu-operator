@@ -40,7 +40,6 @@ Below is an example of a full DeviceConfig CR that can be used to install the AM
         # Set to false to use existing in-tree/pre-installed driver
         # Set to true to install out-of-tree amdgpu kernel module
         # Default: true
-``
         enable: false 
         # Set blacklist to true to blacklist the inbox / pre-installed amdgpu kernel module
         # Required when spec.driver.enable is true
@@ -83,14 +82,23 @@ Below is an example of a full DeviceConfig CR that can be used to install the AM
         # (Optional) Enable or disable node labeller, default value is true
         enableNodeLabeller: true
       ## AMD GPU Metrics Exporter Configuration ##
-      metricsExporter: 
-        enable: False # False by Default. Set to True to enable the Metrics Exporter 
-        serviceType: ClusterIP # ServiceType used to expose the Metrics Exporter endpoint. Can be either `ClusterIp` or `NodePort`.
-        port: 5000 # Used to specify Port the Metrics Exporter service is exposed on when using ClusterIP serviceType
-        nodePort: 32500 # Used instead of `port` when using NodePort as the serviceType. The port number must be between 30000-32767
-        # (Optional) Specifying metrics exporter image is optional. Default imagename shown here if not specified.
-        image: rocm/device-metrics-exporter:latest # Change this to trigger metrics exporter upgrade on CR update
-        # (Optional) Specify image registry secret to pull metrics exporter image if needed. 
+      metricsExporter:
+        # Enable metrics collection and exposure (Default: false)
+        enable: False
+        # Service type for metrics endpoint exposure
+        # Values: ClusterIP, NodePort
+        # Default: ClusterIP
+        serviceType: ClusterIP
+        # Port for metrics endpoint when using ClusterIP
+        # Default: 5000
+        port: 5000
+        # Port for metrics endpoint when using NodePort
+        # Valid range: 30000-32767
+        # Default: 32500
+        nodePort: 32500
+        # Container image for metrics exporter
+        # Default: rocm/device-metrics-exporter:latest
+        image: rocm/device-metrics-exporter:latest
         # Private registry credentials (optional)
         imageRegistrySecret:
           name: exporter-image-pull-secret
