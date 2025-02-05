@@ -462,13 +462,13 @@ type TestRunnerSpec struct {
 	// +optional
 	UpgradePolicy *DaemonSetUpgradeSpec `json:"upgradePolicy,omitempty"`
 
-	// mount config for test runner logs
+	// captures logs location and export config for test runner logs
 	//+operator-sdk:csv:customresourcedefinitions:type=spec,displayName="LogsLocation",xDescriptors={"urn:alm:descriptor:com.amd.deviceconfigs:logsLocation"}
 	// +optional
 	LogsLocation LogsLocationConfig `json:"logsLocation,omitempty"`
 }
 
-// LogsLocationConfig contains the specific config for mounting test runner logs
+// LogsLocationConfig contains mount and export config for test runner logs
 type LogsLocationConfig struct {
 	// volume mount destination within test runner container
 	//+operator-sdk:csv:customresourcedefinitions:type=spec,displayName="MountPath",xDescriptors={"urn:alm:descriptor:com.amd.deviceconfigs:mountPath"}
@@ -481,6 +481,11 @@ type LogsLocationConfig struct {
 	// +kubebuilder:default="/var/log/amd-test-runner"
 	// +optional
 	HostPath string `json:"hostPath,omitempty"`
+
+	// LogsExportSecrets is a list of secrets that contain connectivity info to multiple cloud providers
+	//+operator-sdk:csv:customresourcedefinitions:type=spec,displayName="LogsExportSecrets",xDescriptors={"urn:alm:descriptor:com.amd.deviceconfigs:logsExportSecrets"}
+	// +optional
+	LogsExportSecrets []*v1.LocalObjectReference `json:"logsExportSecrets,omitempty"`
 }
 
 // UtilsContainerSpec contains parameters to configure operator's utils

@@ -35,6 +35,7 @@ package testrunner
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 
 	amdv1alpha1 "github.com/ROCm/gpu-operator/api/v1alpha1"
 	"github.com/rh-ecosystem-edge/kernel-module-management/pkg/labels"
@@ -165,6 +166,23 @@ func (nl *testRunner) SetTestRunnerAsDesired(ds *appsv1.DaemonSet, devConfig *am
 			Name:      "test-runner-config-volume",
 			MountPath: "/etc/test-runner/",
 		})
+	}
+
+	if len(trSpec.LogsLocation.LogsExportSecrets) > 0 {
+		for _, secret := range trSpec.LogsLocation.LogsExportSecrets {
+			volumes = append(volumes, v1.Volume{
+				Name: secret.Name,
+				VolumeSource: v1.VolumeSource{
+					Secret: &v1.SecretVolumeSource{
+						SecretName: secret.Name,
+					},
+				},
+			})
+			containerVolumeMounts = append(containerVolumeMounts, v1.VolumeMount{
+				Name:      secret.Name,
+				MountPath: filepath.Join("/etc", "logs-export-secrets", secret.Name),
+			})
+		}
 	}
 
 	matchLabels := map[string]string{
