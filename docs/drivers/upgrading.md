@@ -63,6 +63,7 @@ To check the full spec of upgrade configuration run kubectl get crds deviceconfi
 | `maxUnavailableNodes` | Maximum number (or Percentage) of nodes which can be unavailable (cordoned) in the cluster | `25%` |
 | `rebootRequired` | Reboot the node after driver upgrade is done. Waits for 60 mins post reboot before declaring as failed | `false` |
 
+**Warning**: When using ROCm drivers version 6.3 and below, a known issue may prevent the driver upgrade from fully completing unless the node is rebooted. As a workaround, we strongly recommend setting the `rebootRequired` field to `true` in your upgrade policy. This ensures that a reboot is triggered after the driver upgrade, allowing the new driver to be fully loaded. This workaround should be applied until a permanent fix is provided in a future release.
 
 #### `driver.upgradePolicy.nodeDrainPolicy` Parameters
 
