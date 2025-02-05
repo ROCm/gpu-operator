@@ -570,7 +570,8 @@ spec:
                     type: object
                     x-kubernetes-map-type: atomic
                   logsLocation:
-                    description: mount config for test runner logs
+                    description: captures logs location and export config for test
+                      runner logs
                     properties:
                       hostPath:
                         default: /var/log/amd-test-runner
