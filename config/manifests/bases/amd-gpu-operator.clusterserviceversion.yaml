@@ -418,7 +418,7 @@ spec:
         path: testRunner.imageRegistrySecret
         x-descriptors:
         - urn:alm:descriptor:com.amd.deviceconfigs:imageRegistrySecret
-      - description: mount config for test runner logs
+      - description: captures logs location and export config for test runner logs
         displayName: LogsLocation
         path: testRunner.logsLocation
         x-descriptors:
@@ -429,6 +429,12 @@ spec:
         path: testRunner.logsLocation.hostPath
         x-descriptors:
         - urn:alm:descriptor:com.amd.deviceconfigs:hostPath
+      - description: LogsExportSecrets is a list of secrets that contain connectivity
+          info to multiple cloud providers
+        displayName: LogsExportSecrets
+        path: testRunner.logsLocation.logsExportSecrets
+        x-descriptors:
+        - urn:alm:descriptor:com.amd.deviceconfigs:logsExportSecrets
       - description: volume mount destination within test runner container
         displayName: MountPath
         path: testRunner.logsLocation.mountPath

@@ -17,61 +17,33 @@ limitations under the License.
 package v1beta1
 
 import (
+	"fmt"
+	"strings"
+
+	"github.com/rh-ecosystem-edge/kernel-module-management/api/v1beta2"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"sigs.k8s.io/controller-runtime/pkg/conversion"
 )
 
 const (
-	VerificationTrue          string = "True"
-	VerificationFalse         string = "False"
-	VerificationStageImage    string = "Image"
-	VerificationStageBuild    string = "Build"
-	VerificationStageSign     string = "Sign"
-	VerificationStageRequeued string = "Requeued"
-	VerificationStageDone     string = "Done"
+	VerificationTrue          = v1beta2.VerificationTrue
+	VerificationFalse         = v1beta2.VerificationFalse
+	VerificationStageImage    = v1beta2.VerificationStageImage
+	VerificationStageBuild    = v1beta2.VerificationStageBuild
+	VerificationStageSign     = v1beta2.VerificationStageSign
+	VerificationStageRequeued = v1beta2.VerificationStageRequeued
+	VerificationStageDone     = v1beta2.VerificationStageDone
 )
 
 // PreflightValidationSpec describes the desired state of the resource, such as the kernel version
 // that Module CRs need to be verified against as well as the debug configuration of the logs
 // More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#spec-and-status
 // +kubebuilder:validation:Required
-type PreflightValidationSpec struct {
-	// KernelVersion describes the kernel image that all Modules need to be checked against.
-	// +kubebuilder:validation:Required
-	KernelVersion string `json:"kernelVersion"`
+// +kubebuilder:object:generate=false
+type PreflightValidationSpec = v1beta2.PreflightValidationSpec
 
-	// Boolean flag that determines whether images build during preflight must also
-	// be pushed to a defined repository
-	// +optional
-	PushBuiltImage bool `json:"pushBuiltImage"`
-}
-
-type CRStatus struct {
-	// Status of Module CR verification: true (verified), false (verification failed),
-	// error (error during verification process), unknown (verification has not started yet)
-	// +required
-	// +kubebuilder:validation:Required
-	// +kubebuilder:validation:Enum=True;False
-	VerificationStatus string `json:"verificationStatus"`
-
-	// StatusReason contains a string describing the status source.
-	// +optional
-	StatusReason string `json:"statusReason,omitempty"`
-
-	// Current stage of the verification process:
-	// image (image existence verification), build(build process verification)
-	// +required
-	// +kubebuilder:validation:Required
-	// +kubebuilder:validation:Enum=Image;Build;Sign;Requeued;Done
-	VerificationStage string `json:"verificationStage"`
-
-	// LastTransitionTime is the last time the CR status transitioned from one status to another.
-	// This should be when the underlying status changed.  If that is not known, then using the time when the API field changed is acceptable.
-	// +required
-	// +kubebuilder:validation:Required
-	// +kubebuilder:validation:Type=string
-	// +kubebuilder:validation:Format=date-time
-	LastTransitionTime metav1.Time `json:"lastTransitionTime" protobuf:"bytes,4,opt,name=lastTransitionTime"`
-}
+// +kubebuilder:object:generate=false
+type CRStatus = v1beta2.CRBaseStatus
 
 // PreflightValidationStatus is the most recently observed status of the PreflightValidation.
 // It is populated by the system and is read-only.
@@ -88,8 +60,8 @@ type PreflightValidationStatus struct {
 // +kubebuilder:subresource:status
 
 // PreflightValidation initiates a preflight validations for all Modules on the current Kubernetes cluster.
-// +kubebuilder:resource:path=preflightvalidations,scope=Cluster
 // +kubebuilder:resource:path=preflightvalidations,scope=Cluster,shortName=pfv
+// +kubebuilder:deprecatedversion
 // +operator-sdk:csv:customresourcedefinitions:displayName="Preflight Validation"
 type PreflightValidation struct {
 	metav1.TypeMeta   `json:",inline"`
@@ -98,6 +70,32 @@ type PreflightValidation struct {
 
 	Spec   PreflightValidationSpec   `json:"spec,omitempty"`
 	Status PreflightValidationStatus `json:"status,omitempty"`
+}
+
+func (p *PreflightValidation) ConvertTo(dstRaw conversion.Hub) error {
+	dst := dstRaw.(*v1beta2.PreflightValidation)
+
+	dst.ObjectMeta = p.ObjectMeta
+	dst.Spec = p.Spec
+
+	var err error
+
+	dst.Status, err = v1beta2StatusFromV1beta1(p.Status)
+	if err != nil {
+		return fmt.Errorf("error while converting status: %v", err)
+	}
+
+	return nil
+}
+
+func (p *PreflightValidation) ConvertFrom(srcRaw conversion.Hub) error {
+	src := srcRaw.(*v1beta2.PreflightValidation)
+
+	p.ObjectMeta = src.ObjectMeta
+	p.Spec = src.Spec
+	p.Status = v1beta1StatusFromV1beta2(src.Status)
+
+	return nil
 }
 
 // +kubebuilder:object:root=true
@@ -114,4 +112,49 @@ type PreflightValidationList struct {
 
 func init() {
 	SchemeBuilder.Register(&PreflightValidation{}, &PreflightValidationList{})
+}
+
+func v1beta1StatusFromV1beta2(s v1beta2.PreflightValidationStatus) PreflightValidationStatus {
+	res := PreflightValidationStatus{}
+
+	if count := len(s.Modules); count > 0 {
+		res.CRStatuses = make(map[string]*CRStatus, count)
+
+		for _, v := range s.Modules {
+			v := v
+			res.CRStatuses[v.Namespace+"/"+v.Name] = &v.CRBaseStatus
+
+			// This may lead to collisions, but at least we preserve backwards compatibility.
+			res.CRStatuses[v.Name] = &v.CRBaseStatus
+		}
+	}
+
+	return res
+}
+
+func v1beta2StatusFromV1beta1(s PreflightValidationStatus) (v1beta2.PreflightValidationStatus, error) {
+	res := v1beta2.PreflightValidationStatus{}
+
+	if count := len(s.CRStatuses); count > 0 {
+		res.Modules = make([]v1beta2.PreflightValidationModuleStatus, 0, count)
+
+		for k, v := range s.CRStatuses {
+			namespace, name, ok := strings.Cut(k, "/")
+
+			if !ok || v == nil {
+				// Elements whose key is not a namespace name or that are nil are invalid.
+				return v1beta2.PreflightValidationStatus{}, nil
+			}
+
+			status := v1beta2.PreflightValidationModuleStatus{
+				CRBaseStatus: *v,
+				Namespace:    namespace,
+				Name:         name,
+			}
+
+			res.Modules = append(res.Modules, status)
+		}
+	}
+
+	return res, nil
 }

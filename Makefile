@@ -17,13 +17,13 @@ GIT_COMMIT ?= $(shell git rev-parse --short HEAD)
 DOCKER_REGISTRY ?= docker.io/rocm
 IMAGE_NAME ?= gpu-operator
 IMAGE_TAG_BASE ?= $(DOCKER_REGISTRY)/$(IMAGE_NAME)
-IMAGE_TAG ?= dev
+IMAGE_TAG ?= $(PROJECT_VERSION)
 IMG ?= $(IMAGE_TAG_BASE):$(IMAGE_TAG)
 DOCKER_CONTAINER_IMG ?= $(IMAGE_NAME)-$(IMAGE_TAG)
 HOURLY_TAG_LABEL ?= latest
 
 # KMM related images
-KMM_IMAGE_TAG ?= latest
+KMM_IMAGE_TAG ?= $(PROJECT_VERSION)
 KMM_SIGNER_IMG ?= $(DOCKER_REGISTRY)/kernel-module-management-signimage:$(KMM_IMAGE_TAG)
 KMM_WORKER_IMG ?= $(DOCKER_REGISTRY)/kernel-module-management-worker:$(KMM_IMAGE_TAG)
 KMM_BUILDER_IMG ?= gcr.io/kaniko-project/executor:v1.23.2
@@ -97,9 +97,7 @@ BUNDLE_GEN_FLAGS ?= -q --overwrite --version $(shell echo $(PROJECT_VERSION) | s
 ENVTEST_K8S_VERSION = 1.23
 
 ##################
-# Makefile targets
-
-##@ QuickStart
+# Docker shell container variables
 # Setting SHELL to bash allows bash commands to be executed by recipes.
 # This is a requirement for 'setup-envtest.sh' in the test target.
 # Options are set to exit when a recipe line exits non-zero or a piped command fails.
@@ -115,8 +113,12 @@ CONTAINER_WORKDIR := /gpu-operator
 BUILD_BASE_IMG ?= ubuntu:22.04
 GOLANG_BASE_IMG ?= golang:1.23
 
+##################
+# Makefile targets
+
+##@ QuickStart
 .PHONY: default
-default: docker-build-env
+default: docker-build-env ## Quick start to build everything from docker shell container.
 	@echo "Starting a shell in the Docker build container..."
 	@docker run --rm -it --privileged \
 		--name gpu-operator-build \
@@ -124,10 +126,11 @@ default: docker-build-env
 		-e "USER_UID=$(shell id -u)" \
 		-e "USER_GID=$(shell id -g)" \
 		-v $(CURDIR):/gpu-operator \
+		-v $(CURDIR):/home/$(shell whoami)/go/src/github.com/ROCm/gpu-operator \
 		-v $(HOME)/.ssh:/home/$(shell whoami)/.ssh \
 		-w $(CONTAINER_WORKDIR) \
 		$(DOCKER_BUILDER_IMAGE) \
-		cd /gpu-operator && git config --global --add safe.directory /gpu-operator && make all
+		bash -c "source ~/.bashrc && cd /gpu-operator && git config --global --add safe.directory /gpu-operator && make all && GOFLAGS=-mod=mod go run tools/build/copyright/main.go && make fmt"
 
 .PHONY: docker-build-env
 docker-build-env:
@@ -136,7 +139,7 @@ docker-build-env:
 		-t $(DOCKER_BUILDER_IMAGE) --build-arg BUILD_BASE_IMG=$(BUILD_BASE_IMG) -f Dockerfile.build .
 
 .PHONY: docker/shell
-docker/shell: docker-build-env
+docker/shell: docker-build-env ## Bring up and attach to a container that has dev environment configured.
 	@echo "Starting a shell in the Docker build container..."
 	@docker run --rm -it --privileged \
 		--name gpu-operator-build \
