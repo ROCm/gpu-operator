@@ -5,6 +5,7 @@
 Test runner can be embedded as an init container within your Kubernetes workload pod definition. The init container will be executed before the actual workload containers start, in that way the system could be tested right before the workload start to use the hardware resource.
 
 ## Configure pre-start init container
+
 The init container requires RBAC config to grant the pod access to export events and add node labels to the cluster. Here is an example of configuring the RBAC and Job resources:
 
 ```yaml
@@ -102,7 +103,8 @@ spec:
 ## Check test runner init container
 
 When test runner is running:
-```
+
+```bash
 $ kubectl get pod
 NAME                                      READY   STATUS     RESTARTS   AGE
 pytorch-gpu-deployment-7c6bb979f5-p2wlk   0/1     Init:0/1   0          2m52s
@@ -112,25 +114,31 @@ Check test runner container logs:
 ```$ kubectl logs pytorch-gpu-deployment-7c6bb979f5-p2wlk -c init-test-runner```
 
 When test runner is completed, the workload container started to run:
-```
+
+```bash
 $ kubectl get pod
 NAME                                      READY   STATUS    RESTARTS   AGE
 pytorch-gpu-deployment-7c6bb979f5-p2wlk   1/1     Running   0          7m46s
 ```
 
 ## Check test running node labels
+
 When the test is ongoing the corresponding label will be added to the node resource: ```"amd.testrunner.gpu_health_check.gst_single": "running"```, the test running label will be removed once the test completed.
 
 ## Check test result event
+
 The test runner generated event can be found from Job resource defined namespace
+
 ```bash
 $ kubectl get events -n kube-amd-gpu
 LAST SEEN   TYPE      REASON                    OBJECT                                            MESSAGE
 8m8s        Normal    TestFailed                pod/test-runner-manual-trigger-c4hpw              [{"number":1,"suitesResult":{"42924":{"gpustress-3000-dgemm-false":"success","gpustress-41000-fp32-false":"failure","gst-1215Tflops-4K4K8K-rand-fp8":"failure","gst-8096-150000-fp16":"success"}}}]
 ```
+
 More detailed information about test result events can be found in [this section](./auto-unhealthy-device-test.md#check-test-result-event).
 
 ## Advanced Configuration - ConfigMap
+
 You can create a config map to customize the test triggger and recipe configs. For the example config map and explanation please check [this section](./auto-unhealthy-device-test.md#advanced-test-configuration).
 
 After creating the config map, you can specify the volume and volume mount to mount the config map into test runner container. 

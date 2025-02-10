@@ -141,5 +141,5 @@ spec:
             fieldRef:
               fieldPath: spec.nodeName
       restartPolicy: Never
-  backoffLimit: 1
+  backoffLimit: 0
   ttlSecondsAfterFinished: 120 # TTL for the job to be auto cleaned

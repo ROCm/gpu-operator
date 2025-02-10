@@ -5,6 +5,7 @@
 To start the manual test, directly use the test runner image to create the Kubernetes job and related resources, then the test will be triggered manually.
 
 ## Use Case 1 - GPU is unhealthy on the node
+
 When any GPU on a specific worker node is unhealthy, you can manually trigger a test / benchmark run on that worker node to check more details on the unhealthy state. The test job requires RBAC config to grant the test runner access to export events and add node labels to the cluster. Here is an example of configuring the RBAC and Job resources:
 
 ```yaml
@@ -96,11 +97,12 @@ spec:
             fieldRef:
               fieldPath: spec.nodeName
       restartPolicy: Never
-  backoffLimit: 1
+  backoffLimit: 0
   ttlSecondsAfterFinished: 120 # TTL for the job to be auto cleaned
 ```
 
 ## Use Case 2 - GPUs are healthy on the node
+
 When all the GPUs on a specific worker node are healthy, you can manually trigger a benchmark test run by requesting all the GPU resources ```amd.com/gpu``` on that worker node. The test job requires RBAC config to grant the test runner access to export events and add node labels to the cluster. Here is an example of configuring the RBAC and Job resources:
 
 ```yaml
@@ -179,12 +181,13 @@ spec:
             fieldRef:
               fieldPath: spec.nodeName
       restartPolicy: Never
-  backoffLimit: 1
+  backoffLimit: 0
   ttlSecondsAfterFinished: 120 # TTL for the job to be auto cleaned
 ```
 
 When test is running:
-```
+
+```bash
 $ kubectl get job
 NAME                         STATUS    COMPLETIONS   DURATION   AGE
 test-runner-manual-trigger   Running   0/1           31s        31s
@@ -195,7 +198,8 @@ test-runner-manual-trigger-fnvhn   1/1     Running   0          65s
 ```
 
 When test is completed:
-```
+
+```bash
 $ kubectl get job
 NAME                         STATUS     COMPLETIONS   DURATION   AGE
 test-runner-manual-trigger   Complete   1/1           6m10s      7m21s
@@ -206,6 +210,7 @@ test-runner-manual-trigger-fnvhn   0/1     Completed   0          7m19s
 ```
 
 ## Scheduled Job
+
 Furthermore, test runner images can also be utilized in Kubernetes CronJob, which allows the test job to be scheduled in the cluster.
 
 ```yaml
@@ -300,12 +305,13 @@ spec:
                 fieldRef:
                   fieldPath: spec.nodeName
           restartPolicy: Never
-      backoffLimit: 1
+      backoffLimit: 0
       ttlSecondsAfterFinished: 120
 ```
+
 When the job gets scheduled, the CronJob resource will show active jobs and the job and pod resources will be created.
 
-```
+```bash
 $ kubectl get cronjob
 NAME                                           SCHEDULE     TIMEZONE   SUSPEND   ACTIVE   LAST SCHEDULE   AGE
 test-runner-manual-trigger-cron-job-midnight   0 0 * * *   <none>     False     1        2s              86s
@@ -320,26 +326,31 @@ test-runner-manual-trigger-cron-job-midnight-28936820-kkqnj   1/1     Running   
 ```
 
 ## Check test running node labels
+
 When the test is ongoing the corresponding label will be added to the node resource: ```"amd.testrunner.gpu_health_check.gst_single": "running"```, the test running label will be removed once the test completed.
 
 ## Check test result event
+
 The test runner generated event can be found from Job resource defined namespace
+
 ```bash
 $ kubectl get events -n kube-amd-gpu
 LAST SEEN   TYPE      REASON                    OBJECT                                            MESSAGE
 8m8s        Normal    TestFailed                pod/test-runner-manual-trigger-c4hpw              [{"number":1,"suitesResult":{"42924":{"gpustress-3000-dgemm-false":"success","gpustress-41000-fp32-false":"failure","gst-1215Tflops-4K4K8K-rand-fp8":"failure","gst-8096-150000-fp16":"success"}}}]
 ```
+
 More detailed information about test result events can be found in [this section](./auto-unhealthy-device-test.md#check-test-result-event).
 
 ## Advanced Configuration - ConfigMap
+
 You can create a config map to customize the test triggger and recipe configs. For the example config map and explanation please check [this section](./auto-unhealthy-device-test.md#advanced-configuration---configmap).
 
-After creating the config map, you can specify the volume and volume mount to mount the config map into test runner container. 
+After creating the config map, you can specify the volume and volume mount to mount the config map into test runner container.
 
 * In the config map the file name must be named as ```config.json```
 * Within the test runner container the mount path should be ```/etc/test-runner/```
 
-Here is an example of applying the customized config map 
+Here is an example of applying the customized config map
 
 ```yaml
 apiVersion: v1
@@ -479,7 +490,7 @@ spec:
             fieldRef:
               fieldPath: spec.nodeName
       restartPolicy: Never
-  backoffLimit: 1
+  backoffLimit: 0
   ttlSecondsAfterFinished: 120 # TTL for the job to be auto cleaned
 ```
 
@@ -619,6 +630,8 @@ spec:
           name: kfd
         - mountPath: /var/log/amd-test-runner # Specify to mount host path volume into specific directory
           name: test-runner-volume
+        - mountPath: /etc/test-runner/
+          name: config-volume
         env:
         - name: LOG_MOUNT_DIR # Use LOG_MOUNT_DIR envrionment variable to ask test runner to save logs in mounted directory
           value: /var/log/amd-test-runner
@@ -637,7 +650,7 @@ spec:
             fieldRef:
               fieldPath: spec.nodeName
       restartPolicy: Never
-  backoffLimit: 1
+  backoffLimit: 0
   ttlSecondsAfterFinished: 120 # TTL for the job to be auto cleaned
 ```
 

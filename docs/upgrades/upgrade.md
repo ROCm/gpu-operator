@@ -8,7 +8,7 @@ This guide outlines the steps to upgrade the AMD GPU Operator on a Kubernetes cl
 
 Ensure the cluster is healthy and ready for the upgrade. A typical system will look like this before an upgrade:
 
-```
+```bash
 NAMESPACE      NAME                                                              READY   STATUS    AGE
 cert-manager   cert-manager-5d45994f57-95pkz                                     1/1     Running   8d
 cert-manager   cert-manager-cainjector-5d69455fd6-kczfq                          1/1     Running   8d
@@ -31,26 +31,30 @@ All pods should be in the `Running` state. Resolve any issues such as restarts o
 
 ### 2. Understand Upgrade Safeguards
 
-**Pre-Upgrade Hook**
+#### Pre-Upgrade Hook
 
 The AMD GPU Operator includes a **pre-upgrade** hook that prevents upgrades if any **driver upgrades** are active. This ensures stability by blocking the upgrade when the operator is actively managing driver installations.
 
 - **Manual Driver Upgrades in KMM:** Manual driver upgrades initiated by users through KMM are allowed but not recommended during an operator upgrade.
 - **Skipping the Hook:** If necessary, you can bypass the pre-upgrade hook (not recommended) by adding ```--no-hooks```
 
-**Error Scenario**
+#### Error Scenario
 
 If the pre-upgrade hook detects active driver upgrades, the Helm upgrade process will fail with:
-```
+
+```bash
 Error: UPGRADE FAILED: pre-upgrade hooks failed: 1 error occurred:
     * job pre-upgrade-check failed: BackoffLimitExceeded
 ```
 
 To resolve:
+
 1. Inspect the failed `pre-upgrade-check` Job:
-```bash
-kubectl logs job/pre-upgrade-check -n kube-amd-gpu
-```
+
+   ```bash
+   kubectl logs job/pre-upgrade-check -n kube-amd-gpu
+   ```
+
 2. Resolve any active driver upgrades and retry the upgrade.
 
 ### 3. Perform the Upgrade
@@ -63,9 +67,9 @@ helm upgrade amd-gpu-operator helm-charts-k8s/gpu-operator-helm-k8s-v1.0.0.tgz \
   --set nameOverride=gpu-operator-charts
 ```
 
-* The ```fullnameOverride``` and ```nameOverride``` parameters are used to ensure consistent naming between the previous and new chart deployments, avoiding conflicts caused by name mismatches during the upgrade process. The ```fullnameOverride``` explicitly sets the fully qualified name of the resources created by the chart, such as service accounts and deployments. The ```nameOverride``` adjusts the base name of the chart without affecting resource-specific names.
-* By default, the default ```values.yaml``` from the new helm charts will be applied
-* (Optional) You can prepare a new ```values.yaml``` with customized values and apply it along with ```helm upgrade``` command. The node feature discovery and kmm controller images can be changed before running the helm-upgrade. This will upgrade the nfd and kmm operators respectively when helm upgrade is run. For example: 
+- The ```fullnameOverride``` and ```nameOverride``` parameters are used to ensure consistent naming between the previous and new chart deployments, avoiding conflicts caused by name mismatches during the upgrade process. The ```fullnameOverride``` explicitly sets the fully qualified name of the resources created by the chart, such as service accounts and deployments. The ```nameOverride``` adjusts the base name of the chart without affecting resource-specific names.
+- By default, the default ```values.yaml``` from the new helm charts will be applied
+- (Optional) You can prepare a new ```values.yaml``` with customized values and apply it along with ```helm upgrade``` command. The node feature discovery and kmm controller images can be changed before running the helm-upgrade. This will upgrade the nfd and kmm operators respectively when helm upgrade is run. For example: 
 
 ```bash
 helm upgrade amd-gpu-operator helm-charts-k8s/gpu-operator-helm-k8s-v1.0.0.tgz \
@@ -101,6 +105,7 @@ kubectl get deviceconfigs -n kube-amd-gpu -oyaml
 - Avoid upgrading during active driver upgrades initiated by the operator.
 - Use `--no-hooks` only if necessary and after assessing the potential impact.
 - For additional troubleshooting, check operator logs:
+
   ```bash
   kubectl logs -n kube-amd-gpu amd-gpu-operator-controller-manager-848455579d-p6hlm
   ```
