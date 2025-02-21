@@ -11,7 +11,6 @@ spec:
   type: {{ .Values.webhookService.type }}
   selector:
     app.kubernetes.io/component: kmm
-    app.kubernetes.io/name: kmm
     app.kubernetes.io/part-of: kmm
     control-plane: webhook-server
   {{- include "kmm.selectorLabels" . | nindent 4 }}

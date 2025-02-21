@@ -33,6 +33,12 @@ rules:
   - patch
   - update
 - apiGroups:
+  - apiextensions.k8s.io
+  resources:
+  - customresourcedefinitions
+  verbs:
+  - delete
+- apiGroups:
   - apps
   resources:
   - daemonsets
@@ -104,10 +110,20 @@ rules:
   resources:
   - pods
   verbs:
+  - create
   - delete
   - get
   - list
   - watch
+- apiGroups:
+  - ""
+  resources:
+  - pods/eviction
+  verbs:
+  - create
+  - delete
+  - get
+  - list
 - apiGroups:
   - ""
   resources:
@@ -123,6 +139,14 @@ rules:
   - pods/status
   verbs:
   - delete
+  - get
+  - list
+  - watch
+- apiGroups:
+  - ""
+  resources:
+  - secrets
+  verbs:
   - get
   - list
   - watch
