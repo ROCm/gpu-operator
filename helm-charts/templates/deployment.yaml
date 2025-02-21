@@ -12,7 +12,6 @@ spec:
   selector:
     matchLabels:
       app.kubernetes.io/component: amd-gpu
-      app.kubernetes.io/name: amd-gpu
       app.kubernetes.io/part-of: amd-gpu
       control-plane: controller-manager
     {{- include "helm-charts-k8s.selectorLabels" . | nindent 6 }}
@@ -20,29 +19,15 @@ spec:
     metadata:
       labels:
         app.kubernetes.io/component: amd-gpu
-        app.kubernetes.io/name: amd-gpu
         app.kubernetes.io/part-of: amd-gpu
         control-plane: controller-manager
       {{- include "helm-charts-k8s.selectorLabels" . | nindent 8 }}
       annotations:
         kubectl.kubernetes.io/default-container: manager
     spec:
-      {{- if .Values.controllerManager.nodeAffinity.nodeSelectorTerms }}
+      {{- with .Values.controllerManager.affinity }}
       affinity:
-        nodeAffinity:
-          requiredDuringSchedulingIgnoredDuringExecution:
-            nodeSelectorTerms:
-            {{- range .Values.controllerManager.nodeAffinity.nodeSelectorTerms }}
-            - matchExpressions:
-              - key: {{ .key }}
-                operator: {{ .operator }}
-                {{- if .values }}
-                values:
-                {{- range .values }}
-                - {{ . }}
-                {{- end }}
-                {{- end}}
-            {{- end }}
+        {{- toYaml . | nindent 8 }}
       {{- end }}
       nodeSelector: {{- toYaml .Values.controllerManager.nodeSelector | nindent 8 }}
       containers:
@@ -54,6 +39,8 @@ spec:
               fieldPath: metadata.namespace
         - name: KUBERNETES_CLUSTER_DOMAIN
           value: {{ quote .Values.kubernetesClusterDomain }}
+        - name: SIM_ENABLE
+          value: {{ quote .Values.controllerManager.env.simEnable }}
         image: {{ .Values.controllerManager.manager.image.repository }}:{{ .Values.controllerManager.manager.image.tag
           | default .Chart.AppVersion }}
         imagePullPolicy: {{ .Values.controllerManager.manager.imagePullPolicy }}
@@ -86,13 +73,10 @@ spec:
         runAsNonRoot: true
       serviceAccountName: {{ include "helm-charts-k8s.fullname" . }}-controller-manager
       terminationGracePeriodSeconds: 10
+      {{- with .Values.controllerManager.manager.tolerations }}
       tolerations:
-      - effect: NoSchedule
-        key: node-role.kubernetes.io/master
-        operator: Equal
-      - effect: NoSchedule
-        key: node-role.kubernetes.io/control-plane
-        operator: Equal
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
       volumes:
       - configMap:
           name: {{ include "helm-charts-k8s.fullname" . }}-manager-config

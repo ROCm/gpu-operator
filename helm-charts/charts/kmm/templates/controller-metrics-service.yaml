@@ -11,7 +11,6 @@ spec:
   type: {{ .Values.controllerMetricsService.type }}
   selector:
     app.kubernetes.io/component: kmm
-    app.kubernetes.io/name: kmm
     app.kubernetes.io/part-of: kmm
     control-plane: controller
   {{- include "kmm.selectorLabels" . | nindent 4 }}

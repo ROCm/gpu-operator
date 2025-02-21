@@ -1,8 +1,20 @@
+# NFD related configs
 node-feature-discovery:
-  enabled: true  # Set to false to disable node-feature-discovery
+  # -- Set to true/false to enable/disable the installation of node feature discovery (NFD) operator
+  enabled: true
+
+# KMM related configs
 kmm:
-  enabled: true  # Set to false to disable kmm
-installdefaultNFDRule: true # default NFD rule will detect amd gpu based on pci vendor ID
+  # -- Set to true/false to enable/disable the installation of kernel module management (KMM) operator
+  enabled: true
+
+# -- Default NFD rule will detect amd gpu based on pci vendor ID
+installdefaultNFDRule: true
+
+# -- CRD will be patched as pre-upgrade/pre-rollback hook when doing helm upgrade/rollback to current helm chart
+upgradeCRD: true
+
+# AMD GPU operator controller related configs
 controllerManager:
   manager:
     args:
@@ -10,10 +22,23 @@ controllerManager:
     containerSecurityContext:
       allowPrivilegeEscalation: false
     image:
+      # -- AMD GPU operator controller manager image repository
       repository: docker.io/rocm/gpu-operator
-      tag: v1.1.0
+      # -- AMD GPU operator controller manager image tag
+      tag: v1.2.0
+    # -- Image pull policy for AMD GPU operator controller manager pod
     imagePullPolicy: Always
+    # -- Image pull secret name for pulling AMD GPU operator controller manager image if registry needs credential to pull image
     imagePullSecrets: ""
+    tolerations:
+    - key: "node-role.kubernetes.io/master"
+      operator: "Equal"
+      value: ""
+      effect: "NoSchedule"
+    - key: "node-role.kubernetes.io/control-plane"
+      operator: "Equal"
+      value: ""
+      effect: "NoSchedule"
     resources:
       limits:
         cpu: 500m
@@ -21,16 +46,22 @@ controllerManager:
       requests:
         cpu: 10m
         memory: 64Mi
+  # -- Node selector for AMD GPU operator controller manager deployment
   nodeSelector: {}
-  nodeAffinity:
-    nodeSelectorTerms:
-      - key: node-role.kubernetes.io/control-plane
-        operator: Exists
-      - key: node-role.kubernetes.io/master
-        operator: Exists
+  # -- Deployment affinity configs for controller manager
+  affinity:
+    nodeAffinity:
+      preferredDuringSchedulingIgnoredDuringExecution:
+        - weight: 1
+          preference:
+            matchExpressions:
+              - key: node-role.kubernetes.io/control-plane
+                operator: Exists
   replicas: 1
   serviceAccount:
     annotations: {}
+  env:
+    simEnable: false
 kmmDevicePlugin:
   serviceAccount:
     annotations: {}
@@ -56,6 +87,9 @@ nodeLabeller:
   serviceAccount:
     annotations: {}
 metricsExporter:
+  serviceAccount:
+    annotations: {}
+testRunner:
   serviceAccount:
     annotations: {}
 global:
