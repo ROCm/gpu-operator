@@ -49,6 +49,9 @@ kube-amd-gpu        test-deviceconfig-test-runner-r9gjr                     1/1 
 Once device metrics exporter and test runner were brought up by applying the corresponding deviceconfig Custom Resource(CR), the test runner pod logs can be viewed by running ```kubectl logs``` command, for the above example it is:
 ```kubectl logs -n kube-amd-gpu test-deviceconfig-test-runner-r9gjr```
 
+## Check test running node labels
+When the test is ongoing the corresponding label will be added to the node resource: ```"amd.testrunner.GPU_HEALTH_CHECK.gst_single": "running"```, the test running label will be removed once the test completed.
+
 ## Check test result event
 The test runner generated event can be found from the operator's namespace: 
 ```bash

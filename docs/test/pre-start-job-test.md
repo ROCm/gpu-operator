@@ -5,7 +5,7 @@
 Test runner can be embedded as an init container within your Kubernetes workload pod definition. The init container will be executed before the actual workload containers start, in that way the system could be tested right before the workload start to use the hardware resource.
 
 ## Configure pre-start init container
-The init container requires RBAC config to grant the pod access to export event to the cluster. Here is an example of configuring the RBAC and Job resources:
+The init container requires RBAC config to grant the pod access to export events and add node labels to the cluster. Here is an example of configuring the RBAC and Job resources:
 
 ```yaml
 apiVersion: v1
@@ -29,6 +29,12 @@ rules:
   - watch
   - create
   - update
+- apiGroups:
+  - ""
+  resources:
+  - nodes
+  verbs:
+  - patch
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
@@ -111,6 +117,9 @@ $ kubectl get pod
 NAME                                      READY   STATUS    RESTARTS   AGE
 pytorch-gpu-deployment-7c6bb979f5-p2wlk   1/1     Running   0          7m46s
 ```
+
+## Check test running node labels
+When the test is ongoing the corresponding label will be added to the node resource: ```"amd.testrunner.GPU_HEALTH_CHECK.gst_single": "running"```, the test running label will be removed once the test completed.
 
 ## Check test result event
 The test runner generated event can be found from Job resource defined namespace

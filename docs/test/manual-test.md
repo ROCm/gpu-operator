@@ -5,7 +5,7 @@
 To start the manual test, test runner doesn't need to be brought up by operator. Just directly create the Kubernetes job resource by using the test runner image with proper configuration, then the test will be triggered.
 
 ## Configure manual test job
-The test job requires RBAC config to grant the test runner access to export event to the cluster. Here is an example of configuring the RBAC and Job resources:
+The test job requires RBAC config to grant the test runner access to export events and add node labels to the cluster. Here is an example of configuring the RBAC and Job resources:
 
 ```yaml
 apiVersion: v1
@@ -29,6 +29,12 @@ rules:
   - watch
   - create
   - update
+- apiGroups:
+  - ""
+  resources:
+  - nodes
+  verbs:
+  - patch
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
@@ -92,7 +98,7 @@ NAME                               READY   STATUS    RESTARTS   AGE
 test-runner-manual-trigger-fnvhn   1/1     Running   0          65s
 ```
 
-When test is complated:
+When test is completed:
 ```
 $ kubectl get job
 NAME                         STATUS     COMPLETIONS   DURATION   AGE
@@ -128,6 +134,12 @@ rules:
   - watch
   - create
   - update
+- apiGroups:
+  - ""
+  resources:
+  - nodes
+  verbs:
+  - patch
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
@@ -196,6 +208,8 @@ NAME                                                          READY   STATUS    
 test-runner-manual-trigger-cron-job-midnight-28936820-kkqnj   1/1     Running   0          16s
 ```
 
+## Check test running node labels
+When the test is ongoing the corresponding label will be added to the node resource: ```"amd.testrunner.GPU_HEALTH_CHECK.gst_single": "running"```, the test running label will be removed once the test completed.
 
 ## Check test result event
 The test runner generated event can be found from Job resource defined namespace
@@ -238,6 +252,12 @@ rules:
   - watch
   - create
   - update
+- apiGroups:
+  - ""
+  resources:
+  - nodes
+  verbs:
+  - patch
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
@@ -327,6 +347,12 @@ rules:
   - watch
   - create
   - update
+- apiGroups:
+  - ""
+  resources:
+  - nodes
+  verbs:
+  - patch
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
