@@ -118,6 +118,14 @@ var _ = Describe("setKMMModuleLoader", func() {
 		expectedMod.Spec.ModuleLoader.Container.KernelMappings[0].Build.BuildArgs[0].Value = "6.1.3"
 		expectedMod.Spec.Selector = map[string]string{"feature.node.kubernetes.io/amd-gpu": "true"}
 		expectedMod.Spec.ModuleLoader.Container.Modprobe.Args = &kmmv1beta1.ModprobeArgs{Load: nil, Unload: nil}
+		expectedMod.Spec.Tolerations = []v1.Toleration{
+			{
+				Key:      "amd-gpu-driver-upgrade",
+				Value:    "true",
+				Operator: v1.TolerationOpEqual,
+				Effect:   v1.TaintEffectNoSchedule,
+			},
+		}
 
 		err = setKMMModuleLoader(context.TODO(), &mod, &input, false, testNodeList)
 
@@ -174,6 +182,14 @@ var _ = Describe("setKMMModuleLoader", func() {
 		expectedMod.Spec.ModuleLoader.Container.Version = "some driver version"
 		expectedMod.Spec.Selector = map[string]string{"some label": "some label value"}
 		expectedMod.Spec.ImageRepoSecret = &v1.LocalObjectReference{Name: "image repo secret name"}
+		expectedMod.Spec.Tolerations = []v1.Toleration{
+			{
+				Key:      "amd-gpu-driver-upgrade",
+				Value:    "true",
+				Operator: v1.TolerationOpEqual,
+				Effect:   v1.TaintEffectNoSchedule,
+			},
+		}
 
 		err = setKMMModuleLoader(context.TODO(), &mod, &input, false, testNodeList)
 
