@@ -1,0 +1,140 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: test-run
+  namespace: default
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: test-run-cluster-role
+rules:
+- apiGroups:
+  - ""
+  resources:
+  - events
+  verbs:
+  - get
+  - list
+  - watch
+  - create
+  - update
+- apiGroups:
+  - ""
+  resources:
+  - nodes
+  verbs:
+  - patch
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: test-run-rb
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: test-run-cluster-role
+subjects:
+- kind: ServiceAccount
+  name: test-run
+  namespace: default
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: pre-job-test-config-map
+  namespace: default
+data: # file name within configmap should be config.json
+  config.json: |
+    {
+      "TestConfig": {
+        "GPU_HEALTH_CHECK": {
+          "TestLocationTrigger": {
+            "global": {
+              "TestParameters": {
+                "PRE_START_JOB_CHECK": {
+                  "TestCases": [
+                    {
+                      "Recipe": "gst_single",
+                      "Iterations": 1,
+                      "StopOnFailure": true,
+                      "TimeoutSeconds": 600
+                    }
+                  ]
+                }
+              }
+            },
+            "node1": {
+              "TestParameters": {
+                "PRE_START_JOB_CHECK": {
+                  "TestCases": [
+                    {
+                      "Recipe": "mem",
+                      "Iterations": 1,
+                      "StopOnFailure": true,
+                      "TimeoutSeconds": 600
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: pytorch-gpu-deployment
+  namespace: default
+  labels:
+    purpose: demo-pytorch-amdgpu
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      purpose: demo-pytorch-amdgpu
+  template:
+    metadata:
+      labels:
+        purpose: demo-pytorch-amdgpu
+    spec:
+      serviceAccountName: test-run
+      volumes:
+      - name: config-volume
+        configMap:
+          name: pre-job-test-config-map
+      initContainers:
+      - name: init-test-runner
+        image: docker.io/rocm/test-runner:v1.2.0-beta.0
+        imagePullPolicy: IfNotPresent
+        resources:
+          limits:
+            amd.com/gpu: 1 # requesting a GPU
+        volumeMounts: # mount config map into /etc/test-runner/ within container
+        - name: config-volume
+          mountPath: /etc/test-runner/
+        env:
+        - name: TEST_TRIGGER
+          value: "PRE_START_JOB_CHECK" # Set the TEST_TRIGGER environment variable to PRE_START_JOB_CHECK for test runner as init container
+        - name: POD_NAME # Use downward API to pass pod name to test runner container
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
+        - name: POD_NAMESPACE # Use downward API to pass pod namespace to test runner container
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
+        - name: NODE_NAME # Use downward API to pass host name to test runner container
+          valueFrom:
+            fieldRef:
+              fieldPath: spec.nodeName
+      containers:
+      - name: pytorch-gpu-workload
+        image: busybox:latest
+        command: ["/bin/sh", "-c", "--"]
+        args: ["sleep 6000"]
+        resources:
+          limits:
+            amd.com/gpu: 1 # requesting a GPU

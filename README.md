@@ -12,6 +12,7 @@ AMD GPU Operator simplifies the deployment and management of AMD Instinct GPU ac
 * K8s Device Plugin
 * K8s Node Labeller
 * Device Metrics Exporter
+* Device Test Runner
 * Node Feature Discovery Operator
 * Kernel Module Management Operator
 
@@ -23,6 +24,7 @@ AMD GPU Operator simplifies the deployment and management of AMD Instinct GPU ac
 * Automated labeling of nodes with AMD GPU capabilities
 * Compatibility with standard Kubernetes environments
 * Efficient GPU resource allocation for containerized workloads
+* GPU health monitoring and troubleshooting  
 
 ## Compatibility
 
@@ -48,9 +50,36 @@ helm install cert-manager jetstack/cert-manager \
 
 ## Quick Start
 
+### 1. Add the AMD Helm Repository
+
 ```bash
 helm install amd-gpu-operator --namespace kube-amd-gpu --create-namespace https://github.com/ROCm/gpu-operator/releases/download/v1.0.0/gpu-operator-charts-v1.0.0.tgz
 ```
+
+### 2. Install the Operator
+
+Basic installation:
+
+```bash
+helm install amd-gpu-operator rocm/gpu-operator-charts \
+  --namespace kube-amd-gpu \
+  --create-namespace \
+  --version=v1.2.0
+```
+
+```{note}
+Installation Options
+  - Skip NFD installation: `--set node-feature-discovery.enabled=false`
+  - Skip KMM installation: `--set kmm.enabled=false`
+```
+
+```{warning}
+  It is strongly recommended to use AMD-optimized KMM images included in the operator release.
+```
+
+### 3. Install Custom Resource
+
+After the installation of AMD GPU Operator, you need to create the `DeviceConfig` custom resource in order to trigger the operator to start to work. By preparing the `DeviceConfig` in the YAML file, you can create the resouce by running ```kubectl apply -f deviceconfigs.yaml```. For custom resource definition and more detailed information, please refer to [Custom Resource Installation Guide](https://dcgpu.docs.amd.com/projects/gpu-operator/en/latest/installation/kubernetes-helm.html#install-custom-resource).
 
 ### Grafana Dashboards
 
