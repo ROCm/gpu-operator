@@ -98,7 +98,8 @@ For bugs and feature requests, please file an issue on our [GitHub Issues](https
 ## License
 
 The AMD GPU Operator is licensed under the [Apache License 2.0](LICENSE).
-# gpu-operator-charts
+
+## gpu-operator-charts
 
 ![Version: v1.2.0](https://img.shields.io/badge/Version-v1.2.0-informational?style=flat-square) ![Type: application](https://img.shields.io/badge/Type-application-informational?style=flat-square) ![AppVersion: v1.2.0](https://img.shields.io/badge/AppVersion-v1.2.0-informational?style=flat-square)
 
@@ -202,4 +203,3 @@ Kubernetes: `>= 1.29.0-0`
 | kmm.webhookService.ports[0].protocol | string | `"TCP"` |  |
 | kmm.webhookService.ports[0].targetPort | int | `9443` |  |
 | kmm.webhookService.type | string | `"ClusterIP"` |  |
-

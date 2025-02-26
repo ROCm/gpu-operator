@@ -71,3 +71,12 @@ The [Device Metrics Exporter](https://github.com/ROCm/device-metrics-exporter) p
 - Exports GPU metrics in Prometheus format
 - Monitors GPU utilization, temperature, and health
 - Enables integration with monitoring systems
+
+### Test Runner
+
+The Test Runner offers hardware validation, diagnostics and benchmarking capabilities across various scenarios:
+
+- Automatically triggers configurable [ROCm Validation Suite](https://github.com/ROCm/ROCmValidationSuite) tests on unhealthy GPUs.
+- Support manually triggered or scheduled test execution within the Kubernetes cluster.
+- Support executing tests as init containers within the GPU workload pod.
+- Report test results as Kubernetes events.
