@@ -113,6 +113,20 @@ DOCKER_BUILDER_TAG := v1.1
 DOCKER_BUILDER_IMAGE := registry.test.pensando.io:5000/gpu-operator-build:$(DOCKER_BUILDER_TAG)
 CONTAINER_WORKDIR := /gpu-operator
 
+.PHONY: default
+default: docker-build-env
+	@echo "Starting a shell in the Docker build container..."
+	@docker run --rm -it --privileged \
+		--name gpu-operator-build \
+		-e "USER_NAME=$(shell whoami)" \
+		-e "USER_UID=$(shell id -u)" \
+		-e "USER_GID=$(shell id -g)" \
+		-v $(CURDIR):/gpu-operator \
+		-v $(HOME)/.ssh:/home/$(shell whoami)/.ssh \
+		-w $(CONTAINER_WORKDIR) \
+		$(DOCKER_BUILDER_IMAGE) \
+		cd /gpu-operator && git config --global --add safe.directory /gpu-operator && make all && make copyrights
+
 .PHONY: docker-build-env
 docker-build-env:
 	@echo "Building the Docker environment..."
