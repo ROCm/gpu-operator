@@ -5,7 +5,7 @@ kind: CustomResourceDefinition
 metadata:
   name: deviceconfigs.amd.com
   annotations:
-    controller-gen.kubebuilder.io/version: v0.12.0
+    controller-gen.kubebuilder.io/version: v0.15.0
   labels:
     app.kubernetes.io/component: amd-gpu
     app.kubernetes.io/part-of: amd-gpu
@@ -31,14 +31,19 @@ spec:
         description: DeviceConfig describes how to enable AMD GPU device
         properties:
           apiVersion:
-            description: 'APIVersion defines the versioned schema of this representation
-              of an object. Servers should convert recognized schemas to the latest
-              internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
+            description: |-
+              APIVersion defines the versioned schema of this representation of an object.
+              Servers should convert recognized schemas to the latest internal value, and
+              may reject unrecognized values.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
             type: string
           kind:
-            description: 'Kind is a string value representing the REST resource this
-              object represents. Servers may infer this from the endpoint the client
-              submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
+            description: |-
+              Kind is a string value representing the REST resource this object represents.
+              Servers may infer this from the endpoint the client submits requests to.
+              Cannot be updated.
+              In CamelCase.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
             type: string
           metadata:
             type: object
@@ -72,8 +77,10 @@ spec:
                         description: secret used for pull utils container image
                         properties:
                           name:
-                            description: 'Name of the referent. More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
-                              TODO: Add other useful fields. apiVersion, kind, uid?'
+                            description: |-
+                              Name of the referent.
+                              More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                              TODO: Add other useful fields. apiVersion, kind, uid?
                             type: string
                         type: object
                         x-kubernetes-map-type: atomic
@@ -96,40 +103,39 @@ spec:
                   devicePluginTolerations:
                     description: tolerations for the device plugin DaemonSet
                     items:
-                      description: The pod this Toleration is attached to tolerates
-                        any taint that matches the triple <key,value,effect> using the
-                        matching operator <operator>.
+                      description: |-
+                        The pod this Toleration is attached to tolerates any taint that matches
+                        the triple <key,value,effect> using the matching operator <operator>.
                       properties:
                         effect:
-                          description: Effect indicates the taint effect to match. Empty
-                            means match all taint effects. When specified, allowed values
-                            are NoSchedule, PreferNoSchedule and NoExecute.
+                          description: |-
+                            Effect indicates the taint effect to match. Empty means match all taint effects.
+                            When specified, allowed values are NoSchedule, PreferNoSchedule and NoExecute.
                           type: string
                         key:
-                          description: Key is the taint key that the toleration applies
-                            to. Empty means match all taint keys. If the key is empty,
-                            operator must be Exists; this combination means to match
-                            all values and all keys.
+                          description: |-
+                            Key is the taint key that the toleration applies to. Empty means match all taint keys.
+                            If the key is empty, operator must be Exists; this combination means to match all values and all keys.
                           type: string
                         operator:
-                          description: Operator represents a key's relationship to the
-                            value. Valid operators are Exists and Equal. Defaults to
-                            Equal. Exists is equivalent to wildcard for value, so that
-                            a pod can tolerate all taints of a particular category.
+                          description: |-
+                            Operator represents a key's relationship to the value.
+                            Valid operators are Exists and Equal. Defaults to Equal.
+                            Exists is equivalent to wildcard for value, so that a pod can
+                            tolerate all taints of a particular category.
                           type: string
                         tolerationSeconds:
-                          description: TolerationSeconds represents the period of time
-                            the toleration (which must be of effect NoExecute, otherwise
-                            this field is ignored) tolerates the taint. By default,
-                            it is not set, which means tolerate the taint forever (do
-                            not evict). Zero and negative values will be treated as
-                            0 (evict immediately) by the system.
+                          description: |-
+                            TolerationSeconds represents the period of time the toleration (which must be
+                            of effect NoExecute, otherwise this field is ignored) tolerates the taint. By default,
+                            it is not set, which means tolerate the taint forever (do not evict). Zero and
+                            negative values will be treated as 0 (evict immediately) by the system.
                           format: int64
                           type: integer
                         value:
-                          description: Value is the taint value the toleration matches
-                            to. If the operator is Exists, the value should be empty,
-                            otherwise just a regular string.
+                          description: |-
+                            Value is the taint value the toleration matches to.
+                            If the operator is Exists, the value should be empty, otherwise just a regular string.
                           type: string
                       type: object
                     type: array
@@ -142,8 +148,10 @@ spec:
                       images
                     properties:
                       name:
-                        description: 'Name of the referent. More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
-                          TODO: Add other useful fields. apiVersion, kind, uid?'
+                        description: |-
+                          Name of the referent.
+                          More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                          TODO: Add other useful fields. apiVersion, kind, uid?
                         type: string
                     type: object
                     x-kubernetes-map-type: atomic
@@ -161,40 +169,39 @@ spec:
                   nodeLabellerTolerations:
                     description: tolerations for the node labeller DaemonSet
                     items:
-                      description: The pod this Toleration is attached to tolerates
-                        any taint that matches the triple <key,value,effect> using the
-                        matching operator <operator>.
+                      description: |-
+                        The pod this Toleration is attached to tolerates any taint that matches
+                        the triple <key,value,effect> using the matching operator <operator>.
                       properties:
                         effect:
-                          description: Effect indicates the taint effect to match. Empty
-                            means match all taint effects. When specified, allowed values
-                            are NoSchedule, PreferNoSchedule and NoExecute.
+                          description: |-
+                            Effect indicates the taint effect to match. Empty means match all taint effects.
+                            When specified, allowed values are NoSchedule, PreferNoSchedule and NoExecute.
                           type: string
                         key:
-                          description: Key is the taint key that the toleration applies
-                            to. Empty means match all taint keys. If the key is empty,
-                            operator must be Exists; this combination means to match
-                            all values and all keys.
+                          description: |-
+                            Key is the taint key that the toleration applies to. Empty means match all taint keys.
+                            If the key is empty, operator must be Exists; this combination means to match all values and all keys.
                           type: string
                         operator:
-                          description: Operator represents a key's relationship to the
-                            value. Valid operators are Exists and Equal. Defaults to
-                            Equal. Exists is equivalent to wildcard for value, so that
-                            a pod can tolerate all taints of a particular category.
+                          description: |-
+                            Operator represents a key's relationship to the value.
+                            Valid operators are Exists and Equal. Defaults to Equal.
+                            Exists is equivalent to wildcard for value, so that a pod can
+                            tolerate all taints of a particular category.
                           type: string
                         tolerationSeconds:
-                          description: TolerationSeconds represents the period of time
-                            the toleration (which must be of effect NoExecute, otherwise
-                            this field is ignored) tolerates the taint. By default,
-                            it is not set, which means tolerate the taint forever (do
-                            not evict). Zero and negative values will be treated as
-                            0 (evict immediately) by the system.
+                          description: |-
+                            TolerationSeconds represents the period of time the toleration (which must be
+                            of effect NoExecute, otherwise this field is ignored) tolerates the taint. By default,
+                            it is not set, which means tolerate the taint forever (do not evict). Zero and
+                            negative values will be treated as 0 (evict immediately) by the system.
                           format: int64
                           type: integer
                         value:
-                          description: Value is the taint value the toleration matches
-                            to. If the operator is Exists, the value should be empty,
-                            otherwise just a regular string.
+                          description: |-
+                            Value is the taint value the toleration matches to.
+                            If the operator is Exists, the value should be empty, otherwise just a regular string.
                           type: string
                       type: object
                     type: array
@@ -222,9 +229,9 @@ spec:
                 description: driver
                 properties:
                   amdgpuInstallerRepoURL:
-                    description: radeon repo URL for fetching amdgpu installer if building
-                      driver image on the fly installer URL is https://repo.radeon.com/amdgpu-install
-                      by default
+                    description: |-
+                      radeon repo URL for fetching amdgpu installer if building driver image on the fly
+                      installer URL is https://repo.radeon.com/amdgpu-install by default
                     type: string
                   blacklist:
                     description: |-
@@ -234,14 +241,14 @@ spec:
                     type: boolean
                   enable:
                     default: true
-                    description: enable driver install. default value is true. disable
-                      is for skipping driver install/uninstall for dryrun or using in-tree
-                      amdgpu kernel module
+                    description: |-
+                      enable driver install. default value is true.
+                      disable is for skipping driver install/uninstall for dryrun or using in-tree amdgpu kernel module
                     type: boolean
                   image:
-                    description: defines image that includes drivers and firmware blobs,
-                      don't include tag since it will be fully managed by operator for
-                      vanilla k8s the default value is image-registry:5000/$MOD_NAMESPACE/amdgpu_kmod
+                    description: |-
+                      defines image that includes drivers and firmware blobs, don't include tag since it will be fully managed by operator
+                      for vanilla k8s the default value is image-registry:5000/$MOD_NAMESPACE/amdgpu_kmod
                       for OpenShift the default value is image-registry.openshift-image-registry.svc:5000/$MOD_NAMESPACE/amdgpu_kmod
                       image tag will be in the format of <linux distro>-<release version>-<kernel version>-<driver version>
                       example tag is coreos-416.94-5.14.0-427.28.1.el9_4.x86_64-6.2.2 and ubuntu-22.04-5.15.0-94-generic-6.1.3
@@ -253,8 +260,10 @@ spec:
                       specified in driversImage
                     properties:
                       name:
-                        description: 'Name of the referent. More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
-                          TODO: Add other useful fields. apiVersion, kind, uid?'
+                        description: |-
+                          Name of the referent.
+                          More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                          TODO: Add other useful fields. apiVersion, kind, uid?
                         type: string
                     type: object
                     x-kubernetes-map-type: atomic
@@ -271,29 +280,33 @@ spec:
                         type: boolean
                     type: object
                   imageSign:
-                    description: image signing config to sign the driver image when
-                      building driver image on the fly image signing is required for
-                      installing driver on secure boot enabled system
+                    description: |-
+                      image signing config to sign the driver image when building driver image on the fly
+                      image signing is required for installing driver on secure boot enabled system
                     properties:
                       certSecret:
-                        description: ImageSignCertSecret the public key used to sign
-                          kernel modules within image necessary for secure boot enabled
-                          system
+                        description: |-
+                          ImageSignCertSecret the public key used to sign kernel modules within image
+                          necessary for secure boot enabled system
                         properties:
                           name:
-                            description: 'Name of the referent. More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
-                              TODO: Add other useful fields. apiVersion, kind, uid?'
+                            description: |-
+                              Name of the referent.
+                              More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                              TODO: Add other useful fields. apiVersion, kind, uid?
                             type: string
                         type: object
                         x-kubernetes-map-type: atomic
                       keySecret:
-                        description: ImageSignKeySecret the private key used to sign
-                          kernel modules within image necessary for secure boot enabled
-                          system
+                        description: |-
+                          ImageSignKeySecret the private key used to sign kernel modules within image
+                          necessary for secure boot enabled system
                         properties:
                           name:
-                            description: 'Name of the referent. More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
-                              TODO: Add other useful fields. apiVersion, kind, uid?'
+                            description: |-
+                              Name of the referent.
+                              More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                              TODO: Add other useful fields. apiVersion, kind, uid?
                             type: string
                         type: object
                         x-kubernetes-map-type: atomic
@@ -302,14 +315,15 @@ spec:
                     description: policy to upgrade the drivers
                     properties:
                       enable:
-                        description: enable upgrade policy, disabled by default If disabled,
-                          user has to manually upgrade all the nodes.
+                        description: |-
+                          enable upgrade policy, disabled by default
+                          If disabled, user has to manually upgrade all the nodes.
                         type: boolean
                       maxParallelUpgrades:
                         default: 1
-                        description: MaxParallelUpgrades indicates how many nodes can
-                          be upgraded in parallel 0 means no limit, all nodes will be
-                          upgraded in parallel
+                        description: |-
+                          MaxParallelUpgrades indicates how many nodes can be upgraded in parallel
+                          0 means no limit, all nodes will be upgraded in parallel
                         minimum: 0
                         type: integer
                       maxUnavailableNodes:
@@ -317,13 +331,9 @@ spec:
                         - type: integer
                         - type: string
                         default: 25%
-                        description: 'MaxUnavailableNodes indicates maximum number of
-                          nodes that can be in a failed upgrade state beyond which upgrades
-                          will stop to keep cluster at a minimal healthy state Value
-                          can be an integer (ex: 2) which would mean atmost 2 nodes
-                          can be in failed state after which new upgrades will not start.
-                          Or it can be a percentage string(ex: "50%") from which absolute
-                          number will be calculated and round up'
+                        description: |-
+                          MaxUnavailableNodes indicates maximum number of nodes that can be in a failed upgrade state beyond which upgrades will stop to keep cluster at a minimal healthy state
+                          Value can be an integer (ex: 2) which would mean atmost 2 nodes can be in failed state after which new upgrades will not start. Or it can be a percentage string(ex: "50%") from which absolute number will be calculated and round up
                         x-kubernetes-int-or-string: true
                       nodeDrainPolicy:
                         description: Node draining policy
@@ -364,9 +374,9 @@ spec:
                         type: boolean
                     type: object
                   version:
-                    description: 'version of the drivers source code, can be used as
-                      part of image of dockerfile source image default value for different
-                      OS is: ubuntu: 6.1.3, coreOS: 6.2.2'
+                    description: |-
+                      version of the drivers source code, can be used as part of image of dockerfile source image
+                      default value for different OS is: ubuntu: 6.1.3, coreOS: 6.2.2
                     type: string
                 type: object
               metricsExporter:
@@ -376,8 +386,9 @@ spec:
                     description: optional configuration for metrics
                     properties:
                       name:
-                        description: Name of the configMap that defines the list of
-                          metrics default list:[]
+                        description: |-
+                          Name of the configMap that defines the list of metrics
+                          default list:[]
                         type: string
                     type: object
                   enable:
@@ -399,8 +410,10 @@ spec:
                       images
                     properties:
                       name:
-                        description: 'Name of the referent. More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
-                          TODO: Add other useful fields. apiVersion, kind, uid?'
+                        description: |-
+                          Name of the referent.
+                          More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                          TODO: Add other useful fields. apiVersion, kind, uid?
                         type: string
                     type: object
                     x-kubernetes-map-type: atomic
@@ -436,8 +449,10 @@ spec:
                           for TLS, self signed certificates will be generated by default
                         properties:
                           name:
-                            description: 'Name of the referent. More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
-                              TODO: Add other useful fields. apiVersion, kind, uid?'
+                            description: |-
+                              Name of the referent.
+                              More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                              TODO: Add other useful fields. apiVersion, kind, uid?
                             type: string
                         type: object
                         x-kubernetes-map-type: atomic
@@ -459,40 +474,39 @@ spec:
                   tolerations:
                     description: tolerations for metrics exporter
                     items:
-                      description: The pod this Toleration is attached to tolerates
-                        any taint that matches the triple <key,value,effect> using the
-                        matching operator <operator>.
+                      description: |-
+                        The pod this Toleration is attached to tolerates any taint that matches
+                        the triple <key,value,effect> using the matching operator <operator>.
                       properties:
                         effect:
-                          description: Effect indicates the taint effect to match. Empty
-                            means match all taint effects. When specified, allowed values
-                            are NoSchedule, PreferNoSchedule and NoExecute.
+                          description: |-
+                            Effect indicates the taint effect to match. Empty means match all taint effects.
+                            When specified, allowed values are NoSchedule, PreferNoSchedule and NoExecute.
                           type: string
                         key:
-                          description: Key is the taint key that the toleration applies
-                            to. Empty means match all taint keys. If the key is empty,
-                            operator must be Exists; this combination means to match
-                            all values and all keys.
+                          description: |-
+                            Key is the taint key that the toleration applies to. Empty means match all taint keys.
+                            If the key is empty, operator must be Exists; this combination means to match all values and all keys.
                           type: string
                         operator:
-                          description: Operator represents a key's relationship to the
-                            value. Valid operators are Exists and Equal. Defaults to
-                            Equal. Exists is equivalent to wildcard for value, so that
-                            a pod can tolerate all taints of a particular category.
+                          description: |-
+                            Operator represents a key's relationship to the value.
+                            Valid operators are Exists and Equal. Defaults to Equal.
+                            Exists is equivalent to wildcard for value, so that a pod can
+                            tolerate all taints of a particular category.
                           type: string
                         tolerationSeconds:
-                          description: TolerationSeconds represents the period of time
-                            the toleration (which must be of effect NoExecute, otherwise
-                            this field is ignored) tolerates the taint. By default,
-                            it is not set, which means tolerate the taint forever (do
-                            not evict). Zero and negative values will be treated as
-                            0 (evict immediately) by the system.
+                          description: |-
+                            TolerationSeconds represents the period of time the toleration (which must be
+                            of effect NoExecute, otherwise this field is ignored) tolerates the taint. By default,
+                            it is not set, which means tolerate the taint forever (do not evict). Zero and
+                            negative values will be treated as 0 (evict immediately) by the system.
                           format: int64
                           type: integer
                         value:
-                          description: Value is the taint value the toleration matches
-                            to. If the operator is Exists, the value should be empty,
-                            otherwise just a regular string.
+                          description: |-
+                            Value is the taint value the toleration matches to.
+                            If the operator is Exists, the value should be empty, otherwise just a regular string.
                           type: string
                       type: object
                     type: array
@@ -529,8 +543,10 @@ spec:
                       if not specified default test config will be aplied
                     properties:
                       name:
-                        description: 'Name of the referent. More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
-                          TODO: Add other useful fields. apiVersion, kind, uid?'
+                        description: |-
+                          Name of the referent.
+                          More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                          TODO: Add other useful fields. apiVersion, kind, uid?
                         type: string
                     type: object
                     x-kubernetes-map-type: atomic
@@ -553,8 +569,10 @@ spec:
                       images
                     properties:
                       name:
-                        description: 'Name of the referent. More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
-                          TODO: Add other useful fields. apiVersion, kind, uid?'
+                        description: |-
+                          Name of the referent.
+                          More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                          TODO: Add other useful fields. apiVersion, kind, uid?
                         type: string
                     type: object
                     x-kubernetes-map-type: atomic
@@ -566,6 +584,23 @@ spec:
                         description: host path to store test runner internal status
                           db in order to persist test running status
                         type: string
+                      logsExportSecrets:
+                        description: LogsExportSecrets is a list of secrets that contain
+                          connectivity info to multiple cloud providers
+                        items:
+                          description: |-
+                            LocalObjectReference contains enough information to let you locate the
+                            referenced object inside the same namespace.
+                          properties:
+                            name:
+                              description: |-
+                                Name of the referent.
+                                More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                                TODO: Add other useful fields. apiVersion, kind, uid?
+                              type: string
+                          type: object
+                          x-kubernetes-map-type: atomic
+                        type: array
                       mountPath:
                         default: /var/log/amd-test-runner
                         description: volume mount destination within test runner container
@@ -579,40 +614,39 @@ spec:
                   tolerations:
                     description: tolerations for test runner
                     items:
-                      description: The pod this Toleration is attached to tolerates
-                        any taint that matches the triple <key,value,effect> using the
-                        matching operator <operator>.
+                      description: |-
+                        The pod this Toleration is attached to tolerates any taint that matches
+                        the triple <key,value,effect> using the matching operator <operator>.
                       properties:
                         effect:
-                          description: Effect indicates the taint effect to match. Empty
-                            means match all taint effects. When specified, allowed values
-                            are NoSchedule, PreferNoSchedule and NoExecute.
+                          description: |-
+                            Effect indicates the taint effect to match. Empty means match all taint effects.
+                            When specified, allowed values are NoSchedule, PreferNoSchedule and NoExecute.
                           type: string
                         key:
-                          description: Key is the taint key that the toleration applies
-                            to. Empty means match all taint keys. If the key is empty,
-                            operator must be Exists; this combination means to match
-                            all values and all keys.
+                          description: |-
+                            Key is the taint key that the toleration applies to. Empty means match all taint keys.
+                            If the key is empty, operator must be Exists; this combination means to match all values and all keys.
                           type: string
                         operator:
-                          description: Operator represents a key's relationship to the
-                            value. Valid operators are Exists and Equal. Defaults to
-                            Equal. Exists is equivalent to wildcard for value, so that
-                            a pod can tolerate all taints of a particular category.
+                          description: |-
+                            Operator represents a key's relationship to the value.
+                            Valid operators are Exists and Equal. Defaults to Equal.
+                            Exists is equivalent to wildcard for value, so that a pod can
+                            tolerate all taints of a particular category.
                           type: string
                         tolerationSeconds:
-                          description: TolerationSeconds represents the period of time
-                            the toleration (which must be of effect NoExecute, otherwise
-                            this field is ignored) tolerates the taint. By default,
-                            it is not set, which means tolerate the taint forever (do
-                            not evict). Zero and negative values will be treated as
-                            0 (evict immediately) by the system.
+                          description: |-
+                            TolerationSeconds represents the period of time the toleration (which must be
+                            of effect NoExecute, otherwise this field is ignored) tolerates the taint. By default,
+                            it is not set, which means tolerate the taint forever (do not evict). Zero and
+                            negative values will be treated as 0 (evict immediately) by the system.
                           format: int64
                           type: integer
                         value:
-                          description: Value is the taint value the toleration matches
-                            to. If the operator is Exists, the value should be empty,
-                            otherwise just a regular string.
+                          description: |-
+                            Value is the taint value the toleration matches to.
+                            If the operator is Exists, the value should be empty, otherwise just a regular string.
                           type: string
                       type: object
                     type: array
@@ -644,43 +678,43 @@ spec:
                   object
                 items:
                   description: "Condition contains details for one aspect of the current
-                    state of this API Resource. --- This struct is intended for direct
-                    use as an array at the field path .status.conditions.  For example,
-                    \n type FooStatus struct{ // Represents the observations of a foo's
-                    current state. // Known .status.conditions.type are: \"Available\",
-                    \"Progressing\", and \"Degraded\" // +patchMergeKey=type // +patchStrategy=merge
-                    // +listType=map // +listMapKey=type Conditions []metav1.Condition
-                    `json:\"conditions,omitempty\" patchStrategy:\"merge\" patchMergeKey:\"type\"
-                    protobuf:\"bytes,1,rep,name=conditions\"` \n // other fields }"
+                    state of this API Resource.\n---\nThis struct is intended for direct
+                    use as an array at the field path .status.conditions.  For example,\n\n\n\ttype
+                    FooStatus struct{\n\t    // Represents the observations of a foo's
+                    current state.\n\t    // Known .status.conditions.type are: \"Available\",
+                    \"Progressing\", and \"Degraded\"\n\t    // +patchMergeKey=type\n\t
+                    \   // +patchStrategy=merge\n\t    // +listType=map\n\t    // +listMapKey=type\n\t
+                    \   Conditions []metav1.Condition `json:\"conditions,omitempty\"
+                    patchStrategy:\"merge\" patchMergeKey:\"type\" protobuf:\"bytes,1,rep,name=conditions\"`\n\n\n\t
+                    \   // other fields\n\t}"
                   properties:
                     lastTransitionTime:
-                      description: lastTransitionTime is the last time the condition
-                        transitioned from one status to another. This should be when
-                        the underlying condition changed.  If that is not known, then
-                        using the time when the API field changed is acceptable.
+                      description: |-
+                        lastTransitionTime is the last time the condition transitioned from one status to another.
+                        This should be when the underlying condition changed.  If that is not known, then using the time when the API field changed is acceptable.
                       format: date-time
                       type: string
                     message:
-                      description: message is a human readable message indicating details
-                        about the transition. This may be an empty string.
+                      description: |-
+                        message is a human readable message indicating details about the transition.
+                        This may be an empty string.
                       maxLength: 32768
                       type: string
                     observedGeneration:
-                      description: observedGeneration represents the .metadata.generation
-                        that the condition was set based upon. For instance, if .metadata.generation
-                        is currently 12, but the .status.conditions[x].observedGeneration
-                        is 9, the condition is out of date with respect to the current
-                        state of the instance.
+                      description: |-
+                        observedGeneration represents the .metadata.generation that the condition was set based upon.
+                        For instance, if .metadata.generation is currently 12, but the .status.conditions[x].observedGeneration is 9, the condition is out of date
+                        with respect to the current state of the instance.
                       format: int64
                       minimum: 0
                       type: integer
                     reason:
-                      description: reason contains a programmatic identifier indicating
-                        the reason for the condition's last transition. Producers of
-                        specific condition types may define expected values and meanings
-                        for this field, and whether the values are considered a guaranteed
-                        API. The value should be a CamelCase string. This field may
-                        not be empty.
+                      description: |-
+                        reason contains a programmatic identifier indicating the reason for the condition's last transition.
+                        Producers of specific condition types may define expected values and meanings for this field,
+                        and whether the values are considered a guaranteed API.
+                        The value should be a CamelCase string.
+                        This field may not be empty.
                       maxLength: 1024
                       minLength: 1
                       pattern: ^[A-Za-z]([A-Za-z0-9_,:]*[A-Za-z0-9_])?$
@@ -693,11 +727,12 @@ spec:
                       - Unknown
                       type: string
                     type:
-                      description: type of condition in CamelCase or in foo.example.com/CamelCase.
-                        --- Many .condition.type values are consistent across resources
-                        like Available, but because arbitrary conditions can be useful
-                        (see .node.status.conditions), the ability to deconflict is
-                        important. The regex it matches is (dns1123SubdomainFmt/)?(qualifiedNameFmt)
+                      description: |-
+                        type of condition in CamelCase or in foo.example.com/CamelCase.
+                        ---
+                        Many .condition.type values are consistent across resources like Available, but because arbitrary conditions can be
+                        useful (see .node.status.conditions), the ability to deconflict is important.
+                        The regex it matches is (dns1123SubdomainFmt/)?(qualifiedNameFmt)
                       maxLength: 316
                       pattern: ^([a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*/)?(([A-Za-z0-9][-A-Za-z0-9_.]*)?[A-Za-z0-9])$
                       type: string
