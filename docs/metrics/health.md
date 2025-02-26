@@ -40,7 +40,7 @@ information.
 
 1. Label field will have the list of all GPU health status with index as below
    ```
-   amdgpu.exporter.gpu.<GPU_ID>.state=healthy
+   metricsexporter.amd.com.gpu.<GPU_ID>.state=healthy
    ```
 
 2. Capacity will list all available GPU's reported disregarding the health
@@ -79,7 +79,7 @@ information.
 
 1. Label field will have the list of all GPU health status with index as below
    ```
-   amdgpu.exporter.gpu.<GPU_ID>.state=unhealthy
+   metricsexporter.amd.com.gpu.<GPU_ID>.state=unhealthy
    ```
 
 2. Capacity will list all available GPU's reported disregarding the health

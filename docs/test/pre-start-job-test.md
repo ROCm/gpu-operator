@@ -119,7 +119,7 @@ pytorch-gpu-deployment-7c6bb979f5-p2wlk   1/1     Running   0          7m46s
 ```
 
 ## Check test running node labels
-When the test is ongoing the corresponding label will be added to the node resource: ```"amd.testrunner.gpu_health_check.gst_single": "running"```, the test running label will be removed once the test completed.
+When the test is ongoing the corresponding label will be added to the node resource: ```"testrunner.amd.com.gpu_health_check.gst_single": "running"```, the test running label will be removed once the test completed.
 
 ## Check test result event
 The test runner generated event can be found from Job resource defined namespace

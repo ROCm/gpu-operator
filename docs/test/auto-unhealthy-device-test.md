@@ -50,7 +50,7 @@ Once device metrics exporter and test runner were brought up by applying the cor
 ```kubectl logs -n kube-amd-gpu test-deviceconfig-test-runner-r9gjr```
 
 ## Check test running node labels
-When the test is ongoing the corresponding label will be added to the node resource: ```"amd.testrunner.gpu_health_check.gst_single": "running"```, the test running label will be removed once the test completed.
+When the test is ongoing the corresponding label will be added to the node resource: ```"testrunner.amd.com.gpu_health_check.gst_single": "running"```, the test running label will be removed once the test completed.
 
 ## Check test result event
 The test runner generated event can be found from the operator's namespace: 
@@ -233,17 +233,17 @@ Config map explanation:
 
   * Recipe:
 
-    Please check the [Appendix](./appendix-test-recipe.md) for more details about all available test recipes.
+    Please check the [Appendix](./appendix-test-recipe.md) for more details about all available test recipes. Default test recipe is ```gst_single```.
 
   * Iterations:
   
-    Number of iterations to run for each test run.
+    Number of iterations to run for each test run. Default value is ```1```.
 
   * StopOnFailure:
   
-    If any iteration of test run failed, whether to stop the entire test run or not.
+    If any iteration of test run failed, whether to stop the entire test run or not. Default is ```true```.
 
   * TimeoutSeconds:
 
-    Total timeout for the whole test run.
+    Total timeout for the whole test run. Default value is ```600```.
 
