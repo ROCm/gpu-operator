@@ -9,6 +9,7 @@ subtrees:
     - file: releasenotes
       title: Release Notes
     - file: usage
+      title: Quick Start Guide
     - file: fulldeviceconfig
       title: Full Reference Config
     - file: troubleshooting

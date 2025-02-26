@@ -1,6 +1,57 @@
-# Usage Guide
+# Quick Start Guide
 
-This guide provides information on how to use the AMD GPU Operator in your Kubernetes environment.
+Getting up and running with the AMD GPU Operator and Device Metrics Exporter on Kubernets is quick and easy. Below is a short guide on how to get started using the helm installation method on a standard Kubernetes install. Note that more detailed instructions on the different installation methods can be found on this site:
+<br>[GPU Operator Kubernets Helm Install](../docs/installation/kubernetes-helm.md)
+<br>[GPU Operator Red Hat OpenShift Install](../docs/installation/openshift-olm.md)
+
+## Installing the GPU Operator
+
+1. The GPU Operator uses [cert-manager](https://cert-manager.io/) to manage certificates for MTLS communication between services. If you haven't already installed `cert-manager` as a prerequisite on your Kubernetes cluster, you'll need to install it as follows:
+
+    ```bash
+    # Add and update the cert-manager repository
+    helm repo add jetstack https://charts.jetstack.io --force-update
+
+    # Install cert-manager
+    helm install cert-manager jetstack/cert-manager \
+      --namespace cert-manager \
+      --create-namespace \
+      --version v1.15.1 \
+      --set crds.enabled=true
+    ```
+
+2. Once `cert-manager` is installed, you're just a few commands away from installing the GPU Operating and having a fully managed GPU infrastructure:
+
+    ```bash
+    # Add the Helm repository
+    helm repo add rocm https://rocm.github.io/gpu-operator
+    helm repo update
+
+    # Install the GPU Operator
+    helm install amd-gpu-operator rocm/gpu-operator-charts \
+      --namespace kube-amd-gpu --create-namespace
+    ```
+
+3. You should now see the GPU Operator component pods starting up in the namespace you specified above, `kube-amd-gpu`. You will also notice that the `gpu-operator-charts-controller-manager`, `kmm-controller` and `kmm-webhook-server` pods are in a pending state. This is because you need to label a node in your cluster as the control-plane node for those pods to run on:
+
+    ```bash
+    # Label the control-plane node
+    kubectl label nodes <node-name> node-role.kubernetes.io/control-plane=
+    ```
+
+4. To deploy the Device Plugin, Node Labeller and Metrics exporter to your cluster you need to create a new DeviceConfig custom resource. For a full list of configurable options refer to the [Full Reference Config](https://instinct.docs.amd.com/projects/gpu-operator/en/latest/fulldeviceconfig.html) documenattion. An [example DeviceConfig](https://github.com/ROCm/gpu-operator/blob/release-v1.1.0/example/deviceconfig_example.yaml) is supplied in the ROCm/gpu-operator repository which can be used to get going:
+
+    ```bash
+    # Apply the example DeviceConfig to enable the Device Plugin, Node Labeller and Metrics Exporter plugins
+    kubectl apply -f https://raw.githubusercontent.com/ROCm/gpu-operator/refs/heads/release-v1.1.0/example/deviceconfig_example.yaml
+    ```
+
+</br>
+That's it! The GPU Operator components should now all be running. You can verify this by checking the namespace where the gpu-operator components are installed (default: `kube-amd-gpu`):
+
+```bash
+kubectl get pods -n kube-amd-gpu
+```
 
 ## Creating a GPU-enabled Pod
 

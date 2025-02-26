@@ -21,27 +21,6 @@ The AMD GPU Operator simplifies the deployment and management of AMD Instinct GP
 - Helm v3.2.0+
 - `kubectl` CLI tool configured to access your cluster
 
-## Quick Start
-
-- Add the Helm repository:
-
-```bash
-helm repo add rocm https://rocm.github.io/gpu-operator
-helm repo update
-```
-
-- Install the AMD GPU Operator:
-
-```bash
-helm install amd-gpu-operator rocm/gpu-operator-charts --namespace kube-amd-gpu --create-namespace
-```
-
-- Verify the installation:
-
-```bash
-kubectl get pods -n kube-amd-gpu
-```
-
 ## Support
 
 For bugs and feature requests, please file an issue on our [GitHub Issues](https://github.com/ROCm/gpu-operator/issues) page.
