@@ -122,7 +122,7 @@ helm install amd-gpu-operator rocm/gpu-operator-charts \
 ```
 
 ````{note}
-If you would instead like to install a previous version of the GPU Operator you can specify the version number as follows:
+If you would instead like to install a previous version of the GPU Operator you can specify the version number, v1.1.0 for example, as follows:
 
 ```bash
 helm install amd-gpu-operator amd/gpu-operator-helm \
