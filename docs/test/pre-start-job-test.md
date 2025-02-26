@@ -70,7 +70,7 @@ spec:
       serviceAccountName: test-run
       initContainers:
       - name: init-test-runner
-        image: registry.test.pensando.io:5000/test-runner/test-runner:dev
+        image: docker.io/rocm/test-runner:v1.2.0-beta.0
         imagePullPolicy: IfNotPresent
         resources:
           limits:

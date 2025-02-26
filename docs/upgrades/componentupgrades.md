@@ -120,7 +120,7 @@ Updated CR:
     enable: True
     serviceType: "ClusterIP"
     port: 5000
-    image: rocm/device-metrics-exporter:latest
+    image: rocm/device-metrics-exporter:v1.2.0
     upgradePolicy:
       upgradeStrategy: OnDelete
 ```

@@ -72,7 +72,7 @@ Below is an example of a full DeviceConfig CR that can be used to install the AM
         serviceType: ClusterIP # ServiceType used to expose the Metrics Exporter endpoint. Can be either `ClusterIp` or `NodePort`.
         port: 5000 # Note if specifying NodePort as the serviceType use `32500` as the port number must be between 30000-32767
         # (Optional) Specifying metrics exporter image is optional. Default imagename shown here if not specified.
-        image: rocm/device-metrics-exporter:latest # Change this to trigger metrics exporter upgrade on CR update
+        image: rocm/device-metrics-exporter:v1.2.0 # Change this to trigger metrics exporter upgrade on CR update
         upgradePolicy:
           #(Optional) If no UpgradePolicy is mentioned for any of the components but their image is changed, the daemonset will
           # get upgraded according to the defaults, which is `upgradeStrategy` set to `RollingUpdate` and `maxUnavailable` set to 1.
