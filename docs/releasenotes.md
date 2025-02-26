@@ -1,6 +1,62 @@
-# GPU Operator Release Notes
+# GPU Operator v1.2.0 Release Notes
 
-## v1.1.0 Release Notes
+The GPU Operator v1.2.0 release introduces significant new features, including **GPU health monitoring**, **automated component and driver upgrades**, and a **test runner** for enhanced validation and troubleshooting. These improvements aim to increase reliability, streamline upgrades, and provide enhanced visibility into GPU health.
+
+## Release Highlights
+
+- **GPU Health Monitoring**
+  - Real-time health checks via **metrics exporter**
+  - Integration with **Kubernetes Device Plugin** for automatic removal of unhealthy GPUs from compute node schedulable resources
+  - Customizable health thresholds via K8s ConfigMaps
+
+- **GPU Operator and Automated Driver Upgrades**
+  - Automatic and manual upgrades of the device plugin, node labeller, test runner and metrics exporter via configurable upgrade policies
+  - Automatic driver upgrades is now supported with node cordon, drain, version tracking and optional node reboot
+
+- **Test Runner for GPU Diagnostics**
+  - Automated testing of unhealthy GPUs
+  - Pre-start job tests embedded in workload pods
+  - Manual and scheduled GPU tests with event logging and result tracking
+
+## Platform Support
+
+- No new platform support has been added in this release. While the GPU Operator now supports OpenShift 4.17, the newly introduced features in this release (GPU Health Monitoring, Automatic Driver & Component Upgrade, and Test Runner) are currently only available for vanilla Kubernetes deployments. These features are not yet supported on OpenShift, and OpenShift support will be introduced in the next minor release.
+
+## Known Limitations
+
+1. **Incomplete Cleanup on Manual Module Removal**
+   - *Impact:* When AMD GPU drivers are manually removed (instead of using the operator for uninstallation), not all GPU modules are cleaned up completely.
+   - *Recommendation:* Always use the GPU Operator for installing and uninstalling drivers to ensure complete cleanup.
+
+2. **Inconsistent Node Detection on Reboot**
+   - *Impact:* In some reboot sequences, Kubernetes fails to detect that a worker node has reloaded, which prevents the operator from installing the updated driver. This happens as a result of the node rebooting and coming back online too quickly before the default time check interval of 50s.
+   - *Recommendation:* Consider tuning the kubelet and controller-manager flags (such as --node-status-update-frequency=10s, --node-monitor-grace-period=40s, and --node-monitor-period=5s) to improve node status detection. Refer to [Kubernetes documentation](https://kubernetes.io/docs/reference/command-line-tools-reference/kube-controller-manager/) for more details.
+
+3. **Inconsistent Metrics Fetch Using NodePort**
+   - *Impact:* When accessing metrics via a Nodeport service (NodeIP:NodePort) from within a cluster, Kubernetes' built-in load balancing may sometimes route requests to different pods, leading to occasional inconsistencies in the returned metrics. This behavior is inherent to Kubernetes networking and is not a defect in the GPU Operator.
+   - *Recommendation:* Only use the internal PodIP and configured pod port (default: 5000) when retrieving metrics from within the cluster instead of the NodePort. Refer to the Metrics Exporter document section for more details.
+
+4. **Helm Install Fails if GPU Operator Image is Unavailable**
+   - *Impact:* If the image provided via --set controllerManager.manager.image.repository and --set controllerManager.manager.image.tag does not exist, the controller manager pod may enter a CrashLoopBackOff state and hinder uninstallation unless --no-hooks is used.
+   - *Recommendation:* Ensure that the correct GPU Operator controller image is available in your registry before installation. To uninstall the operator after seeing a *ErrImagePull* error, use --no-hooks to bypass all pre-uninstall helm hooks.
+
+5. **Driver Reboot Requirement with ROCm 6.3.x**
+   - *Impact:* While using ROCm 6.3+ drivers, the operator may not complete the driver upgrade properly unless a node reboot is performed.
+   - *Recommendation:* Manually reboot the affected nodes after the upgrade to complete driver installation. Alternatively, we recommend setting rebootRequired to true in the upgrade policy for driver upgrades. This ensures that a reboot is triggered after the driver upgrade, guaranteeing that the new driver is fully loaded and applied. This workaround should be used until the underlying issue is resolved in a future release.
+
+6. **Driver Upgrade Timing Issue**
+   - *Impact:* During an upgrade, if a node's ready status fluctuates (e.g., from Ready to NotReady to Ready) before the driver version label is updated by the operator, the old driver might remain installed. The node might continue running the previous driver version even after an upgrade has been initiated.
+   - *Recommendation:* Ensure nodes are fully stable before triggering an upgrade, and if necessary, manually update node labels to enforce the new driver version. Refer to driver upgrade documentation for more details.
+
+## Fixes
+
+1. **Driver Upgrade Failure with Exporter Enabled**
+   - Previously, enabling the exporter alongside the operator caused driver upgrades to fail.
+   - *Status:* This issue has been fixed in v1.2.0.
+
+</br></br>
+
+# GPU Operator v1.1.0 Release Notes
 
 The GPU Operator v1.1.0 release adds support for Red Hat OpenShift versions 4.16 and 4.17. The AMD GPU Operator has gone through a rigourous validation process and is now *certified* for use on OpenShift. It can now be deployed via [the Red Hat Catalog](https://catalog.redhat.com/software/container-stacks/detail/6722781e65e61b6d4caccef8).
 
