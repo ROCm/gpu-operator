@@ -56,7 +56,8 @@ When the test is ongoing the corresponding label will be added to the node resou
 
 ## Check test result event
 
-The test runner generated event can be found from the operator's namespace: 
+The test runner generated event can be found from the operator's namespace:
+
 ```bash
 $ kubectl get events -n kube-amd-gpu
 LAST SEEN   TYPE      REASON                    OBJECT                                            MESSAGE
@@ -259,17 +260,17 @@ spec:
 
 Config map explanation:
 
-* TestCategory: 
+* TestCategory:
   
   ```GPU_HEALTH_CHECK``` indicates all the config under this category is working for checking GPU device health status.
 
-* Global and node specific config: 
+* Global and node specific config:
   
   Under ```TestLocationTrigger``` there are ```global``` configs and host specific configs. Worker node whose name is ```node1``` will pick up the configs under ```node1```, other worker nodes will pick up the configs under ```global```.
 
 * Test Triggers:
   
-  Under ```TestParameters``` there is a map from test trigger to specific test case configs, which means the configs are setup for the corresponding test triggers (```AUTO_UNHEALTHY_GPU_WATCH```, ```MANUAL``` and ```PRE_START_JOB_CHECK```) 
+  Under ```TestParameters``` there is a map from test trigger to specific test case configs, which means the configs are setup for the corresponding test triggers (```AUTO_UNHEALTHY_GPU_WATCH```, ```MANUAL``` and ```PRE_START_JOB_CHECK```)
 
 * Test Cases:
 
@@ -308,4 +309,4 @@ Config map explanation:
     ```
 
     * If the DeviceIDs list is empty or not specified, all GPUs will be selected.
-    * If the DeviceIDs list is specified and all the IDs in the list are invalid, test runner process would exit with error status. 
+    * If the DeviceIDs list is specified and all the IDs in the list are invalid, test runner process would exit with error status.

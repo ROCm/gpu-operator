@@ -5,6 +5,7 @@ This guide walks through the process of upgrading AMD GPU drivers on worker node
 ## Overview
 
 The driver can be upgraded in the following methods.
+
 1. Automatic Upgrade Process
 2. Manual Upgrade Process
 
@@ -15,12 +16,15 @@ If this field is not configured, then user has to follow the manual steps as sho
 If this field is configured and the `version` field is changed in driver spec, automatic driver upgrade progress is initiated.
 
 The following operations are sequentially executed by the gpu operator for each selected node
+
 1. The node is cordoned so that no pods can be scheduled on this node
 2. The existing pods (that require amd gpus) are drained/deleted based on the config in the upgrade policy.
 3. The desired driver version label is updated as shown below.
-   ```bash 
+
+   ```bash
    kmm.node.kubernetes.io/version-module.<namespace>.<config-name>=<new-version>
    ```
+
 4. KMM operator unloads the old driver version and loads the new driver version.
 5. If the node requires reboot post installation (configurable in upgradePolicy), the node is rebooted
 6. Once the node is rebooted and the desired driver is loaded, the node is uncordoned and available for scheduling.
@@ -31,6 +35,7 @@ The following are the steps to perform the automatic driver upgrade
 2. Track the upgrade status through CR status
 
 ### 1. Set desired driver version and configure upgrade policy
+
 The following sample config shows the relevant fields to start automatic driver upgrade across the nodes in the cluster with default upgrade configuration.
 
 ```yaml
@@ -79,9 +84,10 @@ To check the full spec of upgrade configuration run kubectl get crds deviceconfi
 | `force` | Force delete all pods that use amd gpus | `true` |
 | `timeout` | The length of time to wait before giving up. Zero means infinite | `300s` |
 
-
 ### 2. Track the upgrade status through CR status
+
 The `status.nodeModuleStatus.<worker-node>.status` captures the status of the upgrade process for each node
+
 ```yaml
 status:
   nodeModuleStatus:
@@ -124,6 +130,7 @@ The following are the different node states during the upgrade process
 | `Upgrade-Failed` | Driver upgrade failed for any other reasons |
 
 The following are considered during the automatic upgrade process
+
 1. Selection of a node should satisfy both `maxUnavailableNodes` and `maxParallelUpgrades` criteria
 2. All nodes in failed state is considered while calculating `maxUnavailableNodes`
 3. When a driver upgrade on a node fails, the node will be in cordoned state. User has to fix the issue and uncordon the node manually. Such nodes will be automatically picked up for automatic driver upgrade operation.
@@ -137,7 +144,6 @@ The manual upgrade process involves the following steps:
 3. Managing workloads
 4. Updating node labels
 5. Performing the upgrade
-
 
 ### 1. Check Current Driver Version
 
