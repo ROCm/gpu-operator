@@ -4,11 +4,11 @@ This guide walks through installing the AMD GPU Operator on a Kubernetes cluster
 
 <style>
 .bd-main .bd-content .bd-article-container {
-  max-width: 100%; /* Override the page width to 100%; */
+  max-width: 100%; /*Override the page width to 100%;*/
 }
 
 .bd-sidebar-secondary {
-  display: none; /* Disable the secondary sidebar from displaying; */
+  display: none; /*Disable the secondary sidebar from displaying;*/
 }
 </style>
 
