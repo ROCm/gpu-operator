@@ -141,7 +141,7 @@ More detailed information about test result events can be found in [this section
 
 You can create a config map to customize the test triggger and recipe configs. For the example config map and explanation please check [this section](./auto-unhealthy-device-test.md#advanced-test-configuration).
 
-After creating the config map, you can specify the volume and volume mount to mount the config map into test runner container. 
+After creating the config map, you can specify the volume and volume mount to mount the config map into test runner container.
 
 * In the config map the file name must be named as ```config.json```
 * Within the test runner container the mount path should be ```/etc/test-runner/```

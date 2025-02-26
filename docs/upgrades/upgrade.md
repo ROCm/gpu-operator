@@ -69,7 +69,7 @@ helm upgrade amd-gpu-operator helm-charts-k8s/gpu-operator-helm-k8s-v1.0.0.tgz \
 
 - The ```fullnameOverride``` and ```nameOverride``` parameters are used to ensure consistent naming between the previous and new chart deployments, avoiding conflicts caused by name mismatches during the upgrade process. The ```fullnameOverride``` explicitly sets the fully qualified name of the resources created by the chart, such as service accounts and deployments. The ```nameOverride``` adjusts the base name of the chart without affecting resource-specific names.
 - By default, the default ```values.yaml``` from the new helm charts will be applied
-- (Optional) You can prepare a new ```values.yaml``` with customized values and apply it along with ```helm upgrade``` command. The node feature discovery and kmm controller images can be changed before running the helm-upgrade. This will upgrade the nfd and kmm operators respectively when helm upgrade is run. For example: 
+- (Optional) You can prepare a new ```values.yaml``` with customized values and apply it along with ```helm upgrade``` command. The node feature discovery and kmm controller images can be changed before running the helm-upgrade. This will upgrade the nfd and kmm operators respectively when helm upgrade is run. For example:
 
 ```bash
 helm upgrade amd-gpu-operator helm-charts-k8s/gpu-operator-helm-k8s-v1.0.0.tgz \

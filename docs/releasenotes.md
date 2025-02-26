@@ -1,8 +1,10 @@
-# GPU Operator v1.2.0 Release Notes
+# Release Notes
+
+## GPU Operator v1.2.0 Release Notes
 
 The GPU Operator v1.2.0 release introduces significant new features, including **GPU health monitoring**, **automated component and driver upgrades**, and a **test runner** for enhanced validation and troubleshooting. These improvements aim to increase reliability, streamline upgrades, and provide enhanced visibility into GPU health.
 
-## Release Highlights
+### Release Highlights
 
 - **GPU Health Monitoring**
   - Real-time health checks via **metrics exporter**
@@ -18,11 +20,11 @@ The GPU Operator v1.2.0 release introduces significant new features, including *
   - Pre-start job tests embedded in workload pods
   - Manual and scheduled GPU tests with event logging and result tracking
 
-## Platform Support
+### Platform Support
 
 - No new platform support has been added in this release. While the GPU Operator now supports OpenShift 4.17, the newly introduced features in this release (GPU Health Monitoring, Automatic Driver & Component Upgrade, and Test Runner) are currently only available for vanilla Kubernetes deployments. These features are not yet supported on OpenShift, and OpenShift support will be introduced in the next minor release.
 
-## Known Limitations
+### Known Limitations
 
 1. **Incomplete Cleanup on Manual Module Removal**
    - *Impact:* When AMD GPU drivers are manually removed (instead of using the operator for uninstallation), not all GPU modules are cleaned up completely.
@@ -48,7 +50,7 @@ The GPU Operator v1.2.0 release introduces significant new features, including *
    - *Impact:* During an upgrade, if a node's ready status fluctuates (e.g., from Ready to NotReady to Ready) before the driver version label is updated by the operator, the old driver might remain installed. The node might continue running the previous driver version even after an upgrade has been initiated.
    - *Recommendation:* Ensure nodes are fully stable before triggering an upgrade, and if necessary, manually update node labels to enforce the new driver version. Refer to driver upgrade documentation for more details.
 
-## Fixes
+### Fixes
 
 1. **Driver Upgrade Failure with Exporter Enabled**
    - Previously, enabling the exporter alongside the operator caused driver upgrades to fail.
@@ -56,7 +58,7 @@ The GPU Operator v1.2.0 release introduces significant new features, including *
 
 </br></br>
 
-# GPU Operator v1.1.0 Release Notes
+## GPU Operator v1.1.0 Release Notes
 
 The GPU Operator v1.1.0 release adds support for Red Hat OpenShift versions 4.16 and 4.17. The AMD GPU Operator has gone through a rigourous validation process and is now *certified* for use on OpenShift. It can now be deployed via [the Red Hat Catalog](https://catalog.redhat.com/software/container-stacks/detail/6722781e65e61b6d4caccef8).
 
@@ -103,7 +105,7 @@ The latest AMD GPU Operator OLM Bundle for OpenShift is tagged with version v1.1
 
 </br></br>
 
-## v1.0.0 Release Notes
+## GPU Operator v1.0.0 Release Notes
 
 This release is the first major release of AMD GPU Operator. The AMD GPU Operator simplifies the deployment and management of AMD Instinct™ GPU accelerators within Kubernetes clusters. This project enables seamless configuration and operation of GPU-accelerated workloads, including machine learning, Generative AI, and other GPU-intensive applications.
 

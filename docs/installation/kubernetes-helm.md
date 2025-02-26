@@ -2,6 +2,16 @@
 
 This guide walks through installing the AMD GPU Operator on a Kubernetes cluster using Helm.
 
+<style>
+.bd-main .bd-content .bd-article-container {
+  max-width: 100%; /* Override the page width to 100%; */
+}
+
+.bd-sidebar-secondary {
+  display: none; /* Disable the secondary sidebar from displaying; */
+}
+</style>
+
 ## Prerequisites
 
 ### System Requirements
@@ -103,19 +113,29 @@ helm repo update
 ### 2. Install the Operator
 
 Basic installation:
+To install the latest version of the GPU Operator run the following Helm install command:
 
 ```bash
 helm install amd-gpu-operator rocm/gpu-operator-charts \
   --namespace kube-amd-gpu \
   --create-namespace \
-  --version=v1.0.0
 ```
 
-```{note}
-Installation Options
-  - Skip NFD installation: `--set node-feature-discovery.enabled=false`
-  - Skip KMM installation: `--set kmm.enabled=false`
+````{note}
+If you would instead like to install a previous version of the GPU Operator you can specify the version number as follows:
+
+```bash
+helm install amd-gpu-operator amd/gpu-operator-helm \
+  --namespace kube-amd-gpu \
+  --create-namespace \
+  --version=v1.1.0
 ```
+````
+
+You can also specify the following installation Options to disable NFD or KMM, although this is not recommended unless you know what you are doing:
+
+- Skip NFD installation: `--set node-feature-discovery.enabled=false`
+- Skip KMM installation: `--set kmm.enabled=false`
 
 ```{warning}
   It is strongly recommended to use AMD-optimized KMM images included in the operator release.
@@ -131,7 +151,6 @@ Installation with custom options:
 helm install amd-gpu-operator rocm/gpu-operator-charts \
   --namespace kube-amd-gpu \
   --create-namespace \
-  --version=v1.0.0 \
   -f values.yaml
 ```
 
@@ -143,7 +162,7 @@ The following parameters are able to be configued when using the Helm Chart. In 
 | controllerManager.manager.image.tag | string | `"dev"` | AMD GPU operator controller manager image tag |
 | controllerManager.manager.imagePullPolicy | string | `"Always"` | Image pull policy for AMD GPU operator controller manager pod |
 | controllerManager.manager.imagePullSecrets | string | `""` | Image pull secret name for pulling AMD GPU operator controller manager image if registry needs credential to pull image |
-| controllerManager.nodeAffinity.nodeSelectorTerms | list | `[{"key":"node-role.kubernetes.io/control-plane","operator":"Exists"},{"key":"node-role.kubernetes.io/master","operator":"Exists"}]` | Node affinity selector terms config for the AMD GPU operator controller manager, set it to [] if you want to make affinity config empty |
+| controllerManager.nodeAffinity.nodeSelectorTerms | list | `[{"key":"node-role.kubernetes.io/control-plane","operator":"Exists"}, {"key":"node-role.kubernetes.io/master","operator":"Exists"}]` | Node affinity selector terms config for the AMD GPU operator controller manager, set it to [] if you want to make affinity config empty |
 | controllerManager.nodeSelector | object | `{}` | Node selector for AMD GPU operator controller manager deployment |
 | installdefaultNFDRule | bool | `true` | Set to true to install default NFD rule for detecting AMD GPU hardware based on pci vendor ID and device ID |
 | kmm.controller.manager.env.relatedImageBuild | string | `"gcr.io/kaniko-project/executor:v1.23.2"` | KMM kaniko builder image for building driver image within cluster |
@@ -156,12 +175,12 @@ The following parameters are able to be configued when using the Helm Chart. In 
 | kmm.controller.manager.image.tag | string | `"dev"` | KMM controller manager image tag |
 | kmm.controller.manager.imagePullPolicy | string | `"Always"` | Image pull policy for KMM controller manager pod |
 | kmm.controller.manager.imagePullSecrets | string | `""` | Image pull secret name for pulling KMM controller manager image if registry needs credential to pull image |
-| kmm.controller.nodeAffinity.nodeSelectorTerms | list | `[{"key":"node-role.kubernetes.io/control-plane","operator":"Exists"},{"key":"node-role.kubernetes.io/master","operator":"Exists"}]` | Node affinity selector terms config for the KMM controller manager deployment, set it to [] if you want to make affinity config empty |
+| kmm.controller.nodeAffinity.nodeSelectorTerms | list | `[{"key":"node-role.kubernetes.io/control-plane","operator":"Exists"}, {"key":"node-role.kubernetes.io/master","operator":"Exists"}]` | Node affinity selector terms config for the KMM controller manager deployment, set it to [] if you want to make affinity config empty |
 | kmm.controller.nodeSelector | object | `{}` | Node selector for the KMM controller manager deployment |
 | kmm.enabled | bool | `true` | Set to true/false to enable/disable the installation of kernel module management (KMM) operator |
-| kmm.webhookServer.nodeAffinity.nodeSelectorTerms | list | `[{"key":"node-role.kubernetes.io/control-plane","operator":"Exists"},{"key":"node-role.kubernetes.io/master","operator":"Exists"}]` | Node affinity selector terms config for the KMM webhook deployment, set it to [] if you want to make affinity config empty |
-| kmm.webhookServer.nodeSelector | object | `{}` | KMM webhook deployment node selector |
-| kmm.webhookServer.webhookServer.image.repository | string | `"rocm/kernel-module-management-webhook-server:v1.0.0"` | KMM webhook image repository |
+| kmm.webhookServer.nodeAffinity.nodeSelectorTerms | list | `[{"key":"node-role.kubernetes.io/control-plane","operator":"Exists"}, {"key":"node-role.kubernetes.io/master","operator":"Exists"}]` | Node affinity selector terms config for the KMM webhook deployment, set it to [] if you want to make affinity config empty |
+| kmm.webhookServer.nodeSelector | object | `{}` | KMM webhook's deployment node selector |
+| kmm.webhookServer.webhookServer.image.repository | string | `"registry.test.pensando.io:5000/kernel-module-management-webhook-server"` | KMM webhook image repository |
 | kmm.webhookServer.webhookServer.image.tag | string | `"dev"` | KMM webhook image tag |
 | kmm.webhookServer.webhookServer.imagePullPolicy | string | `"Always"` | Image pull policy for KMM webhook pod |
 | kmm.webhookServer.webhookServer.imagePullSecrets | string | `""` | Image pull secret name for pulling KMM webhook image if registry needs credential to pull image |

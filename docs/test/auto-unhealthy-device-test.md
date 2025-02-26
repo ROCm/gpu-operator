@@ -143,7 +143,7 @@ Test runner generated event can be retrieved by filtering the source component: 
 
 * ```involvedObject``` shows which test runner pod executed the test and generated the event.
 * ```lastTimestamp``` shows the time when event was generated.
-* ```message``` contains detailed test result, which can be further passsed into json format: 
+* ```message``` contains detailed test result, which can be further passsed into json format:
 
 ```bash
 $ kubectl get events -o=jsonpath='{.items[?(@.source.component=="amd-test-runner")]}' -n kube-amd-gpu | jq -r .message | jq .
@@ -194,7 +194,7 @@ in the above example ```35824``` is the GPU's KFD ID reported by amd-smi (in roc
 
 ## Advanced Configuration - ConfigMap
 
-You can provide a config map to specify test recipe details for the test runner. Create the config map then specify the config map name in the deviceconfig Custom Resource(CR) for test runner to pick up the config. 
+You can provide a config map to specify test recipe details for the test runner. Create the config map then specify the config map name in the deviceconfig Custom Resource(CR) for test runner to pick up the config.
 
 ```{note}
   If you want to update the config for test runner on the fly for the ```auto_unhealthy_gpu_watch``` trigger, directly update the configmap then the test runner can pick up the new config. After reading the new config, test runner's ongoing test won't be interrupted and still going with old config. The new config will be applied to the next test run.
