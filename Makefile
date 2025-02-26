@@ -100,7 +100,40 @@ ENVTEST_K8S_VERSION = 1.23
 # Makefile targets
 
 ##@ QuickStart
-.PHONY: all ## Build all artifacts
+# Setting SHELL to bash allows bash commands to be executed by recipes.
+# This is a requirement for 'setup-envtest.sh' in the test target.
+# Options are set to exit when a recipe line exits non-zero or a piped command fails.
+SHELL = /usr/bin/env bash -o pipefail
+.SHELLFLAGS = -ec
+
+DOCKER_GID := $(shell stat -c '%g' /var/run/docker.sock)
+USER_UID := $(shell id -u)
+USER_GID := $(shell id -g)
+DOCKER_BUILDER_TAG := v1.1
+DOCKER_BUILDER_IMAGE := registry.test.pensando.io:5000/gpu-operator-build:$(DOCKER_BUILDER_TAG)
+CONTAINER_WORKDIR := /gpu-operator
+
+.PHONY: docker-build-env
+docker-build-env:
+	@echo "Building the Docker environment..."
+	@docker build \
+		-t $(DOCKER_BUILDER_IMAGE) -f Dockerfile.build .
+
+.PHONY: docker/shell
+docker/shell: docker-build-env
+	@echo "Starting a shell in the Docker build container..."
+	@docker run --rm -it --privileged \
+		--name gpu-operator-build \
+		-e "USER_NAME=$(shell whoami)" \
+		-e "USER_UID=$(shell id -u)" \
+		-e "USER_GID=$(shell id -g)" \
+		-v $(CURDIR):/gpu-operator \
+		-v $(HOME)/.ssh:/home/$(shell whoami)/.ssh \
+		-w $(CONTAINER_WORKDIR) \
+		$(DOCKER_BUILDER_IMAGE) \
+		bash -c "cd /gpu-operator && git config --global --add safe.directory /gpu-operator && bash"
+
+.PHONY: all
 all: generate manager manifests helm-k8s helm-openshift bundle-build docker-build
 
 ##@ General
