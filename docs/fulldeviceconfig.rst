@@ -37,7 +37,7 @@ Below is an example of a full DeviceConfig CR that can be used to install the AM
       ## AMD GPU Driver Configuration ##
       driver:
         # Set to false to skip driver installation to use inbox or pre-installed driver on worker nodes
-        # Set to True to enable operator to install out-of-tree amdgpu kernel module
+        # Set to true to enable operator to install out-of-tree amdgpu kernel module
         enable: false 
         blacklist: false # Set to true to blacklist the amdgpu kernel module which is required for installing out-of-tree driver
         # Specify your repository to host driver image
@@ -50,17 +50,38 @@ Below is an example of a full DeviceConfig CR that can be used to install the AM
         imageRegistrySecret:
           name: mysecret
       imageRegistryTLS: 
-        insecure: False # If True, check for the container image using plain HTTP
-        InsecureSkipTLSVerify: False # If True, skip any TLS server certificate validation (useful for self-signed certificates)
+        insecure: false # If true, check for the container image using plain HTTP
+        InsecureSkipTLSVerify: false # If true, skip any TLS server certificate validation (useful for self-signed certificates)
       version: "6.3" # Specify the driver version you would like to be installed that coincides with a ROCm version number
       upgradePolicy:
         enable: true
         maxParallelUpgrades: 3 # (Optional) Number of nodes that will be upgraded in parallel. Default is 1
       ## AMD K8s Device Plugin Configuration ##
+      commonConfig:
+        # (Optional) Specify common values used by all components. 
+        initContainerImage: busybox:1.36 # Specify the InitContainerImage to use for all component pods
+        utilsContainer: 
+          image: docker.io/amdpsdo/gpu-operator-utils:latest # Image to use for the utils container
+          imagePullPolicy: IfNotPresent # Image pull policy for the utils container. Either `Always`, `IfNotPresent` or `Never`
+          # (Optional) Specify the credential for your private registry if it requires credential to get pull/push access
+          # you can create the docker-registry type secret by running command like:
+          # kubectl create secret docker-registry mysecret -n kmm-namespace --docker-username=xxx --docker-password=xxx
+          # Make sure you created the secret within the namespace that KMM operator is running
+          imageRegistrySecret:
+            name: mysecret
       devicePlugin: 
+        enableNodeLabeller: true # enable or disable the node labeller
         # (Optional) Specifying image names are optional. Default image names for shown here if not specified.
         devicePluginImage: rocm/k8s-device-plugin:latest # Change this to trigger metrics exporter upgrade on CR update
+        devicePluginImagePullPolicy: IfNotPresent # Image pull policy for the device plugin. Either `Always`, `IfNotPresent` or `Never`
         nodeLabellerImage: rocm/k8s-device-plugin:labeller-latest # Change this to trigger metrics exporter upgrade on CR update
+        nodeLabellerImagePullPolicy: IfNotPresent # Image pull policy for the device plugin. Either `Always`, `IfNotPresent` or `Never`
+        # (Optional) Specify the credential for your private registry if it requires credential to get pull/push access
+        # you can create the docker-registry type secret by running command like:
+        # kubectl create secret docker-registry mysecret -n kmm-namespace --docker-username=xxx --docker-password=xxx
+        # Make sure you created the secret within the namespace that KMM operator is running
+        imageRegistrySecret:
+          name: mysecret
         upgradePolicy:
           #(Optional) If no UpgradePolicy is mentioned for any of the components but their image is changed, the daemonset will
           # get upgraded according to the defaults, which is `upgradeStrategy` set to `RollingUpdate` and `maxUnavailable` set to 1. 
@@ -68,11 +89,13 @@ Below is an example of a full DeviceConfig CR that can be used to install the AM
           maxUnavailable: 1 # (Optional) Number of pods that can be unavailable during the upgrade process. 1 is the default value
       ## AMD GPU Metrics Exporter Configuration ##
       metricsExporter: 
-        enable: False # False by Default. Set to True to enable the Metrics Exporter 
+        enable: false # false by Default. Set to true to enable the Metrics Exporter 
         serviceType: ClusterIP # ServiceType used to expose the Metrics Exporter endpoint. Can be either `ClusterIp` or `NodePort`.
         port: 5000 # Note if specifying NodePort as the serviceType use `32500` as the port number must be between 30000-32767
         # (Optional) Specifying metrics exporter image is optional. Default imagename shown here if not specified.
         image: rocm/device-metrics-exporter:v1.2.0 # Change this to trigger metrics exporter upgrade on CR update
+        config:
+          name: exporter-configmap # Name of the ConfigMap that contains the metrics exporter configuration
         upgradePolicy:
           #(Optional) If no UpgradePolicy is mentioned for any of the components but their image is changed, the daemonset will
           # get upgraded according to the defaults, which is `upgradeStrategy` set to `RollingUpdate` and `maxUnavailable` set to 1.
@@ -103,12 +126,49 @@ The below is an example of the minimal DeviceConfig CR that can be used to insta
     namespace: kube-amd-gpu
   spec:
     driver:
-      enable: False # Set to False to skip driver installation to use inbox or pre-installed driver on worker nodes
+      enable: false # Set to false to skip driver installation to use inbox or pre-installed driver on worker nodes
     devicePlugin:
-      enableNodeLabeller: True
+      enableNodeLabeller: true
     metricsExporter:
-      enable: True # To enable/disable the metrics exporter, disabled by default
+      enable: true # To enable/disable the metrics exporter, disabled by default
       serviceType: "NodePort" # Node port for metrics exporter service
+      config:
+        name: exporter-configmap
       nodePort: 32500
     selector:
       feature.node.kubernetes.io/amd-gpu: "true"
+
+Metrics Exporter ConfigMap
+==========================
+
+.. code-block:: yaml
+
+  apiVersion: v1
+  kind: ConfigMap
+  metadata:
+    name: exporter-configmap
+    namespace: kube-amd-gpu
+  data:
+    config.json: |
+      {
+        "GPUConfig": {
+          "Labels": [
+            "GPU_UUID",
+            "SERIAL_NUMBER",
+            "GPU_ID",
+            "POD",
+            "NAMESPACE",
+            "CONTAINER",
+            "JOB_ID",
+            "JOB_USER",
+            "JOB_PARTITION",
+            "CLUSTER_NAME",
+            "CARD_SERIES",
+            "CARD_MODEL",
+            "CARD_VENDOR",
+            "DRIVER_VERSION",
+            "VBIOS_VERSION",
+            "HOSTNAME"
+          ]
+        }
+      }
