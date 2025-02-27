@@ -1,5 +1,7 @@
+ARG GOLANG_BASE_IMG=golang:1.23
+
 # Build the manager binary
-FROM golang:1.23 as builder
+FROM ${GOLANG_BASE_IMG} as builder
 
 USER root
 
