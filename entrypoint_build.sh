@@ -37,7 +37,7 @@ if [[ -n "${USER_NAME:-}" && -n "${USER_UID:-}" && -n "${USER_GID:-}" ]]; then
 	chown -R "$USER_UID":"$USER_GID" /gpu-operator
 	chown -R "$USER_UID":"$USER_GID" /home/$USER_NAME
 
-	su - "$USER_NAME" -c "echo 'export GOPATH=/usr/local/go:/home/$USER_NAME/go' >> ~/.bashrc"
+	su - "$USER_NAME" -c "echo 'export GOPATH=/home/$USER_NAME/go' >> ~/.bashrc"
 	su - "$USER_NAME" -c "echo 'export PATH=\$GOPATH/bin:/usr/local/go/bin:\$PATH' >> ~/.bashrc"
 	su - "$USER_NAME" -c "echo 'export PATH=/usr/local/go/bin:\$PATH' >> ~/.bashrc"
 	exec su - "$USER_NAME" -c "$@"

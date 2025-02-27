@@ -112,6 +112,8 @@ USER_GID := $(shell id -g)
 DOCKER_BUILDER_TAG := v1.1
 DOCKER_BUILDER_IMAGE := registry.test.pensando.io:5000/gpu-operator-build:$(DOCKER_BUILDER_TAG)
 CONTAINER_WORKDIR := /gpu-operator
+BUILD_BASE_IMG ?= registry.test.pensando.io:5000/ubuntu:22.04
+GOLANG_BASE_IMG ?= registry.test.pensando.io:5000/golang:1.23
 
 .PHONY: default
 default: docker-build-env
@@ -125,13 +127,13 @@ default: docker-build-env
 		-v $(HOME)/.ssh:/home/$(shell whoami)/.ssh \
 		-w $(CONTAINER_WORKDIR) \
 		$(DOCKER_BUILDER_IMAGE) \
-		cd /gpu-operator && git config --global --add safe.directory /gpu-operator && make all && make copyrights
+		cd /gpu-operator && git config --global --add safe.directory /gpu-operator && make all
 
 .PHONY: docker-build-env
 docker-build-env:
 	@echo "Building the Docker environment..."
 	@docker build \
-		-t $(DOCKER_BUILDER_IMAGE) -f Dockerfile.build .
+		-t $(DOCKER_BUILDER_IMAGE) --build-arg BUILD_BASE_IMG=$(BUILD_BASE_IMG) -f Dockerfile.build .
 
 .PHONY: docker/shell
 docker/shell: docker-build-env
