@@ -1,6 +1,8 @@
 # AMD GPU Operator
 
-:book: GPU Operator Documentation Site: https://instinct.docs.amd.com/projects/gpu-operator
+## :book: GPU Operator Documentation Site
+
+For the most detailed and up-to-date documentation please visit our Instinct Documenation site: [https://instinct.docs.amd.com/projects/gpu-operator](https://instinct.docs.amd.com/projects/gpu-operator)
 
 ## Introduction
 
@@ -53,12 +55,13 @@ helm install cert-manager jetstack/cert-manager \
 ### 1. Add the AMD Helm Repository
 
 ```bash
-helm install amd-gpu-operator --namespace kube-amd-gpu --create-namespace https://github.com/ROCm/gpu-operator/releases/download/v1.0.0/gpu-operator-charts-v1.0.0.tgz
+helm repo add rocm https://rocm.github.io/gpu-operator
+helm repo update
 ```
 
 ### 2. Install the Operator
 
-Basic installation:
+#### Basic installation
 
 ```bash
 helm install amd-gpu-operator rocm/gpu-operator-charts \
@@ -67,19 +70,17 @@ helm install amd-gpu-operator rocm/gpu-operator-charts \
   --version=v1.2.0
 ```
 
-```{note}
-Installation Options
-  - Skip NFD installation: `--set node-feature-discovery.enabled=false`
-  - Skip KMM installation: `--set kmm.enabled=false`
-```
+#### Installation Options
 
-```{warning}
-  It is strongly recommended to use AMD-optimized KMM images included in the operator release.
-```
+* Skip NFD installation: `--set node-feature-discovery.enabled=false`
+* Skip KMM installation: `--set kmm.enabled=false`
+
+> [!WARNING]
+> It is strongly recommended to use AMD-optimized KMM images included in the operator release. This is not required when installing the GPU Operator on Red Hat OpenShift.
 
 ### 3. Install Custom Resource
 
-After the installation of AMD GPU Operator, you need to create the `DeviceConfig` custom resource in order to trigger the operator to start to work. By preparing the `DeviceConfig` in the YAML file, you can create the resouce by running ```kubectl apply -f deviceconfigs.yaml```. For custom resource definition and more detailed information, please refer to [Custom Resource Installation Guide](https://dcgpu.docs.amd.com/projects/gpu-operator/en/latest/installation/kubernetes-helm.html#install-custom-resource).
+After the installation of AMD GPU Operator, you need to create the `DeviceConfig` custom resource in order to trigger the operator to start to work. By preparing the `DeviceConfig` in the YAML file, you can create the resouce by running ```kubectl apply -f deviceconfigs.yaml```. For custom resource definition and more detailed information, please refer to [Custom Resource Installation Guide](https://instinct.docs.amd.com/projects/gpu-operator/en/latest/installation/kubernetes-helm.html#install-custom-resource).
 
 ### Grafana Dashboards
 
