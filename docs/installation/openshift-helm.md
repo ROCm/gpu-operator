@@ -1,7 +1,7 @@
 # OpenShift (Helm)
 
 ```{warning}
-Installing via Helm is not a recommended method for Red Hat OpenShift. Users wishing to use the AMD GPU with OpenShift should consider using the OLM method instead.
+Installing via Helm is not a recommended method for Red Hat OpenShift. Users wishing to use the AMD GPU with OpenShift should consider using the OLM method instead. This method is not supported in the latest version. As a result, this page will be removed in the next release.
 ```
 
 This guide walks through installing the AMD GPU Operator on an OpenShift cluster using Helm.
