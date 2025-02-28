@@ -84,9 +84,9 @@ spec:
     #  name: exporterimagesecret
 
     # metrics config in configmap
-    config:
+    # config:
       # configmap name, example config in example/metricsExporter/config.json
-      name: configmap-name
+    #  name: gpu-config
 
   # Specify the testrunner config
   testRunner:
