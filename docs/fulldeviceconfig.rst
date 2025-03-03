@@ -74,13 +74,39 @@ Below is an example of a full DeviceConfig CR that can be used to install the AM
         # (Optional) Specifying image names are optional. Default image names for shown here if not specified.
         devicePluginImage: rocm/k8s-device-plugin:latest # Change this to trigger metrics exporter upgrade on CR update
         devicePluginImagePullPolicy: IfNotPresent # Image pull policy for the device plugin. Either `Always`, `IfNotPresent` or `Never`
+        # devicePluginImagePullPolicy default value is "IfNotPresent" for valid tags, "Always" for no tag or "latest" tag
+        devicePluginTolerations:
+          key: "key1" # Key is the taint key that the toleration applies to. Empty means match all taint keys. If the key is empty,
+          # operator must be "Exists"; this combination means to match all values and all keys.
+          operator: "Equal" # Operator represents a key's relationship to the value. Valid operators are Exists and Equal. 
+          # Defaults to Equal. Exists is equivalent to wildcard for value, so that a pod can tolerate all taints of a particular category.
+          value: "value1" # Value is the taint value the toleration matches to. If the operator is Exists, the value should be empty,
+          # otherwise just a regular string.
+          effect: "NoSchedule" # Effect indicates the taint effect to match. Empty means match all taint effects. When specified, allowed 
+          # values are "NoSchedule", "PreferNoSchedule" and "NoExecute".
+          tolerationSeconds: [Expected Int value, not set by default] #Seconds represents the period of time the toleration tolerates the taint. 
+          # By default, it is not set, which means tolerate the taint forever (do not evict). Effect needs to be NoExecute for this, 
+          # otherwise this field is ignored. Zero and negative values will be treated as 0 (evict immediately) by the system.
         nodeLabellerImage: rocm/k8s-device-plugin:labeller-latest # Change this to trigger metrics exporter upgrade on CR update
-        nodeLabellerImagePullPolicy: IfNotPresent # Image pull policy for the device plugin. Either `Always`, `IfNotPresent` or `Never`
-        # (Optional) Specify the credential for your private registry if it requires credential to get pull/push access
-        # you can create the docker-registry type secret by running command like:
-        # kubectl create secret docker-registry mysecret -n kmm-namespace --docker-username=xxx --docker-password=xxx
-        # Make sure you created the secret within the namespace that KMM operator is running
+        nodeLabellerImagePullPolicy: IfNotPresent # Image pull policy for the node labeller. Either `Always`, `IfNotPresent` or `Never`
+        # nodeLabellerImagePullPolicy default value is "IfNotPresent" for valid tags, "Always" for no tag or "latest" tag
+        nodeLabellerTolerations:
+          key: "key1" # Key is the taint key that the toleration applies to. Empty means match all taint keys. If the key is empty,
+          # operator must be "Exists"; this combination means to match all values and all keys.
+          operator: "Equal" # Operator represents a key's relationship to the value. Valid operators are Exists and Equal. 
+          # Defaults to Equal. Exists is equivalent to wildcard for value, so that a pod can tolerate all taints of a particular category.
+          value: "value1" # Value is the taint value the toleration matches to. If the operator is Exists, the value should be empty,
+          # otherwise just a regular string.
+          effect: "NoSchedule" # Effect indicates the taint effect to match. Empty means match all taint effects. When specified, allowed 
+          # values are "NoSchedule", "PreferNoSchedule" and "NoExecute".
+          tolerationSeconds: [Expected Int value, not set by default] #Seconds represents the period of time the toleration tolerates the taint. 
+          # By default, it is not set, which means tolerate the taint forever (do not evict). Effect needs to be NoExecute for this, 
+          # otherwise this field is ignored. Zero and negative values will be treated as 0 (evict immediately) by the system.
         imageRegistrySecret:
+          # (Optional) Specify the credential for your private registry if it requires credential to get pull/push access
+          # you can create the docker-registry type secret by running command like:
+          # kubectl create secret docker-registry mysecret -n kmm-namespace --docker-username=xxx --docker-password=xxx
+          # Make sure you created the secret within the namespace that KMM operator is running
           name: mysecret
         upgradePolicy:
           #(Optional) If no UpgradePolicy is mentioned for any of the components but their image is changed, the daemonset will
@@ -94,8 +120,11 @@ Below is an example of a full DeviceConfig CR that can be used to install the AM
         port: 5000 # Note if specifying NodePort as the serviceType use `32500` as the port number must be between 30000-32767
         # (Optional) Specifying metrics exporter image is optional. Default imagename shown here if not specified.
         image: rocm/device-metrics-exporter:v1.2.0 # Change this to trigger metrics exporter upgrade on CR update
+        imagePullPolicy: "IfNotPresent" # image pull policy for the metrics exporter container. Either `Always`, `IfNotPresent` or `Never`
+        # imagePullPolicy default value is "IfNotPresent" for valid tags, "Always" for no tag or "latest" tag
         config:
-          name: exporter-configmap # Name of the ConfigMap that contains the metrics exporter configuration
+          # Name of the ConfigMap that contains the metrics exporter configuration.
+          name: gpu-config # (Optional) If the configmap does not exist the DeviceConfig will show a validation error and not start any plugin pods
         upgradePolicy:
           #(Optional) If no UpgradePolicy is mentioned for any of the components but their image is changed, the daemonset will
           # get upgraded according to the defaults, which is `upgradeStrategy` set to `RollingUpdate` and `maxUnavailable` set to 1.
@@ -103,10 +132,76 @@ Below is an example of a full DeviceConfig CR that can be used to install the AM
           maxUnavailable: 1 # (Optional) Number of pods that can be unavailable during the upgrade process. 1 is the default value
         # If specifying a node selector here, the metrics exporter will only be deployed on nodes that match the selector
         # See Item #6 on https://dcgpu.docs.amd.com/projects/gpu-operator/en/latest/knownlimitations.html for example usage
-        selector:   
-          feature.node.kubernetes.io/amd-gpu: "true" # You must include this again as this selector will overwrite the global selector
-          amd.com/device-metrics-exporter: "true" # Helpful for when you want to disable the metrics exporter on specific nodes 
-      selector: 
+        tolerations:
+          key: "key1" # Key is the taint key that the toleration applies to. Empty means match all taint keys. If the key is empty,
+          # operator must be "Exists"; this combination means to match all values and all keys.
+          operator: "Equal" # Operator represents a key's relationship to the value. Valid operators are Exists and Equal. 
+          # Defaults to Equal. Exists is equivalent to wildcard for value, so that a pod can tolerate all taints of a particular category.
+          value: "value1" # Value is the taint value the toleration matches to. If the operator is Exists, the value should be empty,
+          # otherwise just a regular string.
+          effect: "NoSchedule" # Effect indicates the taint effect to match. Empty means match all taint effects. When specified, allowed 
+          # values are "NoSchedule", "PreferNoSchedule" and "NoExecute".
+          tolerationSeconds: [Expected Int value, not set by default] #Seconds represents the period of time the toleration tolerates the taint. 
+          # By default, it is not set, which means tolerate the taint forever (do not evict). Effect needs to be NoExecute for this, 
+          # otherwise this field is ignored. Zero and negative values will be treated as 0 (evict immediately) by the system.
+        imageRegistrySecret:
+          # (Optional) Specify the credential for your private registry if it requires credential to get pull/push access
+          # you can create the docker-registry type secret by running command like:
+          # kubectl create secret docker-registry mysecret -n kmm-namespace --docker-username=xxx --docker-password=xxx
+          # Make sure you created the secret within the namespace that KMM operator is running
+          name: mysecret
+        selector: # (Optional) Only include selectors here if you want to disable metrics exporter on specific nodes using labels.
+          # If specifying a node selector here, the metrics exporter will only be deployed on nodes that match the selector. Be Sure to also 
+          # include the "feature.node.kubernets.io/amd-gpu selector" again here as selectors in this section will overwrite the global selector
+          # You would then manually label all nodes with the below selectors and remove the label on specific nodes where you don't want it running  
+          amd.com/metrics-exporter: "true" # To label all nodes in you cluster use `kubectl label nodes --all amd.com/device-test-runner=true`
+          feature.node.kubernetes.io/amd-gpu: "true" # This is needed or else the metrics exporter will run on non-gpu nodes as well
+      ## AMD GPU Device Test Runner Configuration ##
+      testRunner: 
+        enable: true # false by Default. Set to true to enable the Metrics Exporter 
+        serviceType: ClusterIP # ServiceType used to expose the Metrics Exporter endpoint. Can be either `ClusterIp` or `NodePort`.
+        port: 5000 # Note if specifying NodePort as the serviceType use `32500` as the port number must be between 30000-32767
+        # (Optional) Specifying metrics exporter image is optional. Default imagename shown here if not specified.
+        image: docker.io/rocm/test-runner:v1.2.0-beta.0 # Change this to trigger metrics exporter upgrade on CR update
+        imagePullPolicy: "IfNotPresent" # image pull policy for the test runner container. Either `Always`, `IfNotPresent` or `Never`
+        # imagePullPolicy default value is "IfNotPresent" for valid tags, "Always" for no tag or "latest" tag
+        config:
+          # Name of the configmap to customize the config for test runner. If not specified default test config will be aplied
+          name: test-config # (Optional) If the configmap does not exist the DeviceConfig will show a validation error and not start plugin pods
+        logsLocation:
+          mountPath: "/var/log/amd-test-runner" # mount path inside test runner container for log files
+          hostPath: "/var/log/amd-test-runner" # host path to be mounted into test runner container for log files
+        upgradePolicy:
+          #(Optional) If no UpgradePolicy is mentioned for any of the components but their image is changed, the daemonset will
+          # get upgraded according to the defaults, which is `upgradeStrategy` set to `RollingUpdate` and `maxUnavailable` set to 1.
+          upgradeStrategy: RollingUpdate, # (Optional) Can be either `RollingUpdate` or `OnDelete`
+          maxUnavailable: 1 # (Optional) Number of pods that can be unavailable during the upgrade process. 1 is the default value
+        # If specifying a node selector here, the metrics exporter will only be deployed on nodes that match the selector
+        # See Item #6 on https://dcgpu.docs.amd.com/projects/gpu-operator/en/latest/knownlimitations.html for example usage
+        tolerations:
+          key: "key1" # Key is the taint key that the toleration applies to. Empty means match all taint keys. If the key is empty,
+          # operator must be "Exists"; this combination means to match all values and all keys.
+          operator: "Equal" # Operator represents a key's relationship to the value. Valid operators are Exists and Equal. 
+          # Defaults to Equal. Exists is equivalent to wildcard for value, so that a pod can tolerate all taints of a particular category.
+          value: "value1" # Value is the taint value the toleration matches to. If the operator is Exists, the value should be empty,
+          # otherwise just a regular string.
+          effect: "NoSchedule" # Effect indicates the taint effect to match. Empty means match all taint effects. When specified, allowed 
+          # values are "NoSchedule", "PreferNoSchedule" and "NoExecute".
+          tolerationSeconds: [Expected Int value, not set by default] #Seconds represents the period of time the toleration tolerates the taint. 
+          # By default, it is not set, which means tolerate the taint forever (do not evict). Effect needs to be NoExecute for this, 
+          # otherwise this field is ignored. Zero and negative values will be treated as 0 (evict immediately) by the system.
+        imageRegistrySecret:
+          # (Optional) Specify the credential for your private registry if it requires credential to get pull/push access
+          # you can create the docker-registry type secret by running command like:
+          # kubectl create secret docker-registry mysecret -n kmm-namespace --docker-username=xxx --docker-password=xxx
+          # Make sure you created the secret within the namespace that KMM operator is running
+          name: mysecret
+        selector: # (Optional) Only include selectors here if you want to disable test runner on specific nodes using labels.
+          # If specifying a node selector here, the test runner will only be deployed on nodes that match the selector. Be Sure to also 
+          # include the "feature.node.kubernets.io/amd-gpu selector" again here as selectors in this section will overwrite the global selector
+          # You would then manually label all nodes with the below selectors and remove the label on specific nodes where you don't want it running  
+          amd.com/test-runner: "true" # To label all nodes in you cluster use `kubectl label nodes --all amd.com/test-runner=true`
+          feature.node.kubernetes.io/amd-gpu: "true" # This is needed or else test-runner will run on non-gpu nodes as well
       # Specify the nodes to be managed by this DeviceConfig Custom Resource.  This will be applied to all components unless a selector 
       # is specified in the component configuration. The node labeller will automatically find nodes with AMD GPUs and apply the label 
       # `feature.node.kubernetes.io/amd-gpu: "true"` to them for you
@@ -132,9 +227,12 @@ The below is an example of the minimal DeviceConfig CR that can be used to insta
     metricsExporter:
       enable: true # To enable/disable the metrics exporter, disabled by default
       serviceType: "NodePort" # Node port for metrics exporter service
-      config:
-        name: exporter-configmap
       nodePort: 32500
+      testRunner:
+        enable: true
+        logsLocation:
+          mountPath: "/var/log/amd-test-runner" # mount path inside test runner container for logs
+          hostPath: "/var/log/amd-test-runner" # host path to be mounted into test runner container for logs
     selector:
       feature.node.kubernetes.io/amd-gpu: "true"
 
