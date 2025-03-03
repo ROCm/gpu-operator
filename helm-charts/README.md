@@ -80,7 +80,7 @@ Installation Options
 
 ### 3. Install Custom Resource
 
-After the installation of AMD GPU Operator, you need to create the `DeviceConfig` custom resource in order to trigger the operator to start to work. By preparing the `DeviceConfig` in the YAML file, you can create the resouce by running ```kubectl apply -f deviceconfigs.yaml```. For custom resource definition and more detailed information, please refer to [Custom Resource Installation Guide](https://dcgpu.docs.amd.com/projects/gpu-operator/en/latest/installation/kubernetes-helm.html#install-custom-resource).
+After the installation of AMD GPU Operator, you need to create the `DeviceConfig` custom resource in order to trigger the operator to start to work. By preparing the `DeviceConfig` in the YAML file, you can create the resouce by running ```kubectl apply -f deviceconfigs.yaml```. For custom resource definition and more detailed information, please refer to [Custom Resource Installation Guide](https://instinct.docs.amd.com/projects/gpu-operator/en/latest/installation/kubernetes-helm.html#install-custom-resource).
 
 ### Grafana Dashboards
 

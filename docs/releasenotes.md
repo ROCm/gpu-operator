@@ -24,6 +24,19 @@ The GPU Operator v1.2.0 release introduces significant new features, including *
 
 - No new platform support has been added in this release. While the GPU Operator now supports OpenShift 4.17, the newly introduced features in this release (GPU Health Monitoring, Automatic Driver & Component Upgrade, and Test Runner) are currently only available for vanilla Kubernetes deployments. These features are not yet supported on OpenShift, and OpenShift support will be introduced in the next minor release.
 
+### Documentation Updates
+
+- Updated [Release notes](https://instinct.docs.amd.com/projects/gpu-operator/en/latest/releasenotes.html) detailing new features in v1.2.0
+- Continued effort to respond to all GitHub User reported Issues on ROCm/gpu-operator repo and able to resolve 5 of those issues with this new GPU Operator release [[#2]](https://github.com/ROCm/gpu-operator/issues/2), [[#23]](https://github.com/ROCm/gpu-operator/issues/23), [[#25]](https://github.com/ROCm/gpu-operator/issues/25), [[#30]](https://github.com/ROCm/gpu-operator/issues/30), [[#55]](https://github.com/ROCm/gpu-operator/issues/55)
+- Updated [Known Issues and Limitations](https://instinct.docs.amd.com/projects/gpu-operator/en/latest/knownlimitations.html) section to highlight limitations users should be aware of including 6 new issues and 1 fixed issue
+- Updated [Quick Start Guide](https://instinct.docs.amd.com/projects/gpu-operator/en/latest/usage.html) for GPU Operator to make it easier for users to get started
+- Revamped [Driver Upgrade Guide](https://instinct.docs.amd.com/projects/gpu-operator/en/latest/drivers/upgrading.html) that includes utilizing Automatic Upgrade Process (New feature in v1.2.0)
+- New Documentation section on [Upgrading the GPU Operator](https://instinct.docs.amd.com/projects/gpu-operator/en/latest/upgrades/upgrade.html), as well as, [Upgrading GPU Operator Components](https://instinct.docs.amd.com/projects/gpu-operator/en/latest/upgrades/componentupgrades.html) (new features for v1.2.0)
+- New Metrics Exporter documentation on [Health Checks](https://instinct.docs.amd.com/projects/gpu-operator/en/latest/metrics/health.html) feature (new feature for v1.2.0)
+- New Documentation section for [Test Runner](https://instinct.docs.amd.com/projects/gpu-operator/en/latest/test/auto-unhealthy-device-test.html) (new feature for v1.2.0)
+- New and updated [GPU Operator examples](https://github.com/ROCm/gpu-operator/tree/main/example) in the GPU Operator repo including Test Runner job examples
+- Whole site doc review conducted for the [AMD GPU Operator Instinct docs](https://instinct.docs.amd.com/projects/gpu-operator/en/latest/index.html) site and many corrections made to outdated or incorrect documentation
+
 ### Known Limitations
 
 1. **Incomplete Cleanup on Manual Module Removal**

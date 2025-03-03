@@ -39,21 +39,12 @@ Getting up and running with the AMD GPU Operator and Device Metrics Exporter on 
     ```bash
     helm install amd-gpu-operator rocm/gpu-operator-charts \
       --namespace kube-amd-gpu --create-namespace \
-      --version=1.2.0
+      --version=v1.2.0
     ```
 
     </br>
 
-3. You should now see the GPU Operator component pods starting up in the namespace you specified above, `kube-amd-gpu`. You will also notice that the `gpu-operator-charts-controller-manager`, `kmm-controller` and `kmm-webhook-server` pods are in a pending state. This is because you need to label a node in your cluster as the control-plane node for those pods to run on:
-
-    ```bash
-    # Label the control-plane node
-    kubectl label nodes <node-name> node-role.kubernetes.io/control-plane=
-    ```
-
-    </br>
-
-4. To deploy the Device Plugin, Node Labeller and Metrics exporter to your cluster you need to create a new DeviceConfig custom resource. For a full list of configurable options refer to the [Full Reference Config](https://instinct.docs.amd.com/projects/gpu-operator/en/latest/fulldeviceconfig.html) documenattion. An [example DeviceConfig](https://github.com/ROCm/gpu-operator/blob/release-v1.1.0/example/deviceconfig_example.yaml) is supplied in the ROCm/gpu-operator repository which can be used to get going:
+3. To deploy the Device Plugin, Node Labeller and Metrics exporter to your cluster you need to create a new DeviceConfig custom resource. For a full list of configurable options refer to the [Full Reference Config](https://instinct.docs.amd.com/projects/gpu-operator/en/latest/fulldeviceconfig.html) documenattion. An [example DeviceConfig](https://github.com/ROCm/gpu-operator/blob/release-v1.1.0/example/deviceconfig_example.yaml) is supplied in the ROCm/gpu-operator repository which can be used to get going:
 
     ```bash
     # Apply the example DeviceConfig to enable the Device Plugin, Node Labeller and Metrics Exporter plugins
