@@ -395,9 +395,6 @@ func setKMMModuleLoader(ctx context.Context, mod *kmmv1beta1.Module, devConfig *
 	kmlog := log.FromContext(ctx)
 	kmlog.Info(fmt.Sprintf("isOpenshift %+v", isOpenshift))
 
-	args := &kmmv1beta1.ModprobeArgs{}
-	firmwarePath := imageFirmwarePath
-
 	kernelMappings, driversVersion, err := getKernelMappings(devConfig, isOpenshift, nodes)
 	if err != nil {
 		return err
@@ -416,22 +413,11 @@ func setKMMModuleLoader(ctx context.Context, mod *kmmv1beta1.Module, devConfig *
 		}
 	}
 
-	if devConfig.Spec.Driver.Enable == nil || !*devConfig.Spec.Driver.Enable {
-		args = &kmmv1beta1.ModprobeArgs{
-			Load:   []string{"-n"},
-			Unload: []string{"-n"},
-		}
-		firmwarePath = ""
-		modLoadingOrder = nil
-		kmlog.Info("skip driver install/uninstall")
-		moduleName = "dummy"
-	}
-
 	mod.Spec.ModuleLoader.Container = kmmv1beta1.ModuleLoaderContainerSpec{
 		Modprobe: kmmv1beta1.ModprobeSpec{
 			ModuleName:          moduleName,
-			FirmwarePath:        firmwarePath,
-			Args:                args,
+			FirmwarePath:        imageFirmwarePath,
+			Args:                getModprobeArgsFromNodeInfo(nodes),
 			ModulesLoadingOrder: modLoadingOrder,
 		},
 		Version:        devConfig.Spec.Driver.Version,
@@ -712,8 +698,25 @@ func getNodeSelector(devConfig *amdv1alpha1.DeviceConfig) map[string]string {
 	}
 
 	ns := make(map[string]string, 0)
-	ns["feature.node.kubernetes.io/amd-gpu"] = "true"
+	ns[utils.NodeFeatureLabelAmdGpu] = "true"
 	return ns
+}
+
+func getModprobeArgsFromNodeInfo(nodes *v1.NodeList) *kmmv1beta1.ModprobeArgs {
+	// if selected nodes have VF device, we need to pass specific argument to modprobe command
+	// in order to make sure the amdgpu was loaded successfully into guest VM
+	for _, node := range nodes.Items {
+		if utils.HasNodeLabelKey(node, utils.NodeFeatureLabelAmdVGpu) {
+			return &kmmv1beta1.ModprobeArgs{
+				Load:   []string{"ip_block_mask=0x7f"},
+				Unload: []string{""},
+			}
+		}
+	}
+	return &kmmv1beta1.ModprobeArgs{
+		Load:   nil,
+		Unload: nil,
+	}
 }
 
 func getKmodsToSign(isOpenShift bool, kernelVersion string) []string {
