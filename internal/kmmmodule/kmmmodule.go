@@ -417,7 +417,8 @@ func setKMMModuleLoader(ctx context.Context, mod *kmmv1beta1.Module, devConfig *
 		Modprobe: kmmv1beta1.ModprobeSpec{
 			ModuleName:          moduleName,
 			FirmwarePath:        imageFirmwarePath,
-			Args:                getModprobeArgsFromNodeInfo(nodes),
+			Args:                &kmmv1beta1.ModprobeArgs{},
+			Parameters:          getModprobeParametersFromNodeInfo(nodes),
 			ModulesLoadingOrder: modLoadingOrder,
 		},
 		Version:        devConfig.Spec.Driver.Version,
@@ -702,21 +703,15 @@ func getNodeSelector(devConfig *amdv1alpha1.DeviceConfig) map[string]string {
 	return ns
 }
 
-func getModprobeArgsFromNodeInfo(nodes *v1.NodeList) *kmmv1beta1.ModprobeArgs {
+func getModprobeParametersFromNodeInfo(nodes *v1.NodeList) []string {
 	// if selected nodes have VF device, we need to pass specific argument to modprobe command
 	// in order to make sure the amdgpu was loaded successfully into guest VM
 	for _, node := range nodes.Items {
 		if utils.HasNodeLabelKey(node, utils.NodeFeatureLabelAmdVGpu) {
-			return &kmmv1beta1.ModprobeArgs{
-				Load:   []string{"ip_block_mask=0x7f"},
-				Unload: []string{""},
-			}
+			return []string{"ip_block_mask=0x7f"}
 		}
 	}
-	return &kmmv1beta1.ModprobeArgs{
-		Load:   nil,
-		Unload: nil,
-	}
+	return nil
 }
 
 func getKmodsToSign(isOpenShift bool, kernelVersion string) []string {
