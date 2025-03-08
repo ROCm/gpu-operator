@@ -228,11 +228,11 @@ The below is an example of the minimal DeviceConfig CR that can be used to insta
       enable: true # To enable/disable the metrics exporter, disabled by default
       serviceType: "NodePort" # Node port for metrics exporter service
       nodePort: 32500
-      testRunner:
-        enable: true
-        logsLocation:
-          mountPath: "/var/log/amd-test-runner" # mount path inside test runner container for logs
-          hostPath: "/var/log/amd-test-runner" # host path to be mounted into test runner container for logs
+    testRunner:
+      enable: true
+      logsLocation:
+        mountPath: "/var/log/amd-test-runner" # mount path inside test runner container for logs
+        hostPath: "/var/log/amd-test-runner" # host path to be mounted into test runner container for logs
     selector:
       feature.node.kubernetes.io/amd-gpu: "true"
 
