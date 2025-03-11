@@ -1609,3 +1609,179 @@ func IsJSONParsable(s string) bool {
 	var js json.RawMessage
 	return json.Unmarshal([]byte(s), &js) == nil
 }
+
+func AddNodeLabel(cl *kubernetes.Clientset, nodeName string, key string, value string) error {
+
+	node, err := cl.CoreV1().Nodes().Get(context.TODO(), nodeName, metav1.GetOptions{})
+	if err != nil {
+		panic(err.Error())
+	}
+
+	// Add a label to the node
+	node.Labels[key] = value
+
+	// Update the node object with the new label
+	_, err = cl.CoreV1().Nodes().Update(context.TODO(), node, metav1.UpdateOptions{})
+	if err != nil {
+		panic(err.Error())
+	}
+
+	log.Infof("Label added successfully")
+	if err != nil {
+		return fmt.Errorf("failed to add node label to node: %v", err)
+	}
+	return nil
+}
+
+func DeleteNodeLabel(cl *kubernetes.Clientset, nodeName string, key string) error {
+
+	node, err := cl.CoreV1().Nodes().Get(context.TODO(), nodeName, metav1.GetOptions{})
+	if err != nil {
+		panic(err.Error())
+	}
+
+	// Remove a label to the node
+	delete(node.Labels, key)
+
+	// Update the node object with the new label
+	_, err = cl.CoreV1().Nodes().Update(context.TODO(), node, metav1.UpdateOptions{})
+	if err != nil {
+		panic(err.Error())
+	}
+
+	log.Infof("Label removed successfully")
+	if err != nil {
+		return fmt.Errorf("failed to remove node label to node: %v", err)
+	}
+	return nil
+}
+
+func NodeTaint(cl *kubernetes.Clientset, nodeName string) error {
+	log.Print("Handle Node Taint")
+	node, err := cl.CoreV1().Nodes().Get(context.TODO(), nodeName, metav1.GetOptions{})
+	if err != nil {
+		panic(err.Error())
+	}
+
+	// Add a taint to the node
+	taint := v1.Taint{
+		Key:    "dcm",
+		Value:  "up",
+		Effect: v1.TaintEffectNoExecute,
+	}
+	node.Spec.Taints = append(node.Spec.Taints, taint)
+
+	// Update the node object with the new taint
+	_, err = cl.CoreV1().Nodes().Update(context.TODO(), node, metav1.UpdateOptions{})
+	if err != nil {
+		return err
+	}
+
+	log.Infof("Updated node %q with taint.\n", nodeName)
+	return nil
+}
+func CreateOpaqueSecret(ctx context.Context, cl *kubernetes.Clientset, name, ns string, keys map[string]string) error {
+	secret := &v1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      name,
+			Namespace: ns,
+		},
+		StringData: keys,
+		Type:       v1.SecretTypeOpaque,
+	}
+	_, err := cl.CoreV1().Secrets(ns).Create(ctx, secret, metav1.CreateOptions{})
+	return err
+}
+
+func DeleteOpaqueSecret(ctx context.Context, cl *kubernetes.Clientset, name, ns string) {
+	err := cl.CoreV1().Secrets(ns).Delete(ctx, name, metav1.DeleteOptions{})
+	if err != nil {
+		log.Errorf("Unable to delete secret. Error: %v", err)
+	}
+}
+
+func CreateMinioService(ctx context.Context, cl *kubernetes.Clientset, ns, hostName string) error {
+	hostPathDirectory := v1.HostPathDirectoryOrCreate
+	minioPod := &v1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "minio",
+			Namespace: ns,
+			Labels:    map[string]string{"app": "minio"},
+		},
+		Spec: v1.PodSpec{
+			Containers: []v1.Container{
+				{
+					Name:    "minio",
+					Image:   "registry.test.pensando.io:5000/minio/minio:latest",
+					Command: []string{"/bin/bash", "-c"},
+					Args:    []string{"minio server /data --console-address :9090"},
+					VolumeMounts: []v1.VolumeMount{
+						{
+							Name:      "localvolume",
+							MountPath: "/data",
+						},
+					},
+				},
+			},
+			NodeSelector: map[string]string{"kubernetes.io/hostname": hostName},
+			Volumes: []v1.Volume{
+				{
+					Name: "localvolume",
+					VolumeSource: v1.VolumeSource{
+						HostPath: &v1.HostPathVolumeSource{
+							Path: "/data",
+							Type: &hostPathDirectory,
+						},
+					},
+				},
+			},
+		},
+	}
+	minioService := &v1.Service{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "minio",
+			Namespace: ns,
+		},
+		Spec: v1.ServiceSpec{
+			Ports: []v1.ServicePort{
+				{
+					Name:     "console",
+					Port:     9090,
+					NodePort: 31250,
+				},
+				{
+					Name:     "s3",
+					Port:     9000,
+					NodePort: 31260,
+				},
+			},
+			Selector: map[string]string{"app": "minio"},
+			Type:     v1.ServiceTypeNodePort,
+		},
+	}
+	_, err := cl.CoreV1().Pods(ns).Create(ctx, minioPod, metav1.CreateOptions{})
+	if err != nil {
+		return err
+	}
+	_, err = cl.CoreV1().Services(ns).Create(ctx, minioService, metav1.CreateOptions{})
+	return err
+}
+
+func SetupAccessKeysOnMinioServer(ns, pod, container, accessKey, secretKey string) {
+	cmd := fmt.Sprintf("mc alias set local http://localhost:9000 minioadmin minioadmin && mc admin accesskey create local/ minioadmin --access-key %s --secret-key %s", accessKey, secretKey)
+	_, err := ExecPodCmd(cmd, ns, pod, container)
+	if err != nil {
+		log.Errorf("Access key cmd errored. Error: %v", err)
+	}
+}
+
+func DeleteMinioService(ctx context.Context, cl *kubernetes.Clientset, ns string) {
+	err := cl.CoreV1().Pods(ns).Delete(ctx, "minio", metav1.DeleteOptions{})
+	if err != nil {
+		log.Errorf("Failed to delete minio pod. Error: %v", err)
+	}
+	err = cl.CoreV1().Services(ns).Delete(ctx, "minio", metav1.DeleteOptions{})
+	if err != nil {
+		log.Errorf("Failed to delete minio service. Error: %v", err)
+	}
+}

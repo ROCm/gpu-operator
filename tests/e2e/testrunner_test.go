@@ -31,11 +31,14 @@ import (
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/apimachinery/pkg/labels"
 )
 
 const (
-	defaultRecipe = "gst_single"
+	defaultRecipe    = "gst_single"
+	minio_access_key = "my-minio-secure-user"
+	minio_secret_key = "my-minio-secure-user-password"
 )
 
 var (
@@ -169,28 +172,9 @@ func (s *E2ESuite) createTestRunnerConfigmap(valid bool, devCfg *v1alpha1.Device
 			},
 		}
 	} else {
-		config := fmt.Sprintf(`{
-			"TestConfig": {
-				"GPU_HEALTH_CHECK": {
-					"TestLocationTrigger": {
-						"%v": {
-							"TestParameters": {
-								"AUTO_UNHEALTHY_GPU_WATCH": {
-									"TestCases": [
-										{
-											"Recipe": "%v",
-											"Iterations": %v,
-											"StopOnFailure": %v,
-											"TimeoutSeconds": %v
-										}
-									]
-								}
-							}
-						}
-					}
-				}
-			}
-		}`, nodeName, recipe, iterations, stopOnFailure, timeoutInSeconds)
+		exportInfo := getLogsExportInfo(provider, bucketName, secretName)
+		config := getTestRunnerConfigJson(nodeName, recipe, exportInfo, stopOnFailure, configureLogsExport, iterations, timeoutInSeconds)
+		log.Printf("testrunner config.json - %s", config)
 		cm = &v1.ConfigMap{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      cmName,
@@ -344,6 +328,33 @@ func (s *E2ESuite) verifyTestResultEvts(node, recipe string, devCfg *v1alpha1.De
 		for _, evt := range evts.Items {
 			// make sure that the event messages are json parsable
 			assert.True(c, utils.IsJSONParsable(evt.Message), "event message is not json parsable %+v", evt)
+			if perEvtVerifyFunc != nil {
+				perEvtVerifyFunc(evt)
+			}
+		}
+		return true
+	}, 720*time.Second, 2*time.Second, "expected test run result event but got nothing")
+}
+
+func (s *E2ESuite) verifyTestrunLogExportEvts(node, recipe, eventType, reason string, devCfg *v1alpha1.DeviceConfig, perEvtVerifyFunc func(v1.Event), c *C) {
+	// verify that the test run event got generated
+	log.Print("Verifying test run log export event(s)")
+	testEventLabel := map[string]string{
+		"testrunner.amd.com/category": "gpu_health_check",
+		"testrunner.amd.com/trigger":  "auto_unhealthy_gpu_watch",
+		"testrunner.amd.com/recipe":   recipe,
+		"testrunner.amd.com/hostname": node,
+	}
+	assert.Eventually(c, func() bool {
+		evts, err := s.clientSet.CoreV1().Events(devCfg.Namespace).List(context.TODO(), metav1.ListOptions{
+			LabelSelector: labels.SelectorFromSet(testEventLabel).String(),
+			FieldSelector: fields.SelectorFromSet(fields.Set{"type": eventType, "reason": reason}).String(),
+		})
+		if err != nil || len(evts.Items) == 0 {
+			return false
+		}
+		log.Printf("Got %d events with test events label: %+v", len(evts.Items), evts.Items)
+		for _, evt := range evts.Items {
 			if perEvtVerifyFunc != nil {
 				perEvtVerifyFunc(evt)
 			}
