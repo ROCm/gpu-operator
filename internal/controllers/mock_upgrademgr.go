@@ -422,6 +422,20 @@ func (mr *MockupgradeMgrHelperAPIMockRecorder) isNodeReady(ctx, node, deviceConf
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "isNodeReady", reflect.TypeOf((*MockupgradeMgrHelperAPI)(nil).isNodeReady), ctx, node, deviceConfig)
 }
 
+// isNodeReadyForUpgrade mocks base method.
+func (m *MockupgradeMgrHelperAPI) isNodeReadyForUpgrade(ctx context.Context, node *v1.Node) bool {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "isNodeReadyForUpgrade", ctx, node)
+	ret0, _ := ret[0].(bool)
+	return ret0
+}
+
+// isNodeReadyForUpgrade indicates an expected call of isNodeReadyForUpgrade.
+func (mr *MockupgradeMgrHelperAPIMockRecorder) isNodeReadyForUpgrade(ctx, node any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "isNodeReadyForUpgrade", reflect.TypeOf((*MockupgradeMgrHelperAPI)(nil).isNodeReadyForUpgrade), ctx, node)
+}
+
 // isNodeStateInstallInProgress mocks base method.
 func (m *MockupgradeMgrHelperAPI) isNodeStateInstallInProgress(ctx context.Context, node *v1.Node, deviceConfig *v1alpha1.DeviceConfig) bool {
 	m.ctrl.T.Helper()
