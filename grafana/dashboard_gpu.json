@@ -84,10 +84,6 @@
   "links": [],
   "panels": [
     {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "${DS_PROMETHEUS}"
-      },
       "gridPos": {
         "h": 10,
         "w": 3,
@@ -108,10 +104,6 @@
       "type": "text"
     },
     {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "${DS_PROMETHEUS}"
-      },
       "gridPos": {
         "h": 6,
         "w": 3,
@@ -383,7 +375,7 @@
           "disableTextWrap": false,
           "editorMode": "builder",
           "exemplar": false,
-          "expr": "${g_metrics_prefix}pcie_recovery_count{gpu_uuid=\"$g_gpu_uuid\", hostname=\"$g_hostname\"}",
+          "expr": "delta(${g_metrics_prefix}pcie_recovery_count{gpu_uuid=\"$g_gpu_uuid\", hostname=\"$g_hostname\"}[$__interval])",
           "fullMetaSearch": false,
           "includeNullMetadata": true,
           "instant": true,
@@ -400,7 +392,7 @@
           "disableTextWrap": false,
           "editorMode": "builder",
           "exemplar": false,
-          "expr": "${g_metrics_prefix}pcie_replay_count{gpu_uuid=\"$g_gpu_uuid\", hostname=\"$g_hostname\"}",
+          "expr": "delta(${g_metrics_prefix}pcie_replay_count{gpu_uuid=\"$g_gpu_uuid\", hostname=\"$g_hostname\"}[$__interval])",
           "fullMetaSearch": false,
           "hide": false,
           "includeNullMetadata": true,
@@ -418,7 +410,7 @@
           "disableTextWrap": false,
           "editorMode": "builder",
           "exemplar": false,
-          "expr": "${g_metrics_prefix}pcie_replay_rollover_count{gpu_uuid=\"$g_gpu_uuid\", hostname=\"$g_hostname\"}",
+          "expr": "delta(${g_metrics_prefix}pcie_replay_rollover_count{gpu_uuid=\"$g_gpu_uuid\", hostname=\"$g_hostname\"}[$__interval])",
           "fullMetaSearch": false,
           "hide": false,
           "includeNullMetadata": true,
@@ -436,7 +428,7 @@
           "disableTextWrap": false,
           "editorMode": "builder",
           "exemplar": false,
-          "expr": "${g_metrics_prefix}pcie_nack_received_count{gpu_uuid=\"$g_gpu_uuid\", hostname=\"$g_hostname\"}",
+          "expr": "delta(${g_metrics_prefix}pcie_nack_received_count{gpu_uuid=\"$g_gpu_uuid\", hostname=\"$g_hostname\"}[$__interval])",
           "fullMetaSearch": false,
           "hide": false,
           "includeNullMetadata": true,
@@ -454,7 +446,7 @@
           "disableTextWrap": false,
           "editorMode": "builder",
           "exemplar": false,
-          "expr": "${g_metrics_prefix}pcie_nack_sent_count{gpu_uuid=\"$g_gpu_uuid\", hostname=\"$g_hostname\"}",
+          "expr": "delta(${g_metrics_prefix}pcie_nack_sent_count{gpu_uuid=\"$g_gpu_uuid\", hostname=\"$g_hostname\"}[$__interval])",
           "fullMetaSearch": false,
           "hide": false,
           "includeNullMetadata": true,
@@ -823,7 +815,7 @@
           "disableTextWrap": false,
           "editorMode": "builder",
           "exemplar": false,
-          "expr": "${g_metrics_prefix}gpu_ecc_correct_total{gpu_uuid=\"$g_gpu_uuid\"}",
+          "expr": "sum(delta(${g_metrics_prefix}gpu_ecc_correct_total{gpu_uuid=\"$g_gpu_uuid\"}[$__interval]))",
           "fullMetaSearch": false,
           "includeNullMetadata": true,
           "instant": true,
@@ -1045,7 +1037,7 @@
           "disableTextWrap": false,
           "editorMode": "builder",
           "exemplar": false,
-          "expr": "${g_metrics_prefix}gpu_energy_consumed{gpu_uuid=\"$g_gpu_uuid\", hostname=\"$g_hostname\"}",
+          "expr": "delta(${g_metrics_prefix}gpu_energy_consumed{gpu_uuid=\"$g_gpu_uuid\", hostname=\"$g_hostname\"}[$__interval])",
           "fullMetaSearch": false,
           "hide": true,
           "includeNullMetadata": true,
@@ -1130,7 +1122,7 @@
           "disableTextWrap": false,
           "editorMode": "builder",
           "exemplar": false,
-          "expr": "${g_metrics_prefix}gpu_ecc_uncorrect_total{gpu_uuid=\"$g_gpu_uuid\"}",
+          "expr": "sum(delta(${g_metrics_prefix}gpu_ecc_uncorrect_total{gpu_uuid=\"$g_gpu_uuid\"}[$__interval]))",
           "fullMetaSearch": false,
           "includeNullMetadata": true,
           "instant": true,
