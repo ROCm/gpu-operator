@@ -1,0 +1,101 @@
+# Run helm uninstall with --no-hooks to bypass the pre-delete hook 
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ include "helm-charts-k8s.fullname" . }}-pre-delete
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "helm-charts-k8s.labels" . | nindent 4 }}
+  annotations:
+    # hook with lower weight value will run firstly
+    "helm.sh/hook-weight": "0"
+    "helm.sh/hook": pre-delete
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ include "helm-charts-k8s.fullname" . }}-pre-delete
+  labels:
+    {{- include "helm-charts-k8s.labels" . | nindent 4 }}
+  annotations:
+    # hook with lower weight value will run firstly
+    "helm.sh/hook-weight": "0"
+    "helm.sh/hook": pre-delete
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+rules:
+  - apiGroups:
+      - amd.com
+    resources:
+      - deviceconfigs
+    verbs:
+      - get
+      - list
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: {{ include "helm-charts-k8s.fullname" . }}-pre-delete
+  labels:
+    {{- include "helm-charts-k8s.labels" . | nindent 4 }}
+  annotations:
+    # hook with lower weight value will run firstly
+    "helm.sh/hook-weight": "1"
+    "helm.sh/hook": pre-delete
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: {{ include "helm-charts-k8s.fullname" . }}-pre-delete
+subjects:
+- kind: ServiceAccount
+  name: {{ include "helm-charts-k8s.fullname" . }}-pre-delete
+  namespace: {{ .Release.Namespace  }}
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: check-leftover-deviceconfigs
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "helm-charts-k8s.labels" . | nindent 4 }}
+  annotations:
+    # hook with lower weight value will run firstly
+    "helm.sh/hook-weight": "2"
+    # hook will be executed before helm uninstall
+    "helm.sh/hook": pre-delete
+    # remove the resource created by the hook whether it succeeded or failed
+    "helm.sh/hook-delete-policy": before-hook-creation, hook-succeeded
+spec:
+  backoffLimit: 0 # once the job finished first run, don't retry to create another pod
+  ttlSecondsAfterFinished: 60 # job info will be kept for 1 min then deleted
+  template:
+    spec:
+      serviceAccountName: {{ include "helm-charts-k8s.fullname" . }}-pre-delete
+      containers:
+        - name: check-leftover-deviceconfigs
+          image: {{ .Values.controllerManager.manager.image.repository }}:{{ .Values.controllerManager.manager.image.tag }}
+          command:
+            - /bin/sh
+            - -c
+            - |
+              if kubectl get deviceconfigs -n {{ .Release.Namespace }} --no-headers | grep -q .; then
+                echo "DeviceConfigs resources exist. Stop uninstallation."
+                exit 1
+              else
+                echo "No DeviceConfigs resources found. Proceeding with uninstallation."
+                exit 0
+              fi
+      {{- if .Values.controllerManager.manager.imagePullSecrets }}
+      imagePullSecrets:
+      - name: {{ .Values.controllerManager.manager.imagePullSecrets }}
+      {{- end}}
+      {{- with .Values.controllerManager.manager.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.controllerManager.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      restartPolicy: Never

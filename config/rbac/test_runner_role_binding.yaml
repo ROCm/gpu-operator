@@ -1,0 +1,11 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: test-runner
+subjects:
+- kind: ServiceAccount
+  name: test-runner
+roleRef:
+  kind: ClusterRole
+  name: test-runner
+  apiGroup: rbac.authorization.k8s.io

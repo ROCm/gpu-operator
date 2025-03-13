@@ -40,6 +40,27 @@ subjects:
   namespace: default
 ---
 apiVersion: v1
+kind: Secret
+metadata:
+  name: azure-secret
+  namespace: default
+type: Opaque
+data:
+  azure_storage_account: sample_azure_storage_account
+  azure_storage_key: sample_azure_storage_key
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: aws-secret
+  namespace: default
+type: Opaque
+data:
+  aws_access_key_id: sample_aws_key_id
+  aws_region: sample_aws_region
+  aws_secret_access_key: sample_aws_secret_access_key
+---
+apiVersion: v1
 kind: ConfigMap
 metadata:
   name: manual-config-map
@@ -73,6 +94,18 @@ data: # file name within configmap should be config.json
                       "Iterations": 1,
                       "StopOnFailure": true,
                       "TimeoutSeconds": 600
+                    }
+                  ],
+                  "LogsExportConfig": [
+                    {
+                      "Provider": "Aws",
+                      "BucketName": "aws-bucket-name",
+                      "SecretName": "aws-secret"
+                    },
+                    {
+                      "Provider": "Azure",
+                      "BucketName": "azure-bucket-name",
+                      "SecretName": "azure-secret"
                     }
                   ]
                 }
@@ -110,6 +143,12 @@ spec:
           path: /var/log/amd-test-runner
           type: DirectoryOrCreate
         name: test-runner-volume
+      - name: azure-secret
+        secret:
+          secretName: azure-secret
+      - name: aws-secret
+        secret:
+          secretName: aws-secret
       containers:
       - name: amd-test-runner
         image: docker.io/rocm/test-runner:v1.2.0-beta.0
@@ -123,6 +162,12 @@ spec:
           name: kfd
         - mountPath: /var/log/amd-test-runner # Specify to mount host path volume into specific directory
           name: test-runner-volume
+        - mountPath: /etc/test-runner/
+          name: config-volume
+        - mountPath: /etc/logs-export-secrets/azure-secret
+          name: azure-secret
+        - mountPath: /etc/logs-export-secrets/aws-secret
+          name: aws-secret
         env:
         - name: LOG_MOUNT_DIR # Use LOG_MOUNT_DIR envrionment variable to ask test runner to save logs in mounted directory
           value: /var/log/amd-test-runner
@@ -140,6 +185,10 @@ spec:
           valueFrom:
             fieldRef:
               fieldPath: spec.nodeName
+        - name: JOB_NAME # Use downward API to pass job name to test runner container
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.labels['job-name']
       restartPolicy: Never
   backoffLimit: 0
   ttlSecondsAfterFinished: 120 # TTL for the job to be auto cleaned

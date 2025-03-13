@@ -40,6 +40,27 @@ subjects:
   namespace: default
 ---
 apiVersion: v1
+kind: Secret
+metadata:
+  name: azure-secret
+  namespace: default
+type: Opaque
+data:
+  azure_storage_account: sample_azure_storage_account
+  azure_storage_key: sample_azure_storage_key
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: aws-secret
+  namespace: default
+type: Opaque
+data:
+  aws_access_key_id: sample_aws_key_id
+  aws_region: sample_aws_region
+  aws_secret_access_key: sample_aws_secret_access_key
+---
+apiVersion: v1
 kind: ConfigMap
 metadata:
   name: pre-job-test-config-map
@@ -74,6 +95,18 @@ data: # file name within configmap should be config.json
                       "StopOnFailure": true,
                       "TimeoutSeconds": 600
                     }
+                  ],
+                  "LogsExportConfig": [
+                    {
+                      "Provider": "Aws",
+                      "BucketName": "aws-bucket-name",
+                      "SecretName": "aws-secret"
+                    },
+                    {
+                      "Provider": "Azure",
+                      "BucketName": "azure-bucket-name",
+                      "SecretName": "azure-secret"
+                    }
                   ]
                 }
               }
@@ -105,6 +138,12 @@ spec:
       - name: config-volume
         configMap:
           name: pre-job-test-config-map
+      - name: azure-secret
+        secret:
+          secretName: azure-secret
+      - name: aws-secret
+        secret:
+          secretName: aws-secret
       initContainers:
       - name: init-test-runner
         image: docker.io/rocm/test-runner:v1.2.0-beta.0
@@ -115,6 +154,10 @@ spec:
         volumeMounts: # mount config map into /etc/test-runner/ within container
         - name: config-volume
           mountPath: /etc/test-runner/
+        - name: azure-secret
+          mountPath: /etc/logs-export-secrets/azure-secret
+        - name: aws-secret
+          mountPath: /etc/logs-export-secrets/aws-secret
         env:
         - name: TEST_TRIGGER
           value: "PRE_START_JOB_CHECK" # Set the TEST_TRIGGER environment variable to PRE_START_JOB_CHECK for test runner as init container
@@ -130,6 +173,10 @@ spec:
           valueFrom:
             fieldRef:
               fieldPath: spec.nodeName
+        - name: JOB_NAME # Use downward API to pass job name to test runner container
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.labels['job-name']
       containers:
       - name: pytorch-gpu-workload
         image: busybox:latest
