@@ -1,0 +1,69 @@
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: manager-role
+rules:
+- apiGroups:
+  - cluster.open-cluster-management.io
+  resources:
+  - managedclusters
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - ""
+  resources:
+  - configmaps
+  - secrets
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - ""
+  resources:
+  - pods
+  verbs:
+  - create
+  - delete
+  - list
+  - patch
+  - watch
+- apiGroups:
+  - hub.kmm.sigs.x-k8s.io
+  resources:
+  - managedclustermodules
+  verbs:
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - hub.kmm.sigs.x-k8s.io
+  resources:
+  - managedclustermodules/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - hub.kmm.sigs.x-k8s.io
+  resources:
+  - managedclustermodules/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
+  - work.open-cluster-management.io
+  resources:
+  - manifestworks
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch

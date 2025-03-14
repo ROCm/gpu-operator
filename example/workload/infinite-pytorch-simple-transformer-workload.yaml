@@ -1,0 +1,79 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: pytorch-simple-transformer-2
+  labels:
+    purpose: demo-pytorch-amdgpu
+spec:
+  containers:
+    - name: pytorch-simple-transformer-2
+      image: rocm/pytorch:latest
+      workingDir: /root
+      command: ["python3", "-c"]
+      args:
+        - |
+          import os
+          import torch
+          import torch.nn as nn
+          import torch.optim as optim
+          import time
+
+          # Define a simple Transformer model
+          class SimpleTransformer(nn.Module):
+              def __init__(self, input_dim, model_dim, num_heads, num_layers, output_dim):
+                  super(SimpleTransformer, self).__init__()
+                  self.embedding = nn.Embedding(input_dim, model_dim)
+                  self.transformer = nn.Transformer(d_model=model_dim, nhead=num_heads, num_encoder_layers=num_layers, num_decoder_layers=num_layers)
+                  self.fc = nn.Linear(model_dim, output_dim)
+
+              def forward(self, src, tgt):
+                  src = self.embedding(src)
+                  tgt = self.embedding(tgt)
+                  output = self.transformer(src, tgt)
+                  output = self.fc(output)
+                  return output
+
+          def run_transformer():
+              # Get the GPU device index from the environment variable
+              gpu_device = os.getenv('GPU_DEVICE', '0')
+              device = torch.device(f'cuda:{gpu_device}' if torch.cuda.is_available() else 'cpu')
+              print(f'Using device: {device}')
+
+              # Hyperparameters
+              input_dim = 100
+              model_dim = 1024
+              num_heads = 16
+              num_layers = 36
+              output_dim = 100
+              seq_length = 50
+
+              # Initialize the model, loss function, and optimizer
+              model = SimpleTransformer(input_dim, model_dim, num_heads, num_layers, output_dim).to(device)
+              criterion = nn.CrossEntropyLoss()
+              optimizer = optim.Adam(model.parameters(), lr=0.001)
+
+              # Dummy data for training
+              src = torch.randint(0, input_dim, (seq_length, 32)).to(device)  # (sequence length, batch size)
+              tgt = torch.randint(0, input_dim, (seq_length, 32)).to(device)
+              tgt_input = tgt[:-1, :]
+              tgt_output = tgt[1:, :]
+
+              # Training loop
+              model.train()
+              for epoch in range(10):  # Adjust the number of epochs as needed
+                  optimizer.zero_grad()
+                  outputs = model(src, tgt_input)
+                  loss = criterion(outputs.view(-1, output_dim), tgt_output.view(-1))
+                  loss.backward()
+                  optimizer.step()
+                  print(f'Epoch [{epoch+1}/10], Loss: {loss.item():.4f}')
+
+              print('Training completed')
+
+          if __name__ == '__main__':
+              while True:
+                  run_transformer()
+                  time.sleep(5)
+      resources:
+        limits:
+          amd.com/gpu: 1

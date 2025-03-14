@@ -1,0 +1,18 @@
+apiVersion: kmm.sigs.x-k8s.io/v1beta1
+kind: Module
+metadata:
+  name: moduleName
+  namespace: moduleNamespace
+spec:
+  devicePlugin:
+    serviceAccountName: "amd-gpu-operator-kmm-device-plugin"
+    container:
+      image: rocm/k8s-device-plugin:latest
+      volumeMounts:
+      - name: sys
+        mountPath: /sys
+    volumes:
+    - name: sys
+      hostPath:
+        path: /sys
+        type: Directory

@@ -1,0 +1,63 @@
+ARG BUILD_BASE_IMG=ubuntu:22.04
+FROM ${BUILD_BASE_IMG}
+
+# Set environment variables
+ENV DEBIAN_FRONTEND=noninteractive
+ENV LANG=en_US.UTF-8
+ENV LANGUAGE=en_US:en
+ENV LC_ALL=en_US.UTF-8
+
+# Install necessary packages
+RUN apt-get update -y && \
+    apt-get install -y --no-install-recommends \
+    openssh-client \
+    build-essential \
+    wget \
+    git \
+    curl \
+    protobuf-compiler \
+    locales \
+    ca-certificates \
+    docker.io \
+    sudo && \
+    apt-get clean && rm -rf /var/lib/apt/lists/*
+
+# Set up locale
+RUN localedef -i en_US -f UTF-8 en_US.UTF-8
+
+# Install Go
+RUN wget https://go.dev/dl/go1.23.4.linux-amd64.tar.gz && \
+    tar -C /usr/local -xzf go1.23.4.linux-amd64.tar.gz && \
+    rm go1.23.4.linux-amd64.tar.gz
+
+ENV PATH="/usr/local/go/bin:${PATH}"
+
+RUN curl -fsSL -o get_helm.sh https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 && \
+    chmod 700 get_helm.sh && \
+    ./get_helm.sh && rm get_helm.sh
+
+RUN curl -sSL https://github.com/arttor/helmify/releases/download/v0.4.13/helmify_Linux_x86_64.tar.gz \
+    -o helmify_Linux_x86_64.tar.gz && \
+    tar -C /usr/local/bin/ -xzf helmify_Linux_x86_64.tar.gz && \
+    rm helmify_Linux_x86_64.tar.gz
+
+RUN curl -o /usr/local/bin/kubectl -LO 'https://dl.k8s.io/release/v1.30.4/bin/linux/amd64/kubectl' && \
+    chmod +x /usr/local/bin/kubectl
+
+ARG INSECURE_REGISTRY
+RUN echo "INSECURE_REGISTRY is: $INSECURE_REGISTRY" && \
+    if [ -n "$INSECURE_REGISTRY" ]; then \
+    mkdir -p /etc/docker && \
+    echo "{ \
+    \"insecure-registries\": [\"$INSECURE_REGISTRY\"] \
+    }" > /etc/docker/daemon.json; \
+    else \
+    echo "INSECURE_REGISTRY is not set"; \
+    fi
+
+# Copy entrypoint script
+COPY entrypoint_build.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
+
+# Entrypoint
+ENTRYPOINT ["/entrypoint.sh"]

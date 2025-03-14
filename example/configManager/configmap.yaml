@@ -1,0 +1,51 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: config-manager-config
+  namespace: kube-amd-gpu
+data:
+  config.json: |
+    {
+      "gpu-config-profiles":
+      {
+          "default":
+          {
+              "skippedGPUs": {
+                  "ids": []
+              },
+              "profiles": [
+                  {
+                      "computePartition": "SPX", 
+                      "memoryPartition": "NPS1",
+                      "numGPUsAssigned": 1
+                  }
+              ]
+          },
+          "profile-1":
+          { 
+              "skippedGPUs": {
+                  "ids": [0, 1, 2]  
+              },
+              "profiles": [
+                  {
+                      "computePartition": "CPX",
+                      "memoryPartition": "NPS1",
+                      "numGPUsAssigned": 8
+                  }          
+              ]
+          },
+          "profile-2":
+          { 
+              "skippedGPUs": {
+                  "ids": []  
+              },
+              "profiles": [
+                  {
+                      "computePartition": "CPX",
+                      "memoryPartition": "NPS4",
+                  }          
+              ]
+          }
+      }
+    }
+

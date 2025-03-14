@@ -1,0 +1,1102 @@
+apiVersion: operators.coreos.com/v1alpha1
+kind: ClusterServiceVersion
+metadata:
+  annotations:
+    alm-examples: |-
+      [
+        {
+          "apiVersion": "amd.com/v1alpha1",
+          "kind": "DeviceConfig",
+          "metadata": {
+            "name": "test-deviceconfig",
+            "namespace": "kube-amd-gpu"
+          },
+          "spec": {
+            "devicePlugin": {
+              "devicePluginImage": "rocm/k8s-device-plugin:latest",
+              "nodeLabellerImage": "rocm/k8s-device-plugin:labeller-latest"
+            },
+            "driver": {
+              "image": "my.registry.io/myUserName/myRepo",
+              "imageRegistrySecret": {
+                "name": "docker-auth"
+              },
+              "version": "6.2.2"
+            },
+            "selector": {
+              "feature.node.kubernetes.io/amd-gpu": "true"
+            }
+          }
+        }
+      ]
+    capabilities: Basic Install
+    createdAt: "2025-03-13T11:48:39Z"
+    operatorframework.io/suggested-namespace: kube-amd-gpu
+    operators.operatorframework.io/builder: operator-sdk-v1.32.0
+    operators.operatorframework.io/project_layout: go.kubebuilder.io/v3
+    repository: https://github.com/ROCm/gpu-operator
+  name: amd-gpu-operator.v1.2.0
+  namespace: placeholder
+spec:
+  apiservicedefinitions: {}
+  customresourcedefinitions:
+    owned:
+    - description: DeviceConfig describes how to enable AMD GPU device
+      displayName: DeviceConfig
+      kind: DeviceConfig
+      name: deviceconfigs.amd.com
+      resources:
+      - kind: Daemonset
+        name: apps
+        version: v1
+      - kind: services
+        name: core
+        version: v1
+      - kind: Module
+        name: modules.kmm.sigs.x-k8s.io
+        version: v1beta1
+      specDescriptors:
+      - description: common config
+        displayName: CommonConfig
+        path: commonConfig
+        x-descriptors:
+        - urn:alm:descriptor:com.amd.deviceconfigs:commonConfig
+      - description: InitContainerImage is being used for the operands pods, i.e.
+          metrics exporter, test runner, device plugin and node labeller
+        displayName: InitContainerImage
+        path: commonConfig.initContainerImage
+        x-descriptors:
+        - urn:alm:descriptor:com.amd.deviceconfigs:initContainerImage
+      - description: UtilsContainer contains parameters to configure operator's utils
+          container
+        displayName: UtilsContainer
+        path: commonConfig.utilsContainer
+        x-descriptors:
+        - urn:alm:descriptor:com.amd.deviceconfigs:utilsContainer
+      - description: Image is the image of utils container
+        displayName: Image
+        path: commonConfig.utilsContainer.image
+        x-descriptors:
+        - urn:alm:descriptor:com.amd.deviceconfigs:image
+      - description: image pull policy for utils container
+        displayName: ImagePullPolicy
+        path: commonConfig.utilsContainer.imagePullPolicy
+        x-descriptors:
+        - urn:alm:descriptor:com.amd.deviceconfigs:imagePullPolicy
+      - description: secret used for pull utils container image
+        displayName: ImageRegistrySecret
+        path: commonConfig.utilsContainer.imageRegistrySecret
+        x-descriptors:
+        - urn:alm:descriptor:com.amd.deviceconfigs:imageRegistrySecret
+      - description: config manager
+        displayName: ConfigManager
+        path: configManager
+        x-descriptors:
+        - urn:alm:descriptor:com.amd.deviceconfigs:configManager
+      - description: config map to customize the config for config manager, if not
+          specified default config will be applied
+        displayName: Config
+        path: configManager.config
+        x-descriptors:
+        - urn:alm:descriptor:com.amd.deviceconfigs:configmap
+      - description: tolerations for the device config manager DaemonSet
+        displayName: ConfigManagerTolerations
+        path: configManager.configManagerTolerations
+        x-descriptors:
+        - urn:alm:descriptor:com.amd.deviceconfigs:configManagerTolerations
+      - description: enable config manager, disabled by default
+        displayName: Enable
+        path: configManager.enable
+        x-descriptors:
+        - urn:alm:descriptor:com.amd.deviceconfigs:enable
+      - description: config manager image
+        displayName: Image
+        path: configManager.image
+        x-descriptors:
+        - urn:alm:descriptor:com.amd.deviceconfigs:image
+      - description: image pull policy for config manager
+        displayName: ImagePullPolicy
+        path: configManager.imagePullPolicy
+        x-descriptors:
+        - urn:alm:descriptor:com.amd.deviceconfigs:imagePullPolicy
+      - description: config manager image registry secret used to pull/push images
+        displayName: ImageRegistrySecret
+        path: configManager.imageRegistrySecret
+        x-descriptors:
+        - urn:alm:descriptor:com.amd.deviceconfigs:imageRegistrySecret
+      - description: Selector describes on which nodes to enable config manager
+        displayName: Selector
+        path: configManager.selector
+        x-descriptors:
+        - urn:alm:descriptor:com.amd.deviceconfigs:selector
+      - description: upgrade policy for config manager daemonset
+        displayName: UpgradePolicy
+        path: configManager.upgradePolicy
+        x-descriptors:
+        - urn:alm:descriptor:com.amd.deviceconfigs:upgradePolicy
+      - description: MaxUnavailable specifies the maximum number of Pods that can
+          be unavailable during the update process. Applicable for RollingUpdate only.
+          Default value is 1.
+        displayName: MaxUnavailable
+        path: configManager.upgradePolicy.maxUnavailable
+        x-descriptors:
+        - urn:alm:descriptor:com.amd.deviceconfigs:maxUnavailable
+      - description: UpgradeStrategy specifies the type of the DaemonSet update. Valid
+          values are "RollingUpdate" (default) or "OnDelete".
+        displayName: UpgradeStrategy
+        path: configManager.upgradePolicy.upgradeStrategy
+        x-descriptors:
+        - urn:alm:descriptor:com.amd.deviceconfigs:upgradeStrategy
+      - description: device plugin
+        displayName: DevicePlugin
+        path: devicePlugin
+        x-descriptors:
+        - urn:alm:descriptor:com.amd.deviceconfigs:devicePlugin
+      - description: device plugin image
+        displayName: DevicePluginImage
+        path: devicePlugin.devicePluginImage
+        x-descriptors:
+        - urn:alm:descriptor:com.amd.deviceconfigs:devicePluginImage
+      - description: image pull policy for device plugin
+        displayName: DevicePluginImagePullPolicy
+        path: devicePlugin.devicePluginImagePullPolicy
+        x-descriptors:
+        - urn:alm:descriptor:com.amd.deviceconfigs:DevicePluginImagePullPolicy
+      - description: tolerations for the device plugin DaemonSet
+        displayName: DevicePluginTolerations
+        path: devicePlugin.devicePluginTolerations
+        x-descriptors:
+        - urn:alm:descriptor:com.amd.deviceconfigs:devicePluginTolerations
+      - description: enable or disable the node labeller
+        displayName: EnableNodeLabeller
+        path: devicePlugin.enableNodeLabeller
+        x-descriptors:
+        - urn:alm:descriptor:com.amd.deviceconfigs:enableNodeLabeller
+      - description: node labeller image registry secret used to pull/push images
+        displayName: ImageRegistrySecret
+        path: devicePlugin.imageRegistrySecret
+        x-descriptors:
+        - urn:alm:descriptor:com.amd.deviceconfigs:imageRegistrySecret
+      - description: node labeller image
+        displayName: NodeLabellerImage
+        path: devicePlugin.nodeLabellerImage
+        x-descriptors:
+        - urn:alm:descriptor:com.amd.deviceconfigs:nodeLabellerImage
+      - description: image pull policy for node labeller
+        displayName: NodeLabellerImagePullPolicy
+        path: devicePlugin.nodeLabellerImagePullPolicy
+        x-descriptors:
+        - urn:alm:descriptor:com.amd.deviceconfigs:NodeLabellerImagePullPolicy
+      - description: tolerations for the node labeller DaemonSet
+        displayName: NodeLabellerTolerations
+        path: devicePlugin.nodeLabellerTolerations
+        x-descriptors:
+        - urn:alm:descriptor:com.amd.deviceconfigs:nodeLabellerTolerations
+      - description: resource naming strategy for device plugin
+        displayName: ResourceNamingStrategy
+        path: devicePlugin.resourceNamingStrategy
+        x-descriptors:
+        - urn:alm:descriptor:com.amd.deviceconfigs:ResourceNamingStrategy
+      - description: upgrade policy for device plugin and node labeller daemons
+        displayName: UpgradePolicy
+        path: devicePlugin.upgradePolicy
+        x-descriptors:
+        - urn:alm:descriptor:com.amd.deviceconfigs:upgradePolicy
+      - description: MaxUnavailable specifies the maximum number of Pods that can
+          be unavailable during the update process. Applicable for RollingUpdate only.
+          Default value is 1.
+        displayName: MaxUnavailable
+        path: devicePlugin.upgradePolicy.maxUnavailable
+        x-descriptors:
+        - urn:alm:descriptor:com.amd.deviceconfigs:maxUnavailable
+      - description: UpgradeStrategy specifies the type of the DaemonSet update. Valid
+          values are "RollingUpdate" (default) or "OnDelete".
+        displayName: UpgradeStrategy
+        path: devicePlugin.upgradePolicy.upgradeStrategy
+        x-descriptors:
+        - urn:alm:descriptor:com.amd.deviceconfigs:upgradeStrategy
+      - description: driver
+        displayName: Driver
+        path: driver
+        x-descriptors:
+        - urn:alm:descriptor:com.amd.deviceconfigs:driver
+      - description: radeon repo URL for fetching amdgpu installer if building driver
+          image on the fly installer URL is https://repo.radeon.com/amdgpu-install
+          by default
+        displayName: AMDGPUInstallerRepoURL
+        path: driver.amdgpuInstallerRepoURL
+        x-descriptors:
+        - urn:alm:descriptor:com.amd.deviceconfigs:amdgpuInstallerRepoURL
+      - description: blacklist amdgpu drivers on the host
+        displayName: BlacklistDrivers
+        path: driver.blacklist
+        x-descriptors:
+        - urn:alm:descriptor:com.amd.deviceconfigs:blacklistDrivers
+      - description: enable driver install. default value is true. disable is for
+          skipping driver install/uninstall for dryrun or using in-tree amdgpu kernel
+          module
+        displayName: Enable
+        path: driver.enable
+        x-descriptors:
+        - urn:alm:descriptor:com.amd.deviceconfigs:enable
+      - description: defines image that includes drivers and firmware blobs, don't
+          include tag since it will be fully managed by operator for vanilla k8s the
+          default value is image-registry:5000/$MOD_NAMESPACE/amdgpu_kmod for OpenShift
+          the default value is image-registry.openshift-image-registry.svc:5000/$MOD_NAMESPACE/amdgpu_kmod
+          image tag will be in the format of <linux distro>-<release version>-<kernel
+          version>-<driver version> example tag is coreos-416.94-5.14.0-427.28.1.el9_4.x86_64-6.2.2
+          and ubuntu-22.04-5.15.0-94-generic-6.1.3
+        displayName: Image
+        path: driver.image
+        x-descriptors:
+        - urn:alm:descriptor:com.amd.deviceconfigs:image
+      - description: secrets used for pull/push images from/to private registry specified
+          in driversImage
+        displayName: ImageRegistrySecret
+        path: driver.imageRegistrySecret
+        x-descriptors:
+        - urn:alm:descriptor:com.amd.deviceconfigs:imageRegistrySecret
+      - description: driver image registry TLS setting for the container image
+        displayName: ImageRegistryTLS
+        path: driver.imageRegistryTLS
+        x-descriptors:
+        - urn:alm:descriptor:com.amd.deviceconfigs:imageRegistryTLS
+      - description: If true, check if the container image already exists using plain
+          HTTP.
+        displayName: Insecure
+        path: driver.imageRegistryTLS.insecure
+        x-descriptors:
+        - urn:alm:descriptor:com.amd.deviceconfigs:insecure
+      - description: If true, skip any TLS server certificate validation
+        displayName: InsecureSkipTLSVerify
+        path: driver.imageRegistryTLS.insecureSkipTLSVerify
+        x-descriptors:
+        - urn:alm:descriptor:com.amd.deviceconfigs:insecureSkipTLSVerify
+      - description: image signing config to sign the driver image when building driver
+          image on the fly image signing is required for installing driver on secure
+          boot enabled system
+        displayName: ImageSign
+        path: driver.imageSign
+        x-descriptors:
+        - urn:alm:descriptor:com.amd.deviceconfigs:imageSign
+      - description: ImageSignCertSecret the public key used to sign kernel modules
+          within image necessary for secure boot enabled system
+        displayName: ImageSignCertSecret
+        path: driver.imageSign.certSecret
+        x-descriptors:
+        - urn:alm:descriptor:com.amd.deviceconfigs:imageSignCertSecret
+      - description: ImageSignKeySecret the private key used to sign kernel modules
+          within image necessary for secure boot enabled system
+        displayName: ImageSignKeySecret
+        path: driver.imageSign.keySecret
+        x-descriptors:
+        - urn:alm:descriptor:com.amd.deviceconfigs:imageSignKeySecret
+      - description: policy to upgrade the drivers
+        displayName: UpgradePolicy
+        path: driver.upgradePolicy
+        x-descriptors:
+        - urn:alm:descriptor:com.amd.deviceconfigs:upgradePolicy
+      - description: enable upgrade policy, disabled by default If disabled, user
+          has to manually upgrade all the nodes.
+        displayName: Enable
+        path: driver.upgradePolicy.enable
+        x-descriptors:
+        - urn:alm:descriptor:com.amd.deviceconfigs:enable
+      - description: MaxParallelUpgrades indicates how many nodes can be upgraded
+          in parallel 0 means no limit, all nodes will be upgraded in parallel
+        displayName: MaxParallelUpgrades
+        path: driver.upgradePolicy.maxParallelUpgrades
+        x-descriptors:
+        - urn:alm:descriptor:com.amd.deviceconfigs:maxParallelUpgrades
+      - description: 'MaxUnavailableNodes indicates maximum number of nodes that can
+          be in a failed upgrade state beyond which upgrades will stop to keep cluster
+          at a minimal healthy state Value can be an integer (ex: 2) which would mean
+          atmost 2 nodes can be in failed state after which new upgrades will not
+          start. Or it can be a percentage string(ex: "50%") from which absolute number
+          will be calculated and round up'
+        displayName: MaxUnavailableNodes
+        path: driver.upgradePolicy.maxUnavailableNodes
+        x-descriptors:
+        - urn:alm:descriptor:com.amd.deviceconfigs:maxUnavailableNodes
+      - description: Node draining policy
+        displayName: NodeDrainPolicy
+        path: driver.upgradePolicy.nodeDrainPolicy
+        x-descriptors:
+        - urn:alm:descriptor:com.amd.deviceconfigs:nodeDrainPolicy
+      - description: Pod Deletion policy. If both NodeDrainPolicy and PodDeletionPolicy
+          config is available, NodeDrainPolicy(if enabled) will take precedence.
+        displayName: PodDeletionPolicy
+        path: driver.upgradePolicy.podDeletionPolicy
+        x-descriptors:
+        - urn:alm:descriptor:com.amd.deviceconfigs:podDeletionPolicy
+      - description: reboot between driver upgrades, enabled by default, if enabled
+          spec.commonConfig.utilsContainer will be used to perform reboot on worker
+          nodes
+        displayName: RebootRequired
+        path: driver.upgradePolicy.rebootRequired
+        x-descriptors:
+        - urn:alm:descriptor:com.amd.deviceconfigs:rebootRequired
+      - description: 'version of the drivers source code, can be used as part of image
+          of dockerfile source image default value for different OS is: ubuntu: 6.1.3,
+          coreOS: 6.2.2'
+        displayName: Version
+        path: driver.version
+        x-descriptors:
+        - urn:alm:descriptor:com.amd.deviceconfigs:version
+      - description: metrics exporter
+        displayName: MetricsExporter
+        path: metricsExporter
+        x-descriptors:
+        - urn:alm:descriptor:com.amd.deviceconfigs:metricsExporter
+      - description: optional configuration for metrics
+        displayName: Config
+        path: metricsExporter.config
+        x-descriptors:
+        - urn:alm:descriptor:com.amd.deviceconfigs:config
+      - description: Name of the configMap that defines the list of metrics default
+          list:[]
+        displayName: Name
+        path: metricsExporter.config.name
+        x-descriptors:
+        - urn:alm:descriptor:com.amd.deviceconfigs:name
+      - description: enable metrics exporter, disabled by default
+        displayName: Enable
+        path: metricsExporter.enable
+        x-descriptors:
+        - urn:alm:descriptor:com.amd.deviceconfigs:enable
+      - description: metrics exporter image
+        displayName: Image
+        path: metricsExporter.image
+        x-descriptors:
+        - urn:alm:descriptor:com.amd.deviceconfigs:image
+      - description: image pull policy for metrics exporter
+        displayName: ImagePullPolicy
+        path: metricsExporter.imagePullPolicy
+        x-descriptors:
+        - urn:alm:descriptor:com.amd.deviceconfigs:imagePullPolicy
+      - description: metrics exporter image registry secret used to pull/push images
+        displayName: ImageRegistrySecret
+        path: metricsExporter.imageRegistrySecret
+        x-descriptors:
+        - urn:alm:descriptor:com.amd.deviceconfigs:imageRegistrySecret
+      - description: NodePort is the external port for pulling metrics from outside
+          the cluster, in the range 30000-32767 (assigned automatically by default)
+        displayName: NodePort
+        path: metricsExporter.nodePort
+        x-descriptors:
+        - urn:alm:descriptor:com.amd.deviceconfigs:nodePort
+      - description: Port is the internal port used for in-cluster and node access
+          to pull metrics from the metrics-exporter (default 5000).
+        displayName: Port
+        path: metricsExporter.port
+        x-descriptors:
+        - urn:alm:descriptor:com.amd.deviceconfigs:port
+      - description: optional kube-rbac-proxy config to provide rbac services
+        displayName: RbacConfig
+        path: metricsExporter.rbacConfig
+        x-descriptors:
+        - urn:alm:descriptor:com.amd.deviceconfigs:rbacConfig
+      - description: disable https protecting the proxy endpoint
+        displayName: DisableHttps
+        path: metricsExporter.rbacConfig.disableHttps
+        x-descriptors:
+        - urn:alm:descriptor:com.amd.deviceconfigs:disableHttps
+      - description: enable kube-rbac-proxy, disabled by default
+        displayName: Enable
+        path: metricsExporter.rbacConfig.enable
+        x-descriptors:
+        - urn:alm:descriptor:com.amd.deviceconfigs:enable
+      - description: kube-rbac-proxy image
+        displayName: Image
+        path: metricsExporter.rbacConfig.image
+        x-descriptors:
+        - urn:alm:descriptor:com.amd.deviceconfigs:image
+      - description: certificate secret to mount in kube-rbac container for TLS, self
+          signed certificates will be generated by default
+        displayName: Secret
+        path: metricsExporter.rbacConfig.secret
+        x-descriptors:
+        - urn:alm:descriptor:com.amd.deviceconfigs:secret
+      - description: Selector describes on which nodes to enable metrics exporter
+        displayName: Selector
+        path: metricsExporter.selector
+        x-descriptors:
+        - urn:alm:descriptor:com.amd.deviceconfigs:selector
+      - description: ServiceType service type for metrics, clusterIP/NodePort, clusterIP
+          by default
+        displayName: ServiceType
+        path: metricsExporter.serviceType
+        x-descriptors:
+        - urn:alm:descriptor:com.amd.deviceconfigs:serviceType
+      - description: tolerations for metrics exporter
+        displayName: Tolerations
+        path: metricsExporter.tolerations
+        x-descriptors:
+        - urn:alm:descriptor:com.amd.deviceconfigs:tolerations
+      - description: upgrade policy for metrics exporter daemons
+        displayName: UpgradePolicy
+        path: metricsExporter.upgradePolicy
+        x-descriptors:
+        - urn:alm:descriptor:com.amd.deviceconfigs:upgradePolicy
+      - description: MaxUnavailable specifies the maximum number of Pods that can
+          be unavailable during the update process. Applicable for RollingUpdate only.
+          Default value is 1.
+        displayName: MaxUnavailable
+        path: metricsExporter.upgradePolicy.maxUnavailable
+        x-descriptors:
+        - urn:alm:descriptor:com.amd.deviceconfigs:maxUnavailable
+      - description: UpgradeStrategy specifies the type of the DaemonSet update. Valid
+          values are "RollingUpdate" (default) or "OnDelete".
+        displayName: UpgradeStrategy
+        path: metricsExporter.upgradePolicy.upgradeStrategy
+        x-descriptors:
+        - urn:alm:descriptor:com.amd.deviceconfigs:upgradeStrategy
+      - description: Selector describes on which nodes the GPU Operator should enable
+          the GPU device.
+        displayName: Selector
+        path: selector
+        x-descriptors:
+        - urn:alm:descriptor:com.amd.deviceconfigs:selector
+      - description: test runner
+        displayName: TestRunner
+        path: testRunner
+        x-descriptors:
+        - urn:alm:descriptor:com.amd.deviceconfigs:testRunner
+      - description: config map to customize the config for test runner, if not specified
+          default test config will be aplied
+        displayName: Secret
+        path: testRunner.config
+        x-descriptors:
+        - urn:alm:descriptor:com.amd.deviceconfigs:configmap
+      - description: enable test runner, disabled by default
+        displayName: Enable
+        path: testRunner.enable
+        x-descriptors:
+        - urn:alm:descriptor:com.amd.deviceconfigs:enable
+      - description: test runner image
+        displayName: Image
+        path: testRunner.image
+        x-descriptors:
+        - urn:alm:descriptor:com.amd.deviceconfigs:image
+      - description: image pull policy for test runner
+        displayName: ImagePullPolicy
+        path: testRunner.imagePullPolicy
+        x-descriptors:
+        - urn:alm:descriptor:com.amd.deviceconfigs:imagePullPolicy
+      - description: test runner image registry secret used to pull/push images
+        displayName: ImageRegistrySecret
+        path: testRunner.imageRegistrySecret
+        x-descriptors:
+        - urn:alm:descriptor:com.amd.deviceconfigs:imageRegistrySecret
+      - description: captures logs location and export config for test runner logs
+        displayName: LogsLocation
+        path: testRunner.logsLocation
+        x-descriptors:
+        - urn:alm:descriptor:com.amd.deviceconfigs:logsLocation
+      - description: host path to store test runner internal status db in order to
+          persist test running status
+        displayName: HostPath
+        path: testRunner.logsLocation.hostPath
+        x-descriptors:
+        - urn:alm:descriptor:com.amd.deviceconfigs:hostPath
+      - description: LogsExportSecrets is a list of secrets that contain connectivity
+          info to multiple cloud providers
+        displayName: LogsExportSecrets
+        path: testRunner.logsLocation.logsExportSecrets
+        x-descriptors:
+        - urn:alm:descriptor:com.amd.deviceconfigs:logsExportSecrets
+      - description: volume mount destination within test runner container
+        displayName: MountPath
+        path: testRunner.logsLocation.mountPath
+        x-descriptors:
+        - urn:alm:descriptor:com.amd.deviceconfigs:mountPath
+      - description: Selector describes on which nodes to enable test runner
+        displayName: Selector
+        path: testRunner.selector
+        x-descriptors:
+        - urn:alm:descriptor:com.amd.deviceconfigs:selector
+      - description: tolerations for test runner
+        displayName: Tolerations
+        path: testRunner.tolerations
+        x-descriptors:
+        - urn:alm:descriptor:com.amd.deviceconfigs:tolerations
+      - description: upgrade policy for test runner daemonset
+        displayName: UpgradePolicy
+        path: testRunner.upgradePolicy
+        x-descriptors:
+        - urn:alm:descriptor:com.amd.deviceconfigs:upgradePolicy
+      - description: MaxUnavailable specifies the maximum number of Pods that can
+          be unavailable during the update process. Applicable for RollingUpdate only.
+          Default value is 1.
+        displayName: MaxUnavailable
+        path: testRunner.upgradePolicy.maxUnavailable
+        x-descriptors:
+        - urn:alm:descriptor:com.amd.deviceconfigs:maxUnavailable
+      - description: UpgradeStrategy specifies the type of the DaemonSet update. Valid
+          values are "RollingUpdate" (default) or "OnDelete".
+        displayName: UpgradeStrategy
+        path: testRunner.upgradePolicy.upgradeStrategy
+        x-descriptors:
+        - urn:alm:descriptor:com.amd.deviceconfigs:upgradeStrategy
+      statusDescriptors:
+      - description: number of the actually deployed and running pods
+        displayName: AvailableNumber
+        path: configManager.availableNumber
+        x-descriptors:
+        - urn:alm:descriptor:com.amd.deviceconfigs:availableNumber
+      - description: number of the pods that should be deployed for daemonset
+        displayName: DesiredNumber
+        path: configManager.desiredNumber
+        x-descriptors:
+        - urn:alm:descriptor:com.amd.deviceconfigs:desiredNumber
+      - description: number of nodes that are targeted by the DeviceConfig selector
+        displayName: NodesMatchingSelectorNumber
+        path: configManager.nodesMatchingSelectorNumber
+        x-descriptors:
+        - urn:alm:descriptor:com.amd.deviceconfigs:nodesMatchingSelectorNumber
+      - description: number of the actually deployed and running pods
+        displayName: AvailableNumber
+        path: devicePlugin.availableNumber
+        x-descriptors:
+        - urn:alm:descriptor:com.amd.deviceconfigs:availableNumber
+      - description: number of the pods that should be deployed for daemonset
+        displayName: DesiredNumber
+        path: devicePlugin.desiredNumber
+        x-descriptors:
+        - urn:alm:descriptor:com.amd.deviceconfigs:desiredNumber
+      - description: number of nodes that are targeted by the DeviceConfig selector
+        displayName: NodesMatchingSelectorNumber
+        path: devicePlugin.nodesMatchingSelectorNumber
+        x-descriptors:
+        - urn:alm:descriptor:com.amd.deviceconfigs:nodesMatchingSelectorNumber
+      - description: number of the actually deployed and running pods
+        displayName: AvailableNumber
+        path: driver.availableNumber
+        x-descriptors:
+        - urn:alm:descriptor:com.amd.deviceconfigs:availableNumber
+      - description: number of the pods that should be deployed for daemonset
+        displayName: DesiredNumber
+        path: driver.desiredNumber
+        x-descriptors:
+        - urn:alm:descriptor:com.amd.deviceconfigs:desiredNumber
+      - description: number of nodes that are targeted by the DeviceConfig selector
+        displayName: NodesMatchingSelectorNumber
+        path: driver.nodesMatchingSelectorNumber
+        x-descriptors:
+        - urn:alm:descriptor:com.amd.deviceconfigs:nodesMatchingSelectorNumber
+      - description: number of the actually deployed and running pods
+        displayName: AvailableNumber
+        path: metricsExporter.availableNumber
+        x-descriptors:
+        - urn:alm:descriptor:com.amd.deviceconfigs:availableNumber
+      - description: number of the pods that should be deployed for daemonset
+        displayName: DesiredNumber
+        path: metricsExporter.desiredNumber
+        x-descriptors:
+        - urn:alm:descriptor:com.amd.deviceconfigs:desiredNumber
+      - description: number of nodes that are targeted by the DeviceConfig selector
+        displayName: NodesMatchingSelectorNumber
+        path: metricsExporter.nodesMatchingSelectorNumber
+        x-descriptors:
+        - urn:alm:descriptor:com.amd.deviceconfigs:nodesMatchingSelectorNumber
+      - description: NodeModuleStatus contains per node status of driver module installation
+        displayName: NodeModuleStatus
+        path: nodeModuleStatus
+        x-descriptors:
+        - urn:alm:descriptor:com.amd.deviceconfigs:nodeModuleStatus
+      version: v1alpha1
+  description: |-
+    Operator responsible for deploying AMD GPU kernel drivers and device plugin
+    For more information, visit [documentation](https://instinct.docs.amd.com/projects/gpu-operator/en/latest/)
+  displayName: amd-gpu-operator
+  icon:
+  - base64data: PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI4MDAiIGhlaWdodD0iMTkwLjgwMyIgeG1sbnM6dj0iaHR0cHM6Ly92ZWN0YS5pby9uYW5vIj48cGF0aCBkPSJNMTg3Ljg4OCAxNzguMTIySDE0My41MmwtMTMuNTczLTMyLjczOEg1Ni4wMDNsLTEyLjM2NiAzMi43MzhIMEw2Ni42NjcgMTIuNzc2aDQ3Ljc2MXpNOTEuMTU1IDUyLjI4Nkw2Ni45MTIgMTE2LjUzaDUwLjkxM3ptMjU3LjkwMS0zOS41MWgzNS44OHYxNjUuMzQ2aC00MS4yMTlWNzQuODQybC00NC42MDggNTEuODc3aC02LjMwMWwtNDQuNjA1LTUxLjg3N1YxNzguMTJoLTQxLjIxOVYxMi43NzZoMzUuODhsNTMuMDkyIDYxLjMzNnptMTQwLjMxOSAwYzYwLjM2NCAwIDkxLjM5MSAzNy41NzMgOTEuMzkxIDgyLjkwOSAwIDQ3LjUxNy0zMC4wNTggODIuNDM3LTk2IDgyLjQzN2gtNjguMzY5VjEyLjc3NnptLTMxLjc2MiAxMzUuMDQxaDI2LjkwNmM0MS40NTcgMCA1My44MjMtMjguMTI5IDUzLjgyMy01Mi4zNzcgMC0yOC4zNjgtMTUuMjc2LTUyLjM2My01NC4zMDgtNTIuMzYzaC0yNi40MjJ2MTA0Ljc0em0yMDUuMTU2LTk1LjgzNkw2MTAuNzk3IDBIODAwdjE4OS4yMWwtNTEuOTcyLTUxLjk3NVY1MS45ODF6bS0uMDYxIDEwLjQxNkw2MDkuMiAxMTUuOTAzdjc0Ljg5OWg3NC44ODlsNTMuNTA1LTUzLjUwNmgtNzQuODg2eiIvPjwvc3ZnPg==
+    mediatype: image/svg+xml
+  install:
+    spec:
+      clusterPermissions:
+      - rules:
+        - apiGroups:
+          - ""
+          resources:
+          - events
+          verbs:
+          - create
+          - patch
+        - apiGroups:
+          - amd.com
+          resources:
+          - deviceconfigs
+          verbs:
+          - create
+          - get
+          - list
+          - patch
+          - update
+          - watch
+        - apiGroups:
+          - amd.com
+          resources:
+          - deviceconfigs/finalizers
+          verbs:
+          - update
+        - apiGroups:
+          - amd.com
+          resources:
+          - deviceconfigs/status
+          verbs:
+          - get
+          - patch
+          - update
+        - apiGroups:
+          - apiextensions.k8s.io
+          resources:
+          - customresourcedefinitions
+          verbs:
+          - delete
+        - apiGroups:
+          - apps
+          resources:
+          - daemonsets
+          verbs:
+          - create
+          - delete
+          - get
+          - list
+          - patch
+          - watch
+        - apiGroups:
+          - apps
+          resources:
+          - daemonsets/finalizers
+          verbs:
+          - create
+          - get
+          - update
+          - watch
+        - apiGroups:
+          - apps
+          resources:
+          - daemonsets/status
+          verbs:
+          - create
+          - delete
+          - get
+          - list
+          - patch
+          - watch
+        - apiGroups:
+          - ""
+          resources:
+          - configmaps
+          verbs:
+          - create
+          - delete
+          - get
+          - list
+          - patch
+          - watch
+        - apiGroups:
+          - ""
+          resources:
+          - nodes
+          verbs:
+          - get
+          - list
+          - patch
+          - watch
+        - apiGroups:
+          - ""
+          resources:
+          - nodes/finalizers
+          verbs:
+          - get
+          - update
+          - watch
+        - apiGroups:
+          - ""
+          resources:
+          - nodes/status
+          verbs:
+          - get
+          - update
+          - watch
+        - apiGroups:
+          - ""
+          resources:
+          - pods
+          verbs:
+          - create
+          - delete
+          - get
+          - list
+          - watch
+        - apiGroups:
+          - ""
+          resources:
+          - pods/eviction
+          verbs:
+          - create
+          - delete
+          - get
+          - list
+        - apiGroups:
+          - ""
+          resources:
+          - pods/finalizers
+          verbs:
+          - delete
+          - get
+          - list
+          - watch
+        - apiGroups:
+          - ""
+          resources:
+          - pods/status
+          verbs:
+          - delete
+          - get
+          - list
+          - watch
+        - apiGroups:
+          - ""
+          resources:
+          - secrets
+          verbs:
+          - get
+          - list
+          - watch
+        - apiGroups:
+          - ""
+          resources:
+          - services
+          verbs:
+          - create
+          - delete
+          - get
+          - list
+          - patch
+          - watch
+        - apiGroups:
+          - ""
+          resources:
+          - services/finalizers
+          verbs:
+          - create
+          - get
+          - update
+          - watch
+        - apiGroups:
+          - kmm.sigs.x-k8s.io
+          resources:
+          - modules
+          verbs:
+          - create
+          - delete
+          - get
+          - list
+          - patch
+          - update
+          - watch
+        - apiGroups:
+          - kmm.sigs.x-k8s.io
+          resources:
+          - modules/finalizers
+          verbs:
+          - get
+          - update
+          - watch
+        - apiGroups:
+          - kmm.sigs.x-k8s.io
+          resources:
+          - modules/status
+          verbs:
+          - get
+          - patch
+          - update
+        - apiGroups:
+          - kmm.sigs.x-k8s.io
+          resources:
+          - nodemodulesconfigs
+          verbs:
+          - get
+          - list
+          - watch
+        - apiGroups:
+          - kmm.sigs.x-k8s.io
+          resources:
+          - nodemodulesconfigs/finalizers
+          verbs:
+          - get
+          - update
+          - watch
+        - apiGroups:
+          - kmm.sigs.x-k8s.io
+          resources:
+          - nodemodulesconfigs/status
+          verbs:
+          - get
+          - list
+          - watch
+        - apiGroups:
+          - nfd.openshift.io
+          resources:
+          - nodefeaturediscoveries
+          verbs:
+          - delete
+          - get
+          - list
+        - apiGroups:
+          - nfd.openshift.io
+          resources:
+          - nodefeaturediscoveries/finalizers
+          verbs:
+          - get
+          - update
+        - apiGroups:
+          - nfd.openshift.io
+          resources:
+          - nodefeaturediscoveries/status
+          verbs:
+          - get
+          - update
+        serviceAccountName: amd-gpu-operator-controller-manager
+      - rules:
+        - apiGroups:
+          - ""
+          resources:
+          - nodes
+          verbs:
+          - get
+          - list
+          - update
+        - apiGroups:
+          - security.openshift.io
+          resourceNames:
+          - privileged
+          resources:
+          - securitycontextconstraints
+          verbs:
+          - use
+        serviceAccountName: amd-gpu-operator-metrics-exporter
+      - rules:
+        - apiGroups:
+          - security.openshift.io
+          resourceNames:
+          - privileged
+          resources:
+          - securitycontextconstraints
+          verbs:
+          - use
+        - apiGroups:
+          - authentication.k8s.io
+          resources:
+          - tokenreviews
+          verbs:
+          - create
+        - apiGroups:
+          - authorization.k8s.io
+          resources:
+          - subjectaccessreviews
+          verbs:
+          - create
+        - apiGroups:
+          - ""
+          resources:
+          - nodes
+          verbs:
+          - watch
+          - get
+          - list
+          - update
+        serviceAccountName: amd-gpu-operator-metrics-exporter-rbac-proxy
+      - rules:
+        - apiGroups:
+          - ""
+          resources:
+          - nodes
+          verbs:
+          - watch
+          - get
+          - list
+          - update
+        - apiGroups:
+          - security.openshift.io
+          resourceNames:
+          - privileged
+          resources:
+          - securitycontextconstraints
+          verbs:
+          - use
+        serviceAccountName: amd-gpu-operator-node-labeller
+      - rules:
+        - apiGroups:
+          - ""
+          resources:
+          - events
+          verbs:
+          - create
+          - list
+          - get
+          - update
+          - watch
+        - apiGroups:
+          - ""
+          resources:
+          - nodes
+          verbs:
+          - patch
+        serviceAccountName: amd-gpu-operator-test-runner
+      deployments:
+      - label:
+          app.kubernetes.io/component: amd-gpu
+          app.kubernetes.io/name: amd-gpu
+          app.kubernetes.io/part-of: amd-gpu
+          control-plane: controller-manager
+        name: amd-gpu-operator-controller-manager
+        spec:
+          replicas: 1
+          selector:
+            matchLabels:
+              app.kubernetes.io/component: amd-gpu
+              app.kubernetes.io/name: amd-gpu
+              app.kubernetes.io/part-of: amd-gpu
+              control-plane: controller-manager
+          strategy: {}
+          template:
+            metadata:
+              annotations:
+                kubectl.kubernetes.io/default-container: manager
+              labels:
+                app.kubernetes.io/component: amd-gpu
+                app.kubernetes.io/name: amd-gpu
+                app.kubernetes.io/part-of: amd-gpu
+                control-plane: controller-manager
+            spec:
+              affinity:
+                nodeAffinity:
+                  requiredDuringSchedulingIgnoredDuringExecution:
+                    nodeSelectorTerms:
+                    - matchExpressions:
+                      - key: node-role.kubernetes.io/control-plane
+                        operator: Exists
+                    - matchExpressions:
+                      - key: node-role.kubernetes.io/master
+                        operator: Exists
+              containers:
+              - args:
+                - --config=controller_manager_config.yaml
+                env:
+                - name: OPERATOR_NAMESPACE
+                  valueFrom:
+                    fieldRef:
+                      fieldPath: metadata.namespace
+                image: docker.io/rocm/gpu-operator:dev
+                imagePullPolicy: Always
+                livenessProbe:
+                  httpGet:
+                    path: /healthz
+                    port: 8081
+                  initialDelaySeconds: 15
+                  periodSeconds: 20
+                name: manager
+                readinessProbe:
+                  httpGet:
+                    path: /readyz
+                    port: 8081
+                  initialDelaySeconds: 5
+                  periodSeconds: 10
+                resources:
+                  limits:
+                    cpu: 500m
+                    memory: 384Mi
+                  requests:
+                    cpu: 10m
+                    memory: 64Mi
+                securityContext:
+                  allowPrivilegeEscalation: false
+                volumeMounts:
+                - mountPath: /controller_manager_config.yaml
+                  name: manager-config
+                  subPath: controller_manager_config.yaml
+              securityContext:
+                runAsNonRoot: true
+              serviceAccountName: amd-gpu-operator-controller-manager
+              terminationGracePeriodSeconds: 10
+              tolerations:
+              - effect: NoSchedule
+                key: node-role.kubernetes.io/master
+                operator: Equal
+              - effect: NoSchedule
+                key: node-role.kubernetes.io/control-plane
+                operator: Equal
+              volumes:
+              - configMap:
+                  name: amd-gpu-operator-manager-config
+                name: manager-config
+      permissions:
+      - rules:
+        - apiGroups:
+          - ""
+          resources:
+          - configmaps
+          verbs:
+          - get
+          - list
+          - watch
+          - create
+          - update
+          - patch
+          - delete
+        - apiGroups:
+          - coordination.k8s.io
+          resources:
+          - leases
+          verbs:
+          - get
+          - list
+          - watch
+          - create
+          - update
+          - patch
+          - delete
+        serviceAccountName: amd-gpu-operator-controller-manager
+      - rules:
+        - apiGroups:
+          - security.openshift.io
+          resourceNames:
+          - privileged
+          resources:
+          - securitycontextconstraints
+          verbs:
+          - use
+        serviceAccountName: amd-gpu-operator-kmm-device-plugin
+      - rules:
+        - apiGroups:
+          - security.openshift.io
+          resourceNames:
+          - privileged
+          resources:
+          - securitycontextconstraints
+          verbs:
+          - use
+        serviceAccountName: amd-gpu-operator-kmm-module-loader
+    strategy: deployment
+  installModes:
+  - supported: false
+    type: OwnNamespace
+  - supported: false
+    type: SingleNamespace
+  - supported: false
+    type: MultiNamespace
+  - supported: true
+    type: AllNamespaces
+  keywords:
+  - amd-gpu-operator
+  links:
+  - name: Amd Gpu Operator
+    url: https://amd-gpu-operator.domain
+  maturity: alpha
+  provider:
+    name: amd-gpu-operator
+  version: 1.2.0

@@ -201,6 +201,11 @@ for node in ${NODES}; do
 	KNS="${KUBECTL} -n ${GPUOPER_NS}"
 	EXPORTER_PODS=$(${KNS} get pods -o name --field-selector spec.nodeName=${node} -l "app.kubernetes.io/name=metrics-exporter")
 	pod_logs $GPUOPER_NS "metrics-exporter" $node $EXPORTER_PODS
+
+	KNS="${KUBECTL} -n ${GPUOPER_NS}"
+	DEVICE_CONFIG_MANAGER_PODS=$(${KNS} get pods -o name --field-selector spec.nodeName=${node} -l "app.kubernetes.io/name=device-config-manager")
+	pod_logs $GPUOPER_NS "device-config-manager" $node $DEVICE_CONFIG_MANAGER_PODS
+
 	# gpuagent logs
 	GPUAGENT_LOGS="gpu-agent.log gpu-agent-api.log gpu-agent-err.log"
 	for l in ${GPUAGENT_LOGS}; do

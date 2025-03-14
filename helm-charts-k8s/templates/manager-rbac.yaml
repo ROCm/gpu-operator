@@ -1,0 +1,263 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ include "helm-charts-k8s.fullname" . }}-manager-role
+  labels:
+    app.kubernetes.io/component: amd-gpu
+    app.kubernetes.io/part-of: amd-gpu
+  {{- include "helm-charts-k8s.labels" . | nindent 4 }}
+rules:
+- apiGroups:
+  - amd.com
+  resources:
+  - deviceconfigs
+  verbs:
+  - create
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - amd.com
+  resources:
+  - deviceconfigs/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - amd.com
+  resources:
+  - deviceconfigs/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
+  - apiextensions.k8s.io
+  resources:
+  - customresourcedefinitions
+  verbs:
+  - delete
+- apiGroups:
+  - apps
+  resources:
+  - daemonsets
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - watch
+- apiGroups:
+  - apps
+  resources:
+  - daemonsets/finalizers
+  verbs:
+  - create
+  - get
+  - update
+  - watch
+- apiGroups:
+  - apps
+  resources:
+  - daemonsets/status
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - watch
+- apiGroups:
+  - ""
+  resources:
+  - configmaps
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - watch
+- apiGroups:
+  - ""
+  resources:
+  - nodes
+  verbs:
+  - get
+  - list
+  - patch
+  - watch
+- apiGroups:
+  - ""
+  resources:
+  - nodes/finalizers
+  verbs:
+  - get
+  - update
+  - watch
+- apiGroups:
+  - ""
+  resources:
+  - nodes/status
+  verbs:
+  - get
+  - update
+  - watch
+- apiGroups:
+  - ""
+  resources:
+  - pods
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - watch
+- apiGroups:
+  - ""
+  resources:
+  - pods/eviction
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+- apiGroups:
+  - ""
+  resources:
+  - pods/finalizers
+  verbs:
+  - delete
+  - get
+  - list
+  - watch
+- apiGroups:
+  - ""
+  resources:
+  - pods/status
+  verbs:
+  - delete
+  - get
+  - list
+  - watch
+- apiGroups:
+  - ""
+  resources:
+  - secrets
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - ""
+  resources:
+  - services
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - watch
+- apiGroups:
+  - ""
+  resources:
+  - services/finalizers
+  verbs:
+  - create
+  - get
+  - update
+  - watch
+- apiGroups:
+  - kmm.sigs.x-k8s.io
+  resources:
+  - modules
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - kmm.sigs.x-k8s.io
+  resources:
+  - modules/finalizers
+  verbs:
+  - get
+  - update
+  - watch
+- apiGroups:
+  - kmm.sigs.x-k8s.io
+  resources:
+  - modules/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
+  - kmm.sigs.x-k8s.io
+  resources:
+  - nodemodulesconfigs
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - kmm.sigs.x-k8s.io
+  resources:
+  - nodemodulesconfigs/finalizers
+  verbs:
+  - get
+  - update
+  - watch
+- apiGroups:
+  - kmm.sigs.x-k8s.io
+  resources:
+  - nodemodulesconfigs/status
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - nfd.openshift.io
+  resources:
+  - nodefeaturediscoveries
+  verbs:
+  - delete
+  - get
+  - list
+- apiGroups:
+  - nfd.openshift.io
+  resources:
+  - nodefeaturediscoveries/finalizers
+  verbs:
+  - get
+  - update
+- apiGroups:
+  - nfd.openshift.io
+  resources:
+  - nodefeaturediscoveries/status
+  verbs:
+  - get
+  - update
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: {{ include "helm-charts-k8s.fullname" . }}-manager-rolebinding
+  labels:
+    app.kubernetes.io/component: amd-gpu
+    app.kubernetes.io/part-of: amd-gpu
+  {{- include "helm-charts-k8s.labels" . | nindent 4 }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: '{{ include "helm-charts-k8s.fullname" . }}-manager-role'
+subjects:
+- kind: ServiceAccount
+  name: '{{ include "helm-charts-k8s.fullname" . }}-controller-manager'
+  namespace: '{{ .Release.Namespace }}'

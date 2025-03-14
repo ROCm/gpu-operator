@@ -1,0 +1,83 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "helm-charts-k8s.fullname" . }}-controller-manager
+  labels:
+    app.kubernetes.io/component: amd-gpu
+    app.kubernetes.io/part-of: amd-gpu
+    control-plane: controller-manager
+  {{- include "helm-charts-k8s.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.controllerManager.replicas }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/component: amd-gpu
+      app.kubernetes.io/part-of: amd-gpu
+      control-plane: controller-manager
+    {{- include "helm-charts-k8s.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/component: amd-gpu
+        app.kubernetes.io/part-of: amd-gpu
+        control-plane: controller-manager
+      {{- include "helm-charts-k8s.selectorLabels" . | nindent 8 }}
+      annotations:
+        kubectl.kubernetes.io/default-container: manager
+    spec:
+      {{- with .Values.controllerManager.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      nodeSelector: {{- toYaml .Values.controllerManager.nodeSelector | nindent 8 }}
+      containers:
+      - args: {{- toYaml .Values.controllerManager.manager.args | nindent 8 }}
+        env:
+        - name: OPERATOR_NAMESPACE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
+        - name: KUBERNETES_CLUSTER_DOMAIN
+          value: {{ quote .Values.kubernetesClusterDomain }}
+        - name: SIM_ENABLE
+          value: {{ quote .Values.controllerManager.env.simEnable }}
+        image: {{ .Values.controllerManager.manager.image.repository }}:{{ .Values.controllerManager.manager.image.tag
+          | default .Chart.AppVersion }}
+        imagePullPolicy: {{ .Values.controllerManager.manager.imagePullPolicy }}
+        livenessProbe:
+          httpGet:
+            path: /healthz
+            port: 8081
+          initialDelaySeconds: 15
+          periodSeconds: 20
+        name: manager
+        readinessProbe:
+          httpGet:
+            path: /readyz
+            port: 8081
+          initialDelaySeconds: 5
+          periodSeconds: 10
+        resources: {{- toYaml .Values.controllerManager.manager.resources | nindent 10
+          }}
+        securityContext: {{- toYaml .Values.controllerManager.manager.containerSecurityContext
+          | nindent 10 }}
+        volumeMounts:
+        - mountPath: /controller_manager_config.yaml
+          name: manager-config
+          subPath: controller_manager_config.yaml
+      {{- if .Values.controllerManager.manager.imagePullSecrets }}
+      imagePullSecrets:
+      - name: {{ .Values.controllerManager.manager.imagePullSecrets }}
+      {{- end}}
+      securityContext:
+        runAsNonRoot: true
+      serviceAccountName: {{ include "helm-charts-k8s.fullname" . }}-controller-manager
+      terminationGracePeriodSeconds: 10
+      {{- with .Values.controllerManager.manager.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      volumes:
+      - configMap:
+          name: {{ include "helm-charts-k8s.fullname" . }}-manager-config
+        name: manager-config
