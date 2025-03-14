@@ -1,0 +1,18 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "kmm.fullname" . }}-controller-metrics-service
+  labels:
+    app.kubernetes.io/component: kmm
+    app.kubernetes.io/part-of: kmm
+    control-plane: controller
+  {{- include "kmm.labels" . | nindent 4 }}
+spec:
+  type: {{ .Values.controllerMetricsService.type }}
+  selector:
+    app.kubernetes.io/component: kmm
+    app.kubernetes.io/part-of: kmm
+    control-plane: controller
+  {{- include "kmm.selectorLabels" . | nindent 4 }}
+  ports:
+	{{- .Values.controllerMetricsService.ports | toYaml | nindent 2 }}

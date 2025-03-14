@@ -1,0 +1,59 @@
+apiVersion: amd.com/v1alpha1
+kind: DeviceConfig
+metadata:
+  name: test-device-config
+  # make sure the namespace is where AMD GPU Operator is running
+  namespace: kube-amd-gpu
+spec:
+  driver:
+    # Specify driver image here
+    # DO NOT include the image tag as AMD GPU Operator will automatically manage the image tag for you
+    # e.g. docker.io/myUserName/amdgpu-driver
+    image: my.registry.io/myUserName/myRepo
+
+    # Specify the credential for your private registry if it requires credential to get pull/push access
+    # you can create the docker-registry type secret by running command like:
+    # kubectl create secret docker-registry mySecret -n KMM-NameSpace --docker-server=https://index.docker.io/v1/ --docker-username=xxx --docker-password=xxx
+    # Make sure you created the secret within the namespace that KMM operator is running
+    imageRegistrySecret:
+      name: docker-auth
+
+    # Specify the driver version
+    # when you need to upgrade the driver, just update this field
+    # we will unload the old version driver and load the new version driver
+    version: "6.2.1"
+
+  devicePlugin:
+    # Specify the device plugin image
+    # default value is rocm/k8s-device-plugin:latest
+    devicePluginImage: rocm/k8s-device-plugin:latest
+
+    # Specify the node labeller image
+    # default value is rocm/k8s-device-plugin:labeller-latest
+    nodeLabellerImage: rocm/k8s-device-plugin:labeller-latest
+
+  # Specify the metrics exporter config
+  metricsExporter:
+    # To enable/disable the metrics exporter, disabled by default
+    enable: True
+
+    # kubernetes service type for metrics exporter, clusterIP(default) or NodePort
+    serviceType: "NodePort"
+
+    # Node port for metrics exporter service, metrics endpoint $node-ip:$nodePort
+    nodePort: 32500
+
+    # image for the metrics-exporter container
+    image: "docker.io/rocm/device-metrics-exporter:v1.2.0"
+    
+    # Specify the kube-rbac-proxy config
+    rbacConfig:
+      # To enable/disable kube-rbac-proxy, disabled by default
+      enable: True
+      
+      # To disable https (not recommended), enabled by default
+      disableHttps: False
+
+  # Specifythe node to be managed by this DeviceConfig Custom Resource
+  selector:
+    feature.node.kubernetes.io/amd-gpu: "true"

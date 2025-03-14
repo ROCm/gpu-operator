@@ -1,0 +1,31 @@
+{
+    "gpu-config-profiles":
+    {
+        "default":
+        {
+            "skippedGPUs": {
+                "ids": []
+            },
+            "profiles": [
+                {
+                    "computePartition": "SPX", 
+                    "memoryPartition": "NPS1",
+                    "numGPUsAssigned": 1
+                }
+            ]
+        },
+        "profile-1":
+        { 
+            "skippedGPUs": {
+                "ids": [0, 1, 2]  
+            },
+            "profiles": [
+                {
+                    "computePartition": "CPX",
+                    "memoryPartition": "NPS1",
+                    "numGPUsAssigned": 8
+                }          
+            ]
+        }
+    }
+  }
