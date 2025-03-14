@@ -52,4 +52,5 @@ subtrees:
     entries:
       - file: contributing/documentation-build-guide
       - file: contributing/documentation-standards
+      - file: contributing/developer-guide
 

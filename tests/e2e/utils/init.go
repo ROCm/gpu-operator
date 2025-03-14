@@ -45,6 +45,6 @@ func init() {
 	}
 	nodeAppImage, ok = os.LookupEnv("E2E_NODEAPP_IMG")
 	if !ok {
-		log.Fatalf("E2E_NODEAPP_IMG is not defined. Please determine a image repo to temporarily save node app image, which will be used for running e2e test.")
+		log.Fatalf("E2E_NODEAPP_IMG is not defined. Please determine an image repo to temporarily save node app image, which will be used for running e2e test.")
 	}
 }

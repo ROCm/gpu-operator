@@ -91,6 +91,10 @@ Following dashboards are provided for visualizing GPU metrics collected from dev
 * Job Detail Dashboard: Presents detailed GPU usage for specific jobs in SLURM and Kubernetes environments.
 * Node Detail Dashboard: Displays detailed GPU usage at the host level.
 
+## Contributing
+
+Please refer to our [Developer Guide](https://instinct.docs.amd.com/projects/gpu-operator/en/latest/contributing/developer-guide.html).
+
 ## Support
 
 For bugs and feature requests, please file an issue on our [GitHub Issues](https://github.com/ROCm/gpu-operator/issues) page.

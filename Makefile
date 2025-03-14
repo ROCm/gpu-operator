@@ -97,12 +97,6 @@ ENVTEST_K8S_VERSION = 1.23
 
 ##################################
 # Docker shell container variables
-# Get the currently used golang install path (in GOPATH/bin, unless GOBIN is set)
-ifeq (,$(shell go env GOBIN))
-	GOBIN=$(shell go env GOPATH)/bin
-else
-	GOBIN=$(shell go env GOBIN)
-endif
 # Setting SHELL to bash allows bash commands to be executed by recipes.
 # This is a requirement for 'setup-envtest.sh' in the test target.
 # Options are set to exit when a recipe line exits non-zero or a piped command fails.
@@ -122,7 +116,23 @@ GOLANG_BASE_IMG ?= golang:1.23
 
 ##@ QuickStart
 .PHONY: default
-default: docker-build-env ## Quick start to build everything from docker shell container
+default: docker-build-env ## Quick start to build everything from docker shell container.
+	@echo "Starting a shell in the Docker build container..."
+	@docker run --rm -it --privileged \
+	    --network host \
+		--name gpu-operator-build \
+		-e "USER_NAME=$(shell whoami)" \
+		-e "USER_UID=$(shell id -u)" \
+		-e "USER_GID=$(shell id -g)" \
+		-v $(CURDIR):/gpu-operator \
+		-v $(CURDIR):/home/$(shell whoami)/go/src/github.com/ROCm/gpu-operator \
+		-v $(HOME)/.ssh:/home/$(shell whoami)/.ssh \
+		-w $(CONTAINER_WORKDIR) \
+		$(DOCKER_BUILDER_IMAGE) \
+		bash -c "source ~/.bashrc && cd /gpu-operator && git config --global --add safe.directory /gpu-operator && make all && GOFLAGS=-mod=mod go run tools/build/copyright/main.go && make fmt"
+
+.PHONY: docker/shell
+docker/shell: docker-build-env ## Bring up and attach to a container that has dev environment configured.
 	@echo "Starting a shell in the Docker build container..."
 	@docker run --rm -it --privileged \
 		--name gpu-operator-build \
@@ -134,7 +144,7 @@ default: docker-build-env ## Quick start to build everything from docker shell c
 		-v $(HOME)/.ssh:/home/$(shell whoami)/.ssh \
 		-w $(CONTAINER_WORKDIR) \
 		$(DOCKER_BUILDER_IMAGE) \
-		cd /gpu-operator && git config --global --add safe.directory /gpu-operator && make all
+		bash -c "cd /gpu-operator && git config --global --add safe.directory /gpu-operator && bash"
 
 .PHONY: all
 all: generate manager manifests helm-k8s helm-openshift bundle-build docker-build
@@ -154,12 +164,12 @@ all: generate manager manifests helm-k8s helm-openshift bundle-build docker-buil
 
 .PHONY: help
 help: ## Display this help.
-	@awk 'BEGIN {FS = ":.*##"; printf "\nUsage:\n  make \033[36m<target>\033[0m\n"} /^[a-zA-Z_0-9-]+:.*?##/ { printf "  \033[36m%-15s\033[0m %s\n", $$1, $$2 } /^##@/ { printf "\n\033[1m%s\033[0m\n", substr($$0, 5) } ' $(MAKEFILE_LIST)
+	@awk 'BEGIN {FS = ":.*##"; printf "\nUsage:\n  make \033[36m<target>\033[0m\n"} /^[a-zA-Z_0-9\/\-]+:.*?##/ { printf "  \033[36m%-15s\033[0m %s\n", $$1, $$2 } /^##@/ { printf "\n\033[1m%s\033[0m\n", substr($$0, 5) } ' $(MAKEFILE_LIST)
 
 ##@ Development
 
 .PHONY: update-registry
-update-registry: ## Update all image URLs based on the image variables
+update-registry:
 	# updating registry information in yaml files
 	sed -i -e 's|image:.*$$|image: ${IMG}|' bundle/manifests/amd-gpu-operator.clusterserviceversion.yaml
 	sed -i -e 's|repository:.*$$|repository: ${IMAGE_TAG_BASE}|' \
@@ -180,7 +190,7 @@ update-registry: ## Update all image URLs based on the image variables
 	hack/k8s-patch/k8s-kmm-patch/metadata-patch/values.yaml
 
 .PHONY: update-version
-update-version: ## Update the Project version in helm charts based on ${PROJECT_VERSION}
+update-version:
 	# updating project version in manifests
 	sed -i -e 's|appVersion:.*$$|appVersion: "${PROJECT_VERSION}"|' hack/k8s-patch/metadata-patch/Chart.yaml
 	sed -i '0,/version:/s|version:.*|version: ${PROJECT_VERSION}|' hack/k8s-patch/metadata-patch/Chart.yaml
@@ -211,7 +221,7 @@ unit-test: vet ## Run the unit tests.
 	go test $(UNIT_TEST) -v -coverprofile cover.out
 
 .PHONY: e2e
-e2e: ## Run the e2e tests. 
+e2e: ## Run the e2e tests. Make sure you have ~/.kube/config configured for your test cluster.
 	$(info deploying ${GPU_OPERATOR_CHART})
 	${MAKE} helm-install
 	export OPENSHIFT
@@ -254,11 +264,11 @@ docker-push: ## Push docker image with the manager.
 	docker push $(IMG)
 
 .PHONY: docker-save
-docker-save: ## save the container image with the manager.
+docker-save: ## Save the container image with the manager.
 	docker save $(IMG) | gzip > $(DOCKER_CONTAINER_IMG).tar.gz
 
 .PHONY: docker-build-env
-docker-build-env: ## Build the docker shell container
+docker-build-env: ## Build the docker shell container.
 	@echo "Building the Docker environment..."
 	@if [ -n $(INSECURE_REGISTRY) ]; then \
     docker build \
@@ -273,167 +283,6 @@ docker-build-env: ## Build the docker shell container
 			-f Dockerfile.build .; \
 	fi
 
-.PHONY: docker/shell
-docker/shell: docker-build-env ## Bring up and attach to a shell container that has dev environment configured
-	@echo "Starting a shell in the Docker build container..."
-	@docker run --rm -it --privileged \
-		--name gpu-operator-build \
-		-e "USER_NAME=$(shell whoami)" \
-		-e "USER_UID=$(shell id -u)" \
-		-e "USER_GID=$(shell id -g)" \
-		-v $(CURDIR):/gpu-operator \
-		-v $(CURDIR):/home/$(shell whoami)/go/src/github.com/ROCm/gpu-operator \
-		-v $(HOME)/.ssh:/home/$(shell whoami)/.ssh \
-		-w $(CONTAINER_WORKDIR) \
-		$(DOCKER_BUILDER_IMAGE) \
-		bash -c "cd /gpu-operator && git config --global --add safe.directory /gpu-operator && bash"
-
-##@ Deployment
-
-ifndef ignore-not-found
-  ignore-not-found = false
-endif
-
-KUSTOMIZE_CONFIG_CRD ?= config/crd
-.PHONY: install
-install: manifests ## Install CRDs into the K8s cluster specified in ~/.kube/config.
-	${KUBECTL_CMD} apply -k $(KUSTOMIZE_CONFIG_CRD)
-
-.PHONY: uninstall
-uninstall: manifests ## Uninstall CRDs from the K8s cluster specified in ~/.kube/config. Call with ignore-not-found=true to ignore resource not found errors during deletion.
-	${KUBECTL_CMD} delete -k $(KUSTOMIZE_CONFIG_CRD) --ignore-not-found=$(ignore-not-found)
-
-KUSTOMIZE_CONFIG_DEFAULT ?= config/default
-KUSTOMIZE_CONFIG_HUB_DEFAULT ?= config/default-hub
-
-.PHONY: deploy
-deploy: manifests kustomize ## Deploy controller to the K8s cluster specified in ~/.kube/config.
-	cd config/manager && $(KUSTOMIZE) edit set image controller=$(IMG)
-	${KUBECTL_CMD} apply -k $(KUSTOMIZE_CONFIG_DEFAULT)
-	#$(KUSTOMIZE) build config/default > yaml.file
-
-.PHONY: undeploy
-undeploy: ## Undeploy controller from the K8s cluster specified in ~/.kube/config. Call with ignore-not-found=true to ignore resource not found errors during deletion.
-	${KUBECTL_CMD} delete deviceconfigs.amd.com -n kube-amd-gpu --all
-	${KUBECTL_CMD} delete -k $(KUSTOMIZE_CONFIG_DEFAULT) --ignore-not-found=$(ignore-not-found)
-
-CONTROLLER_GEN = $(shell pwd)/bin/controller-gen
-.PHONY: controller-gen
-controller-gen: ## Download controller-gen locally if necessary.
-	$(call go-get-tool,$(CONTROLLER_GEN),sigs.k8s.io/controller-tools/cmd/controller-gen@v0.15.0)
-
-GOLANGCI_LINT = $(shell pwd)/bin/golangci-lint
-.PHONY: golangci-lint
-golangci-lint: ## Download golangci-lint locally if necessary.
-	$(call go-get-tool,$(GOLANGCI_LINT),github.com/golangci/golangci-lint/cmd/golangci-lint@v1.63.4)
-
-HELMDOCS = $(shell pwd)/bin/helm-docs
-.PHONY: helm-docs
-helm-docs: ## Download helm-docs locally if necessary
-	$(call go-get-tool,$(HELMDOCS),github.com/norwoodj/helm-docs/cmd/helm-docs@v1.12.0)
-	$(HELMDOCS) -c $(shell pwd)/helm-charts-k8s/ -g $(shell pwd)/helm-charts-k8s -u --ignore-non-descriptions
-	cat $(shell pwd)/README.md $(shell pwd)/helm-charts-k8s/README.md > /tmp/README.md
-	mv /tmp/README.md $(shell pwd)/helm-charts-k8s/README.md
-
-.PHONY: mockgen
-mockgen: ## Install mockgen locally.
-	go install go.uber.org/mock/mockgen@v0.3.0
-
-KUSTOMIZE = $(shell pwd)/bin/kustomize
-.PHONY: kustomize
-kustomize: ## Download kustomize locally if necessary.
-	@if [ ! -f ${KUSTOMIZE} ]; then \
-		BINDIR=$(shell pwd)/bin ./hack/download-kustomize; \
-	fi
-
-# go-get-tool will 'go install' any package $2 and install it to $1.
-PROJECT_DIR := $(shell dirname $(abspath $(lastword $(MAKEFILE_LIST))))
-define go-get-tool
-@[ -f $(1) ] || { \
-set -e ;\
-echo "Downloading $(2)" ;\
-GOBIN=$(PROJECT_DIR)/bin go install $(2) ;\
-}
-endef
-
-OPERATOR_SDK = $(shell pwd)/bin/operator-sdk
-.PHONY: operator-sdk
-operator-sdk: ## Download operator-sdk locally if necessary
-	@if [ ! -f ${OPERATOR_SDK} ]; then \
-		set -e ;\
-		echo "Downloading ${OPERATOR_SDK}"; \
-		mkdir -p $(dir ${OPERATOR_SDK}) ;\
-		curl -Lo ${OPERATOR_SDK} 'https://github.com/operator-framework/operator-sdk/releases/download/v1.32.0/operator-sdk_linux_amd64'; \
-		chmod +x ${OPERATOR_SDK}; \
-	fi
-
-.PHONY: bundle-build
-bundle-build: operator-sdk manifests kustomize
-	rm -fr ./bundle
-	VERSION=$(shell echo $(PROJECT_VERSION) | sed 's/^v//') ${OPERATOR_SDK} generate kustomize manifests --apis-dir api
-	cd config/manager && $(KUSTOMIZE) edit set image controller=$(IMG)
-	cd config/manager-base && $(KUSTOMIZE) edit set image controller=$(IMG)
-	OPERATOR_SDK="${OPERATOR_SDK}" \
-		     BUNDLE_GEN_FLAGS="${BUNDLE_GEN_FLAGS} --extra-service-accounts amd-gpu-operator-kmm-device-plugin,amd-gpu-operator-kmm-module-loader,amd-gpu-operator-node-labeller,amd-gpu-operator-metrics-exporter,amd-gpu-operator-metrics-exporter-rbac-proxy,amd-gpu-operator-test-runner,amd-gpu-operator-config-manager" \
-		     PKG=amd-gpu-operator \
-		     SOURCE_DIR=$(dir $(realpath $(lastword $(MAKEFILE_LIST)))) \
-		     KUBECTL_CMD=${KUBECTL_CMD} ./hack/generate-bundle
-	${OPERATOR_SDK} bundle validate ./bundle
-	docker build -f bundle.Dockerfile -t $(BUNDLE_IMG) .
-
-.PHONY: bundle-push
-bundle-push:
-	docker push $(BUNDLE_IMG)
-
-.PHONY: bundle-save
-bundle-save:
-	docker save $(BUNDLE_IMG) | gzip > $(IMAGE_NAME)-olm-bundle.tar.gz
-
-.PHONY: bundle-scorecard-test
-bundle-scorecard-test:
-	${OPERATOR_SDK} scorecard --config bundle/tests/scorecard/config.yaml --kubeconfig ~/.kube/config $(BUNDLE_IMG)
-
-.PHONY: bundle-deploy
-bundle-deploy:
-	${OPERATOR_SDK} run bundle $(BUNDLE_IMG) --namespace=${BUNDLE_NAMESPACE}
-
-.PHONY: bundle-deploy-upgrade
-bundle-deploy-upgrade:
-	${OPERATOR_SDK} run bundle-upgrade $(BUNDLE_IMG)
-
-.PHONY: bundle-cleanup
-bundle-cleanup:
-	${OPERATOR_SDK} cleanup amd-gpu-operator --namespace=${BUNDLE_NAMESPACE}
-
-.PHONY: opm
-OPM = ./bin/opm
-opm:
-	@if [ ! -f ${OPM} ]; then \
-                set -e ;\
-                echo "Downloading ${OPM}"; \
-                mkdir -p $(dir ${OPM}) ;\
-                curl -Lo ${OPM}.tar 'https://mirror.openshift.com/pub/openshift-v4/x86_64/clients/ocp/latest-4.8/opm-linux.tar.gz'; \
-		tar -C $(dir ${OPM}) -xzf ${OPM}.tar; \
-                chmod +x ${OPM}; \
-		rm -f ${OPM}.tar; \
-        fi
-
-.PHONY: index
-index: opm
-	${OPM} index add --bundles ${BUNDLE_IMG} --tag ${INDEX_IMG}
-
-HELMIFY = $(shell pwd)/bin/helmify
-.PHONY: helmify
-helmify:
-	@if [ ! -f "$(shell pwd)/bin/helmify" ]; then \
-		echo "helmify not found. Downloading..."; \
-		curl -Lo $(shell pwd)/bin/helmify.tar.gz https://github.com/arttor/helmify/releases/download/v0.4.13/helmify_Linux_x86_64.tar.gz; \
-		tar -xzf $(shell pwd)/bin/helmify.tar.gz -C $(shell pwd)/bin; \
-		chmod +x $(shell pwd)/bin/helmify; \
-		rm $(shell pwd)/bin/helmify.tar.gz; \
-	else \
-		echo "helmify already exists."; \
-	fi
 
 .PHONY: helm
 helm:
@@ -444,7 +293,7 @@ helm:
 	fi
 
 .PHONY: helm-k8s
-helm-k8s: helmify manifests kustomize clean-helm-k8s gen-kmm-charts-k8s
+helm-k8s: helmify manifests kustomize clean-helm-k8s gen-kmm-charts-k8s ## Build helm charts for Kubernetes.
 	$(KUSTOMIZE) build config/default | $(HELMIFY) helm-charts-k8s
 	# Patching k8s helm chart metadata
 	cp $(shell pwd)/hack/k8s-patch/metadata-patch/*.yaml $(shell pwd)/helm-charts-k8s/
@@ -496,8 +345,156 @@ helm-openshift: helmify manifests kustomize clean-helm-openshift gen-nfd-charts-
 	cd $(shell pwd)/helm-charts-openshift; helm dependency update; helm lint; cd ..; helm package helm-charts-openshift/ --destination ./helm-charts-openshift
 	mv $(shell pwd)/helm-charts-openshift/gpu-operator-charts-$(PROJECT_VERSION).tgz $(shell pwd)/helm-charts-openshift/gpu-operator-helm-openshift-$(PROJECT_VERSION).tgz
 
+.PHONY: bundle-build
+bundle-build: operator-sdk manifests kustomize ## OpenShift Build OLM bundle.
+	rm -fr ./bundle
+	VERSION=$(shell echo $(PROJECT_VERSION) | sed 's/^v//') ${OPERATOR_SDK} generate kustomize manifests --apis-dir api
+	cd config/manager && $(KUSTOMIZE) edit set image controller=$(IMG)
+	cd config/manager-base && $(KUSTOMIZE) edit set image controller=$(IMG)
+	OPERATOR_SDK="${OPERATOR_SDK}" \
+		     BUNDLE_GEN_FLAGS="${BUNDLE_GEN_FLAGS} --extra-service-accounts amd-gpu-operator-kmm-device-plugin,amd-gpu-operator-kmm-module-loader,amd-gpu-operator-node-labeller,amd-gpu-operator-metrics-exporter,amd-gpu-operator-metrics-exporter-rbac-proxy,amd-gpu-operator-test-runner,amd-gpu-operator-config-manager" \
+		     PKG=amd-gpu-operator \
+		     SOURCE_DIR=$(dir $(realpath $(lastword $(MAKEFILE_LIST)))) \
+		     KUBECTL_CMD=${KUBECTL_CMD} ./hack/generate-bundle
+	${OPERATOR_SDK} bundle validate ./bundle
+	docker build -f bundle.Dockerfile -t $(BUNDLE_IMG) .
+
+##@ Deployment
+
+ifndef ignore-not-found
+  ignore-not-found = false
+endif
+
+KUSTOMIZE_CONFIG_CRD ?= config/crd
+.PHONY: install
+install: manifests ## Install CRDs into the K8s cluster specified in ~/.kube/config.
+	${KUBECTL_CMD} apply -k $(KUSTOMIZE_CONFIG_CRD)
+
+.PHONY: uninstall
+uninstall: manifests ## Uninstall CRDs from the K8s cluster specified in ~/.kube/config. Call with ignore-not-found=true to ignore resource not found errors during deletion.
+	${KUBECTL_CMD} delete -k $(KUSTOMIZE_CONFIG_CRD) --ignore-not-found=$(ignore-not-found)
+
+KUSTOMIZE_CONFIG_DEFAULT ?= config/default
+KUSTOMIZE_CONFIG_HUB_DEFAULT ?= config/default-hub
+
+.PHONY: deploy
+deploy: helm-install ## Deploy Helm Charts.
+
+.PHONY: undeploy
+undeploy: helm-uninstall ## Undeploy Helm Charts.
+
+CONTROLLER_GEN = $(shell pwd)/bin/controller-gen
+.PHONY: controller-gen
+controller-gen:
+	$(call go-get-tool,$(CONTROLLER_GEN),sigs.k8s.io/controller-tools/cmd/controller-gen@v0.15.0)
+
+GOLANGCI_LINT = $(shell pwd)/bin/golangci-lint
+.PHONY: golangci-lint
+golangci-lint:
+	$(call go-get-tool,$(GOLANGCI_LINT),github.com/golangci/golangci-lint/cmd/golangci-lint@v1.63.4)
+
+HELMDOCS = $(shell pwd)/bin/helm-docs
+.PHONY: helm-docs
+helm-docs:
+	$(call go-get-tool,$(HELMDOCS),github.com/norwoodj/helm-docs/cmd/helm-docs@v1.12.0)
+	$(HELMDOCS) -c $(shell pwd)/helm-charts-k8s/ -g $(shell pwd)/helm-charts-k8s -u --ignore-non-descriptions
+	cat $(shell pwd)/README.md $(shell pwd)/helm-charts-k8s/README.md > /tmp/README.md
+	mv /tmp/README.md $(shell pwd)/helm-charts-k8s/README.md
+
+.PHONY: mockgen
+mockgen:
+	go install go.uber.org/mock/mockgen@v0.3.0
+
+KUSTOMIZE = $(shell pwd)/bin/kustomize
+.PHONY: kustomize
+kustomize:
+	@if [ ! -f ${KUSTOMIZE} ]; then \
+		BINDIR=$(shell pwd)/bin ./hack/download-kustomize; \
+	fi
+
+# go-get-tool will 'go install' any package $2 and install it to $1.
+PROJECT_DIR := $(shell dirname $(abspath $(lastword $(MAKEFILE_LIST))))
+define go-get-tool
+    @if [ -z "$$GOBIN" ]; then \
+        GOBIN=$$(go env GOPATH)/bin; \
+    else \
+        GOBIN=$$GOBIN; \
+    fi; \
+    @[ -f $(1) ] || { \
+    set -e; \
+    echo "Downloading $(2)"; \
+    echo "Running: GOBIN=$(PROJECT_DIR)/bin go install $(2)"; \
+    GOBIN=$(PROJECT_DIR)/bin go install $(2); \
+    }
+endef
+
+OPERATOR_SDK = $(shell pwd)/bin/operator-sdk
+.PHONY: operator-sdk
+operator-sdk:
+	@if [ ! -f ${OPERATOR_SDK} ]; then \
+		set -e ;\
+		echo "Downloading ${OPERATOR_SDK}"; \
+		mkdir -p $(dir ${OPERATOR_SDK}) ;\
+		curl -Lo ${OPERATOR_SDK} 'https://github.com/operator-framework/operator-sdk/releases/download/v1.32.0/operator-sdk_linux_amd64'; \
+		chmod +x ${OPERATOR_SDK}; \
+	fi
+
+.PHONY: bundle-push
+bundle-push:
+	docker push $(BUNDLE_IMG)
+
+.PHONY: bundle-save
+bundle-save:
+	docker save $(BUNDLE_IMG) | gzip > $(IMAGE_NAME)-olm-bundle.tar.gz
+
+.PHONY: bundle-scorecard-test
+bundle-scorecard-test:
+	${OPERATOR_SDK} scorecard --config bundle/tests/scorecard/config.yaml --kubeconfig ~/.kube/config $(BUNDLE_IMG)
+
+.PHONY: bundle-deploy
+bundle-deploy: ## OpenShift deploy OLM bundle.
+	${OPERATOR_SDK} run bundle $(BUNDLE_IMG) --namespace=${BUNDLE_NAMESPACE}
+
+.PHONY: bundle-deploy-upgrade
+bundle-deploy-upgrade:
+	${OPERATOR_SDK} run bundle-upgrade $(BUNDLE_IMG)
+
+.PHONY: bundle-cleanup
+bundle-cleanup: ## OpenShift undeploy OLM bundle.
+	${OPERATOR_SDK} cleanup amd-gpu-operator --namespace=${BUNDLE_NAMESPACE}
+
+.PHONY: opm
+OPM = ./bin/opm
+opm:
+	@if [ ! -f ${OPM} ]; then \
+                set -e ;\
+                echo "Downloading ${OPM}"; \
+                mkdir -p $(dir ${OPM}) ;\
+                curl -Lo ${OPM}.tar 'https://mirror.openshift.com/pub/openshift-v4/x86_64/clients/ocp/latest-4.8/opm-linux.tar.gz'; \
+		tar -C $(dir ${OPM}) -xzf ${OPM}.tar; \
+                chmod +x ${OPM}; \
+		rm -f ${OPM}.tar; \
+        fi
+
+.PHONY: index
+index: opm
+	${OPM} index add --bundles ${BUNDLE_IMG} --tag ${INDEX_IMG}
+
+HELMIFY = $(shell pwd)/bin/helmify
+.PHONY: helmify
+helmify:
+	@if [ ! -f "$(shell pwd)/bin/helmify" ]; then \
+		echo "helmify not found. Downloading..."; \
+		curl -Lo $(shell pwd)/bin/helmify.tar.gz https://github.com/arttor/helmify/releases/download/v0.4.13/helmify_Linux_x86_64.tar.gz; \
+		tar -xzf $(shell pwd)/bin/helmify.tar.gz -C $(shell pwd)/bin; \
+		chmod +x $(shell pwd)/bin/helmify; \
+		rm $(shell pwd)/bin/helmify.tar.gz; \
+	else \
+		echo "helmify already exists."; \
+	fi
+
 .PHONY: helm-install
-helm-install:
+helm-install: ## Deploy Helm Charts.
 	if [ -z ${OPENSHIFT} ]; then \
 		$(MAKE) helm-install-k8s; \
 	else \
@@ -505,7 +502,7 @@ helm-install:
 	fi
 
 .PHONY: helm-uninstall
-helm-uninstall:
+helm-uninstall: ## Undeploy Helm Charts.
 	if [ -z ${OPENSHIFT} ]; then \
 		$(MAKE) helm-uninstall-k8s; \
 	else \
@@ -567,11 +564,11 @@ endif
 		rm helm-charts-k8s/charts/kmm/templates/$$file; \
 	done
 
-cert-manager-install:
+cert-manager-install: ## Deploy cert-manager.
 	helm repo add jetstack https://charts.jetstack.io --force-update
 	helm install cert-manager jetstack/cert-manager --namespace cert-manager --create-namespace --version v1.15.1 --set crds.enabled=true
 
-cert-manager-uninstall:
+cert-manager-uninstall: ## Undeploy cert-manager.
 	helm uninstall cert-manager -n cert-manager
 	${KUBECTL_CMD} delete crd issuers.cert-manager.io clusterissuers.cert-manager.io certificates.cert-manager.io certificaterequests.cert-manager.io orders.acme.cert-manager.io challenges.acme.cert-manager.io
 
