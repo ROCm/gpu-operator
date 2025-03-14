@@ -2,6 +2,9 @@
 
 This guide provides information for developers who want to contribute to or modify the AMD GPU Operator.
 
+> [!WARNING]
+> This project is not ready yet to accept the external developers commits.
+
 ## Prerequisites
 
 - Docker
@@ -44,7 +47,11 @@ docker run -d -p 5000:5000 --name registry registry:latest
  make
  ```
 
-This will generate the basic YAML files for CRD and build controller images.
+This will generate the basic YAML files for CRD, build controller images, build Helm charts and build OpenShift OLM bundle.
+
+- (Optional) Run specific make target:
+  - Run `make docker/shell` to build and attach to a container with build environment configured
+  - Run `make <specific target>` within the container to execute specific make target.
 
 - Build and push the AMD GPU Operator image:
 
