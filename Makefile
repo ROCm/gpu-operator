@@ -398,7 +398,8 @@ HELMDOCS = $(shell pwd)/bin/helm-docs
 helm-docs:
 	$(call go-get-tool,$(HELMDOCS),github.com/norwoodj/helm-docs/cmd/helm-docs@v1.12.0)
 	$(HELMDOCS) -c $(shell pwd)/helm-charts-k8s/ -g $(shell pwd)/helm-charts-k8s -u --ignore-non-descriptions
-	cat $(shell pwd)/README.md $(shell pwd)/helm-charts-k8s/README.md > /tmp/README.md
+	cat $(shell pwd)/README.md $(shell pwd)/helm-charts-k8s/README.md | sed 's/# gpu-operator-charts/\n## gpu-operator-charts/' > /tmp/README.md
+	sed -i -e :a -e '/^\n*$$/{$$d;N;};/\n$$/ba' /tmp/README.md
 	mv /tmp/README.md $(shell pwd)/helm-charts-k8s/README.md
 
 .PHONY: mockgen
