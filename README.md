@@ -93,7 +93,7 @@ Following dashboards are provided for visualizing GPU metrics collected from dev
 
 ## Contributing
 
-Please refer to our [Developer Guide](https://instinct.docs.amd.com/projects/gpu-operator/en/latest/contributing/developer-guide.html).
+Please refer to our [Developer Guide](https://instinct.docs.amd.com/projects/gpu-operator/en/main/contributing/developer-guide.html).
 
 ## Support
 

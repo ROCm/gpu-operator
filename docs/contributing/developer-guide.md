@@ -2,8 +2,9 @@
 
 This guide provides information for developers who want to contribute to or modify the AMD GPU Operator.
 
-> [!WARNING]
-> This project is not ready yet to accept the external developers commits.
+```{warning}
+This project is not ready yet to accept the external developers commits.
+```
 
 ## Prerequisites
 
@@ -73,6 +74,8 @@ make help
 ```
 
 ## Running Tests
+
+Running e2e requires a Kubernetes cluster, please prepare your Kubernetes cluster ready for running the e2e tests, as well as configure the kubeconfig file at ```~/.kube/config``` for kubectl and helm toolkits to get access to your cluster. The e2e test cases will deploy the Operator to your cluster and run the test cases.
 
 To run the e2e tests:
 

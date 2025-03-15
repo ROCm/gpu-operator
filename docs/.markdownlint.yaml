@@ -1,3 +1,6 @@
+ignores:
+  - CHANGELOG.md
+  - "vendor/**"
 default: true
 MD013: false
 MD024:
