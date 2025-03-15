@@ -13,7 +13,7 @@ cluster with health check feature if configured to include both device plugin an
 ## Requirements
 
 1. metrics exporter : v1.2.0 and up
-2. k8s-device-plugin : latest 
+2. k8s-device-plugin : latest
 3. gpu operator : v1.2.0 and up
 
 ## Health Check Workflow

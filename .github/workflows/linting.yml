@@ -5,10 +5,12 @@ on:
     branches: 
     - develop
     - main
+    - staging
   pull_request:
     branches: 
     - develop
     - main
+    - staging
 
 jobs:
   call-workflow-passing-data:
