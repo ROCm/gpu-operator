@@ -33,9 +33,9 @@
 matrix:
 - name: Markdown
   sources:
-  - ['docs/**/*.md', '!docs/doxygen/mainpage.md', '!docs/contributing/documentation-standards.md']
-  - ['tools/autotag/templates/**/*.md', '!tools/autotag/templates/**/5*.md', '!tools/autotag/templates/**/6.0*.md', '!tools/autotag/templates/**/6.1*.md']
-  expect_match: false
+  - '!vendor/**|docs/**/*.md|!docs/doxygen/mainpage.md|!docs/contributing/documentation-standards.md'
+  expect_match: true
+  jobs: 4
   aspell:
     lang: en
   dictionary:
@@ -115,8 +115,9 @@ matrix:
   - pyspelling.filters.url:
 - name: reST
   sources:
-  - 'docs/**/*.rst'
-  expect_match: false
+  - '!vendor/**|docs/**/*.rst'
+  expect_match: true
+  jobs: 4
   aspell:
     lang: en
   dictionary:
