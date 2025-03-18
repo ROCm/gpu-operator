@@ -35,13 +35,7 @@ compute node.
 The command output `kubectl describe node <node_name>` will have the following
 information.
 
-1. Label field will have the list of all GPU health status with index as below
-
-   ```bash
-   metricsexporter.amd.com.gpu.<GPU_ID>.state=healthy
-   ```
-
-2. Capacity will list all available GPU's reported disregarding the health
+1. Capacity will list all available GPU's reported disregarding the health
    status of the GPU on that node. This will not change unless the GPU is
    physically removed/added to the node.
 
@@ -52,7 +46,7 @@ information.
      amd.com/gpu:        1
    ```
 
-3. Allocatable will reflect only the GPU's reported as Healthy on that node.
+2. Allocatable will reflect only the GPU's reported as Healthy on that node.
    If all the GPUs are healthy then this should be equal to the Capacity
    reported.
 
