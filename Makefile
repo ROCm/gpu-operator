@@ -272,20 +272,6 @@ helm-openshift: helmify manifests kustomize clean-helm-openshift gen-nfd-charts-
 	cd $(shell pwd)/helm-charts-openshift; helm dependency update; helm lint; cd ..; helm package helm-charts-openshift/ --destination ./helm-charts-openshift
 	mv $(shell pwd)/helm-charts-openshift/gpu-operator-charts-$(PROJECT_VERSION).tgz $(shell pwd)/helm-charts-openshift/gpu-operator-helm-openshift-$(PROJECT_VERSION).tgz
 
-.PHONY: bundle-build
-bundle-build: operator-sdk manifests kustomize ## OpenShift Build OLM bundle.
-	rm -fr ./bundle
-	VERSION=$(shell echo $(PROJECT_VERSION) | sed 's/^v//') ${OPERATOR_SDK} generate kustomize manifests --apis-dir api
-	cd config/manager && $(KUSTOMIZE) edit set image controller=$(IMG)
-	cd config/manager-base && $(KUSTOMIZE) edit set image controller=$(IMG)
-	OPERATOR_SDK="${OPERATOR_SDK}" \
-		     BUNDLE_GEN_FLAGS="${BUNDLE_GEN_FLAGS} --extra-service-accounts amd-gpu-operator-kmm-device-plugin,amd-gpu-operator-kmm-module-loader,amd-gpu-operator-node-labeller,amd-gpu-operator-metrics-exporter,amd-gpu-operator-metrics-exporter-rbac-proxy,amd-gpu-operator-test-runner" \
-		     PKG=amd-gpu-operator \
-		     SOURCE_DIR=$(dir $(realpath $(lastword $(MAKEFILE_LIST)))) \
-		     KUBECTL_CMD=${KUBECTL_CMD} ./hack/generate-bundle
-	${OPERATOR_SDK} bundle validate ./bundle
-	docker build -f bundle.Dockerfile -t $(BUNDLE_IMG) .
-
 ##@ Deployment
 
 ifndef ignore-not-found
@@ -365,6 +351,20 @@ operator-sdk:
 		curl -Lo ${OPERATOR_SDK} 'https://github.com/operator-framework/operator-sdk/releases/download/v1.32.0/operator-sdk_linux_amd64'; \
 		chmod +x ${OPERATOR_SDK}; \
 	fi
+
+.PHONY: bundle-build
+bundle-build: operator-sdk manifests kustomize
+	rm -fr ./bundle
+	VERSION=$(shell echo $(PROJECT_VERSION) | sed 's/^v//') ${OPERATOR_SDK} generate kustomize manifests --apis-dir api
+	cd config/manager && $(KUSTOMIZE) edit set image controller=$(IMG)
+	cd config/manager-base && $(KUSTOMIZE) edit set image controller=$(IMG)
+	OPERATOR_SDK="${OPERATOR_SDK}" \
+		     BUNDLE_GEN_FLAGS="${BUNDLE_GEN_FLAGS} --extra-service-accounts amd-gpu-operator-kmm-device-plugin,amd-gpu-operator-kmm-module-loader,amd-gpu-operator-node-labeller,amd-gpu-operator-metrics-exporter,amd-gpu-operator-metrics-exporter-rbac-proxy,amd-gpu-operator-test-runner,amd-gpu-operator-utils-container" \
+		     PKG=amd-gpu-operator \
+		     SOURCE_DIR=$(dir $(realpath $(lastword $(MAKEFILE_LIST)))) \
+		     KUBECTL_CMD=${KUBECTL_CMD} ./hack/generate-bundle
+	${OPERATOR_SDK} bundle validate ./bundle
+	docker build -f bundle.Dockerfile -t $(BUNDLE_IMG) .
 
 .PHONY: bundle-push
 bundle-push:

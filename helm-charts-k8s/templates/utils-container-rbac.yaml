@@ -1,0 +1,34 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ include "helm-charts-k8s.fullname" . }}-utils-container
+  labels:
+    app.kubernetes.io/component: amd-gpu
+    app.kubernetes.io/part-of: amd-gpu
+  {{- include "helm-charts-k8s.labels" . | nindent 4 }}
+rules:
+- apiGroups:
+  - security.openshift.io
+  resourceNames:
+  - privileged
+  resources:
+  - securitycontextconstraints
+  verbs:
+  - use
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: {{ include "helm-charts-k8s.fullname" . }}-utils-container
+  labels:
+    app.kubernetes.io/component: amd-gpu
+    app.kubernetes.io/part-of: amd-gpu
+  {{- include "helm-charts-k8s.labels" . | nindent 4 }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: '{{ include "helm-charts-k8s.fullname" . }}-utils-container'
+subjects:
+- kind: ServiceAccount
+  name: amd-gpu-operator-utils-container
+  namespace: '{{ .Release.Namespace }}'
