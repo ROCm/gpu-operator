@@ -22,3 +22,6 @@ resources:
   - test_runner_service_account.yaml
   - test_runner_role.yaml
   - test_runner_role_binding.yaml
+  - utils_container_service_account.yaml
+  - utils_container_role.yaml
+  - utils_container_role_binding.yaml
