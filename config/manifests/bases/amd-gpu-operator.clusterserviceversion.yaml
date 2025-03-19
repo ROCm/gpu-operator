@@ -4,7 +4,7 @@ metadata:
   annotations:
     alm-examples: '[]'
     capabilities: Basic Install
-    operatorframework.io/suggested-namespace: kube-amd-gpu
+    operatorframework.io/suggested-namespace: openshift-amd-gpu
     repository: https://github.com/ROCm/gpu-operator
   name: amd-gpu-operator.v0.0.0
   namespace: placeholder
