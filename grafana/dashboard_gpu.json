@@ -14,13 +14,6 @@
       "description": "",
       "type": "datasource",
       "pluginId": "__expr__"
-    },
-    {
-      "name": "VAR_G_MI300_MODEL",
-      "type": "constant",
-      "label": "MI300 Model",
-      "value": "102-G30211-00",
-      "description": ""
     }
   ],
   "__elements": {},
@@ -40,7 +33,7 @@
       "type": "grafana",
       "id": "grafana",
       "name": "Grafana",
-      "version": "11.2.2+security-01"
+      "version": "11.2.2"
     },
     {
       "type": "datasource",
@@ -91,10 +84,6 @@
   "links": [],
   "panels": [
     {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "${DS_PROMETHEUS}"
-      },
       "gridPos": {
         "h": 10,
         "w": 3,
@@ -108,38 +97,15 @@
           "showLineNumbers": false,
           "showMiniMap": false
         },
-        "content": "#### VENDOR\n${g_card_vendor}\n\n#### SERIES\n${g_card_series}\n\n#### MODEL\n${g_card_model}\n\n#### SERIAL\n${g_serial_number}",
+        "content": "##### VENDOR\n${g_card_vendor}\n\n##### SERIES\n${g_card_series}\n\n##### MODEL\n${g_card_model}\n\n##### SERIAL\n${g_serial_number}\n\n##### UUID\n${g_gpu_uuid}",
         "mode": "markdown"
       },
-      "pluginVersion": "11.2.2+security-01",
-      "targets": [
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${DS_PROMETHEUS}"
-          },
-          "disableTextWrap": false,
-          "editorMode": "builder",
-          "expr": "$g_card_series",
-          "fullMetaSearch": false,
-          "includeNullMetadata": true,
-          "instant": false,
-          "legendFormat": "__auto",
-          "range": true,
-          "refId": "A",
-          "useBackend": false
-        }
-      ],
-      "title": "Device",
+      "pluginVersion": "11.2.2",
       "type": "text"
     },
     {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "${DS_PROMETHEUS}"
-      },
       "gridPos": {
-        "h": 5,
+        "h": 6,
         "w": 3,
         "x": 3,
         "y": 0
@@ -151,10 +117,10 @@
           "showLineNumbers": false,
           "showMiniMap": false
         },
-        "content": "#### HOST\n${g_hostname}\n\n#### GPU ID\n${g_gpu_id}",
+        "content": "#### HOST\n${g_hostname}\n\n#### GPU ID\n${g_gpu_id}\n\n#### PARTITION\n${g_gpu_partition_id}",
         "mode": "markdown"
       },
-      "pluginVersion": "11.2.2+security-01",
+      "pluginVersion": "11.2.2",
       "type": "text"
     },
     {
@@ -162,7 +128,7 @@
         "type": "prometheus",
         "uid": "${DS_PROMETHEUS}"
       },
-      "description": "GPU current power",
+      "description": "GPU package power usage",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -178,7 +144,7 @@
               },
               {
                 "color": "red",
-                "value": 80
+                "value": 700
               }
             ]
           },
@@ -208,7 +174,7 @@
         "showThresholdMarkers": true,
         "sizing": "auto"
       },
-      "pluginVersion": "11.2.2+security-01",
+      "pluginVersion": "11.2.2",
       "targets": [
         {
           "datasource": {
@@ -218,17 +184,35 @@
           "disableTextWrap": false,
           "editorMode": "builder",
           "exemplar": false,
-          "expr": "gpu_package_power{gpu_uuid=\"$g_gpu_uuid\", hostname=\"$g_hostname\"}",
+          "expr": "gpu_average_package_power{gpu_uuid=\"$g_gpu_uuid\", hostname=\"$g_hostname\"}",
           "fullMetaSearch": false,
+          "hide": false,
           "includeNullMetadata": true,
           "instant": false,
           "legendFormat": "{{hostname}}[{{gpu_id}}]",
           "range": true,
           "refId": "A",
           "useBackend": false
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "disableTextWrap": false,
+          "editorMode": "builder",
+          "expr": "gpu_package_power{gpu_uuid=\"$g_gpu_uuid\", hostname=\"$g_hostname\"}",
+          "fullMetaSearch": false,
+          "hide": false,
+          "includeNullMetadata": true,
+          "instant": false,
+          "legendFormat": "{{hostname}}[{{gpu_id}}]",
+          "range": true,
+          "refId": "B",
+          "useBackend": false
         }
       ],
-      "title": "GPU Package Power",
+      "title": "GPU Power Usage",
       "transformations": [
         {
           "id": "calculateField",
@@ -294,7 +278,7 @@
         "textMode": "auto",
         "wideLayout": true
       },
-      "pluginVersion": "11.2.2+security-01",
+      "pluginVersion": "11.2.2",
       "targets": [
         {
           "datasource": {
@@ -381,7 +365,7 @@
         "textMode": "auto",
         "wideLayout": true
       },
-      "pluginVersion": "11.2.2+security-01",
+      "pluginVersion": "11.2.2",
       "targets": [
         {
           "datasource": {
@@ -391,7 +375,7 @@
           "disableTextWrap": false,
           "editorMode": "builder",
           "exemplar": false,
-          "expr": "pcie_recovery_count{gpu_uuid=\"$g_gpu_uuid\", hostname=\"$g_hostname\"}",
+          "expr": "delta(pcie_recovery_count{gpu_uuid=\"$g_gpu_uuid\", hostname=\"$g_hostname\"}[$__interval])",
           "fullMetaSearch": false,
           "includeNullMetadata": true,
           "instant": true,
@@ -408,7 +392,7 @@
           "disableTextWrap": false,
           "editorMode": "builder",
           "exemplar": false,
-          "expr": "pcie_replay_count{gpu_uuid=\"$g_gpu_uuid\", hostname=\"$g_hostname\"}",
+          "expr": "delta(pcie_replay_count{gpu_uuid=\"$g_gpu_uuid\", hostname=\"$g_hostname\"}[$__interval])",
           "fullMetaSearch": false,
           "hide": false,
           "includeNullMetadata": true,
@@ -426,7 +410,7 @@
           "disableTextWrap": false,
           "editorMode": "builder",
           "exemplar": false,
-          "expr": "pcie_replay_rollover_count{gpu_uuid=\"$g_gpu_uuid\", hostname=\"$g_hostname\"}",
+          "expr": "delta(pcie_replay_rollover_count{gpu_uuid=\"$g_gpu_uuid\", hostname=\"$g_hostname\"}[$__interval])",
           "fullMetaSearch": false,
           "hide": false,
           "includeNullMetadata": true,
@@ -444,7 +428,7 @@
           "disableTextWrap": false,
           "editorMode": "builder",
           "exemplar": false,
-          "expr": "pcie_nack_received_count{gpu_uuid=\"$g_gpu_uuid\", hostname=\"$g_hostname\"}",
+          "expr": "delta(pcie_nack_received_count{gpu_uuid=\"$g_gpu_uuid\", hostname=\"$g_hostname\"}[$__interval])",
           "fullMetaSearch": false,
           "hide": false,
           "includeNullMetadata": true,
@@ -462,7 +446,7 @@
           "disableTextWrap": false,
           "editorMode": "builder",
           "exemplar": false,
-          "expr": "pcie_nack_sent_count{gpu_uuid=\"$g_gpu_uuid\", hostname=\"$g_hostname\"}",
+          "expr": "delta(pcie_nack_sent_count{gpu_uuid=\"$g_gpu_uuid\", hostname=\"$g_hostname\"}[$__interval])",
           "fullMetaSearch": false,
           "hide": false,
           "includeNullMetadata": true,
@@ -527,7 +511,7 @@
         "textMode": "auto",
         "wideLayout": true
       },
-      "pluginVersion": "11.2.2+security-01",
+      "pluginVersion": "11.2.2",
       "targets": [
         {
           "datasource": {
@@ -537,7 +521,7 @@
           "disableTextWrap": false,
           "editorMode": "builder",
           "exemplar": false,
-          "expr": "gpu_ecc_correct_total{gpu_uuid=\"$g_gpu_uuid\"}",
+          "expr": "sum(delta(gpu_ecc_correct_total{gpu_uuid=\"$g_gpu_uuid\"}[$__interval]))",
           "fullMetaSearch": false,
           "includeNullMetadata": true,
           "instant": true,
@@ -708,7 +692,7 @@
         "textMode": "auto",
         "wideLayout": true
       },
-      "pluginVersion": "11.2.2+security-01",
+      "pluginVersion": "11.2.2",
       "targets": [
         {
           "datasource": {
@@ -763,31 +747,6 @@
         "type": "prometheus",
         "uid": "${DS_PROMETHEUS}"
       },
-      "gridPos": {
-        "h": 5,
-        "w": 3,
-        "x": 3,
-        "y": 5
-      },
-      "id": 25,
-      "options": {
-        "code": {
-          "language": "plaintext",
-          "showLineNumbers": false,
-          "showMiniMap": false
-        },
-        "content": "#### VBIOS\n${g_gpu_vbios}\n\n#### DRIVER\n${g_driver}",
-        "mode": "markdown"
-      },
-      "pluginVersion": "11.2.2+security-01",
-      "title": "Software",
-      "type": "text"
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "${DS_PROMETHEUS}"
-      },
       "description": "Current PCIe bandwidth",
       "fieldConfig": {
         "defaults": {
@@ -833,7 +792,7 @@
         "textMode": "auto",
         "wideLayout": true
       },
-      "pluginVersion": "11.2.2+security-01",
+      "pluginVersion": "11.2.2",
       "targets": [
         {
           "datasource": {
@@ -907,7 +866,7 @@
         "textMode": "auto",
         "wideLayout": true
       },
-      "pluginVersion": "11.2.2+security-01",
+      "pluginVersion": "11.2.2",
       "targets": [
         {
           "datasource": {
@@ -917,7 +876,7 @@
           "disableTextWrap": false,
           "editorMode": "builder",
           "exemplar": false,
-          "expr": "gpu_ecc_uncorrect_total{gpu_uuid=\"$g_gpu_uuid\"}",
+          "expr": "sum(delta(gpu_ecc_uncorrect_total{gpu_uuid=\"$g_gpu_uuid\"}[$__interval]))",
           "fullMetaSearch": false,
           "includeNullMetadata": true,
           "instant": true,
@@ -929,6 +888,26 @@
       ],
       "title": "Total Uncorrectable ECC",
       "type": "stat"
+    },
+    {
+      "gridPos": {
+        "h": 4,
+        "w": 3,
+        "x": 3,
+        "y": 6
+      },
+      "id": 25,
+      "options": {
+        "code": {
+          "language": "plaintext",
+          "showLineNumbers": false,
+          "showMiniMap": false
+        },
+        "content": "#### VBIOS\n${g_gpu_vbios}\n\n#### DRIVER\n${g_driver}",
+        "mode": "markdown"
+      },
+      "pluginVersion": "11.2.2",
+      "type": "text"
     },
     {
       "datasource": {
@@ -984,7 +963,7 @@
         "textMode": "value",
         "wideLayout": true
       },
-      "pluginVersion": "11.2.2+security-01",
+      "pluginVersion": "11.2.2",
       "targets": [
         {
           "datasource": {
@@ -994,7 +973,7 @@
           "disableTextWrap": false,
           "editorMode": "builder",
           "exemplar": false,
-          "expr": "gpu_energy_consumed{gpu_uuid=\"$g_gpu_uuid\", hostname=\"$g_hostname\"}",
+          "expr": "delta(gpu_energy_consumed{gpu_uuid=\"$g_gpu_uuid\", hostname=\"$g_hostname\"}[$__interval])",
           "fullMetaSearch": false,
           "hide": true,
           "includeNullMetadata": true,
@@ -1348,7 +1327,7 @@
           },
           "disableTextWrap": false,
           "editorMode": "builder",
-          "expr": "gpu_package_power{gpu_uuid=\"$g_gpu_uuid\"}",
+          "expr": "gpu_package_power{gpu_uuid=\"$g_gpu_uuid\", card_model=~\"102-G30211-00|102-G30211-0C|102-G30211-4C|102-G30212-0C|102-G30213-00|102-G30213-0C\"}",
           "fullMetaSearch": false,
           "includeNullMetadata": true,
           "instant": false,
@@ -1356,9 +1335,22 @@
           "range": true,
           "refId": "A",
           "useBackend": false
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "editorMode": "builder",
+          "expr": "gpu_average_package_power{gpu_uuid=\"$g_gpu_uuid\", card_model!~\"102-G30211-00|102-G30211-0C|102-G30211-4C|102-G30212-0C|102-G30213-00|102-G30213-0C\"}",
+          "hide": false,
+          "instant": false,
+          "legendFormat": "__auto",
+          "range": true,
+          "refId": "B"
         }
       ],
-      "title": "GPU Power",
+      "title": "GPU Package Power",
       "type": "timeseries"
     },
     {
@@ -1452,7 +1444,7 @@
           },
           "disableTextWrap": false,
           "editorMode": "builder",
-          "expr": "gpu_edge_temperature{gpu_uuid=\"$g_gpu_uuid\", card_model!=\"$g_mi300_model\"}",
+          "expr": "gpu_edge_temperature{gpu_uuid=\"$g_gpu_uuid\", card_model!~\"102-G30211-00|102-G30211-0C|102-G30211-4C|102-G30212-0C|102-G30213-00|102-G30213-0C\"}",
           "fullMetaSearch": false,
           "includeNullMetadata": true,
           "instant": false,
@@ -1468,7 +1460,7 @@
           },
           "disableTextWrap": false,
           "editorMode": "builder",
-          "expr": "gpu_junction_temperature{gpu_uuid=\"$g_gpu_uuid\", card_model=\"$g_mi300_model\"}",
+          "expr": "gpu_junction_temperature{gpu_uuid=\"$g_gpu_uuid\", card_model=~\"102-G30211-00|102-G30211-0C|102-G30211-4C|102-G30212-0C|102-G30213-00|102-G30213-0C\"}",
           "fullMetaSearch": false,
           "hide": false,
           "includeNullMetadata": true,
@@ -1735,8 +1727,8 @@
           "type": "prometheus",
           "uid": "${DS_PROMETHEUS}"
         },
-        "definition": "label_values(gpu_uuid)",
-        "hide": 0,
+        "definition": "label_values({cluster_name=\"$g_cluster_name\", hostname=\"$g_hostname\", gpu_id=\"$g_gpu_id\", gpu_partition_id=\"$g_gpu_partition_id\"},gpu_uuid)",
+        "hide": 2,
         "includeAll": false,
         "label": "GPU UUID",
         "multi": false,
@@ -1744,13 +1736,13 @@
         "options": [],
         "query": {
           "qryType": 1,
-          "query": "label_values(gpu_uuid)",
+          "query": "label_values({cluster_name=\"$g_cluster_name\", hostname=\"$g_hostname\", gpu_id=\"$g_gpu_id\", gpu_partition_id=\"$g_gpu_partition_id\"},gpu_uuid)",
           "refId": "PrometheusVariableQueryEditor-VariableQuery"
         },
         "refresh": 2,
         "regex": "",
         "skipUrlSync": false,
-        "sort": 0,
+        "sort": 7,
         "type": "query"
       },
       {
@@ -1759,21 +1751,22 @@
           "type": "prometheus",
           "uid": "${DS_PROMETHEUS}"
         },
-        "definition": "label_values({gpu_uuid=\"$g_gpu_uuid\"},card_series)",
-        "hide": 2,
+        "definition": "label_values(cluster_name)",
+        "hide": 0,
         "includeAll": false,
+        "label": "Cluster",
         "multi": false,
-        "name": "g_card_series",
+        "name": "g_cluster_name",
         "options": [],
         "query": {
           "qryType": 1,
-          "query": "label_values({gpu_uuid=\"$g_gpu_uuid\"},card_series)",
+          "query": "label_values(cluster_name)",
           "refId": "PrometheusVariableQueryEditor-VariableQuery"
         },
         "refresh": 2,
         "regex": "",
         "skipUrlSync": false,
-        "sort": 0,
+        "sort": 7,
         "type": "query"
       },
       {
@@ -1782,21 +1775,70 @@
           "type": "prometheus",
           "uid": "${DS_PROMETHEUS}"
         },
-        "definition": "label_values({gpu_uuid=\"$g_gpu_uuid\"},gpu_id)",
-        "hide": 2,
+        "definition": "label_values({cluster_name=\"$g_cluster_name\"},hostname)",
+        "hide": 0,
         "includeAll": false,
+        "label": "Hostname",
+        "multi": false,
+        "name": "g_hostname",
+        "options": [],
+        "query": {
+          "qryType": 1,
+          "query": "label_values({cluster_name=\"$g_cluster_name\"},hostname)",
+          "refId": "PrometheusVariableQueryEditor-VariableQuery"
+        },
+        "refresh": 2,
+        "regex": "",
+        "skipUrlSync": false,
+        "sort": 7,
+        "type": "query"
+      },
+      {
+        "current": {},
+        "datasource": {
+          "type": "prometheus",
+          "uid": "${DS_PROMETHEUS}"
+        },
+        "definition": "label_values({hostname=\"$g_hostname\"},gpu_id)",
+        "hide": 0,
+        "includeAll": false,
+        "label": "GPU ID",
         "multi": false,
         "name": "g_gpu_id",
         "options": [],
         "query": {
           "qryType": 1,
-          "query": "label_values({gpu_uuid=\"$g_gpu_uuid\"},gpu_id)",
+          "query": "label_values({hostname=\"$g_hostname\"},gpu_id)",
           "refId": "PrometheusVariableQueryEditor-VariableQuery"
         },
         "refresh": 2,
         "regex": "",
         "skipUrlSync": false,
-        "sort": 0,
+        "sort": 7,
+        "type": "query"
+      },
+      {
+        "current": {},
+        "datasource": {
+          "type": "prometheus",
+          "uid": "${DS_PROMETHEUS}"
+        },
+        "definition": "label_values({hostname=\"$g_hostname\", gpu_id=\"$g_gpu_id\"},gpu_partition_id)",
+        "hide": 0,
+        "includeAll": true,
+        "label": "Partition",
+        "multi": false,
+        "name": "g_gpu_partition_id",
+        "options": [],
+        "query": {
+          "qryType": 1,
+          "query": "label_values({hostname=\"$g_hostname\", gpu_id=\"$g_gpu_id\"},gpu_partition_id)",
+          "refId": "PrometheusVariableQueryEditor-VariableQuery"
+        },
+        "refresh": 2,
+        "regex": "",
+        "skipUrlSync": false,
+        "sort": 7,
         "type": "query"
       },
       {
@@ -1874,18 +1916,18 @@
           "type": "prometheus",
           "uid": "${DS_PROMETHEUS}"
         },
-        "definition": "label_values({gpu_uuid=\"$g_gpu_uuid\"},card_model)",
+        "definition": "label_values({gpu_uuid=\"$g_gpu_uuid\"},card_series)",
         "hide": 2,
         "includeAll": false,
         "multi": false,
-        "name": "g_card_model",
+        "name": "g_card_series",
         "options": [],
         "query": {
           "qryType": 1,
-          "query": "label_values({gpu_uuid=\"$g_gpu_uuid\"},card_model)",
+          "query": "label_values({gpu_uuid=\"$g_gpu_uuid\"},card_series)",
           "refId": "PrometheusVariableQueryEditor-VariableQuery"
         },
-        "refresh": 1,
+        "refresh": 2,
         "regex": "",
         "skipUrlSync": false,
         "sort": 0,
@@ -1897,15 +1939,15 @@
           "type": "prometheus",
           "uid": "${DS_PROMETHEUS}"
         },
-        "definition": "label_values({gpu_uuid=\"$g_gpu_uuid\"},hostname)",
+        "definition": "label_values({gpu_uuid=\"$g_gpu_uuid\"},card_model)",
         "hide": 2,
         "includeAll": false,
         "multi": false,
-        "name": "g_hostname",
+        "name": "g_card_model",
         "options": [],
         "query": {
           "qryType": 1,
-          "query": "label_values({gpu_uuid=\"$g_gpu_uuid\"},hostname)",
+          "query": "label_values({gpu_uuid=\"$g_gpu_uuid\"},card_model)",
           "refId": "PrometheusVariableQueryEditor-VariableQuery"
         },
         "refresh": 2,
@@ -1931,31 +1973,11 @@
           "query": "label_values({gpu_uuid=\"$g_gpu_uuid\"},serial_number)",
           "refId": "PrometheusVariableQueryEditor-VariableQuery"
         },
-        "refresh": 1,
+        "refresh": 2,
         "regex": "",
         "skipUrlSync": false,
         "sort": 0,
         "type": "query"
-      },
-      {
-        "hide": 2,
-        "label": "MI300 Model",
-        "name": "g_mi300_model",
-        "query": "${VAR_G_MI300_MODEL}",
-        "skipUrlSync": false,
-        "type": "constant",
-        "current": {
-          "value": "${VAR_G_MI300_MODEL}",
-          "text": "${VAR_G_MI300_MODEL}",
-          "selected": false
-        },
-        "options": [
-          {
-            "value": "${VAR_G_MI300_MODEL}",
-            "text": "${VAR_G_MI300_MODEL}",
-            "selected": false
-          }
-        ]
       }
     ]
   },
