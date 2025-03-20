@@ -1,0 +1,15 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+- deployment.yaml
+
+
+images:
+- name: webhook-server
+  newName: gcr.io/k8s-staging-kmm/kernel-module-management-webhook-server
+  newTag: latest
+labels:
+- includeSelectors: true
+  pairs:
+    app.kubernetes.io/component: webhook-server

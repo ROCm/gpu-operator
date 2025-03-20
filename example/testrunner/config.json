@@ -1,0 +1,22 @@
+{
+  "TestConfig": {
+    "GPU_HEALTH_CHECK": {
+      "TestLocationTrigger": {
+        "global": {
+          "TestParameters": {
+            "AUTO_UNHEALTHY_GPU_WATCH": {
+              "TestCases": [
+                {
+                  "Recipe": "gst_single",
+                  "Iterations": 1,
+                  "StopOnFailure": true,
+                  "TimeoutSeconds": 600
+                }
+              ]
+            }
+          }
+        }
+      }
+    }
+  }
+}

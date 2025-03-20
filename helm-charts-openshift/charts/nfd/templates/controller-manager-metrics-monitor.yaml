@@ -1,0 +1,20 @@
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: {{ include "nfd.fullname" . }}-controller-manager-metrics-monitor
+  labels:
+    control-plane: controller-manager
+  {{- include "nfd.labels" . | nindent 4 }}
+spec:
+  endpoints:
+  - bearerTokenFile: /var/run/secrets/kubernetes.io/serviceaccount/token
+    interval: 30s
+    path: /metrics
+    port: https
+    scheme: https
+    tlsConfig:
+      caFile: /etc/prometheus/configmaps/serving-certs-ca-bundle/service-ca.crt
+      serverName: nfd-controller-manager-metrics-service.openshift-nfd.svc
+  selector:
+    matchLabels:
+      control-plane: controller-manager

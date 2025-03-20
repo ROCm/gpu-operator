@@ -92,22 +92,22 @@ The `status.nodeModuleStatus.<worker-node>.status` captures the status of the up
 status:
   nodeModuleStatus:
     worker-10-11-71-66:
-      containerImage: registry.test.pensando.io:5000/tsprasannaa:ubuntu-22.04-5.15.0-124-generic-6.3.2
+      containerImage: registry.test.io:1234/driverImages:ubuntu-22.04-5.15.0-124-generic-6.3.2
       kernelVersion: 5.15.0-124-generic
       lastTransitionTime: 2024-12-05 05:35:04 +0000 UTC
       status: Upgrade-Complete
     worker-10-11-71-67:
-      containerImage: registry.test.pensando.io:5000/tsprasannaa:ubuntu-22.04-5.15.0-124-generic-6.3.2
+      containerImage: registry.test.io:1234/driverImages:ubuntu-22.04-5.15.0-124-generic-6.3.2
       kernelVersion: 5.15.0-124-generic
       lastTransitionTime: 2024-12-05 05:35:04 +0000 UTC
       status: Upgrade-Complete
     worker-10-11-71-69:
-      containerImage: registry.test.pensando.io:5000/tsprasannaa:ubuntu-22.04-5.15.0-124-generic-6.3.2
+      containerImage: registry.test.io:1234/driverImages:ubuntu-22.04-5.15.0-124-generic-6.3.2
       kernelVersion: 5.15.0-124-generic
       lastTransitionTime: 2024-12-05 05:34:53 +0000 UTC
       status: Upgrade-Complete
     worker-10-11-77-194:
-      containerImage: registry.test.pensando.io:5000/tsprasannaa:ubuntu-22.04-5.15.0-119-generic-6.3.2
+      containerImage: registry.test.io:1234/driverImages:ubuntu-22.04-5.15.0-119-generic-6.3.2
       kernelVersion: 5.15.0-119-generic
       lastTransitionTime: 2024-12-05 05:37:14 +0000 UTC
       status: Upgrade-Complete

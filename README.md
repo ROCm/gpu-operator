@@ -1,8 +1,6 @@
 # AMD GPU Operator
 
-## :book: GPU Operator Documentation Site
-
-For the most detailed and up-to-date documentation please visit our Instinct Documenation site: [https://instinct.docs.amd.com/projects/gpu-operator](https://instinct.docs.amd.com/projects/gpu-operator)
+:book: GPU Operator Documentation Site: https://instinct.docs.amd.com/projects/gpu-operator
 
 ## Introduction
 
@@ -61,7 +59,7 @@ helm repo update
 
 ### 2. Install the Operator
 
-#### Basic installation
+Basic installation:
 
 ```bash
 helm install amd-gpu-operator rocm/gpu-operator-charts \
@@ -70,13 +68,15 @@ helm install amd-gpu-operator rocm/gpu-operator-charts \
   --version=v1.2.0
 ```
 
-#### Installation Options
+```{note}
+Installation Options
+  - Skip NFD installation: `--set node-feature-discovery.enabled=false`
+  - Skip KMM installation: `--set kmm.enabled=false`
+```
 
-* Skip NFD installation: `--set node-feature-discovery.enabled=false`
-* Skip KMM installation: `--set kmm.enabled=false`
-
-> [!WARNING]
-> It is strongly recommended to use AMD-optimized KMM images included in the operator release. This is not required when installing the GPU Operator on Red Hat OpenShift.
+```{warning}
+  It is strongly recommended to use AMD-optimized KMM images included in the operator release.
+```
 
 ### 3. Install Custom Resource
 
@@ -90,6 +90,10 @@ Following dashboards are provided for visualizing GPU metrics collected from dev
 * GPU Detail Dashboard: Offers a detailed look at individual GPUs.
 * Job Detail Dashboard: Presents detailed GPU usage for specific jobs in SLURM and Kubernetes environments.
 * Node Detail Dashboard: Displays detailed GPU usage at the host level.
+
+## Contributing
+
+Please refer to our [Developer Guide](https://instinct.docs.amd.com/projects/gpu-operator/en/release-v1.2.0/contributing/developer-guide.html).
 
 ## Support
 

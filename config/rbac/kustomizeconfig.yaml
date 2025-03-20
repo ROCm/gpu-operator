@@ -1,0 +1,5 @@
+namereference:
+- kind: ClusterRole
+  fieldSpecs:
+  - path: rules/resourceNames
+    kind: ClusterRole

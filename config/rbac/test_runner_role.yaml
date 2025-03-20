@@ -1,0 +1,11 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: test-runner
+rules:
+- apiGroups: [""]
+  resources: ["events"]
+  verbs: ["create", "list", "get", "update", "watch"]
+- apiGroups: [""]
+  resources: ["nodes"]
+  verbs: ["patch"]

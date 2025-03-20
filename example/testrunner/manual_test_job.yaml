@@ -123,6 +123,8 @@ spec:
           name: kfd
         - mountPath: /var/log/amd-test-runner # Specify to mount host path volume into specific directory
           name: test-runner-volume
+        - mountPath: /etc/test-runner/
+          name: config-volume
         env:
         - name: LOG_MOUNT_DIR # Use LOG_MOUNT_DIR envrionment variable to ask test runner to save logs in mounted directory
           value: /var/log/amd-test-runner

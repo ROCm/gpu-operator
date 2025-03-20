@@ -57,6 +57,10 @@
     <ul>
                 <li class="toctree-l2"><a class="reference internal" href="../../installation/kubernetes-helm/">Kubernetes (Helm)</a>
                 </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../installation/openshift-helm/">OpenShift (Helm)</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../installation/openshift-olm/">OpenShift (OLM)</a>
+                </li>
     </ul>
                   </li>
                   <li class="toctree-l1"><a class="reference internal" >Install Custom Resource</a>
@@ -211,7 +215,7 @@ test-deviceconfig-metrics-exporter-q8hbb   1/1     Running   0          74s
 <p>To customize metrics fields/labels, create a configmap with fields/labels and use it in <strong>DeviceConfig</strong> CR</p>
 <pre><code class="language-bash">kubectl create configmap &lt;name&gt; --from-file=examples/metricsExporter/config.json
 </code></pre>
-<p>Example config file is available here: <a href="https://github.com/rocm/device-metrics-exporter/blob/main/example/config.json">config.json</a></p>
+<p>Example config file is available here: <a href="https://github.com/ROCm/device-metrics-exporter/blob/main/example/config.json">config.json</a></p>
               
             </div>
           </div><footer>

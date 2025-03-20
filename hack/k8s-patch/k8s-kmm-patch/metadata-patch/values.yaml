@@ -1,0 +1,133 @@
+controller:
+  manager:
+    args:
+    - --config=controller_config.yaml
+    containerSecurityContext:
+      allowPrivilegeEscalation: false
+    env:
+      # -- KMM kaniko builder image for building driver image within cluster
+      relatedImageBuild: gcr.io/kaniko-project/executor:v1.23.2
+      # -- KMM signer image for signing driver image's kernel module with given key pairs within cluster
+      relatedImageSign: docker.io/rocm/kernel-module-management-signimage:v1.2.0
+      # -- KMM worker image for loading / unloading driver kernel module on worker nodes
+      relatedImageWorker: docker.io/rocm/kernel-module-management-worker:v1.2.0
+      # -- Image pull secret name for pulling KMM kaniko builder image if registry needs credential to pull image
+      relatedImageBuildPullSecret: ""
+      # -- Image pull secret name for pulling KMM signer image if registry needs credential to pull image
+      relatedImageSignPullSecret: ""
+      # -- Image pull secret name for pulling KMM worker image if registry needs credential to pull image
+      relatedImageWorkerPullSecret: ""
+    image:
+      # -- KMM controller manager image repository
+      repository: docker.io/rocm/kernel-module-management-operator
+      # -- KMM controller manager image tag
+      tag: v1.2.0
+    # -- Image pull policy for KMM controller manager pod
+    imagePullPolicy: Always
+    # -- Image pull secret name for pulling KMM controller manager image if registry needs credential to pull image
+    imagePullSecrets: ""
+    tolerations:
+    - key: "node-role.kubernetes.io/master"
+      operator: "Equal"
+      value: ""
+      effect: "NoSchedule"
+    - key: "node-role.kubernetes.io/control-plane"
+      operator: "Equal"
+      value: ""
+      effect: "NoSchedule"
+    resources:
+      limits:
+        cpu: 500m
+        memory: 384Mi
+      requests:
+        cpu: 10m
+        memory: 64Mi
+  # -- Node selector for the KMM controller manager deployment
+  nodeSelector: {}
+  # -- Affinity for the KMM controller manager deployment
+  affinity:
+    nodeAffinity:
+      preferredDuringSchedulingIgnoredDuringExecution:
+        - weight: 1
+          preference:
+            matchExpressions:
+              - key: node-role.kubernetes.io/control-plane
+                operator: Exists
+  replicas: 1
+  serviceAccount:
+    annotations: {}
+controllerMetricsService:
+  ports:
+  - name: https
+    port: 8443
+    protocol: TCP
+    targetPort: https
+  type: ClusterIP
+kubernetesClusterDomain: cluster.local
+managerConfig:
+  controllerConfigYaml: |-
+    healthProbeBindAddress: :8081
+    webhookPort: 9443
+    leaderElection:
+      enabled: true
+      resourceID: kmm.sigs.x-k8s.io
+    metrics:
+      enableAuthnAuthz: true
+      bindAddress: 0.0.0.0:8443
+      secureServing: true
+    worker:
+      runAsUser: 0
+      seLinuxType: spc_t
+      firmwareHostPath: /var/lib/firmware
+webhookServer:
+  replicas: 1
+  # -- KMM webhook's deployment node selector
+  nodeSelector: {}
+  # -- KMM webhook's deployment affinity configs
+  affinity:
+    nodeAffinity:
+      preferredDuringSchedulingIgnoredDuringExecution:
+        - weight: 1
+          preference:
+            matchExpressions:
+              - key: node-role.kubernetes.io/control-plane
+                operator: Exists
+  webhookServer:
+    args:
+    - --config=controller_config.yaml
+    - --enable-module
+    - --enable-namespace
+    - --enable-preflightvalidation
+    containerSecurityContext:
+      allowPrivilegeEscalation: false
+    image:
+      # -- KMM webhook image repository
+      repository: docker.io/rocm/kernel-module-management-webhook-server
+      # -- KMM webhook image tag
+      tag: v1.2.0
+    # -- Image pull policy for KMM webhook pod
+    imagePullPolicy: Always
+    # -- Image pull secret name for pulling KMM webhook image if registry needs credential to pull image
+    imagePullSecrets: ""
+    tolerations:
+    - key: "node-role.kubernetes.io/master"
+      operator: "Equal"
+      value: ""
+      effect: "NoSchedule"
+    - key: "node-role.kubernetes.io/control-plane"
+      operator: "Equal"
+      value: ""
+      effect: "NoSchedule"
+    resources:
+      limits:
+        cpu: 500m
+        memory: 384Mi
+      requests:
+        cpu: 10m
+        memory: 64Mi
+webhookService:
+  ports:
+  - port: 443
+    protocol: TCP
+    targetPort: 9443
+  type: ClusterIP
