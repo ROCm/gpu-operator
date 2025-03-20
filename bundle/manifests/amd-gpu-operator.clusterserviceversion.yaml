@@ -30,7 +30,7 @@ metadata:
         }
       ]
     capabilities: Basic Install
-    createdAt: "2025-03-19T02:55:31Z"
+    createdAt: "2025-03-19T17:17:50Z"
     operatorframework.io/suggested-namespace: openshift-amd-gpu
     operators.operatorframework.io/builder: operator-sdk-v1.32.0
     operators.operatorframework.io/project_layout: go.kubebuilder.io/v3
