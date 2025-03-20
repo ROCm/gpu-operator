@@ -353,7 +353,7 @@ bundle-build: operator-sdk manifests kustomize ## OpenShift Build OLM bundle.
 	cd config/manager && $(KUSTOMIZE) edit set image controller=$(IMG)
 	cd config/manager-base && $(KUSTOMIZE) edit set image controller=$(IMG)
 	OPERATOR_SDK="${OPERATOR_SDK}" \
-		     BUNDLE_GEN_FLAGS="${BUNDLE_GEN_FLAGS} --extra-service-accounts amd-gpu-operator-kmm-device-plugin,amd-gpu-operator-kmm-module-loader,amd-gpu-operator-node-labeller,amd-gpu-operator-metrics-exporter,amd-gpu-operator-metrics-exporter-rbac-proxy,amd-gpu-operator-test-runner,amd-gpu-operator-config-manager" \
+		     BUNDLE_GEN_FLAGS="${BUNDLE_GEN_FLAGS} --extra-service-accounts amd-gpu-operator-kmm-device-plugin,amd-gpu-operator-kmm-module-loader,amd-gpu-operator-node-labeller,amd-gpu-operator-metrics-exporter,amd-gpu-operator-metrics-exporter-rbac-proxy,amd-gpu-operator-test-runner,amd-gpu-operator-config-manager,amd-gpu-operator-utils-container" \
 		     PKG=amd-gpu-operator \
 		     SOURCE_DIR=$(dir $(realpath $(lastword $(MAKEFILE_LIST)))) \
 		     KUBECTL_CMD=${KUBECTL_CMD} ./hack/generate-bundle
