@@ -131,7 +131,7 @@ Below is an example of a full DeviceConfig CR that can be used to install the AM
           upgradeStrategy: RollingUpdate, # (Optional) Can be either `RollingUpdate` or `OnDelete`
           maxUnavailable: 1 # (Optional) Number of pods that can be unavailable during the upgrade process. 1 is the default value
         # If specifying a node selector here, the metrics exporter will only be deployed on nodes that match the selector
-        # See Item #6 on https://dcgpu.docs.amd.com/projects/gpu-operator/en/latest/knownlimitations.html for example usage
+        # See Item #6 on https://instinct.docs.amd.com/projects/gpu-operator/en/latest/knownlimitations.html for example usage
         tolerations:
           key: "key1" # Key is the taint key that the toleration applies to. Empty means match all taint keys. If the key is empty,
           # operator must be "Exists"; this combination means to match all values and all keys.
@@ -174,7 +174,7 @@ Below is an example of a full DeviceConfig CR that can be used to install the AM
           upgradeStrategy: RollingUpdate, # (Optional) Can be either `RollingUpdate` or `OnDelete`
           maxUnavailable: 1 # (Optional) Number of pods that can be unavailable during the upgrade process. 1 is the default value
         # If specifying a node selector here, the metrics exporter will only be deployed on nodes that match the selector
-        # See Item #6 on https://dcgpu.docs.amd.com/projects/gpu-operator/en/latest/knownlimitations.html for example usage
+        # See Item #6 on https://instinct.docs.amd.com/projects/gpu-operator/en/latest/knownlimitations.html for example usage
         tolerations:
           key: "key1" # Key is the taint key that the toleration applies to. Empty means match all taint keys. If the key is empty,
           # operator must be "Exists"; this combination means to match all values and all keys.
