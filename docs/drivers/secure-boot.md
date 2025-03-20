@@ -10,7 +10,7 @@ Secure Boot is a security feature that helps protect a system against malicious 
 
 Before proceeding, ensure you have:
 
-- A Kubernetes cluster with worker nodes that have Secure Boot enabled
+- A Kubernetes/OpenShift cluster with worker nodes that have Secure Boot enabled
 - Administrative access to your cluster
 - Understanding of basic cryptographic concepts
 - Access to the worker nodes' MOK database
@@ -25,6 +25,7 @@ Users prepare and sign their own driver images before deployment.
 
 - Create signed kernel modules following your OS vendor's guidelines:
   - [Ubuntu Signing Guide](https://ubuntu.com/blog/how-to-sign-things-for-secure-boot)
+  - [RHEL Signing Guide](https://docs.redhat.com/en/documentation/red_hat_enterprise_linux/9/html/managing_monitoring_and_updating_the_kernel/signing-a-kernel-and-modules-for-secure-boot_managing-monitoring-and-updating-the-kernel)
 - Package the signed modules into a container image
 - Configure the operator to use your pre-signed image:
 

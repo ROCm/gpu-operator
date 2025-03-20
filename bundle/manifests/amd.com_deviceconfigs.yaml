@@ -1,0 +1,324 @@
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.12.0
+  creationTimestamp: null
+  labels:
+    app.kubernetes.io/component: amd-gpu
+    app.kubernetes.io/name: amd-gpu
+    app.kubernetes.io/part-of: amd-gpu
+  name: deviceconfigs.amd.com
+spec:
+  group: amd.com
+  names:
+    kind: DeviceConfig
+    listKind: DeviceConfigList
+    plural: deviceconfigs
+    shortNames:
+    - gpue
+    singular: deviceconfig
+  scope: Namespaced
+  versions:
+  - name: v1alpha1
+    schema:
+      openAPIV3Schema:
+        description: DeviceConfig describes how to enable AMD GPU device
+        properties:
+          apiVersion:
+            description: 'APIVersion defines the versioned schema of this representation
+              of an object. Servers should convert recognized schemas to the latest
+              internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
+            type: string
+          kind:
+            description: 'Kind is a string value representing the REST resource this
+              object represents. Servers may infer this from the endpoint the client
+              submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
+            type: string
+          metadata:
+            type: object
+          spec:
+            description: DeviceConfigSpec describes how the AMD GPU operator should
+              enable AMD GPU device for customer's use.
+            properties:
+              devicePlugin:
+                description: device plugin
+                properties:
+                  devicePluginImage:
+                    description: device plugin image
+                    pattern: ^([a-z0-9]+(?:[._-][a-z0-9]+)*(:[0-9]+)?)(/[a-z0-9]+(?:[._-][a-z0-9]+)*)*(?::[a-z0-9._-]+)?(?:@[a-zA-Z0-9]+:[a-f0-9]+)?$
+                    type: string
+                  enableNodeLabeller:
+                    default: true
+                    description: enable or disable the node labeller
+                    type: boolean
+                  imageRegistrySecret:
+                    description: node labeller image registry secret used to pull/push
+                      images
+                    properties:
+                      name:
+                        description: 'Name of the referent. More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                          TODO: Add other useful fields. apiVersion, kind, uid?'
+                        type: string
+                    type: object
+                    x-kubernetes-map-type: atomic
+                  nodeLabellerImage:
+                    description: node labeller image
+                    pattern: ^([a-z0-9]+(?:[._-][a-z0-9]+)*(:[0-9]+)?)(/[a-z0-9]+(?:[._-][a-z0-9]+)*)*(?::[a-z0-9._-]+)?(?:@[a-zA-Z0-9]+:[a-f0-9]+)?$
+                    type: string
+                type: object
+              driver:
+                description: driver
+                properties:
+                  amdgpuInstallerRepoURL:
+                    description: radeon repo URL for fetching amdgpu installer if
+                      building driver image on the fly installer URL is https://repo.radeon.com/amdgpu-install
+                      by default
+                    type: string
+                  blacklist:
+                    description: blacklist amdgpu drivers on the host
+                    type: boolean
+                  enable:
+                    default: true
+                    description: enable driver install. default value is true. disable
+                      is for skipping driver install/uninstall for dryrun or using
+                      in-tree amdgpu kernel module
+                    type: boolean
+                  image:
+                    description: defines image that includes drivers and firmware
+                      blobs, don't include tag since it will be fully managed by operator
+                      for vanilla k8s the default value is image-registry:5000/$MOD_NAMESPACE/amdgpu_kmod
+                      for OpenShift the default value is image-registry.openshift-image-registry.svc:5000/$MOD_NAMESPACE/amdgpu_kmod
+                      image tag will be in the format of <linux distro>-<release version>-<kernel
+                      version>-<driver version> example tag is coreos-416.94-5.14.0-427.28.1.el9_4.x86_64-6.2.2
+                      and ubuntu-22.04-5.15.0-94-generic-6.1.3
+                    pattern: ^([a-z0-9]+(?:[._-][a-z0-9]+)*(:[0-9]+)?)(/[a-z0-9]+(?:[._-][a-z0-9]+)*)*(?::[a-z0-9._-]+)?(?:@[a-zA-Z0-9]+:[a-f0-9]+)?$
+                    type: string
+                  imageRegistrySecret:
+                    description: secrets used for pull/push images from/to private
+                      registry specified in driversImage
+                    properties:
+                      name:
+                        description: 'Name of the referent. More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                          TODO: Add other useful fields. apiVersion, kind, uid?'
+                        type: string
+                    type: object
+                    x-kubernetes-map-type: atomic
+                  imageRegistryTLS:
+                    description: driver image registry TLS setting for the container
+                      image
+                    properties:
+                      insecure:
+                        description: If true, check if the container image already
+                          exists using plain HTTP.
+                        type: boolean
+                      insecureSkipTLSVerify:
+                        description: If true, skip any TLS server certificate validation
+                        type: boolean
+                    type: object
+                  imageSign:
+                    description: image signing config to sign the driver image when
+                      building driver image on the fly image signing is required for
+                      installing driver on secure boot enabled system
+                    properties:
+                      certSecret:
+                        description: ImageSignCertSecret the public key used to sign
+                          kernel modules within image necessary for secire boot enabled
+                          system
+                        properties:
+                          name:
+                            description: 'Name of the referent. More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                              TODO: Add other useful fields. apiVersion, kind, uid?'
+                            type: string
+                        type: object
+                        x-kubernetes-map-type: atomic
+                      keySecret:
+                        description: ImageSignKeySecret the private key used to sign
+                          kernel modules within image necessary for secire boot enabled
+                          system
+                        properties:
+                          name:
+                            description: 'Name of the referent. More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                              TODO: Add other useful fields. apiVersion, kind, uid?'
+                            type: string
+                        type: object
+                        x-kubernetes-map-type: atomic
+                    type: object
+                  version:
+                    description: 'version of the drivers source code, can be used
+                      as part of image of dockerfile source image default value for
+                      different OS is: ubuntu: 6.1.3, coreOS: 6.2.2'
+                    type: string
+                type: object
+              metricsExporter:
+                description: metrics exporter
+                properties:
+                  config:
+                    description: optional configuration for metrics
+                    properties:
+                      name:
+                        description: Name of the configMap that defines the list of
+                          metrics default list:[]
+                        type: string
+                    type: object
+                  enable:
+                    description: enable metrics exporter, disabled by default
+                    type: boolean
+                  image:
+                    description: metrics exporter image
+                    pattern: ^([a-z0-9]+(?:[._-][a-z0-9]+)*(:[0-9]+)?)(/[a-z0-9]+(?:[._-][a-z0-9]+)*)*(?::[a-z0-9._-]+)?(?:@[a-zA-Z0-9]+:[a-f0-9]+)?$
+                    type: string
+                  imageRegistrySecret:
+                    description: metrics exporter image registry secret used to pull/push
+                      images
+                    properties:
+                      name:
+                        description: 'Name of the referent. More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                          TODO: Add other useful fields. apiVersion, kind, uid?'
+                        type: string
+                    type: object
+                    x-kubernetes-map-type: atomic
+                  nodePort:
+                    description: NodePort is the external port for pulling metrics
+                      from outside the cluster, in the range 30000-32767 (assigned
+                      automatically by default)
+                    format: int32
+                    maximum: 32767
+                    minimum: 30000
+                    type: integer
+                  port:
+                    default: 5000
+                    description: Port is the internal port used for in-cluster and
+                      node access to pull metrics from the metrics-exporter (default
+                      5000).
+                    format: int32
+                    type: integer
+                  rbacConfig:
+                    description: optional kube-rbac-proxy config to provide rbac services
+                    properties:
+                      disableHttps:
+                        description: disable https protecting the proxy endpoint
+                        type: boolean
+                      enable:
+                        description: enable kube-rbac-proxy, disabled by default
+                        type: boolean
+                      image:
+                        description: kube-rbac-proxy image
+                        pattern: ^([a-z0-9]+(?:[._-][a-z0-9]+)*(:[0-9]+)?)(/[a-z0-9]+(?:[._-][a-z0-9]+)*)*(?::[a-z0-9._-]+)?(?:@[a-zA-Z0-9]+:[a-f0-9]+)?$
+                        type: string
+                      secret:
+                        description: certificate secret to mount in kube-rbac container
+                          for TLS, self signed certificates will be generated by default
+                        properties:
+                          name:
+                            description: 'Name of the referent. More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                              TODO: Add other useful fields. apiVersion, kind, uid?'
+                            type: string
+                        type: object
+                        x-kubernetes-map-type: atomic
+                    type: object
+                  selector:
+                    additionalProperties:
+                      type: string
+                    description: Selector describes on which nodes to enable metrics
+                      exporter
+                    type: object
+                  serviceType:
+                    default: ClusterIP
+                    description: ServiceType service type for metrics, clusterIP/NodePort,
+                      clusterIP by default
+                    enum:
+                    - ClusterIP
+                    - NodePort
+                    type: string
+                type: object
+              selector:
+                additionalProperties:
+                  type: string
+                description: Selector describes on which nodes the GPU Operator should
+                  enable the GPU device.
+                type: object
+            type: object
+          status:
+            description: DeviceConfigStatus defines the observed state of Module.
+            properties:
+              devicePlugin:
+                description: DevicePlugin contains the status of the Device Plugin
+                  deployment
+                properties:
+                  availableNumber:
+                    description: number of the actually deployed and running pods
+                    format: int32
+                    type: integer
+                  desiredNumber:
+                    description: number of the pods that should be deployed for daemonset
+                    format: int32
+                    type: integer
+                  nodesMatchingSelectorNumber:
+                    description: number of nodes that are targeted by the DeviceConfig
+                      selector
+                    format: int32
+                    type: integer
+                type: object
+              driver:
+                description: Driver contains the status of the Drivers deployment
+                properties:
+                  availableNumber:
+                    description: number of the actually deployed and running pods
+                    format: int32
+                    type: integer
+                  desiredNumber:
+                    description: number of the pods that should be deployed for daemonset
+                    format: int32
+                    type: integer
+                  nodesMatchingSelectorNumber:
+                    description: number of nodes that are targeted by the DeviceConfig
+                      selector
+                    format: int32
+                    type: integer
+                type: object
+              metricsExporter:
+                description: MetricsExporter contains the status of the MetricsExporter
+                  deployment
+                properties:
+                  availableNumber:
+                    description: number of the actually deployed and running pods
+                    format: int32
+                    type: integer
+                  desiredNumber:
+                    description: number of the pods that should be deployed for daemonset
+                    format: int32
+                    type: integer
+                  nodesMatchingSelectorNumber:
+                    description: number of nodes that are targeted by the DeviceConfig
+                      selector
+                    format: int32
+                    type: integer
+                type: object
+              nodeModuleStatus:
+                additionalProperties:
+                  description: ModuleStatus contains the status of driver module installed
+                    by operator on the node
+                  properties:
+                    containerImage:
+                      type: string
+                    kernelVersion:
+                      type: string
+                    lastTransitionTime:
+                      type: string
+                  type: object
+                description: NodeModuleStatus contains per node status of driver module
+                  installation
+                type: object
+            type: object
+        type: object
+    served: true
+    storage: true
+    subresources:
+      status: {}
+status:
+  acceptedNames:
+    kind: ""
+    plural: ""
+  conditions: null
+  storedVersions: null

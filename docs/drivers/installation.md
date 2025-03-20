@@ -41,6 +41,10 @@ When you try to create a `DeviceConfig` custom resource, you may consider set `s
 If `amdgpu` remains loaded after reboot, and worker nodes keep using inbox / pre-installed driver, run `sudo update-initramfs -u` to update the initial ramdisk with the new modprobe configuration.
 ```
 
+#### Method 3 - (Openshift) Use Machine Config Operator
+
+Please refer to [OpenShift installation Guide](../installation/openshift-olm) to see the example `MachineConfig` custom resource to add blacklist via Machine Config Operator.
+
 ### 2. Create DeviceConfig Resource
 
 #### Inbox or Pre-Installed AMD GPU Drivers
@@ -69,7 +73,7 @@ spec:
      serviceType: "NodePort"
      # Node port for metrics exporter service, metrics endpoint $node-ip:$nodePort
      nodePort: 32500
-     image: rocm/device-metrics-exporter:v1.0.0
+     image: docker.io/rocm/device-metrics-exporter:v1.1.0
 
   # Specifythe node to be managed by this DeviceConfig Custom Resource
   selector:
@@ -119,7 +123,7 @@ spec:
      serviceType: "NodePort"
      # Node port for metrics exporter service, metrics endpoint $node-ip:$nodePort
      nodePort: 32500
-     image: rocm/device-metrics-exporter:v1.0.0
+     image: docker.io/rocm/device-metrics-exporter:v1.1.0
 
   # Specifythe node to be managed by this DeviceConfig Custom Resource
   selector:
@@ -146,7 +150,7 @@ To check the full spec of `DeviceConfig` definition run `kubectl get crds device
 | `enable` | set to true for installing out-of-tree driver, <br>set it to false then operator will skip driver install <br>and directly use inbox / pre-installed driver | `true` |
 | `blacklist` | set to true then operator will init node labeller daemonset <br>to add `amdgpu` into selected worker nodes modprobe blacklist,<br> set to false then operator will remove `amdgpu` <br>from selected nodes' modprobe blacklist | `false` |
 | `version` | ROCm driver version (e.g., "6.2.2")<br>[See ROCm Versions](https://rocm.docs.amd.com/en/latest/release/versions.html) | Ubuntu: `6.1.3`<br>CoresOS: `6.2.2` |
-| `image` | Registry URL and repository (without tag) <br>*Note: Operator manages tags automatically* | Vanilla k8s: `image-registry:5000/$MOD_NAMESPACE/amdgpu_kmod`|
+| `image` | Registry URL and repository (without tag) <br>*Note: Operator manages tags automatically* | Vanilla k8s: `image-registry:5000/$MOD_NAMESPACE/amdgpu_kmod`<br>OpenShift: `image-registry.openshift-image-registry.svc:5000/$MOD_NAMESPACE/amdgpu_kmod` |
 | `imageRegistrySecret.name` | Name of registry credentials secret<br> to pull/push driver image | |
 | `imageRegistryTLS.insecure` | If true, check if the container image<br> already exists using plain HTTP | `false` |
 | `imageRegistryTLS.insecureSkipTLSVerify` | If true, skip any TLS server certificate validation | `false` |

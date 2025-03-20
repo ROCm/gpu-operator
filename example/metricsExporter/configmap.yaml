@@ -2,10 +2,11 @@ apiVersion: v1
 kind: ConfigMap
 metadata:
   name: gpu-config
-  namespace: kube-amd-gpu
+  namespace: mynamespace
 data:
   config.json: |
     {
+      "ServerPort": 5000,
       "GPUConfig": {
         "Fields": [
           "GPU_NODES_TOTAL",
@@ -34,7 +35,7 @@ data:
           "PCIE_NAC_RECEIVED_COUNT",
           "GPU_CLOCK",
           "GPU_POWER_USAGE",
-          "GPU_TOTAL_VRAM",
+          "GPU_TOTAL_MEMORY",
           "GPU_ECC_CORRECT_TOTAL",
           "GPU_ECC_UNCORRECT_TOTAL",
           "GPU_ECC_CORRECT_SDMA",

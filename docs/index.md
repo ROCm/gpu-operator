@@ -7,19 +7,19 @@ The AMD GPU Operator simplifies the deployment and management of AMD Instinct GP
 - Automated driver installation and management
 - Easy deployment of the AMD GPU device plugin
 - Metrics collection and export
-- Support for Vanilla Kubernetes
+- Support for both vanilla Kubernetes and OpenShift environments
 - Simplified GPU resource allocation for containers
 - Automatic worker node labeling for GPU-enabled nodes
 
 ## Compatibility
 
-- **Kubernetes**: 1.29.0
-- Please refer to the [ROCm documentation](https://rocm.docs.amd.com/en/latest/compatibility/compatibility-matrix.html) for the compatibility matrix for the AMD GPU DKMS driver.
+- **Kubernetes**: 1.29.0+ or **OpenShift**: 4.16+
+- Please refer to the [ROCM documentaiton](https://rocm.docs.amd.com/en/latest/compatibility/compatibility-matrix.html) for the compatability matrix for the AMD GPU DKMS driver.
 
 ## Prerequisites
 
 - Helm v3.2.0+
-- `kubectl` CLI tool configured to access your cluster
+- `kubectl` or `oc` CLI tool configured to access your cluster
 
 ## Quick Start
 
