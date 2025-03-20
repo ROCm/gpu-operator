@@ -1,0 +1,8 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+- monitor.yaml
+
+  # in case of OCP, a openshift.io/cluster-monitoring: "true"
+  # must be added to the namespace of KMMO operator

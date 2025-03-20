@@ -1,0 +1,42 @@
+FROM ubuntu:$$VERSION as builder
+
+ARG KERNEL_FULL_VERSION
+
+ARG DRIVERS_VERSION
+
+ARG REPO_URL
+
+RUN apt-get update && apt-get install -y bc \
+    bison \
+    flex \
+    libelf-dev \
+    gnupg \
+    wget \
+    git \
+    make \
+    gcc \
+    linux-headers-${KERNEL_FULL_VERSION} \
+    linux-modules-extra-${KERNEL_FULL_VERSION}
+
+RUN mkdir --parents --mode=0755 /etc/apt/keyrings
+
+RUN wget ${REPO_URL}/rocm/rocm.gpg.key -O - | \
+    gpg --dearmor | tee /etc/apt/keyrings/rocm.gpg > /dev/null
+
+RUN echo "deb [arch=amd64 signed-by=/etc/apt/keyrings/rocm.gpg] ${REPO_URL}/amdgpu/${DRIVERS_VERSION}/ubuntu $$DRIVER_LABEL main" \
+    | tee /etc/apt/sources.list.d/amdgpu.list
+RUN apt-get update && apt-get install -y amdgpu-dkms
+
+RUN depmod ${KERNEL_FULL_VERSION}
+
+FROM ubuntu:$$VERSION
+
+ARG KERNEL_FULL_VERSION
+
+RUN apt-get update && apt-get install -y kmod
+RUN mkdir -p /opt/lib/modules/${KERNEL_FULL_VERSION}/updates/dkms/
+COPY --from=builder /lib/modules/${KERNEL_FULL_VERSION}/updates/dkms/amd* /opt/lib/modules/${KERNEL_FULL_VERSION}/updates/dkms/
+COPY --from=builder /lib/modules/${KERNEL_FULL_VERSION}/modules.* /opt/lib/modules/${KERNEL_FULL_VERSION}/
+RUN ln -s /lib/modules/${KERNEL_FULL_VERSION}/kernel /opt/lib/modules/${KERNEL_FULL_VERSION}/kernel
+RUN mkdir -p /firmwareDir/updates/amdgpu
+COPY --from=builder /lib/firmware/updates/amdgpu /firmwareDir/updates/amdgpu

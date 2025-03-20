@@ -48,15 +48,15 @@ Not Applicable as this is the initial release.
 
 - **GPU Workload Scheduling**
   - *Custom Resource Allocation "amd.com/gpu":* After the deployment of the GPU Operator a new custom resource allocation will be present on each GPU node, `amd.com/gpu`, which will list the allocatable GPU resources on the node for which GPU workloads can be scheduled against
-  - *Assign Multiple GPUs:* Users can easily specify the number of AMD GPUs required by each workload in the [deployment/pod spec](https://dcgpu.docs.amd.com/projects/gpu-operator/en/release-v1.0.0/usage.html#creating-a-gpu-enabled-pod) and the Kubernetes scheduler wiill automatically take care of assigning the correct GPU resources
+  - *Assign Multiple GPUs:* Users can easily specify the number of AMD GPUs required by each workload in the [deployment/pod spec](https://instinct.docs.amd.com/projects/gpu-operator/en/release-v1.0.0/usage.html#creating-a-gpu-enabled-pod) and the Kubernetes scheduler wiill automatically take care of assigning the correct GPU resources
 
 - **Metrics Monitoring for GPUs and Workloads**:
   - *Out-of-box Metrics:* Users can optionally enable the AMD Device Metrics Exporter when installing the AMD GPU Operator to enable a robust out-of-box monitoring solution for prometheus to consume
-  - *Custom Metrics Configurations:* Users can utilize a [configmap](https://dcgpu.docs.amd.com/projects/gpu-operator/en/release-v1.0.0/metrics/exporter.html#configure-metrics-exporter) to customize the configuration and behavior of Device Metrics Exporter
+  - *Custom Metrics Configurations:* Users can utilize a [configmap](https://instinct.docs.amd.com/projects/gpu-operator/en/release-v1.0.0/metrics/exporter.html#configure-metrics-exporter) to customize the configuration and behavior of Device Metrics Exporter
 
 - **Specialized Network Setups**:
-  - *Air-gapped Installation:* Users can install the GPU Operator in a secure [air-gapped environment](https://dcgpu.docs.amd.com/projects/gpu-operator/en/release-v1.0.0/specialized_networks/airgapped-install.html) where the Kubernetes cluster has no external network connectivity
-  - *HTTP Proxy Support:* The AMD GPU Operator supports usage within a Kubernetes cluster that is behind an [HTTP Proxy](https://dcgpu.docs.amd.com/projects/gpu-operator/en/release-v1.0.0/specialized_networks/http-proxy.html). Support for HTTPS Proxy will be added in a future version of the GPU Operator.
+  - *Air-gapped Installation:* Users can install the GPU Operator in a secure [air-gapped environment](https://instinct.docs.amd.com/projects/gpu-operator/en/release-v1.0.0/specialized_networks/airgapped-install.html) where the Kubernetes cluster has no external network connectivity
+  - *HTTP Proxy Support:* The AMD GPU Operator supports usage within a Kubernetes cluster that is behind a [HTTP Proxy](https://instinct.docs.amd.com/projects/gpu-operator/en/release-v1.0.0/specialized_networks/http-proxy.html). Support for HTTPS Proxy will be added in a future version of the GPU Operator.
 
 ## Known Limitations
 
@@ -73,11 +73,11 @@ Not Applicable as this is the initial release.
 3. **GPU Operator unable to install amdgpu driver if existing driver is already installed**
    - *Impact:* Driver install will fail if amdgpu in-box Driver is present/already installed
    - *Affected Configurations:* All configurations
-   - *Workaround:* When installing the amdgpu drivers using the GPU Operator, worker nodes should have amdgpu blacklisted or amdgpu drivers should not be pre-installed on the node. [Blacklist in-box driver](https://dcgpu.docs.amd.com/projects/gpu-operator/en/release-v1.0.0/drivers/installation.html#blacklist-inbox-driver) so that it is not loaded or remove the pre-installed driver
+   - *Workaround:* When installing the amdgpu drivers using the GPU Operator, worker nodes should have amdgpu blacklisted or amdgpu drivers should not be pre-installed on the node. [Blacklist in-box driver](https://instinct.docs.amd.com/projects/gpu-operator/en/release-v1.0.0/drivers/installation.html#blacklist-inbox-driver) so that it is not loaded or remove the pre-installed driver
 
 4. **When GPU Operator is used in SKIP driver install mode, if amdgpu module is removed with device plugin installed it will not reflect active GPU available on the server**
    - *Impact:* Scheduling Workloads will have impact as it will scheduled on nodes which does have active GPU.
-   - *Affected Configurations:* All configurations
+   - *Affectioned Configurations:* All configurations
    - *Workaround:* Restart the Device plugin pod deployed.
 
 5. **Worker nodes where Kernel needs to be upgraded needs to taken out of the cluster and readded with Operator installed**

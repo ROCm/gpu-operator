@@ -34,7 +34,7 @@ data:
           "PCIE_NAC_RECEIVED_COUNT",
           "GPU_CLOCK",
           "GPU_POWER_USAGE",
-          "GPU_TOTAL_VRAM",
+          "GPU_TOTAL_MEMORY",
           "GPU_ECC_CORRECT_TOTAL",
           "GPU_ECC_UNCORRECT_TOTAL",
           "GPU_ECC_CORRECT_SDMA",
