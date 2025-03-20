@@ -101,6 +101,9 @@ testRunner:
 configManager:
   serviceAccount:
     annotations: {}
+utilsContainer:
+  serviceAccount:
+    annotations: {}
 global:
   proxy:
     env: {}

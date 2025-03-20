@@ -61,6 +61,7 @@ import (
 
 const (
 	defaultUtilsImage = "docker.io/rocm/gpu-operator-utils:latest"
+	defaultSAName     = "amd-gpu-operator-utils-container"
 )
 
 type upgradeMgr struct {
@@ -976,6 +977,7 @@ func (h *upgradeMgrHelper) getRebootPod(nodeName string, dc *amdv1alpha1.DeviceC
 	nodeSelector := map[string]string{}
 	nodeSelector["kubernetes.io/hostname"] = nodeName
 	utilsImage := defaultUtilsImage
+	serviceaccount := defaultSAName
 	if dc.Spec.CommonConfig.UtilsContainer.Image != "" {
 		utilsImage = dc.Spec.CommonConfig.UtilsContainer.Image
 	}
@@ -989,11 +991,12 @@ func (h *upgradeMgrHelper) getRebootPod(nodeName string, dc *amdv1alpha1.DeviceC
 			Namespace: dc.Namespace,
 		},
 		Spec: v1.PodSpec{
-			HostPID:          true,
-			HostNetwork:      true,
-			RestartPolicy:    v1.RestartPolicyNever,
-			NodeSelector:     nodeSelector,
-			ImagePullSecrets: imagePullSecrets,
+			ServiceAccountName: serviceaccount,
+			HostPID:            true,
+			HostNetwork:        true,
+			RestartPolicy:      v1.RestartPolicyNever,
+			NodeSelector:       nodeSelector,
+			ImagePullSecrets:   imagePullSecrets,
 			Containers: []v1.Container{
 				{
 					Name:            "reboot-container",
