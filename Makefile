@@ -417,12 +417,12 @@ kustomize:
 # go-get-tool will 'go install' any package $2 and install it to $1.
 PROJECT_DIR := $(shell dirname $(abspath $(lastword $(MAKEFILE_LIST))))
 define go-get-tool
-    @if [ -z "$$GOBIN" ]; then \
+    if [ -z "$$GOBIN" ]; then \
         GOBIN=$$(go env GOPATH)/bin; \
     else \
         GOBIN=$$GOBIN; \
     fi; \
-    @[ -f $(1) ] || { \
+    [ -f $(1) ] || { \
     set -e; \
     echo "Downloading $(2)"; \
     echo "Running: GOBIN=$(PROJECT_DIR)/bin go install $(2)"; \
