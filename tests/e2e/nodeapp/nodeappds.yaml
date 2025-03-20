@@ -1,0 +1,34 @@
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: e2e-nodeapp-ds
+spec:
+  selector:
+    matchLabels:
+      name: e2e-nodeapp-ds
+  template:
+    metadata:
+      labels:
+        name: e2e-nodeapp-ds
+    spec:
+      containers:
+      - name: e2e-nodeapp-container
+        image: registry.test.pensando.io:5000/nodeapp:dev
+        imagePullPolicy: Always
+        lifecycle:
+          preStop:
+            exec:
+              command: ["./docker-exitpoint.sh"]
+        env:
+        - name: NODE_IP
+          valueFrom:
+            fieldRef:
+              fieldPath: status.hostIP
+        volumeMounts:
+        - name: ssh-volume
+          mountPath: /root/.ssh
+      volumes:
+      - name: ssh-volume
+        hostPath:
+          path: /root/.ssh
+          type: Directory

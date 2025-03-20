@@ -50,6 +50,7 @@ subtrees:
       - file: specialized_networks/http-proxy
   - caption: Contributing
     entries:
+      - file: contributing/developer-guide
       - file: contributing/documentation-build-guide
       - file: contributing/documentation-standards
 

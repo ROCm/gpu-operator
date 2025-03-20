@@ -1,0 +1,9 @@
+dependencies:
+- name: node-feature-discovery
+  repository: https://kubernetes-sigs.github.io/node-feature-discovery/charts
+  version: 0.15.4
+- name: kmm
+  repository: file://./charts/kmm
+  version: v0.9.9
+digest: sha256:efdc2804efc4de9641fede6a13e939e47ff4f5a16faeaac38793f2bad85f236a
+generated: "2025-01-15T18:29:10.952312922Z"

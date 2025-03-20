@@ -1,0 +1,50 @@
+{{- if .Values.installdefaultNFDRule }}
+apiVersion: nfd.k8s-sigs.io/v1alpha1
+kind: NodeFeatureRule
+metadata:
+  name: amd-gpu-label-nfd-rule
+  # the PCI info is from these websites:
+  # source1: https://admin.pci-ids.ucw.cz/read/PC/1002
+  # source2: https://devicehunt.com/view/type/pci/vendor/1002
+spec:
+  rules:
+  - name: amd-gpu
+    labels:
+      feature.node.kubernetes.io/amd-gpu: "true"
+    matchAny:
+      - matchFeatures:
+          - feature: pci.device
+            matchExpressions:
+              vendor: {op: In, value: ["1002"]}
+              device: {op: In, value: ["74a0"]} # MI300A
+      - matchFeatures:
+          - feature: pci.device
+            matchExpressions:
+              vendor: {op: In, value: ["1002"]}
+              device: {op: In, value: ["74a1"]} # MI300X
+      - matchFeatures:
+          - feature: pci.device
+            matchExpressions:
+              vendor: {op: In, value: ["1002"]}
+              device: {op: In, value: ["740f"]} # MI210
+      - matchFeatures:
+          - feature: pci.device
+            matchExpressions:
+              vendor: {op: In, value: ["1002"]}
+              device: {op: In, value: ["7408"]} # MI250X
+      - matchFeatures:
+          - feature: pci.device
+            matchExpressions:
+              vendor: {op: In, value: ["1002"]}
+              device: {op: In, value: ["740c"]} # MI250/MI250X
+      - matchFeatures:
+          - feature: pci.device
+            matchExpressions:
+              vendor: {op: In, value: ["1002"]}
+              device: {op: In, value: ["738c"]} # MI100
+      - matchFeatures:
+          - feature: pci.device
+            matchExpressions:
+              vendor: {op: In, value: ["1002"]}
+              device: {op: In, value: ["738e"]} # MI100
+{{- end }}

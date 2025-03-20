@@ -1,0 +1,97 @@
+# NFD related configs
+node-feature-discovery:
+  # -- Set to true/false to enable/disable the installation of node feature discovery (NFD) operator
+  enabled: true
+
+# KMM related configs
+kmm:
+  # -- Set to true/false to enable/disable the installation of kernel module management (KMM) operator
+  enabled: true
+
+# -- Default NFD rule will detect amd gpu based on pci vendor ID
+installdefaultNFDRule: true
+
+# -- CRD will be patched as pre-upgrade/pre-rollback hook when doing helm upgrade/rollback to current helm chart
+upgradeCRD: true
+
+# AMD GPU operator controller related configs
+controllerManager:
+  manager:
+    args:
+    - --config=controller_manager_config.yaml
+    containerSecurityContext:
+      allowPrivilegeEscalation: false
+    image:
+      # -- AMD GPU operator controller manager image repository
+      repository: docker.io/rocm/gpu-operator
+      # -- AMD GPU operator controller manager image tag
+      tag: v1.2.0
+    # -- Image pull policy for AMD GPU operator controller manager pod
+    imagePullPolicy: Always
+    # -- Image pull secret name for pulling AMD GPU operator controller manager image if registry needs credential to pull image
+    imagePullSecrets: ""
+    tolerations:
+    - key: "node-role.kubernetes.io/master"
+      operator: "Equal"
+      value: ""
+      effect: "NoSchedule"
+    - key: "node-role.kubernetes.io/control-plane"
+      operator: "Equal"
+      value: ""
+      effect: "NoSchedule"
+    resources:
+      limits:
+        cpu: 500m
+        memory: 384Mi
+      requests:
+        cpu: 10m
+        memory: 64Mi
+  # -- Node selector for AMD GPU operator controller manager deployment
+  nodeSelector: {}
+  # -- Deployment affinity configs for controller manager
+  affinity:
+    nodeAffinity:
+      preferredDuringSchedulingIgnoredDuringExecution:
+        - weight: 1
+          preference:
+            matchExpressions:
+              - key: node-role.kubernetes.io/control-plane
+                operator: Exists
+  replicas: 1
+  serviceAccount:
+    annotations: {}
+  env:
+    simEnable: false
+kmmDevicePlugin:
+  serviceAccount:
+    annotations: {}
+kmmModuleLoader:
+  serviceAccount:
+    annotations: {}
+kubernetesClusterDomain: cluster.local
+managerConfig:
+  controllerManagerConfigYaml: |-
+    healthProbeBindAddress: :8081
+    metricsBindAddress: 127.0.0.1:8080
+    leaderElection:
+      enabled: true
+      resourceID: gpu.amd.com
+metricsService:
+  ports:
+  - name: https
+    port: 8443
+    protocol: TCP
+    targetPort: https
+  type: ClusterIP
+nodeLabeller:
+  serviceAccount:
+    annotations: {}
+metricsExporter:
+  serviceAccount:
+    annotations: {}
+testRunner:
+  serviceAccount:
+    annotations: {}
+global:
+  proxy:
+    env: {}

@@ -1,0 +1,91 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: pytorch-resnet50-cifar100
+  labels:
+    purpose: demo-pytorch-amdgpu
+spec:
+  containers:
+    - name: pytorch-resnet50-cifar100
+      image: rocm/pytorch:latest
+      workingDir: /root
+      command: ["python3", "-c"]
+      args:
+        - |
+          import torch
+          import torch.nn as nn
+          import torch.optim as optim
+          import torchvision.transforms as transforms
+          import torchvision.datasets as datasets
+          import torchvision.models as models
+          import time
+          import os
+          
+          # Define the ResNet-50 model
+          class ResNet50(nn.Module):
+              def __init__(self):
+                  super(ResNet50, self).__init__()
+                  self.model = models.resnet50(pretrained=False)
+                  self.model.fc = nn.Linear(self.model.fc.in_features, 100)  # Adjust for CIFAR-100
+          
+              def forward(self, x):
+                  return self.model(x)
+          
+          def download_dataset():
+              # Create the directory if it doesn't exist
+              dataset_path = '/path/to/imagenet/train'
+              os.makedirs(dataset_path, exist_ok=True)
+          
+              # Download CIFAR-100 dataset
+              transform = transforms.Compose([
+                  transforms.Resize(256),
+                  transforms.CenterCrop(224),
+                  transforms.ToTensor(),
+                  transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
+              ])
+          
+              train_dataset = datasets.CIFAR100(root=dataset_path, train=True, download=True, transform=transform)
+              train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=16, shuffle=True, num_workers=1)
+          
+              return train_loader
+          
+          def run_workload():
+              if torch.cuda.is_available():
+                  device = torch.device('cuda:0')
+                  print('Using ROCm GPU:', torch.cuda.get_device_name(0))
+              else:
+                  print('ROCm GPU not available')
+                  return
+          
+              train_loader = download_dataset()
+          
+              model = ResNet50().to(device)
+              criterion = nn.CrossEntropyLoss()
+              optimizer = optim.SGD(model.parameters(), lr=0.001, momentum=0.9)
+          
+              model.train()
+              for epoch in range(1):  # Adjust the number of epochs as needed
+                  running_loss = 0.0
+                  for i, (inputs, targets) in enumerate(train_loader):
+                      inputs, targets = inputs.to(device), targets.to(device)
+          
+                      optimizer.zero_grad()
+                      outputs = model(inputs)
+                      loss = criterion(outputs, targets)
+                      loss.backward()
+                      optimizer.step()
+          
+                      running_loss += loss.item()
+                      if i % 100 == 99:  # Print every 100 mini-batches
+                          print(f'Epoch [{epoch+1}], Batch [{i+1}], Loss: {running_loss / 100:.4f}')
+                          running_loss = 0.0
+          
+              print('Training completed')
+          
+          if __name__ == '__main__':
+              while True:
+                  run_workload()
+                  time.sleep(5)
+      resources:
+        limits:
+          amd.com/gpu: 1

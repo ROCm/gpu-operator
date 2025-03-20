@@ -1,0 +1,29 @@
+#!/usr/bin/env bash
+
+set -euxo pipefail
+
+: "$BUNDLE_GEN_FLAGS"
+: "${MANIFESTS_DIR:=config/manifests}"
+: "$OPERATOR_SDK"
+: "$PKG"
+: "$SOURCE_DIR"
+: "${SUFFIX:=}"
+
+readonly BUNDLE_DIR="bundle${SUFFIX}"
+
+DIR=$(mktemp -d)
+readonly DIR
+
+cd "$DIR"
+
+cp -r "${SOURCE_DIR}config" "${SOURCE_DIR}PROJECT" "$DIR"
+
+${KUBECTL_CMD} kustomize "$MANIFESTS_DIR" | "$OPERATOR_SDK" generate bundle \
+  --output-dir "$BUNDLE_DIR" \
+  --package "$PKG" \
+  $BUNDLE_GEN_FLAGS
+
+mv "$BUNDLE_DIR" "$SOURCE_DIR/$BUNDLE_DIR"
+mv bundle.Dockerfile "$SOURCE_DIR/bundle${SUFFIX}.Dockerfile"
+
+rm -fr "$DIR"

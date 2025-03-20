@@ -1,0 +1,18 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "kmm.fullname" . }}-webhook-service
+  labels:
+    app.kubernetes.io/component: kmm
+    app.kubernetes.io/created-by: kernel-module-management
+    app.kubernetes.io/part-of: kmm
+  {{- include "kmm.labels" . | nindent 4 }}
+spec:
+  type: {{ .Values.webhookService.type }}
+  selector:
+    app.kubernetes.io/component: kmm
+    app.kubernetes.io/part-of: kmm
+    control-plane: webhook-server
+  {{- include "kmm.selectorLabels" . | nindent 4 }}
+  ports:
+	{{- .Values.webhookService.ports | toYaml | nindent 2 }}
