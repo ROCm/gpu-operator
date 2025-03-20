@@ -44,7 +44,7 @@ spec:
      nodePort: 32500
 
      # exporter image
-     image: docker.io/rocm/amd/exporter:v1
+     image: docker.io/rocm/device-metrics-exporter:v1.0.0
 
      # metrics config in configmap
      config:

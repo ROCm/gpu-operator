@@ -1,6 +1,6 @@
 # Documentation Build Guide
 
-This guide provides information for developers who want to contribute to the AMD GPU Operator documentation available at https://dcgpu.docs.amd.com/projects/gpu-operator. The docs use [rocm-docs-core](https://github.com/ROCm/rocm-docs-core) as their base and the below guide will show how you can build and serve the docs locally for testing.
+This guide provides information for developers who want to contribute to the AMD GPU Operator documentation available at https://instinct.docs.amd.com/projects/gpu-operator. The docs use [rocm-docs-core](https://github.com/ROCm/rocm-docs-core) as their base and the below guide will show how you can build and serve the docs locally for testing.
 
 ## Building and Serving the Docs
 

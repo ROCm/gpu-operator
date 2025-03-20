@@ -1,0 +1,63 @@
+node-feature-discovery:
+  enabled: true  # Set to false to disable node-feature-discovery
+kmm:
+  enabled: true  # Set to false to disable kmm
+installdefaultNFDRule: true # default NFD rule will detect amd gpu based on pci vendor ID
+controllerManager:
+  manager:
+    args:
+    - --config=controller_manager_config.yaml
+    containerSecurityContext:
+      allowPrivilegeEscalation: false
+    image:
+      repository: docker.io/rocm/gpu-operator
+      tag: v1.0.0
+    imagePullPolicy: Always
+    imagePullSecrets: ""
+    resources:
+      limits:
+        cpu: 500m
+        memory: 384Mi
+      requests:
+        cpu: 10m
+        memory: 64Mi
+  nodeSelector: {}
+  nodeAffinity:
+    nodeSelectorTerms:
+      - key: node-role.kubernetes.io/control-plane
+        operator: Exists
+      - key: node-role.kubernetes.io/master
+        operator: Exists
+  replicas: 1
+  serviceAccount:
+    annotations: {}
+kmmDevicePlugin:
+  serviceAccount:
+    annotations: {}
+kmmModuleLoader:
+  serviceAccount:
+    annotations: {}
+kubernetesClusterDomain: cluster.local
+managerConfig:
+  controllerManagerConfigYaml: |-
+    healthProbeBindAddress: :8081
+    metricsBindAddress: 127.0.0.1:8080
+    leaderElection:
+      enabled: true
+      resourceID: gpu.amd.com
+metricsService:
+  ports:
+  - name: https
+    port: 8443
+    protocol: TCP
+    targetPort: https
+  type: ClusterIP
+nodeLabeller:
+  serviceAccount:
+    annotations: {}
+metricsExporter:
+  serviceAccount:
+    annotations: {}
+global:
+  proxy:
+    env: {}
