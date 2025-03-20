@@ -55,6 +55,7 @@ The operator uses specific tag formats based on the OS:
 | OS | Tag Format | Example |
 |----|------------|---------|
 | Ubuntu | `ubuntu-<version>-<kernel>-<driver>` | `ubuntu-22.04-6.8.0-40-generic-6.1.3` |
+| RHEL CoreOS | `coreos-<version>-<kernel>-<driver>` | `coreos-416.94-5.14.0-427.28.1.el9_4.x86_64-6.2.2` |
 
 > **Warning**: If a node's ready status changes during upgrade (Ready → NotReady → Ready) before its driver version label is updated, the old driver won't be reinstalled. Complete the upgrade steps for these nodes to install the new driver.
 

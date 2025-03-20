@@ -121,7 +121,7 @@ Below is an example of a full DeviceConfig CR that can be used to install the AM
           secret:
             name: my-kube-rbac-proxy-cert
         # If specifying a node selector here, the metrics exporter will only be deployed on nodes that match the selector
-        # See Item #6 on https://dcgpu.docs.amd.com/projects/gpu-operator/en/latest/knownlimitations.html for example usage
+        # See Item #6 on https://instinct.docs.amd.com/projects/gpu-operator/en/latest/knownlimitations.html for example usage
         selector:   
           feature.node.kubernetes.io/amd-gpu: "true" # You must include this again as this selector will overwrite the global selector
           amd.com/device-metrics-exporter: "true" # Helpful for when you want to disable the metrics exporter on specific nodes 

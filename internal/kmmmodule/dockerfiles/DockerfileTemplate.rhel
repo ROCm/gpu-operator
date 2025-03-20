@@ -1,0 +1,51 @@
+FROM redhat/ubi$$MAJOR_VERSION as builder
+
+ARG KERNEL_FULL_VERSION
+
+ARG DRIVERS_VERSION
+
+ARG REPO_URL
+
+RUN yum update -y
+
+RUN subscription-manager register --username $$REDHAT_SUBSCRIPTION_USERNAME --password $$REDHAT_SUBSCRIPTION_PASSWORD; exit 0
+RUN cat /var/log/rhsm/rhsm.log && \
+    echo "[amdgpu]" > /etc/yum.repos.d/amdgpu.repo && \
+    echo "name=amdgpu" >> /etc/yum.repos.d/amdgpu.repo && \
+    echo "baseurl=$REPO_URL/amdgpu/$DRIVERS_VERSION/rhel/$$VERSION/main/x86_64/" >> /etc/yum.repos.d/amdgpu.repo && \
+    echo "enabled=1" >> /etc/yum.repos.d/amdgpu.repo && \
+    echo "priority=50" >> /etc/yum.repos.d/amdgpu.repo && \
+    echo "gpgcheck=1" >> /etc/yum.repos.d/amdgpu.repo && \
+    echo "gpgkey=$REPO_URL/rocm/rocm.gpg.key" >> /etc/yum.repos.d/amdgpu.repo
+
+RUN dnf clean all && \
+    dnf install -y "kernel-headers-$KERNEL_FULL_VERSION" "kernel-devel-$KERNEL_FULL_VERSION" "kernel-modules-extra-$KERNEL_FULL_VERSION" && \
+    dnf install -y amdgpu-dkms && \
+    rm -f /lib/modules/${KERNEL_VERSION}/kernel/drivers/gpu/drm/amd/amdgpu/amdgpu.ko.xz
+
+RUN depmod ${KERNEL_VERSION}
+
+FROM redhat/ubi$$MAJOR_VERSION
+
+ARG KERNEL_FULL_VERSION
+
+RUN yum update -y
+
+RUN yum install -y kmod
+RUN mkdir -p /opt/lib/modules/${KERNEL_FULL_VERSION}/extra
+
+COPY --from=builder /lib/modules/${KERNEL_FULL_VERSION}/extra/amdgpu.ko.xz /opt/lib/modules/${KERNEL_FULL_VERSION}/extra/amdgpu.ko.xz
+COPY --from=builder /lib/modules/${KERNEL_FULL_VERSION}/extra/amdttm.ko.xz /opt/lib/modules/${KERNEL_FULL_VERSION}/extra/amdttm.ko.xz
+COPY --from=builder /lib/modules/${KERNEL_FULL_VERSION}/extra/amdkcl.ko.xz /opt/lib/modules/${KERNEL_FULL_VERSION}/extra/amdkcl.ko.xz
+COPY --from=builder /lib/modules/${KERNEL_FULL_VERSION}/extra/amd-sched.ko.xz /opt/lib/modules/${KERNEL_FULL_VERSION}/extra/amd-sched.ko.xz
+COPY --from=builder /lib/modules/${KERNEL_FULL_VERSION}/extra/amddrm_ttm_helper.ko.xz /opt/lib/modules/${KERNEL_FULL_VERSION}/extra/amddrm_ttm_helper.ko.xz
+COPY --from=builder /lib/modules/${KERNEL_FULL_VERSION}/extra/amddrm_buddy.ko.xz /opt/lib/modules/${KERNEL_FULL_VERSION}/extra/amddrm_buddy.ko.xz
+COPY --from=builder /lib/modules/${KERNEL_FULL_VERSION}/extra/amdxcp.ko.xz /opt/lib/modules/${KERNEL_FULL_VERSION}/extra/amdxcp.ko.xz
+COPY --from=builder /lib/modules/${KERNEL_FULL_VERSION}/extra/amdxcp.ko.xz /opt/lib/modules/${KERNEL_FULL_VERSION}/extra/amdxcp.ko.xz
+
+COPY --from=builder /lib/modules/${KERNEL_FULL_VERSION}/modules.* /opt/lib/modules/${KERNEL_FULL_VERSION}/
+RUN ln -s /lib/modules/${KERNEL_FULL_VERSION}/kernel /opt/lib/modules/${KERNEL_FULL_VERSION}/kernel
+
+# copy firmware
+RUN mkdir -p /firmwareDir/updates/amdgpu
+COPY --from=builder /lib/firmware/updates/amdgpu /firmwareDir/updates/amdgpu
