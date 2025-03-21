@@ -204,6 +204,13 @@ spec:
     "feature.node.kubernetes.io/amd-gpu": "true"
 ```
 
+Things to note:
+1. By default, there is no need to specify the image field in CR for Openshift. Default will be used which is: image-registry.openshift-image-registry.svc:5000/$MOD_NAMESPACE/amdgpu_kmod
+
+2. If users specify image, $MOD_NAMESPACE can be a place holder , KMM Operator can automatically translate it to the namespace
+
+3. Openshift internal registry has image url restriction, OpenShift users cannot use image like `<registry URL>/<repo name>` , it requires the image URL to be `<registry URL>/<project name or namespace>/<repo name>`. However, if any other registry is being used by the user, the image URL can be of either form.
+
 The operator will:
 
 1. Collect worker node system specifications
