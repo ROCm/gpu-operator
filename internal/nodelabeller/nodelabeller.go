@@ -42,9 +42,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/intstr"
-	"k8s.io/client-go/discovery"
 	"k8s.io/utils/pointer"
-	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 )
 
@@ -66,24 +64,11 @@ type nodeLabeller struct {
 	isOpenShift bool
 }
 
-func NewNodeLabeller(scheme *runtime.Scheme) NodeLabeller {
+func NewNodeLabeller(scheme *runtime.Scheme, isOpenshift bool) NodeLabeller {
 	return &nodeLabeller{
 		scheme:      scheme,
-		isOpenShift: isOpenshift(),
+		isOpenShift: isOpenshift,
 	}
-}
-
-func isOpenshift() bool {
-	if dc, err := discovery.NewDiscoveryClientForConfig(ctrl.GetConfigOrDie()); err == nil {
-		if gplist, err := dc.ServerGroups(); err == nil {
-			for _, gp := range gplist.Groups {
-				if gp.Name == "route.openshift.io" {
-					return true
-				}
-			}
-		}
-	}
-	return false
 }
 
 func (nl *nodeLabeller) SetNodeLabellerAsDesired(ds *appsv1.DaemonSet, devConfig *amdv1alpha1.DeviceConfig) error {
