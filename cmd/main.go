@@ -50,6 +50,7 @@ import (
 	_ "k8s.io/client-go/plugin/pkg/client/auth"
 
 	gpuev1alpha1 "github.com/ROCm/gpu-operator/api/v1alpha1"
+	utils "github.com/ROCm/gpu-operator/internal"
 	"github.com/ROCm/gpu-operator/internal/cmd"
 	"github.com/ROCm/gpu-operator/internal/config"
 	"github.com/ROCm/gpu-operator/internal/controllers"
@@ -106,8 +107,9 @@ func main() {
 	}
 
 	client := mgr.GetClient()
-	kmmHandler := kmmmodule.NewKMMModule(client, scheme)
-	nlHandler := nodelabeller.NewNodeLabeller(scheme)
+	isOpenShift := utils.IsOpenShift(setupLogger)
+	kmmHandler := kmmmodule.NewKMMModule(client, scheme, isOpenShift)
+	nlHandler := nodelabeller.NewNodeLabeller(scheme, isOpenShift)
 	metricsHandler := metricsexporter.NewMetricsExporter(scheme)
 	testrunnerHandler := testrunner.NewTestRunner(scheme)
 	dcr := controllers.NewDeviceConfigReconciler(
