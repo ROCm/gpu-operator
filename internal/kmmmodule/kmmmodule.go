@@ -257,8 +257,14 @@ func (km *kmmModule) SetDevicePluginAsDesired(ds *appsv1.DaemonSet, devConfig *a
 		return fmt.Errorf("daemon set is not initialized, zero pointer")
 	}
 
-	resourceNamingStrategy := devConfig.Spec.DevicePlugin.ResourceNamingStrategy
-	command := []string{"sh", "-c", fmt.Sprintf("./k8s-device-plugin -logtostderr=true -stderrthreshold=INFO -v=5 -pulse=30 -resource_naming_strategy=%s", resourceNamingStrategy)}
+	commandArgs := "./k8s-device-plugin -logtostderr=true -stderrthreshold=INFO -v=5 -pulse=30"
+
+	devicePluginArguments := devConfig.Spec.DevicePlugin.DevicePluginArguments
+	for key, val := range devicePluginArguments {
+		commandArgs += " -" + key + "=" + val
+	}
+
+	command := []string{"sh", "-c", commandArgs}
 	nodeSelector := map[string]string{}
 	for key, val := range devConfig.Spec.Selector {
 		nodeSelector[key] = val

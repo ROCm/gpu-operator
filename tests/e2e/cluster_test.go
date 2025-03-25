@@ -1877,8 +1877,8 @@ func (s *E2ESuite) TestDevicePluginNodeLabellerDaemonSetUpgrade(c *C) {
 
 	// upgrade
 	// update the CR's device plugin with image
-	devCfg.Spec.DevicePlugin.DevicePluginImage = devicePluginImage
-	devCfg.Spec.DevicePlugin.NodeLabellerImage = nodeLabellerImage
+	devCfg.Spec.DevicePlugin.DevicePluginImage = devicePluginImage2
+	devCfg.Spec.DevicePlugin.NodeLabellerImage = nodeLabellerImage2
 	s.patchDevicePluginImage(devCfg, c)
 	s.patchNodeLabellerImage(devCfg, c)
 	s.verifyDevicePluginStatus(s.ns, c, devCfg)
@@ -1911,7 +1911,7 @@ func (s *E2ESuite) TestMetricsExporterDaemonSetUpgrade(c *C) {
 
 	// upgrade
 	// update the CR's device plugin with image
-	devCfg.Spec.MetricsExporter.Image = exporterImage
+	devCfg.Spec.MetricsExporter.Image = exporterImage2
 	s.patchMetricsExporterImage(devCfg, c)
 	s.verifyDeviceConfigStatus(devCfg, c)
 	s.checkMetricsExporterStatus(devCfg, s.ns, v1.ServiceTypeClusterIP, c)
