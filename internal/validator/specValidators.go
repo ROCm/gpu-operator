@@ -21,6 +21,7 @@ import (
 	"fmt"
 
 	amdv1alpha1 "github.com/ROCm/gpu-operator/api/v1alpha1"
+	utils "github.com/ROCm/gpu-operator/internal"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
@@ -83,6 +84,30 @@ func ValidateDevicePluginSpec(ctx context.Context, client client.Client, devConf
 	if dSpec.ImageRegistrySecret != nil {
 		if err := validateSecret(ctx, client, dSpec.ImageRegistrySecret, devConfig.Namespace); err != nil {
 			return fmt.Errorf("ImageRegistrySecret: %v", err)
+		}
+	}
+
+	supportedFlagValues := map[string][]string{
+		utils.ResourceNamingStrategyFlag: {utils.SingleStrategy, utils.MixedStrategy},
+	}
+
+	devicePluginArguments := devConfig.Spec.DevicePlugin.DevicePluginArguments
+	for key, val := range devicePluginArguments {
+		validValues, validKey := supportedFlagValues[key]
+		if !validKey {
+			return fmt.Errorf("Invalid flag: %s", key)
+		}
+		validKeyValue := false
+
+		for _, validVal := range validValues {
+			if val == validVal {
+				validKeyValue = true
+				break
+			}
+		}
+
+		if !validKeyValue {
+			return fmt.Errorf("Invalid flag value: %s=%s. Supported values: %v", key, val, supportedFlagValues[key])
 		}
 	}
 
