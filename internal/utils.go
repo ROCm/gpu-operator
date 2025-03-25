@@ -32,10 +32,13 @@ import (
 )
 
 const (
-	defaultOcDriversVersion = "6.2.2"
-	openShiftNodeLabel      = "node.openshift.io/os_id"
-	NodeFeatureLabelAmdGpu  = "feature.node.kubernetes.io/amd-gpu"
-	NodeFeatureLabelAmdVGpu = "feature.node.kubernetes.io/amd-vgpu"
+	defaultOcDriversVersion    = "6.2.2"
+	openShiftNodeLabel         = "node.openshift.io/os_id"
+	NodeFeatureLabelAmdGpu     = "feature.node.kubernetes.io/amd-gpu"
+	NodeFeatureLabelAmdVGpu    = "feature.node.kubernetes.io/amd-vgpu"
+	ResourceNamingStrategyFlag = "resource_naming_strategy"
+	SingleStrategy             = "single"
+	MixedStrategy              = "mixed"
 )
 
 func GetDriverVersion(node v1.Node, deviceConfig amdv1alpha1.DeviceConfig) (string, error) {
