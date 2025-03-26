@@ -89,7 +89,9 @@ type DriverSpec struct {
 	// +kubebuilder:default=true
 	Enable *bool `json:"enable,omitempty"`
 
-	// blacklist amdgpu drivers on the host
+	// blacklist amdgpu drivers on the host. Node reboot is required to apply the baclklist on the worker nodes.
+	// Not working for OpenShift cluster. OpenShift users please use the Machine Config Operator (MCO) resource to configure amdgpu blacklist.
+	// Example MCO resource is available at https://instinct.docs.amd.com/projects/gpu-operator/en/latest/installation/openshift-olm.html#create-blacklist-for-installing-out-of-tree-kernel-module
 	//+operator-sdk:csv:customresourcedefinitions:type=spec,displayName="BlacklistDrivers",xDescriptors={"urn:alm:descriptor:com.amd.deviceconfigs:blacklistDrivers"}
 	Blacklist *bool `json:"blacklist,omitempty"`
 
