@@ -187,6 +187,11 @@ func (n *upgradeMgr) HandleUpgrade(ctx context.Context, deviceConfig *amdv1alpha
 			continue
 		}
 
+		if !n.helper.isNodeReadyForUpgrade(ctx, &nodeList.Items[i]) {
+			res = ctrl.Result{Requeue: true, RequeueAfter: time.Second * 20}
+			continue
+		}
+
 		//This node is a candidate for selection
 		candidateNodes = append(candidateNodes, nodeList.Items[i])
 	}
