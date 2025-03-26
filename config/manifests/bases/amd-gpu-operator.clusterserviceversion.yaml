@@ -200,7 +200,10 @@ spec:
         path: driver.amdgpuInstallerRepoURL
         x-descriptors:
         - urn:alm:descriptor:com.amd.deviceconfigs:amdgpuInstallerRepoURL
-      - description: blacklist amdgpu drivers on the host
+      - description: blacklist amdgpu drivers on the host. Node reboot is required
+          to apply the baclklist on the worker nodes. Not working for OpenShift cluster.
+          OpenShift users please use the Machine Config Operator (MCO) resource to
+          configure amdgpu blacklist. Example MCO resource is available at https://instinct.docs.amd.com/projects/gpu-operator/en/latest/installation/openshift-olm.html#create-blacklist-for-installing-out-of-tree-kernel-module
         displayName: BlacklistDrivers
         path: driver.blacklist
         x-descriptors:
