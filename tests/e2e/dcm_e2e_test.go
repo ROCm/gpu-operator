@@ -72,7 +72,7 @@ func (s *E2ESuite) addRemoveNodeLabels(nodeName string, selectedProfile string) 
 		logger.Infof("Error adding node lbels: %s\n", err.Error())
 		return
 	}
-	time.Sleep(15 * time.Second)
+	time.Sleep(45 * time.Second)
 	// Allow partition to happen
 	err = utils.DeleteNodeLabel(s.clientSet, nodeName, "dcm.amd.com/gpu-config-profile")
 	_ = utils.DeleteNodeLabel(s.clientSet, nodeName, "dcm.amd.com/apply-gpu-config-profile")
@@ -269,6 +269,7 @@ func (s *E2ESuite) createConfigMap() GPUConfigProfiles {
 		{
 			ComputePartition: "CPX",
 			MemoryPartition:  "NPS4",
+			NumGPUsAssigned:  1,
 		},
 	}
 
