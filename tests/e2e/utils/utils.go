@@ -598,14 +598,6 @@ func GetWorkerNodes(cl *kubernetes.Clientset) []*v1.Node {
 func GetAMDGpuWorker(cl *kubernetes.Clientset, isOpenshift bool) []v1.Node {
 	ret := make([]v1.Node, 0)
 	labelSelector := labels.NewSelector()
-	if !isOpenshift {
-		r, _ := labels.NewRequirement(
-			"node-role.kubernetes.io/control-plane",
-			selection.DoesNotExist,
-			nil,
-		)
-		labelSelector = labelSelector.Add(*r)
-	}
 	r, _ := labels.NewRequirement(
 		"feature.node.kubernetes.io/amd-gpu",
 		selection.Equals,
@@ -766,7 +758,7 @@ func DelRocmPodsByNodeNames(ctx context.Context, cl *kubernetes.Clientset,
 
 }
 
-func GetAMDGPUCount(ctx context.Context, cl *kubernetes.Clientset) (map[string]int, error) {
+func GetAMDGPUCount(ctx context.Context, cl *kubernetes.Clientset, resourceType string) (map[string]int, error) {
 
 	ret := make(map[string]int)
 	// Get the list of nodes
@@ -777,7 +769,8 @@ func GetAMDGPUCount(ctx context.Context, cl *kubernetes.Clientset) (map[string]i
 
 	// Iterate over the nodes and count AMD GPUs
 	for _, node := range nodes.Items {
-		if val, ok := node.Status.Capacity["amd.com/gpu"]; ok {
+		resourceKey := v1.ResourceName("amd.com/" + resourceType)
+		if val, ok := node.Status.Capacity[resourceKey]; ok {
 			num, err := strconv.ParseInt(val.String(), 10, 64)
 			if err != nil {
 				log.Infof("error: %v", err)
@@ -790,7 +783,7 @@ func GetAMDGPUCount(ctx context.Context, cl *kubernetes.Clientset) (map[string]i
 }
 
 func VerifyROCMPODResourceCount(ctx context.Context, cl *kubernetes.Clientset,
-	gpuReqCount int) error {
+	gpuReqCount int, resourceType string) error {
 
 	its, err := cl.CoreV1().Pods("").List(ctx,
 		metav1.ListOptions{
@@ -805,7 +798,8 @@ func VerifyROCMPODResourceCount(ctx context.Context, cl *kubernetes.Clientset,
 				continue
 			}
 
-			if gpu, ok := cntr.Resources.Requests["amd.com/gpu"]; ok {
+			resourceKey := v1.ResourceName("amd.com/" + resourceType)
+			if gpu, ok := cntr.Resources.Requests[resourceKey]; ok {
 				gpuAssignedCount := int(gpu.Value())
 				if gpuReqCount < gpuAssignedCount {
 					return fmt.Errorf("gpu requested %d got %d",
