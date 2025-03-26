@@ -179,7 +179,7 @@ in the above example ```35824``` is the GPU's KFD ID reported by amd-smi (in roc
       "testrunner.amd.com/hostname": "leto",
       "testrunner.amd.com/recipe": "gst_single",
       "testrunner.amd.com/trigger": "auto_unhealthy_gpu_watch"
-    },
+    }
     ```
 
     * ```testrunner.amd.com/category``` is which kind of test the event is related to.
