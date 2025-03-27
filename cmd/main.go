@@ -35,9 +35,6 @@ package main
 import (
 	"flag"
 
-	"github.com/ROCm/gpu-operator/internal/configmanager"
-	"github.com/ROCm/gpu-operator/internal/metricsexporter"
-	"github.com/ROCm/gpu-operator/internal/testrunner"
 	kmmv1beta1 "github.com/rh-ecosystem-edge/kernel-module-management/api/v1beta1"
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
@@ -51,11 +48,15 @@ import (
 	_ "k8s.io/client-go/plugin/pkg/client/auth"
 
 	gpuev1alpha1 "github.com/ROCm/gpu-operator/api/v1alpha1"
+	utils "github.com/ROCm/gpu-operator/internal"
 	"github.com/ROCm/gpu-operator/internal/cmd"
 	"github.com/ROCm/gpu-operator/internal/config"
+	"github.com/ROCm/gpu-operator/internal/configmanager"
 	"github.com/ROCm/gpu-operator/internal/controllers"
 	"github.com/ROCm/gpu-operator/internal/kmmmodule"
+	"github.com/ROCm/gpu-operator/internal/metricsexporter"
 	"github.com/ROCm/gpu-operator/internal/nodelabeller"
+	"github.com/ROCm/gpu-operator/internal/testrunner"
 	//+kubebuilder:scaffold:imports
 )
 
@@ -107,8 +108,9 @@ func main() {
 	}
 
 	client := mgr.GetClient()
-	kmmHandler := kmmmodule.NewKMMModule(client, scheme)
-	nlHandler := nodelabeller.NewNodeLabeller(scheme)
+	isOpenShift := utils.IsOpenShift(setupLogger)
+	kmmHandler := kmmmodule.NewKMMModule(client, scheme, isOpenShift)
+	nlHandler := nodelabeller.NewNodeLabeller(scheme, isOpenShift)
 	metricsHandler := metricsexporter.NewMetricsExporter(scheme)
 	testrunnerHandler := testrunner.NewTestRunner(scheme)
 	configmanagerHandler := configmanager.NewConfigManager(scheme)

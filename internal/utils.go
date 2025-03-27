@@ -17,17 +17,28 @@ limitations under the License.
 package utils
 
 import (
+	"context"
 	"fmt"
 	"strings"
 
-	amdv1alpha1 "github.com/ROCm/gpu-operator/api/v1alpha1"
+	"github.com/go-logr/logr"
 	v1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/rest"
+
+	amdv1alpha1 "github.com/ROCm/gpu-operator/api/v1alpha1"
+	"github.com/ROCm/gpu-operator/internal/cmd"
 )
 
 const (
-	defaultOcDriversVersion = "6.2.2"
-	NodeFeatureLabelAmdGpu  = "feature.node.kubernetes.io/amd-gpu"
-	NodeFeatureLabelAmdVGpu = "feature.node.kubernetes.io/amd-vgpu"
+	defaultOcDriversVersion    = "6.2.2"
+	openShiftNodeLabel         = "node.openshift.io/os_id"
+	NodeFeatureLabelAmdGpu     = "feature.node.kubernetes.io/amd-gpu"
+	NodeFeatureLabelAmdVGpu    = "feature.node.kubernetes.io/amd-vgpu"
+	ResourceNamingStrategyFlag = "resource_naming_strategy"
+	SingleStrategy             = "single"
+	MixedStrategy              = "mixed"
 )
 
 func GetDriverVersion(node v1.Node, deviceConfig amdv1alpha1.DeviceConfig) (string, error) {
@@ -87,4 +98,31 @@ func HasNodeLabelKey(node v1.Node, labelKey string) bool {
 		}
 	}
 	return false
+}
+
+func IsOpenShift(logger logr.Logger) bool {
+	config, err := rest.InClusterConfig()
+	if err != nil {
+		cmd.FatalError(logger, err, "unable to get cluster config")
+	}
+	// creates the clientset
+	clientset, err := kubernetes.NewForConfig(config)
+	if err != nil {
+		cmd.FatalError(logger, err, "unable to create cluster clientset")
+	}
+	// Check for OpenShift-specific labels on nodes
+	nodes, err := clientset.CoreV1().Nodes().List(context.TODO(), metav1.ListOptions{})
+	if err != nil {
+		cmd.FatalError(logger, err, "unable to list nodes")
+	}
+
+	isOpenShift := false
+	for _, node := range nodes.Items {
+		if _, exists := node.Labels[openShiftNodeLabel]; exists {
+			isOpenShift = true
+			break
+		}
+	}
+	logger.Info(fmt.Sprintf("IsOpenShift: %+v", isOpenShift))
+	return isOpenShift
 }

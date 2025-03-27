@@ -190,6 +190,13 @@ spec:
               devicePlugin:
                 description: device plugin
                 properties:
+                  devicePluginArguments:
+                    additionalProperties:
+                      type: string
+                    description: |-
+                      device plugin arguments is used to pass supported flags and their values while starting device plugin daemonset
+                      supported flag values: {"resource_naming_strategy": {"single", "mixed"}}
+                    type: object
                   devicePluginImage:
                     description: device plugin image
                     pattern: ^([a-z0-9]+(?:[._-][a-z0-9]+)*(:[0-9]+)?)(/[a-z0-9]+(?:[._-][a-z0-9]+)*)*(?::[a-z0-9._-]+)?(?:@[a-zA-Z0-9]+:[a-f0-9]+)?$
@@ -306,13 +313,6 @@ spec:
                           type: string
                       type: object
                     type: array
-                  resourceNamingStrategy:
-                    default: single
-                    description: resource naming strategy for device plugin
-                    enum:
-                    - single
-                    - mixed
-                    type: string
                   upgradePolicy:
                     description: upgrade policy for device plugin and node labeller
                       daemons

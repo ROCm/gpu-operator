@@ -200,7 +200,7 @@ func (s *E2ESuite) createTestRunnerConfigmap(valid bool, devCfg *v1alpha1.Device
 }
 
 func (s *E2ESuite) scheduleWorkloadOnNodeWithMaxGPUs(c *C) string {
-	ret, err := utils.GetAMDGPUCount(context.TODO(), s.clientSet)
+	ret, err := utils.GetAMDGPUCount(context.TODO(), s.clientSet, "gpu")
 	if err != nil {
 		logger.Errorf("error: %v", err)
 	}
@@ -228,7 +228,7 @@ func (s *E2ESuite) scheduleWorkloadOnNodeWithMaxGPUs(c *C) string {
 
 	err = utils.DeployRocmPods(context.TODO(), s.clientSet, res)
 	assert.NoError(c, err, "failed to deploy pods")
-	err = utils.VerifyROCMPODResourceCount(context.TODO(), s.clientSet, gpuReqCount)
+	err = utils.VerifyROCMPODResourceCount(context.TODO(), s.clientSet, gpuReqCount, "gpu")
 	assert.NoError(c, err, fmt.Sprintf("%v", err))
 
 	return nodeWithMaxGPU
@@ -730,7 +730,7 @@ func (s *E2ESuite) TestTestRunnerLogsExport(c *C) {
 
 func (s *E2ESuite) getGPUNodeName() (nodeWithMaxGPU string) {
 	var maxPerNodeGPU int = 0
-	ret, err := utils.GetAMDGPUCount(context.TODO(), s.clientSet)
+	ret, err := utils.GetAMDGPUCount(context.TODO(), s.clientSet, "gpu")
 	if err != nil {
 		logger.Printf("Unable to fetch gpu nodes. Error %v", err)
 		return

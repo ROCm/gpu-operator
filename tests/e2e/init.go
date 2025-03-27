@@ -25,8 +25,11 @@ var (
 	initContainerImage     string
 	kubeRbacProxyCurlImage string
 	exporterImage          string
+	exporterImage2         string
 	devicePluginImage      string
 	nodeLabellerImage      string
+	devicePluginImage2     string
+	nodeLabellerImage2     string
 	testRunnerImage        string
 	driverImageRepo        string
 )
@@ -46,6 +49,10 @@ func init() {
 	if !ok {
 		log.Fatalf("E2E_EXPORTER_IMAGE is not defined")
 	}
+	exporterImage2, ok = os.LookupEnv("E2E_EXPORTER_IMAGE_2")
+	if !ok {
+		log.Fatalf("E2E_EXPORTER_IMAGE_2 is not defined")
+	}
 	devicePluginImage, ok = os.LookupEnv("E2E_DEVICE_PLUGIN_IMAGE")
 	if !ok {
 		log.Fatalf("E2E_DEVICE_PLUGIN_IMAGE is not defined")
@@ -53,6 +60,14 @@ func init() {
 	nodeLabellerImage, ok = os.LookupEnv("E2E_NODE_LABELLER_IMAGE")
 	if !ok {
 		log.Fatalf("E2E_NODE_LABELLER_IMAGE is not defined")
+	}
+	devicePluginImage2, ok = os.LookupEnv("E2E_DEVICE_PLUGIN_IMAGE_2")
+	if !ok {
+		log.Fatalf("E2E_DEVICE_PLUGIN_IMAGE_2 is not defined")
+	}
+	nodeLabellerImage2, ok = os.LookupEnv("E2E_NODE_LABELLER_IMAGE_2")
+	if !ok {
+		log.Fatalf("E2E_NODE_LABELLER_IMAGE_2 is not defined")
 	}
 	testRunnerImage, ok = os.LookupEnv("E2E_TEST_RUNNER_IMAGE")
 	if !ok {

@@ -151,11 +151,6 @@ func (n *upgradeMgr) HandleUpgrade(ctx context.Context, deviceConfig *amdv1alpha
 		// 1. Set init status for unprocessed nodes
 		n.helper.handleInitStatus(ctx, &nodeList.Items[i])
 
-		if !n.helper.isNodeReadyForUpgrade(ctx, &nodeList.Items[i]) {
-			res = ctrl.Result{Requeue: true, RequeueAfter: time.Second * 20}
-			continue
-		}
-
 		// 2. Handle failed nodes
 		if n.helper.isNodeStateUpgradeFailed(ctx, &nodeList.Items[i], deviceConfig) {
 			n.helper.clearUpgradeStartTime(nodeList.Items[i].Name)
@@ -190,6 +185,11 @@ func (n *upgradeMgr) HandleUpgrade(ctx context.Context, deviceConfig *amdv1alpha
 		// 7. Handle Driver Upgrade InProgress nodes
 		if n.helper.isNodeStateUpgradeInProgress(ctx, &nodeList.Items[i], deviceConfig) {
 			upgradeInProgress++
+			continue
+		}
+
+		if !n.helper.isNodeReadyForUpgrade(ctx, &nodeList.Items[i]) {
+			res = ctrl.Result{Requeue: true, RequeueAfter: time.Second * 20}
 			continue
 		}
 

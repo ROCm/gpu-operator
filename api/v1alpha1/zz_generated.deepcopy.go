@@ -267,6 +267,13 @@ func (in *DevicePluginSpec) DeepCopyInto(out *DevicePluginSpec) {
 			(*in)[i].DeepCopyInto(&(*out)[i])
 		}
 	}
+	if in.DevicePluginArguments != nil {
+		in, out := &in.DevicePluginArguments, &out.DevicePluginArguments
+		*out = make(map[string]string, len(*in))
+		for key, val := range *in {
+			(*out)[key] = val
+		}
+	}
 	if in.NodeLabellerTolerations != nil {
 		in, out := &in.NodeLabellerTolerations, &out.NodeLabellerTolerations
 		*out = make([]v1.Toleration, len(*in))

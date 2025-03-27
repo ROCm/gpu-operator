@@ -1051,7 +1051,7 @@ func (s *E2ESuite) TestWorkloadRequestedGPUs(c *C) {
 	s.verifyDeviceConfigStatus(devCfg, c)
 	s.verifyNodeGPULabel(devCfg, c)
 
-	ret, err := utils.GetAMDGPUCount(ctx, s.clientSet)
+	ret, err := utils.GetAMDGPUCount(ctx, s.clientSet, "gpu")
 	if err != nil {
 		logger.Errorf("error: %v", err)
 	}
@@ -1078,7 +1078,7 @@ func (s *E2ESuite) TestWorkloadRequestedGPUs(c *C) {
 	err = utils.DeployRocmPods(context.TODO(), s.clientSet, res)
 	assert.NoError(c, err, "failed to deploy pods")
 	s.verifyROCMPOD(true, c)
-	err = utils.VerifyROCMPODResourceCount(ctx, s.clientSet, gpuReqCount)
+	err = utils.VerifyROCMPODResourceCount(ctx, s.clientSet, gpuReqCount, "gpu")
 	assert.NoError(c, err, fmt.Sprintf("%v", err))
 
 	// delete
@@ -1090,6 +1090,244 @@ func (s *E2ESuite) TestWorkloadRequestedGPUs(c *C) {
 	nodes := utils.GetAMDGpuWorker(s.clientSet, s.openshift)
 	err = utils.HandleNodesReboot(context.TODO(), s.clientSet, nodes)
 	assert.NoError(c, err, "failed to reboot nodes")
+}
+
+func (s *E2ESuite) TestWorkloadRequestedGPUsHomogeneousSingle(c *C) {
+	if s.simEnable {
+		c.Skip("Skipping for non amd gpu testbed")
+	}
+	if !dcmImageDefined {
+		c.Skip("skip DCM test because E2E_DCM_IMAGE is not defined")
+	}
+
+	s.configMapHelper(c)
+
+	logger.Infof("Add node label after pod comes up")
+	time.Sleep(30 * time.Second)
+
+	nodes := utils.GetAMDGpuWorker(s.clientSet, s.openshift)
+	nodeNames := make([]string, 0)
+	for _, node := range nodes {
+		nodeNames = append(nodeNames, node.Name)
+	}
+	for _, nodeName := range nodeNames {
+		s.addRemoveNodeLabels(nodeName, "e2e_profile2")
+	}
+
+	logs := s.getLogs()
+	if strings.Contains(logs, "Partition completed successfully") && (!strings.Contains(logs, "ERROR")) && (s.eventHelper("SuccessfullyPartitioned", "Normal")) {
+		logger.Infof("Successfully tested homogenous default partitioning")
+	} else {
+		logger.Errorf("Failure test homogenous partitioning")
+	}
+	devCfgDcm := s.getDeviceConfigForDCM(c)
+	s.deleteDeviceConfig(devCfgDcm, c)
+
+	time.Sleep(60 * time.Second)
+
+	ctx := context.TODO()
+	logger.Infof("create %v", s.cfgName)
+	devCfg := s.getDeviceConfig(c)
+	driverEnable := false
+	devCfg.Spec.Driver.Enable = &driverEnable
+	s.createDeviceConfig(devCfg, c)
+	s.checkNFDWorkerStatus(s.ns, c, "")
+	s.checkNodeLabellerStatus(s.ns, c, devCfg)
+	s.verifyDeviceConfigStatus(devCfg, c)
+	s.verifyNodeGPULabel(devCfg, c)
+
+	ret, err := utils.GetAMDGPUCount(ctx, s.clientSet, "gpu")
+	if err != nil {
+		logger.Errorf("error: %v", err)
+	}
+	var minGPU int = 10000
+	for _, v := range ret {
+		if v < minGPU {
+			minGPU = v
+		}
+	}
+	assert.Greater(c, minGPU, 0, "did not find any server with amd gpu")
+
+	gpuLimitCount := minGPU
+	gpuReqCount := minGPU
+
+	res := &v1.ResourceRequirements{
+		Limits: v1.ResourceList{
+			"amd.com/gpu": resource.MustParse(fmt.Sprintf("%d", gpuLimitCount)),
+		},
+		Requests: v1.ResourceList{
+			"amd.com/gpu": resource.MustParse(fmt.Sprintf("%d", gpuReqCount)),
+		},
+	}
+
+	err = utils.DeployRocmPods(context.TODO(), s.clientSet, res)
+	assert.NoError(c, err, "failed to deploy pods")
+	err = utils.VerifyROCMPODResourceCount(ctx, s.clientSet, gpuReqCount, "gpu")
+	assert.NoError(c, err, fmt.Sprintf("%v", err))
+
+	// delete
+	s.deleteDeviceConfig(devCfg, c)
+
+	err = utils.DelRocmPods(context.TODO(), s.clientSet)
+	assert.NoError(c, err, "failed to remove rocm pods")
+}
+
+func (s *E2ESuite) TestWorkloadRequestedGPUsHomogeneousMixed(c *C) {
+	if s.simEnable {
+		c.Skip("Skipping for non amd gpu testbed")
+	}
+	if !dcmImageDefined {
+		c.Skip("skip DCM test because E2E_DCM_IMAGE is not defined")
+	}
+
+	s.configMapHelper(c)
+
+	logger.Infof("Add node label after pod comes up")
+	time.Sleep(30 * time.Second)
+
+	nodes := utils.GetAMDGpuWorker(s.clientSet, s.openshift)
+	nodeNames := make([]string, 0)
+	for _, node := range nodes {
+		nodeNames = append(nodeNames, node.Name)
+	}
+	for _, nodeName := range nodeNames {
+		s.addRemoveNodeLabels(nodeName, "e2e_profile2")
+	}
+
+	logs := s.getLogs()
+	if strings.Contains(logs, "Partition completed successfully") && (!strings.Contains(logs, "ERROR")) && (s.eventHelper("SuccessfullyPartitioned", "Normal")) {
+		logger.Infof("Successfully tested homogeneous partitioning")
+	} else {
+		logger.Errorf("Failure test homogeneous partitioning")
+	}
+	devCfgDcm := s.getDeviceConfigForDCM(c)
+	s.deleteDeviceConfig(devCfgDcm, c)
+	time.Sleep(60 * time.Second)
+	ctx := context.TODO()
+	logger.Infof("create %v", s.cfgName)
+	devCfg := s.getDeviceConfig(c)
+	driverEnable := false
+	devCfg.Spec.Driver.Enable = &driverEnable
+	devCfg.Spec.DevicePlugin.DevicePluginArguments = map[string]string{"resource_naming_strategy": "mixed"}
+	s.createDeviceConfig(devCfg, c)
+	s.checkNFDWorkerStatus(s.ns, c, "")
+	s.checkNodeLabellerStatus(s.ns, c, devCfg)
+	s.verifyDeviceConfigStatus(devCfg, c)
+
+	ret, err := utils.GetAMDGPUCount(ctx, s.clientSet, "cpx_nps4")
+	if err != nil {
+		logger.Errorf("error: %v", err)
+	}
+	var minGPU int = 10000
+	for _, v := range ret {
+		if v < minGPU {
+			minGPU = v
+		}
+	}
+	assert.Greater(c, minGPU, 0, "did not find any server with amd gpu")
+
+	gpuLimitCount := minGPU
+	gpuReqCount := minGPU
+
+	res := &v1.ResourceRequirements{
+		Limits: v1.ResourceList{
+			"amd.com/cpx_nps4": resource.MustParse(fmt.Sprintf("%d", gpuLimitCount)),
+		},
+		Requests: v1.ResourceList{
+			"amd.com/cpx_nps4": resource.MustParse(fmt.Sprintf("%d", gpuReqCount)),
+		},
+	}
+
+	err = utils.DeployRocmPods(context.TODO(), s.clientSet, res)
+	assert.NoError(c, err, "failed to deploy pods")
+	err = utils.VerifyROCMPODResourceCount(ctx, s.clientSet, gpuReqCount, "cpx_nps4")
+	assert.NoError(c, err, fmt.Sprintf("%v", err))
+
+	// delete
+	s.deleteDeviceConfig(devCfg, c)
+
+	err = utils.DelRocmPods(context.TODO(), s.clientSet)
+	assert.NoError(c, err, "failed to remove rocm pods")
+
+}
+
+func (s *E2ESuite) TestWorkloadRequestedGPUsHeterogeneousMixed(c *C) {
+	if s.simEnable {
+		c.Skip("Skipping for non amd gpu testbed")
+	}
+	if !dcmImageDefined {
+		c.Skip("skip DCM test because E2E_DCM_IMAGE is not defined")
+	}
+
+	s.configMapHelper(c)
+
+	logger.Infof("Add node label after pod comes up")
+	time.Sleep(30 * time.Second)
+
+	nodes := utils.GetAMDGpuWorker(s.clientSet, s.openshift)
+	nodeNames := make([]string, 0)
+	for _, node := range nodes {
+		nodeNames = append(nodeNames, node.Name)
+	}
+	for _, nodeName := range nodeNames {
+		s.addRemoveNodeLabels(nodeName, "e2e_profile1")
+	}
+
+	logs := s.getLogs()
+	if strings.Contains(logs, "Partition completed successfully") && (!strings.Contains(logs, "ERROR")) && (s.eventHelper("SuccessfullyPartitioned", "Normal")) {
+		logger.Infof("Successfully tested homogeneous partitioning")
+	} else {
+		logger.Errorf("Failure test heterogenous partitioning")
+	}
+	devCfgDcm := s.getDeviceConfigForDCM(c)
+	s.deleteDeviceConfig(devCfgDcm, c)
+	time.Sleep(60 * time.Second)
+
+	ctx := context.TODO()
+	logger.Infof("create %v", s.cfgName)
+	devCfg := s.getDeviceConfig(c)
+	driverEnable := false
+	devCfg.Spec.Driver.Enable = &driverEnable
+	devCfg.Spec.DevicePlugin.DevicePluginArguments = map[string]string{"resource_naming_strategy": "mixed"}
+	s.createDeviceConfig(devCfg, c)
+	s.checkNFDWorkerStatus(s.ns, c, "")
+	s.checkNodeLabellerStatus(s.ns, c, devCfg)
+	s.verifyDeviceConfigStatus(devCfg, c)
+
+	ret, err := utils.GetAMDGPUCount(ctx, s.clientSet, "cpx_nps1")
+	if err != nil {
+		logger.Errorf("error: %v", err)
+	}
+	var minGPU int = 10000
+	for _, v := range ret {
+		if v < minGPU {
+			minGPU = v
+		}
+	}
+	assert.Greater(c, minGPU, 0, "did not find any server with amd gpu")
+
+	gpuLimitCount := minGPU
+	gpuReqCount := minGPU
+
+	res := &v1.ResourceRequirements{
+		Limits: v1.ResourceList{
+			"amd.com/cpx_nps1": resource.MustParse(fmt.Sprintf("%d", gpuLimitCount)),
+		},
+		Requests: v1.ResourceList{
+			"amd.com/cpx_nps1": resource.MustParse(fmt.Sprintf("%d", gpuReqCount)),
+		},
+	}
+
+	err = utils.DeployRocmPods(context.TODO(), s.clientSet, res)
+	assert.NoError(c, err, "failed to deploy pods")
+	err = utils.VerifyROCMPODResourceCount(ctx, s.clientSet, gpuReqCount, "cpx_nps1")
+	assert.NoError(c, err, fmt.Sprintf("%v", err))
+
+	// delete
+	s.deleteDeviceConfig(devCfg, c)
+
+	err = utils.DelRocmPods(context.TODO(), s.clientSet)
+	assert.NoError(c, err, "failed to remove rocm pods")
 }
 
 func (s *E2ESuite) TestKubeRbacProxyClusterIP(c *C) {
@@ -1877,8 +2115,8 @@ func (s *E2ESuite) TestDevicePluginNodeLabellerDaemonSetUpgrade(c *C) {
 
 	// upgrade
 	// update the CR's device plugin with image
-	devCfg.Spec.DevicePlugin.DevicePluginImage = devicePluginImage
-	devCfg.Spec.DevicePlugin.NodeLabellerImage = nodeLabellerImage
+	devCfg.Spec.DevicePlugin.DevicePluginImage = devicePluginImage2
+	devCfg.Spec.DevicePlugin.NodeLabellerImage = nodeLabellerImage2
 	s.patchDevicePluginImage(devCfg, c)
 	s.patchNodeLabellerImage(devCfg, c)
 	s.verifyDevicePluginStatus(s.ns, c, devCfg)
@@ -1911,7 +2149,7 @@ func (s *E2ESuite) TestMetricsExporterDaemonSetUpgrade(c *C) {
 
 	// upgrade
 	// update the CR's device plugin with image
-	devCfg.Spec.MetricsExporter.Image = exporterImage
+	devCfg.Spec.MetricsExporter.Image = exporterImage2
 	s.patchMetricsExporterImage(devCfg, c)
 	s.verifyDeviceConfigStatus(devCfg, c)
 	s.checkMetricsExporterStatus(devCfg, s.ns, v1.ServiceTypeClusterIP, c)

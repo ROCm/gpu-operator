@@ -30,7 +30,7 @@ metadata:
         }
       ]
     capabilities: Basic Install
-    createdAt: "2025-03-21T05:09:41Z"
+    createdAt: "2025-03-25T06:19:27Z"
     operatorframework.io/suggested-namespace: openshift-amd-gpu
     operators.operatorframework.io/builder: operator-sdk-v1.32.0
     operators.operatorframework.io/project_layout: go.kubebuilder.io/v3
@@ -152,6 +152,13 @@ spec:
         path: devicePlugin
         x-descriptors:
         - urn:alm:descriptor:com.amd.deviceconfigs:devicePlugin
+      - description: 'device plugin arguments is used to pass supported flags and
+          their values while starting device plugin daemonset supported flag values:
+          {"resource_naming_strategy": {"single", "mixed"}}'
+        displayName: DevicePluginArguments
+        path: devicePlugin.devicePluginArguments
+        x-descriptors:
+        - urn:alm:descriptor:com.amd.deviceconfigs:devicePluginArguments
       - description: device plugin image
         displayName: DevicePluginImage
         path: devicePlugin.devicePluginImage
@@ -192,11 +199,6 @@ spec:
         path: devicePlugin.nodeLabellerTolerations
         x-descriptors:
         - urn:alm:descriptor:com.amd.deviceconfigs:nodeLabellerTolerations
-      - description: resource naming strategy for device plugin
-        displayName: ResourceNamingStrategy
-        path: devicePlugin.resourceNamingStrategy
-        x-descriptors:
-        - urn:alm:descriptor:com.amd.deviceconfigs:ResourceNamingStrategy
       - description: upgrade policy for device plugin and node labeller daemons
         displayName: UpgradePolicy
         path: devicePlugin.upgradePolicy

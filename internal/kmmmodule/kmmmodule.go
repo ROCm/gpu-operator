@@ -55,10 +55,8 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/intstr"
-	"k8s.io/client-go/discovery"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
-	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/log"
@@ -107,25 +105,12 @@ type kmmModule struct {
 	isOpenShift bool
 }
 
-func NewKMMModule(client client.Client, scheme *runtime.Scheme) KMMModuleAPI {
+func NewKMMModule(client client.Client, scheme *runtime.Scheme, isOpenShift bool) KMMModuleAPI {
 	return &kmmModule{
 		client:      client,
 		scheme:      scheme,
-		isOpenShift: isOpenshift(),
+		isOpenShift: isOpenShift,
 	}
-}
-
-func isOpenshift() bool {
-	if dc, err := discovery.NewDiscoveryClientForConfig(ctrl.GetConfigOrDie()); err == nil {
-		if gplist, err := dc.ServerGroups(); err == nil {
-			for _, gp := range gplist.Groups {
-				if gp.Name == "route.openshift.io" {
-					return true
-				}
-			}
-		}
-	}
-	return false
 }
 
 func (km *kmmModule) SetNodeVersionLabelAsDesired(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig, nodes *v1.NodeList) error {
@@ -272,8 +257,14 @@ func (km *kmmModule) SetDevicePluginAsDesired(ds *appsv1.DaemonSet, devConfig *a
 		return fmt.Errorf("daemon set is not initialized, zero pointer")
 	}
 
-	resourceNamingStrategy := devConfig.Spec.DevicePlugin.ResourceNamingStrategy
-	command := []string{"sh", "-c", fmt.Sprintf("./k8s-device-plugin -logtostderr=true -stderrthreshold=INFO -v=5 -pulse=30 -resource_naming_strategy=%s", resourceNamingStrategy)}
+	commandArgs := "./k8s-device-plugin -logtostderr=true -stderrthreshold=INFO -v=5 -pulse=30"
+
+	devicePluginArguments := devConfig.Spec.DevicePlugin.DevicePluginArguments
+	for key, val := range devicePluginArguments {
+		commandArgs += " -" + key + "=" + val
+	}
+
+	command := []string{"sh", "-c", commandArgs}
 	nodeSelector := map[string]string{}
 	for key, val := range devConfig.Spec.Selector {
 		nodeSelector[key] = val
