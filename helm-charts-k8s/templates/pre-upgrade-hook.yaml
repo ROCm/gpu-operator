@@ -1,3 +1,55 @@
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: pre-upgrade-hook
+  annotations:
+    # hook will be executed before helm upgrade
+    "helm.sh/hook": pre-upgrade,pre-rollback
+    # don't cleanup the job on hook failure
+    "helm.sh/hook-delete-policy": before-hook-creation, hook-succeeded
+    # hook with lower weight value will run firstly
+    "helm.sh/hook-weight": "0"
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: pre-upgrade-hook
+  annotations:
+    # hook will be executed before helm upgrade
+    "helm.sh/hook": pre-upgrade,pre-rollback
+    # don't cleanup the job on hook failure
+    "helm.sh/hook-delete-policy": before-hook-creation, hook-succeeded
+    # hook with lower weight value will run firstly
+    "helm.sh/hook-weight": "0"
+rules:
+  - apiGroups:
+      - amd.com
+    resources:
+      - deviceconfigs
+    verbs:
+      - list
+---
+kind: ClusterRoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: pre-upgrade-hook
+  annotations:
+    # hook will be executed before helm upgrade
+    "helm.sh/hook": pre-upgrade,pre-rollback
+    # don't cleanup the job on hook failure
+    "helm.sh/hook-delete-policy": before-hook-creation, hook-succeeded
+    # hook with lower weight value will run firstly
+    "helm.sh/hook-weight": "1"
+subjects:
+  - kind: ServiceAccount
+    name: pre-upgrade-hook
+    namespace: {{ .Release.Namespace }}
+roleRef:
+  kind: ClusterRole
+  name: pre-upgrade-hook
+  apiGroup: rbac.authorization.k8s.io
+---
 apiVersion: batch/v1
 kind: Job
 metadata:
@@ -11,13 +63,13 @@ metadata:
     # don't cleanup the job on hook failure
     "helm.sh/hook-delete-policy": before-hook-creation, hook-succeeded
     # hook with lower weight value will run firstly
-    "helm.sh/hook-weight": "0"
+    "helm.sh/hook-weight": "2"
 spec:
   backoffLimit: 0 # once the job finished first run, don't retry to create another pod
   ttlSecondsAfterFinished: 60 # job info will be kept for 1 min then deleted
   template:
     spec:
-      serviceAccountName: {{ include "helm-charts-k8s.fullname" . }}-controller-manager
+      serviceAccountName: pre-upgrade-hook
       containers:
         - name: pre-upgrade-check
           image: {{ .Values.controllerManager.manager.image.repository }}:{{ .Values.controllerManager.manager.image.tag }}
@@ -25,6 +77,15 @@ spec:
             - /bin/sh
             - -c
             - |
+              # Ignore the lack of CRDs, we probably haven't actually been installed yet
+              # this provides idempotentcy when "things" don't userstand the difference between
+              # install and upgrade.
+              installed=$(kubectl api-resources | grep deviceconfigs)
+
+              if [ -z ${installed} ] ; then
+                exit 0
+              fi
+
               # List all DeviceConfig CRs
               deviceconfigs=$(kubectl get deviceconfigs -n {{ .Release.Namespace }} -o json)
 
