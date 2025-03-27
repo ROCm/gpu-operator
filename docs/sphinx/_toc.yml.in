@@ -44,6 +44,9 @@ subtrees:
       - file: test/manual-test
       - file: test/pre-start-job-test
       - file: test/appendix-test-recipe
+  - caption: Device Plugin
+    entries:
+      - file: device_plugin/device-plugin
   - caption: Specialized Networks
     entries:
       - file: specialized_networks/airgapped-install
