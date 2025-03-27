@@ -205,6 +205,7 @@ spec:
 ```
 
 Things to note:
+
 1. By default, there is no need to specify the image field in CR for Openshift. Default will be used which is: image-registry.openshift-image-registry.svc:5000/$MOD_NAMESPACE/amdgpu_kmod
 
 2. If users specify image, $MOD_NAMESPACE can be a place holder , KMM Operator can automatically translate it to the namespace
