@@ -216,6 +216,20 @@ func (mr *MockupgradeMgrHelperAPIMockRecorder) deleteRebootPod(ctx, nodeName, dc
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "deleteRebootPod", reflect.TypeOf((*MockupgradeMgrHelperAPI)(nil).deleteRebootPod), ctx, nodeName, dc, force, genId)
 }
 
+// getBootID mocks base method.
+func (m *MockupgradeMgrHelperAPI) getBootID(nodeName string) string {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "getBootID", nodeName)
+	ret0, _ := ret[0].(string)
+	return ret0
+}
+
+// getBootID indicates an expected call of getBootID.
+func (mr *MockupgradeMgrHelperAPIMockRecorder) getBootID(nodeName any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "getBootID", reflect.TypeOf((*MockupgradeMgrHelperAPI)(nil).getBootID), nodeName)
+}
+
 // getNode mocks base method.
 func (m *MockupgradeMgrHelperAPI) getNode(ctx context.Context, nodeName string) (*v1.Node, error) {
 	m.ctrl.T.Helper()
@@ -449,6 +463,18 @@ func (m *MockupgradeMgrHelperAPI) isUpgradePolicyViolated(upgradeInProgress, upg
 func (mr *MockupgradeMgrHelperAPIMockRecorder) isUpgradePolicyViolated(upgradeInProgress, upgradeFailedState, totalNodes, deviceConfig any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "isUpgradePolicyViolated", reflect.TypeOf((*MockupgradeMgrHelperAPI)(nil).isUpgradePolicyViolated), upgradeInProgress, upgradeFailedState, totalNodes, deviceConfig)
+}
+
+// setBootID mocks base method.
+func (m *MockupgradeMgrHelperAPI) setBootID(nodeName, bootID string) {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "setBootID", nodeName, bootID)
+}
+
+// setBootID indicates an expected call of setBootID.
+func (mr *MockupgradeMgrHelperAPIMockRecorder) setBootID(nodeName, bootID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "setBootID", reflect.TypeOf((*MockupgradeMgrHelperAPI)(nil).setBootID), nodeName, bootID)
 }
 
 // setNodeStatus mocks base method.
