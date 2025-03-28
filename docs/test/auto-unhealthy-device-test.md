@@ -4,6 +4,10 @@
 
 Test runner is periodically watching for the device health status from device metrics exporter per 30 seconds. Once exporter reported GPU status is unhealthy, test runner will start to run one-time test on the unhealthy GPU. The test result will be exported as Kubernetes event.
 
+```{warning}
+The Test Runner's RVS test recipes aren't compatible with partitioned GPU. If you're using partitoned GPU please disable the test runner from ```DeviceConfig``` by setting ```spec/testRunner/enable``` to ```false```.
+```
+
 ## Configure test runner
 
 To start the Test Runner along with the GPU Operator, Device Metrics Exporter must be enabled since Test Runner is depending on the exported health status. Configure the ``` spec/metricsExporter/enable ``` field in deviceconfig Custom Resource(CR) to enable/disable metrics exporter and configure the ``` spec/testRunner/enable ``` field in deviceconfig Custom Resource(CR) to enable/disable test runner.
