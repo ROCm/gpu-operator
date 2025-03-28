@@ -4,6 +4,10 @@
 
 To start the manual test, directly use the test runner image to create the Kubernetes job and related resources, then the test will be triggered manually.
 
+```{warning}
+The Test Runner's RVS test recipes aren't compatible with partitioned GPU. If you're using partitoned GPU please reset the GPU partition configuration and run the manual test against the non-partitioned GPU.
+```
+
 ## Use Case 1 - GPU is unhealthy on the node
 
 When any GPU on a specific worker node is unhealthy, you can manually trigger a test / benchmark run on that worker node to check more details on the unhealthy state. The test job requires RBAC config to grant the test runner access to export events and add node labels to the cluster. Here is an example of configuring the RBAC and Job resources:
