@@ -285,6 +285,8 @@ type upgradeMgrHelperAPI interface {
 	setUpgradeStartTime(nodeName string)
 	clearUpgradeStartTime(nodeName string)
 	checkUpgradeTimeExceeded(ctx context.Context, nodeName string, deviceConfig *amdv1alpha1.DeviceConfig) bool
+	getBootID(nodeName string) string
+	setBootID(nodeName string, bootID string)
 	clearNodeStatus()
 	isInit() bool
 }
@@ -295,6 +297,7 @@ type upgradeMgrHelper struct {
 	drainHelper          *drain.Helper
 	nodeStatus           *sync.Map
 	nodeUpgradeStartTime *sync.Map
+	nodeBootID           *sync.Map
 	init                 bool
 	currentSpec          driverSpec
 }
@@ -311,6 +314,7 @@ func newUpgradeMgrHelperHandler(client client.Client, k8sInterface kubernetes.In
 		k8sInterface:         k8sInterface,
 		nodeStatus:           new(sync.Map),
 		nodeUpgradeStartTime: new(sync.Map),
+		nodeBootID:           new(sync.Map),
 	}
 }
 
@@ -509,6 +513,18 @@ func (h *upgradeMgrHelper) checkUpgradeTimeExceeded(ctx context.Context, nodeNam
 		}
 	}
 	return false
+}
+
+func (h *upgradeMgrHelper) getBootID(nodeName string) string {
+	if value, ok := h.nodeBootID.Load(nodeName); ok {
+		return value.(string)
+	}
+
+	return ""
+}
+
+func (h *upgradeMgrHelper) setBootID(nodeName string, currentbootID string) {
+	h.nodeBootID.Store(nodeName, currentbootID)
 }
 
 func (h *upgradeMgrHelper) getNodeStatus(nodeName string) amdv1alpha1.UpgradeState {
@@ -851,6 +867,8 @@ func (h *upgradeMgrHelper) handleNodeReboot(ctx context.Context, node *v1.Node, 
 	// Wait for the driver upgrade to complete
 	waitForDriverUpgrade()
 
+	currentBootID := node.Status.NodeInfo.BootID
+	h.setBootID(node.Name, currentBootID)
 	if err := h.client.Create(ctx, rebootPod); err != nil {
 		logger.Error(err, fmt.Sprintf("Node: %v State: %v RebootPod Create failed with Error: %v", node.Name, h.getNodeStatus(node.Name), err))
 		// Mark the state as failed
@@ -872,6 +890,11 @@ func (h *upgradeMgrHelper) handleNodeReboot(ctx context.Context, node *v1.Node, 
 						}
 					}
 
+					if nodeObj.Status.NodeInfo.BootID != h.getBootID(node.Name) {
+						h.setBootID(node.Name, nodeObj.Status.NodeInfo.BootID)
+						logger.Info(fmt.Sprintf("Node: %v has rebooted", node.Name))
+						return
+					}
 					// If node is NotReady, proceed; otherwise, wait for the next tick
 					if nodeNotReady {
 						logger.Info(fmt.Sprintf("Node: %v has moved to NotReady", node.Name))
