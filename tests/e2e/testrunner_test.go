@@ -114,10 +114,10 @@ func (s *E2ESuite) deleteTestRunnerPod(node string, devCfg *v1alpha1.DeviceConfi
 	}, 30*time.Second, 2*time.Second, "expected to delete test runner pod on node %+v", node)
 }
 
-func getLogsExportInfo(provider int, bucketName, secretName string) string {
+func getLogsExportInfo(provider, bucketName, secretName string) string {
 	return fmt.Sprintf(`"LogsExportConfig": [
 		  {
-		    "Provider": %d,
+		    "Provider": "%s",
 		    "BucketName": "%s",
 		    "SecretName": "%s"
 	          }
@@ -153,7 +153,7 @@ func getTestRunnerConfigJson(nodeName, recipe, logsExportConf string, stopOnFail
 		      }`, nodeName, recipe, iterations, stopOnFailure, timeoutInSeconds, logsExportConf)
 }
 
-func (s *E2ESuite) createTestRunnerConfigmap(valid bool, devCfg *v1alpha1.DeviceConfig, nodeName, recipe string, provider int, bucketName, secretName string, stopOnFailure, configureLogsExport bool, iterations, timeoutInSeconds int, c *C) string {
+func (s *E2ESuite) createTestRunnerConfigmap(valid bool, devCfg *v1alpha1.DeviceConfig, nodeName, recipe string, provider, bucketName, secretName string, stopOnFailure, configureLogsExport bool, iterations, timeoutInSeconds int, c *C) string {
 	cmName := fmt.Sprintf("%v-%v-%v-%v-%v-%v", valid, devCfg.Name, strings.ReplaceAll(recipe, "_", "-"), iterations, stopOnFailure, timeoutInSeconds)
 	if nodeName == "" {
 		nodeName = "global"
@@ -526,7 +526,7 @@ func (s *E2ESuite) TestTestRunnerNodeSpecificConfig(c *C) {
 	hostName := s.verifyTestRunningLabel(true, defaultTestRunningLabel, c)
 
 	testRecipe := "babel"
-	cmName := s.createTestRunnerConfigmap(true, devCfg, hostName, testRecipe, 0, "", "", false, false, 1, 600, c)
+	cmName := s.createTestRunnerConfigmap(true, devCfg, hostName, testRecipe, "", "", "", false, false, 1, 600, c)
 	devCfg.Spec.TestRunner.Config = &v1.LocalObjectReference{
 		Name: cmName,
 	}
@@ -540,7 +540,7 @@ func (s *E2ESuite) TestTestRunnerNodeSpecificConfig(c *C) {
 	assert.NoError(c, err, fmt.Sprintf("failed to mark GPU 0 healthy. Error:%v", err))
 	time.Sleep(90 * time.Second) // give enough time for test runner to recognize the GPU becomes healthy
 	testRecipe = "gst_single"
-	cmName = s.createTestRunnerConfigmap(true, devCfg, hostName, testRecipe, 0, "", "", false, false, 1, 600, c)
+	cmName = s.createTestRunnerConfigmap(true, devCfg, hostName, testRecipe, "", "", "", false, false, 1, 600, c)
 	devCfg.Spec.TestRunner.Config = &v1.LocalObjectReference{
 		Name: cmName,
 	}
@@ -582,7 +582,7 @@ func (s *E2ESuite) TestTestRunnerMultipleIterations(c *C) {
 	devCfg.Spec.Driver.Version = "6.3.2"
 	// configure test runner to run 3 iterations of gst_single
 	iterations := 3
-	cmName := s.createTestRunnerConfigmap(true, devCfg, "", "gst_single", 0, "", "", false, false, iterations, 600, c)
+	cmName := s.createTestRunnerConfigmap(true, devCfg, "", "gst_single", "", "", "", false, false, iterations, 600, c)
 	devCfg.Spec.TestRunner.Config = &v1.LocalObjectReference{
 		Name: cmName,
 	}
@@ -727,7 +727,7 @@ func (s *E2ESuite) TestTestRunnerLogsExport(c *C) {
 	s.cleanupTestRunnerEvts(devCfg, c)
 
 	testRecipe := "gst_single"
-	cmName := s.createTestRunnerConfigmap(true, devCfg, "leto", testRecipe, 0, "testrun-logs", "minio-secret", false, true, 1, 600, c)
+	cmName := s.createTestRunnerConfigmap(true, devCfg, nodeName, testRecipe, "aws", "testrun-logs", "minio-secret", false, true, 1, 600, c)
 	devCfg.Spec.TestRunner.Config = &v1.LocalObjectReference{
 		Name: cmName,
 	}
@@ -740,21 +740,10 @@ func (s *E2ESuite) TestTestRunnerLogsExport(c *C) {
 	s.cleanupTestRunnerEvts(devCfg, c)
 }
 
-func (s *E2ESuite) getGPUNodeName() (nodeWithMaxGPU string) {
-	var maxPerNodeGPU int = 0
-	ret, err := utils.GetAMDGPUCount(context.TODO(), s.clientSet, "gpu")
-	if err != nil {
-		logger.Printf("Unable to fetch gpu nodes. Error %v", err)
-		return
-	}
-	for nodeName, v := range ret {
-		if v > maxPerNodeGPU {
-			nodeWithMaxGPU = nodeName
-			maxPerNodeGPU = v
-		}
-	}
-	if maxPerNodeGPU <= 0 {
-		logger.Printf("did not find any server with amd gpu")
+func (s *E2ESuite) getGPUNodeName() (nodeWithGPU string) {
+	gpunodes := utils.GetAMDGpuWorker(s.clientSet, false)
+	if len(gpunodes) > 0 {
+		nodeWithGPU = gpunodes[0].Name
 	}
 	return
 }
