@@ -3,9 +3,27 @@ kind: ClusterServiceVersion
 metadata:
   annotations:
     alm-examples: '[]'
-    capabilities: Basic Install
-    operatorframework.io/suggested-namespace: kube-amd-gpu
+    capabilities: Seamless Upgrades
+    categories: AI/Machine Learning,Monitoring
+    containerImage: registry.test.pensando.io:5000/amd-gpu-operator:dev
+    description: |-
+      Operator responsible for deploying AMD GPU kernel drivers, device plugin, device test runner and device metrics exporter
+      For more information, visit [documentation](https://instinct.docs.amd.com/projects/gpu-operator/en/latest/)
+    devicePluginImage: docker.io/rocm/k8s-device-plugin:rhubi-latest
+    features.operators.openshift.io/disconnected: "true"
+    features.operators.openshift.io/fips-compliant: "false"
+    features.operators.openshift.io/proxy-aware: "true"
+    features.operators.openshift.io/tls-profiles: "false"
+    features.operators.openshift.io/token-auth-aws: "false"
+    features.operators.openshift.io/token-auth-azure: "false"
+    features.operators.openshift.io/token-auth-gcp: "false"
+    metricsExporterImage: docker.io/rocm/device-metrics-exporter:v1.2.0
+    nodelabellerImage: docker.io/rocm/k8s-device-plugin:labeller-rhubi-latest
+    operatorframework.io/cluster-monitoring: "true"
+    operatorframework.io/suggested-namespace: openshift-amd-gpu
+    operators.openshift.io/valid-subscription: '[]'
     repository: https://github.com/ROCm/gpu-operator
+    support: Advanced Micro Devices, Inc.
   name: amd-gpu-operator.v0.0.0
   namespace: placeholder
 spec:
@@ -495,7 +513,7 @@ spec:
         - urn:alm:descriptor:com.amd.deviceconfigs:nodeModuleStatus
       version: v1alpha1
   description: |-
-    Operator responsible for deploying AMD GPU kernel drivers and device plugin
+    Operator responsible for deploying AMD GPU kernel drivers, device plugin, device test runner and device metrics exporter
     For more information, visit [documentation](https://instinct.docs.amd.com/projects/gpu-operator/en/latest/)
   displayName: amd-gpu-operator
   icon:
@@ -515,11 +533,24 @@ spec:
   - supported: true
     type: AllNamespaces
   keywords:
-  - amd-gpu-operator
+  - AMD
+  - GPU
+  - AI
+  - Deep Learning
+  - Hardware
+  - Driver
+  - Monitoring
   links:
-  - name: Amd Gpu Operator
-    url: https://amd-gpu-operator.domain
-  maturity: alpha
+  - name: AMD GPU Operator
+    url: https://github.com/ROCm/gpu-operator
+  maintainers:
+  - email: Yan.Sun3@amd.com
+    name: Yan Sun
+  - email: farshad.ghodsian@amd.com
+    name: Farshad Ghodsian
+  - email: shrey.ajmera@amd.com
+    name: Shrey Ajmera
+  maturity: stable
   provider:
-    name: amd-gpu-operator
+    name: Advanced Micro Devices, Inc.
   version: 0.0.0
