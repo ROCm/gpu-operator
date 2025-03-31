@@ -5,7 +5,7 @@
 To start the manual test, directly use the test runner image to create the Kubernetes job and related resources, then the test will be triggered manually.
 
 ```{warning}
-The Test Runner's RVS test recipes aren't compatible with partitioned GPU. If you're using partitoned GPU please reset the GPU partition configuration and run the manual test against the non-partitioned GPU.
+The RVS test recipes in the Test Runner are not compatible with partitioned GPUs. If you are using a partitioned GPU, please reset the GPU partition configuration and conduct the manual test on a non-partitioned GPU.
 ```
 
 ## Use Case 1 - GPU is unhealthy on the node
