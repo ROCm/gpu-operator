@@ -111,7 +111,46 @@ func (s *E2ESuite) deleteTestRunnerPod(node string, devCfg *v1alpha1.DeviceConfi
 	}, 30*time.Second, 2*time.Second, "expected to delete test runner pod on node %+v", node)
 }
 
-func (s *E2ESuite) createTestRunnerConfigmap(valid bool, devCfg *v1alpha1.DeviceConfig, nodeName, recipe string, stopOnFailure bool, iterations, timeoutInSeconds int, c *C) string {
+func getLogsExportInfo(provider, bucketName, secretName string) string {
+	return fmt.Sprintf(`"LogsExportConfig": [
+		  {
+		    "Provider": "%s",
+		    "BucketName": "%s",
+		    "SecretName": "%s"
+	          }
+		]`, provider, bucketName, secretName)
+}
+
+func getTestRunnerConfigJson(nodeName, recipe, logsExportConf string, stopOnFailure, configureLogsExport bool, iterations, timeoutInSeconds int) string {
+	if logsExportConf != "" {
+		logsExportConf = "," + logsExportConf
+	}
+	return fmt.Sprintf(`{
+			"TestConfig": {
+			  "GPU_HEALTH_CHECK": {
+			    "TestLocationTrigger": {
+			      "%v": {
+				"TestParameters": {
+				  "AUTO_UNHEALTHY_GPU_WATCH": {
+				    "TestCases": [
+				      {
+					"Recipe": "%v",
+					"Iterations": %v,
+					"StopOnFailure": %v,
+					"TimeoutSeconds": %v
+				      }
+				    ]
+				    %s
+				  }
+				}
+			      }
+			    }
+			  }
+			}
+		      }`, nodeName, recipe, iterations, stopOnFailure, timeoutInSeconds, logsExportConf)
+}
+
+func (s *E2ESuite) createTestRunnerConfigmap(valid bool, devCfg *v1alpha1.DeviceConfig, nodeName, recipe string, provider, bucketName, secretName string, stopOnFailure, configureLogsExport bool, iterations, timeoutInSeconds int, c *C) string {
 	cmName := fmt.Sprintf("%v-%v-%v-%v-%v-%v", valid, devCfg.Name, strings.ReplaceAll(recipe, "_", "-"), iterations, stopOnFailure, timeoutInSeconds)
 	if nodeName == "" {
 		nodeName = "global"
@@ -475,7 +514,7 @@ func (s *E2ESuite) TestTestRunnerNodeSpecificConfig(c *C) {
 	hostName := s.verifyTestRunningLabel(true, defaultTestRunningLabel, c)
 
 	testRecipe := "babel"
-	cmName := s.createTestRunnerConfigmap(true, devCfg, hostName, testRecipe, false, 1, 600, c)
+	cmName := s.createTestRunnerConfigmap(true, devCfg, hostName, testRecipe, "", "", "", false, false, 1, 600, c)
 	devCfg.Spec.TestRunner.Config = &v1.LocalObjectReference{
 		Name: cmName,
 	}
@@ -489,7 +528,7 @@ func (s *E2ESuite) TestTestRunnerNodeSpecificConfig(c *C) {
 	assert.NoError(c, err, fmt.Sprintf("failed to mark GPU 0 healthy. Error:%v", err))
 	time.Sleep(90 * time.Second) // give enough time for test runner to recognize the GPU becomes healthy
 	testRecipe = "gst_single"
-	cmName = s.createTestRunnerConfigmap(true, devCfg, hostName, testRecipe, false, 1, 600, c)
+	cmName = s.createTestRunnerConfigmap(true, devCfg, hostName, testRecipe, "", "", "", false, false, 1, 600, c)
 	devCfg.Spec.TestRunner.Config = &v1.LocalObjectReference{
 		Name: cmName,
 	}
@@ -528,7 +567,7 @@ func (s *E2ESuite) TestTestRunnerMultipleIterations(c *C) {
 	devCfg.Spec.Driver.Version = "6.3.2"
 	// configure test runner to run 3 iterations of gst_single
 	iterations := 3
-	cmName := s.createTestRunnerConfigmap(true, devCfg, "", "gst_single", false, iterations, 600, c)
+	cmName := s.createTestRunnerConfigmap(true, devCfg, "", "gst_single", "", "", "", false, false, iterations, 600, c)
 	devCfg.Spec.TestRunner.Config = &v1.LocalObjectReference{
 		Name: cmName,
 	}
@@ -608,4 +647,96 @@ func (s *E2ESuite) TestTestRunnerAssociatedWorkloadOnUnhealthyGPU(c *C) {
 	s.verifyFoundUnhealthyGPUWithWorkload(nodeName, devCfg, c)
 	s.verifyTestRunningLabel(false, defaultTestRunningLabel, c)
 	s.cleanupTestRunnerEvts(devCfg, c)
+}
+
+func (s *E2ESuite) TestTestRunnerLogsExport(c *C) {
+	if s.simEnable {
+		c.Skip("Skipping for non amd gpu testbed")
+	}
+	_, err := s.dClient.DeviceConfigs(s.ns).Get(s.cfgName, metav1.GetOptions{})
+	assert.Errorf(c, err, fmt.Sprintf("config %v exists", s.cfgName))
+	log.Infof("create %v", s.cfgName)
+	devCfg := s.getDeviceConfig(c)
+
+	nodeName := s.getGPUNodeName()
+	assert.NotEqual(c, nodeName, "", "unable to find a gpu node")
+	err = s.setupMinioService(nodeName)
+	assert.NoError(c, err, "Failed to setup Minio service")
+	defer func() {
+		utils.DeleteMinioService(context.Background(), s.clientSet, s.ns)
+	}()
+	node, err := s.clientSet.CoreV1().Nodes().Get(context.Background(), nodeName, metav1.GetOptions{})
+	assert.NoError(c, err, "Node Get Failed")
+	nodeIP := ""
+	for _, adr := range node.Status.Addresses {
+		if adr.Type == v1.NodeInternalIP {
+			nodeIP = adr.Address
+			break
+		}
+	}
+	log.Printf("node name is %v, node ip is %v", nodeName, nodeIP)
+	// create secret with minio credentials:
+	secret_keys := make(map[string]string)
+	secret_keys["aws_access_key_id"] = minio_access_key
+	secret_keys["aws_secret_access_key"] = minio_secret_key
+	secret_keys["aws_region"] = "us-east-1"
+	secret_keys["aws_endpoint_url"] = fmt.Sprintf("http://%s:31260", nodeIP)
+	log.Infof("aws endpoint: %v", secret_keys["aws_endpoint_url"])
+	err = utils.CreateOpaqueSecret(context.Background(), s.clientSet, "minio-secret", s.ns, secret_keys)
+	assert.NoError(c, err, fmt.Sprintf("minio-secret creation is expected to succeed. Failed with error %v", err))
+	defer func() {
+		utils.DeleteOpaqueSecret(context.Background(), s.clientSet, "minio-secret", s.ns)
+	}()
+	// test runner should be brought up
+	// when both exporter and test runner are enabled
+	enableTestRunner := true
+	enableExporter := true
+	devCfg.Spec.TestRunner.Enable = &enableTestRunner
+	devCfg.Spec.TestRunner.Image = "registry.test.pensando.io:5000/test-runner/test-runner:udayb"
+	devCfg.Spec.TestRunner.ImagePullPolicy = "Always"
+	minioSecret := &v1.LocalObjectReference{
+		Name: "minio-secret",
+	}
+	devCfg.Spec.TestRunner.LogsLocation.LogsExportSecrets = []*v1.LocalObjectReference{minioSecret}
+	devCfg.Spec.MetricsExporter.Enable = &enableExporter
+	devCfg.Spec.MetricsExporter.Image = "registry.test.pensando.io:5000/device-metrics-exporter/exporter:v1.2.0"
+	devCfg.Spec.Driver.Version = "6.3.2"
+	s.createDeviceConfig(devCfg, c)
+	s.verifyDevicePluginStatus(s.ns, c, devCfg)
+	s.checkMetricsExporterStatus(devCfg, s.ns, v1.ServiceTypeClusterIP, c)
+	s.checkTestRunnerStatus(devCfg, true, c)
+
+	s.cleanupTestRunnerEvts(devCfg, c)
+
+	testRecipe := "gst_single"
+	cmName := s.createTestRunnerConfigmap(true, devCfg, nodeName, testRecipe, "aws", "testrun-logs", "minio-secret", false, true, 1, 600, c)
+	devCfg.Spec.TestRunner.Config = &v1.LocalObjectReference{
+		Name: cmName,
+	}
+	s.patchTestRunnerConfigmap(devCfg, c)
+	time.Sleep(20 * time.Second)
+	s.simulateOneGPUUnhealthyStatus(devCfg.Namespace, "", c)
+	log.Print("Verifying test running label on the node(s)")
+	s.verifyTestRunningLabel(true, defaultTestRunningLabel, c)
+	s.verifyTestrunLogExportEvts(nodeName, testRecipe, "Normal", "LogsExportPassed", devCfg, nil, c)
+	s.cleanupTestRunnerEvts(devCfg, c)
+}
+
+func (s *E2ESuite) getGPUNodeName() (nodeWithGPU string) {
+	gpunodes := utils.GetAMDGpuWorker(s.clientSet, false)
+	if len(gpunodes) > 0 {
+		nodeWithGPU = gpunodes[0].Name
+	}
+	return
+}
+
+func (s *E2ESuite) setupMinioService(nodeSelector string) error {
+	err := utils.CreateMinioService(context.Background(), s.clientSet, s.ns, nodeSelector)
+	if err != nil {
+		log.Printf("Unable to setup minio server. Error %v", err)
+		return err
+	}
+	time.Sleep(20 * time.Second)
+	utils.SetupAccessKeysOnMinioServer(s.ns, "minio", "minio", minio_access_key, minio_secret_key)
+	return nil
 }
