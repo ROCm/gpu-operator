@@ -125,7 +125,6 @@ help: ## Display this help.
 .PHONY: update-registry
 update-registry:
 	# updating registry information in yaml files
-	sed -i -e 's|containerImage:.*$$|containerImage: ${IMG}|' config/manifests/bases/amd-gpu-operator.clusterserviceversion.yaml
 	sed -i -e 's|image:.*$$|image: ${IMG}|' bundle/manifests/amd-gpu-operator.clusterserviceversion.yaml
 	sed -i -e 's|repository:.*$$|repository: ${IMAGE_TAG_BASE}|' \
 	hack/k8s-patch/metadata-patch/values.yaml \
