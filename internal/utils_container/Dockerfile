@@ -1,9 +1,9 @@
-FROM registry.access.redhat.com/ubi9/ubi:9.3
+FROM registry.access.redhat.com/ubi9/ubi-minimal:9.3
 
 # Install nsenter from util-linux package
-RUN dnf install -y util-linux && \
+RUN microdnf install -y util-linux && \
     cp /usr/bin/nsenter /nsenter && \
-    dnf clean all
+    microdnf clean all
 
 # Set entrypoint to nsenter
 ENTRYPOINT ["/nsenter"]
