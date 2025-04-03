@@ -536,6 +536,7 @@ type ModuleStatus struct {
 	LastTransitionTime string       `json:"lastTransitionTime,omitempty"`
 	Status             UpgradeState `json:"status,omitempty"`
 	UpgradeStartTime   string       `json:"upgradeStartTime,omitempty"`
+	BootId             string       `json:"bootId,omitempty"`
 }
 
 // DeviceConfigStatus defines the observed state of Module.
