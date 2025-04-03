@@ -90,8 +90,9 @@ func NewDeviceConfigReconciler(
 	kmmHandler kmmmodule.KMMModuleAPI,
 	nlHandler nodelabeller.NodeLabeller,
 	metricsHandler metricsexporter.MetricsExporter,
-	testrunnerHandler testrunner.TestRunner) *DeviceConfigReconciler {
-	upgradeMgrHandler := newUpgradeMgrHandler(client, k8sConfig)
+	testrunnerHandler testrunner.TestRunner,
+	isOpenShift bool) *DeviceConfigReconciler {
+	upgradeMgrHandler := newUpgradeMgrHandler(client, k8sConfig, isOpenShift)
 	helper := newDeviceConfigReconcilerHelper(client, kmmHandler, nlHandler, upgradeMgrHandler, metricsHandler, testrunnerHandler)
 	podEventHandler := newPodEventHandler(client)
 	return &DeviceConfigReconciler{
