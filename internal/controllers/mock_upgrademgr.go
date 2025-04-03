@@ -57,6 +57,20 @@ func (m *MockupgradeMgrAPI) EXPECT() *MockupgradeMgrAPIMockRecorder {
 	return m.recorder
 }
 
+// GetNodeBootId mocks base method.
+func (m *MockupgradeMgrAPI) GetNodeBootId(nodeName string) string {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetNodeBootId", nodeName)
+	ret0, _ := ret[0].(string)
+	return ret0
+}
+
+// GetNodeBootId indicates an expected call of GetNodeBootId.
+func (mr *MockupgradeMgrAPIMockRecorder) GetNodeBootId(nodeName any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetNodeBootId", reflect.TypeOf((*MockupgradeMgrAPI)(nil).GetNodeBootId), nodeName)
+}
+
 // GetNodeStatus mocks base method.
 func (m *MockupgradeMgrAPI) GetNodeStatus(nodeName string) v1alpha1.UpgradeState {
 	m.ctrl.T.Helper()
