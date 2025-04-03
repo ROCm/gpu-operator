@@ -60,8 +60,9 @@ import (
 )
 
 const (
-	defaultUtilsImage = "docker.io/rocm/gpu-operator-utils:latest"
-	defaultSAName     = "amd-gpu-operator-utils-container"
+	defaultUtilsImage   = "docker.io/rocm/gpu-operator-utils:latest"
+	defaultOcUtilsImage = "docker.io/rocm/gpu-operator-utils:rhubi-latest"
+	defaultSAName       = "amd-gpu-operator-utils-container"
 )
 
 type upgradeMgr struct {
@@ -76,13 +77,13 @@ type upgradeMgrAPI interface {
 	GetNodeUpgradeStartTime(nodeName string) string
 }
 
-func newUpgradeMgrHandler(client client.Client, k8sConfig *rest.Config) upgradeMgrAPI {
+func newUpgradeMgrHandler(client client.Client, k8sConfig *rest.Config, isOpenShift bool) upgradeMgrAPI {
 	k8sIntf, err := kubernetes.NewForConfig(k8sConfig)
 	if err != nil {
 		return nil
 	}
 	return &upgradeMgr{
-		helper: newUpgradeMgrHelperHandler(client, k8sIntf),
+		helper: newUpgradeMgrHelperHandler(client, k8sIntf, isOpenShift),
 	}
 }
 
@@ -300,6 +301,7 @@ type upgradeMgrHelper struct {
 	nodeBootID           *sync.Map
 	init                 bool
 	currentSpec          driverSpec
+	isOpenShift          bool
 }
 
 type driverSpec struct {
@@ -308,13 +310,14 @@ type driverSpec struct {
 }
 
 // Initialize upgrade manager helper interface
-func newUpgradeMgrHelperHandler(client client.Client, k8sInterface kubernetes.Interface) upgradeMgrHelperAPI {
+func newUpgradeMgrHelperHandler(client client.Client, k8sInterface kubernetes.Interface, isOpenShift bool) upgradeMgrHelperAPI {
 	return &upgradeMgrHelper{
 		client:               client,
 		k8sInterface:         k8sInterface,
 		nodeStatus:           new(sync.Map),
 		nodeUpgradeStartTime: new(sync.Map),
 		nodeBootID:           new(sync.Map),
+		isOpenShift:          isOpenShift,
 	}
 }
 
@@ -984,6 +987,9 @@ func (h *upgradeMgrHelper) getRebootPod(nodeName string, dc *amdv1alpha1.DeviceC
 	nodeSelector := map[string]string{}
 	nodeSelector["kubernetes.io/hostname"] = nodeName
 	utilsImage := defaultUtilsImage
+	if h.isOpenShift {
+		utilsImage = defaultOcUtilsImage
+	}
 	serviceaccount := defaultSAName
 	if dc.Spec.CommonConfig.UtilsContainer.Image != "" {
 		utilsImage = dc.Spec.CommonConfig.UtilsContainer.Image
