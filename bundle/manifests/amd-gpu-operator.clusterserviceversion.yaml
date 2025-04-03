@@ -32,7 +32,7 @@ metadata:
     capabilities: Seamless Upgrades
     categories: AI/Machine Learning,Monitoring
     containerImage: docker.io/rocm/gpu-operator:v1.2.0
-    createdAt: "2025-04-02T23:22:18Z"
+    createdAt: "2025-04-07T07:07:00Z"
     description: |-
       Operator responsible for deploying AMD GPU kernel drivers, device plugin, device test runner and device metrics exporter
       For more information, visit [documentation](https://instinct.docs.amd.com/projects/gpu-operator/en/latest/)
