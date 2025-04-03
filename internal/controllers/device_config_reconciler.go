@@ -583,9 +583,11 @@ func (dcrh *deviceConfigReconcilerHelper) getDeviceConfigOwnedKMMModule(ctx cont
 func (dcrh *deviceConfigReconcilerHelper) updateDeviceConfigNodeStatus(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig, nodes *v1.NodeList) error {
 	logger := log.FromContext(ctx)
 	previousUpgradeTimes := make(map[string]string)
+	previousBootIds := make(map[string]string)
 	// Persist the UpgradeStartTime
 	for nodeName, moduleStatus := range devConfig.Status.NodeModuleStatus {
 		previousUpgradeTimes[nodeName] = moduleStatus.UpgradeStartTime
+		previousBootIds[nodeName] = moduleStatus.BootId
 	}
 	devConfig.Status.NodeModuleStatus = map[string]amdv1alpha1.ModuleStatus{}
 
@@ -600,7 +602,12 @@ func (dcrh *deviceConfigReconcilerHelper) updateDeviceConfigNodeStatus(ctx conte
 		if upgradeStartTime == "" {
 			upgradeStartTime = previousUpgradeTimes[node.Name]
 		}
-		devConfig.Status.NodeModuleStatus[node.Name] = amdv1alpha1.ModuleStatus{Status: dcrh.upgradeMgrHandler.GetNodeStatus(node.Name), UpgradeStartTime: upgradeStartTime}
+		bootId := dcrh.upgradeMgrHandler.GetNodeBootId(node.Name)
+		//If operator restarted during Upgrade, then fetch previous known bootId since the internal maps would have been cleared
+		if bootId == "" {
+			bootId = previousBootIds[node.Name]
+		}
+		devConfig.Status.NodeModuleStatus[node.Name] = amdv1alpha1.ModuleStatus{Status: dcrh.upgradeMgrHandler.GetNodeStatus(node.Name), UpgradeStartTime: upgradeStartTime, BootId: bootId}
 
 		nmc := kmmv1beta1.NodeModulesConfig{}
 		err := dcrh.client.Get(ctx, types.NamespacedName{Name: node.Name}, &nmc)
@@ -622,6 +629,7 @@ func (dcrh *deviceConfigReconcilerHelper) updateDeviceConfigNodeStatus(ctx conte
 						LastTransitionTime: module.LastTransitionTime.String(),
 						Status:             dcrh.upgradeMgrHandler.GetNodeStatus(node.Name),
 						UpgradeStartTime:   upgradeStartTime,
+						BootId:             bootId,
 					}
 				}
 			}

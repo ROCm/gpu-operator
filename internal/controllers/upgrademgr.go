@@ -75,6 +75,7 @@ type upgradeMgrAPI interface {
 	HandleDelete(ctx context.Context, deviceConfig *amdv1alpha1.DeviceConfig, nodes *v1.NodeList) (ctrl.Result, error)
 	GetNodeStatus(nodeName string) amdv1alpha1.UpgradeState
 	GetNodeUpgradeStartTime(nodeName string) string
+	GetNodeBootId(nodeName string) string
 }
 
 func newUpgradeMgrHandler(client client.Client, k8sConfig *rest.Config, isOpenShift bool) upgradeMgrAPI {
@@ -108,16 +109,25 @@ func (n *upgradeMgr) HandleUpgrade(ctx context.Context, deviceConfig *amdv1alpha
 				if deviceConfig.Spec.Driver.UpgradePolicy.RebootRequired != nil && *deviceConfig.Spec.Driver.UpgradePolicy.RebootRequired {
 					nodeObj, err := n.helper.getNode(ctx, nodeName)
 					if err == nil {
-						log.FromContext(ctx).Info("Reboot is required for driver upgrade, triggering node reboot")
-						n.helper.handleNodeReboot(ctx, nodeObj, deviceConfig)
+						// trigger reboot only for nodes which are in UpgradeStarted but haven't rebooted yet
+						if nodeObj.Status.NodeInfo.BootID == moduleStatus.BootId {
+							log.FromContext(ctx).Info(fmt.Sprintf("Node: %v: Reboot is required for driver upgrade, triggering node reboot", nodeName))
+							n.helper.handleNodeReboot(ctx, nodeObj, deviceConfig)
+							// for nodes which are in UpgradeStarted but already rebooted. Schedule the reboot pod deletion
+						} else {
+							currentBootID := nodeObj.Status.NodeInfo.BootID
+							n.helper.setBootID(nodeObj.Name, currentBootID)
+							log.FromContext(ctx).Info(fmt.Sprintf("Node: %v: Node already rebooted, scheduling reboot pod deletion", nodeName))
+							go n.helper.deleteRebootPod(ctx, nodeName, deviceConfig, false, deviceConfig.Generation)
+						}
 					}
 				} else {
-					log.FromContext(ctx).Info("Resetting Upgrade State to UpgradeStateEmpty")
+					log.FromContext(ctx).Info(fmt.Sprintf("Node: %v: Resetting Upgrade State to UpgradeStateEmpty", nodeName))
 					n.helper.setNodeStatus(ctx, nodeName, amdv1alpha1.UpgradeStateEmpty)
 				}
 			} else if moduleStatus.Status == amdv1alpha1.UpgradeStateRebootInProgress {
 				// Operator restarted during upgrade operation. Schedule the reboot pod deletion
-				log.FromContext(ctx).Info("Reboot is in progress, scheduling reboot pod deletion")
+				log.FromContext(ctx).Info(fmt.Sprintf("Node: %v: Reboot is in progress, scheduling reboot pod deletion", nodeName))
 				n.helper.setNodeStatus(ctx, nodeName, moduleStatus.Status)
 				go n.helper.deleteRebootPod(ctx, nodeName, deviceConfig, false, deviceConfig.Generation)
 			} else {
@@ -244,9 +254,14 @@ func (n *upgradeMgr) GetNodeStatus(nodeName string) (status amdv1alpha1.UpgradeS
 	return n.helper.getNodeStatus(nodeName)
 }
 
-// GetNodeStaGetNodeUpgradeStartTimetus returns the time when upgrade started on the node
+// GetNodeUpgradeStartTime returns the time when upgrade started on the node
 func (n *upgradeMgr) GetNodeUpgradeStartTime(nodeName string) string {
 	return n.helper.getUpgradeStartTime(nodeName)
+}
+
+// GetNodeBootId returns the last known bootid of the node
+func (n *upgradeMgr) GetNodeBootId(nodeName string) string {
+	return n.helper.getBootID(nodeName)
 }
 
 /*=========================================== Upgrade Manager Helper APIs ==========================================*/
