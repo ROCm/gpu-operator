@@ -927,6 +927,8 @@ spec:
                   description: ModuleStatus contains the status of driver module installed
                     by operator on the node
                   properties:
+                    bootId:
+                      type: string
                     containerImage:
                       type: string
                     kernelVersion:
