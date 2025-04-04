@@ -38,11 +38,8 @@ subtrees:
       - file: metrics/kube-rbac-proxy
       - file: metrics/health
         title: Health Checks
-      - file: metrics/ecc-error-injection
-        title: ECC Error Injection Testing
   - caption: Test Runner
     entries:
-      - file: test/test-runner-overview
       - file: test/auto-unhealthy-device-test
       - file: test/manual-test
       - file: test/pre-start-job-test
