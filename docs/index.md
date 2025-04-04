@@ -12,6 +12,7 @@ The AMD GPU Operator simplifies the deployment and management of AMD Instinct GP
 - Automatic worker node labeling for GPU-enabled nodes
 
 ## Compatibility
+
 ### Supported Hardware
 
 | **GPUs** | |
@@ -50,7 +51,6 @@ Below is a matrix of supported Operating systems and the corresponding Kubernete
     </tr>
   </tbody>
 </table>
-
 
 Please refer to the [ROCM documentaiton](https://rocm.docs.amd.com/en/latest/compatibility/compatibility-matrix.html) for the compatability matrix for the AMD GPU DKMS driver.
 

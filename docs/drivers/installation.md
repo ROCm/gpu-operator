@@ -24,11 +24,13 @@ Before installing the out-of-tree AMD GPU driver, you must blacklist the inbox A
 ```bash
 echo "blacklist amdgpu" > /etc/modprobe.d/blacklist-amdgpu.conf
 ```
+
 - After blacklist configuration file, you need to rebuild the initramfs for the change to take effect:
 
 ```bash
 echo update-initramfs -u -k all
-``` 
+```
+
 - Reboot the worker node to apply the blacklist
 - Verify the blacklisting:
 
