@@ -85,8 +85,8 @@ spec:
         image: docker.io/rocm/test-runner:v1.2.0-beta.0
         imagePullPolicy: IfNotPresent
         resources:
-          limits:
-            amd.com/gpu: 1 # requesting a GPU
+          requests:
+            amd.com/gpu: 8 # requesting all GPUs on the worker node
         env:
         - name: TEST_TRIGGER
           value: "PRE_START_JOB_CHECK" # Set the TEST_TRIGGER environment variable to PRE_START_JOB_CHECK for test runner as init container
@@ -108,8 +108,8 @@ spec:
         command: ["/bin/sh", "-c", "--"]
         args: ["sleep 6000"]
         resources:
-          limits:
-            amd.com/gpu: 1 # requesting a GPU
+          requests:
+            amd.com/gpu: 8 # requesting all GPUs on the worker node
 ```
 
 ## Check test runner init container
