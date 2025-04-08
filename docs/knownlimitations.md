@@ -85,6 +85,13 @@
     - **Recommendation:** Ensure nodes are fully stable before triggering an upgrade, and if necessary, manually update node labels to enforce the new driver version. Refer to driver upgrade documentation for more details.
 </br></br>
 
+13. **Driver Upgrade Issue when maxParallel Upgrades is equal to total number of worker nodes in Red Hat OpenShift**
+
+    - **Impact:** Not able to perform driver upgrade
+    - **Affected Configurations:** This issue only affects Red Hat OpenShift when Image registry pod is running on one of the worker nodes or kmm build pod is required to be run on one of the worker nodes
+    - **Recommendation:** Please set maxParallel Upgrades to a number less than total number of worker nodes
+</br></br>
+
 ## Fixed Issues
 
 1. **When GPU Operator is installed with Exporter enabled, upgrade of driver is blocked as exporter is actively using the amdgpu module <span style="color:red">(Fixed in v1.2.0)</span>**
