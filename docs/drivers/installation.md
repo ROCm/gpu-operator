@@ -96,6 +96,8 @@ spec:
     # enable operator to install out-of-tree amdgpu kernel module
     enable: true
     # blacklist is required for installing out-of-tree amdgpu kernel module
+    # Not working for OpenShift cluster. OpenShift users please use the Machine Config Operator (MCO) resource to configure amdgpu blacklist.
+    # Example MCO resource is available at https://instinct.docs.amd.com/projects/gpu-operator/en/latest/installation/openshift-olmhtml#create-blacklist-for-installing-out-of-tree-kernel-module
     blacklist: true
     # Specify your repository to host driver image
     # DO NOT include the image tag as AMD GPU Operator will automatically manage the image tag for you
