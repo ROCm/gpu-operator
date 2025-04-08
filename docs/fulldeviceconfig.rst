@@ -38,8 +38,11 @@ Below is an example of a full DeviceConfig CR that can be used to install the AM
       driver:
         # Set to false to skip driver installation to use inbox or pre-installed driver on worker nodes
         # Set to true to enable operator to install out-of-tree amdgpu kernel module
-        enable: false 
-        blacklist: false # Set to true to blacklist the amdgpu kernel module which is required for installing out-of-tree driver
+        enable: false
+        # Set to true to blacklist the amdgpu kernel module which is required for installing out-of-tree driver
+        # Not working for OpenShift cluster. OpenShift users please use the Machine Config Operator (MCO) resource to configure amdgpu blacklist.
+        # Example MCO resource is available at https://instinct.docs.amd.com/projects/gpu-operator/en/latest/installation/openshift-olm.html#create-blacklist-for-installing-out-of-tree-kernel-module
+        blacklist: false
         # Specify your repository to host driver image
         # DO NOT include the image tag as AMD GPU Operator will automatically manage the image tag for you
         image: docker.io/username/repo
