@@ -47,11 +47,11 @@ controllerManager:
       effect: "NoSchedule"
     resources:
       limits:
-        cpu: 500m
-        memory: 384Mi
+        cpu: 1000m
+        memory: 1Gi
       requests:
-        cpu: 10m
-        memory: 64Mi
+        cpu: 100m
+        memory: 256Mi
   # -- Node selector for AMD GPU operator controller manager deployment
   nodeSelector: {}
   # -- Deployment affinity configs for controller manager
