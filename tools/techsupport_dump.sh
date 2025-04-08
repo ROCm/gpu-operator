@@ -65,8 +65,8 @@ pod_logs() {
 	for lpod in ${PODS}; do
 		pod=$(basename ${lpod})
 		log "   ${NS}/${pod}"
-		${KNS} logs "${pod}" >${TECH_SUPPORT_FILE}/${NODE}/${FEATURE}/${NS}_${pod}.txt
-		${KNS} logs -p "${pod}" --tail 1 >/dev/null 2>&1 && ${KNS} logs -p "${pod}" >${TECH_SUPPORT_FILE}/${NODE}/${FEATURE}/${NS}_${pod}_previous.txt
+		${KNS} logs "${pod}" --all-containers >${TECH_SUPPORT_FILE}/${NODE}/${FEATURE}/${NS}_${pod}.txt
+		${KNS} logs -p "${pod}" --all-containers --tail 1 >/dev/null 2>&1 && ${KNS} logs -p "${pod}" >${TECH_SUPPORT_FILE}/${NODE}/${FEATURE}/${NS}_${pod}_previous.txt
 	done
 	echo ${PODS} >${TECH_SUPPORT_FILE}/${node}/${FEATURE}/pods.txt
 }
@@ -103,6 +103,20 @@ ${KUBECTL} version >${TECH_SUPPORT_FILE}/kubectl.txt || die "${KUBECTL} failed"
 NFD_NS=$(${KUBECTL} get pods --no-headers -A -l app.kubernetes.io/name=node-feature-discovery | awk '{ print $1 }' | sort -u | head -n1)
 KMM_NS=$(${KUBECTL} get pods --no-headers -A -l app.kubernetes.io/name=kmm | awk '{ print $1 }' | sort -u | head -n1)
 GPUOPER_NS=$(${KUBECTL} get pods --no-headers -A -l app.kubernetes.io/name=gpu-operator-charts | awk '{ print $1 }' | sort -u | head -n1)
+
+# if nothing is found based on the above command
+# it is possible that the cluster is OpenShift cluster and operators were deployed by OLM
+# try to use alternative approach to collect info
+if [ -z "$NFD_NS" ]; then
+	NFD_NS=$(${KUBECTL} get pods --no-headers -A | grep -i nfd-controller-manager | awk '{ print $1 }' | sort -u | head -n1)
+fi
+if [ -z "$KMM_NS" ]; then
+	KMM_NS=$(${KUBECTL} get pods -A | grep -i kmm-operator-controller | awk '{ print $1 }' | sort -u | head -n1)
+fi
+if [ -z "$GPUOPER_NS" ]; then
+	GPUOPER_NS=$(${KUBECTL} get pods -A | grep -i amd-gpu-operator-controller-manager | awk '{ print $1 }' | sort -u | head -n1)
+fi
+
 [ -z "${GPUOPER_NS}" ] && die "no gpu operator"
 
 echo -e "NFD_NAMESPACE:$NFD_NS \nKMM_NAMESPACE:$KMM_NS \nGPUOPER_NAMESPACE:$GPUOPER_NS" >${TECH_SUPPORT_FILE}/namespace.txt
@@ -149,7 +163,8 @@ done
 CONTROL_PLANE=$(${KUBECTL} get nodes -l node-role.kubernetes.io/control-plane | grep -w Ready | awk '{print $1}')
 # logs
 if [ "${NODES}" == "all" ]; then
-	NODES=$(${KUBECTL} get nodes | grep -w Ready | awk '{print $1}')
+	# make sure that the nodes is a well-formatted list of all node names
+	NODES=$(${KUBECTL} get nodes | grep -w Ready | awk '{print $1}' | awk '{printf "%s ", $0}' | sed 's/ $//')
 else
 	NODES=$(echo "${NODES} ${CONTROL_PLANE}" | tr ' ' '\n' | sort -u)
 fi
@@ -188,34 +203,54 @@ cleanup() {
 trap cleanup EXIT
 
 log "logs:"
-for node in ${NODES}; do
+nodeList=($NODES)
+for node in "${nodeList[@]}"; do
 	log " ${node}:"
 	${KUBECTL} get nodes ${node} | grep -w Ready >/dev/null || continue
 	mkdir -p ${TECH_SUPPORT_FILE}/${node}
-	${KUBECTL} describe nodes ${node} >${TECH_SUPPORT_FILE}/${node}/${node}.txt
+	${KUBECTL} describe nodes ${node} >${TECH_SUPPORT_FILE}/${node}/${node}.txt || continue
 
+	# nfd pod logs
 	KNS="${KUBECTL} -n ${NFD_NS}"
-	NFD_PODS=$(${KNS} get pods -o name --field-selector spec.nodeName=${node} -l "app.kubernetes.io/name=node-feature-discovery")
+	NFD_PODS=$(${KNS} get pods -o name --field-selector spec.nodeName=${node} -l "app.kubernetes.io/name=node-feature-discovery" || continue)
+	if [ -z "$NFD_PODS" ]; then
+		NFD_PODS=$(${KNS} get pods -o name --field-selector spec.nodeName=${node} | grep -i nfd- || continue)
+	fi
 	pod_logs $NFD_NS "nfd" $node $NFD_PODS
 
+	# kmm pod logs
 	KNS="${KUBECTL} -n ${KMM_NS}"
-	KMM_PODS=$(${KNS} get pods -o name --field-selector spec.nodeName=${node} -l "app.kubernetes.io/name=kmm")
+	KMM_PODS=$(${KNS} get pods -o name --field-selector spec.nodeName=${node} -l "app.kubernetes.io/name=kmm" || continue)
+	if [ -z "$KMM_PODS" ]; then
+		KMM_PODS=$(${KNS} get pods -o name --field-selector spec.nodeName=${node} | grep -i kmm-operator- || continue)
+	fi
 	pod_logs $KMM_NS "kmm" $node $KMM_PODS
 
+	# metrics exporter pod logs
 	KNS="${KUBECTL} -n ${GPUOPER_NS}"
-	EXPORTER_PODS=$(${KNS} get pods -o name --field-selector spec.nodeName=${node} -l "app.kubernetes.io/name=metrics-exporter")
+	EXPORTER_PODS=$(${KNS} get pods -o name --field-selector spec.nodeName=${node} -l "app.kubernetes.io/name=metrics-exporter" || continue)
+	if [ -z "$EXPORTER_PODS" ]; then
+		EXPORTER_PODS=$(${KNS} get pods -o name --field-selector spec.nodeName=${node} | grep -i metrics-exporter- || continue)
+	fi
 	pod_logs $GPUOPER_NS "metrics-exporter" $node $EXPORTER_PODS
-	# gpuagent logs
-	GPUAGENT_LOGS="gpu-agent.log gpu-agent-api.log gpu-agent-err.log"
-	for l in ${GPUAGENT_LOGS}; do
-		for expod in ${EXPORTER_PODS}; do
-			mkdir -p ${TECH_SUPPORT_FILE}/${node}/gpu-agent
-			pod=$(basename ${expod})
-			${KUBECTL} cp ${GPUOPER_NS}/${pod}:"/run/$l" ${TECH_SUPPORT_FILE}/${node}/gpu-agent/$l >/dev/null || true
-		done
-	done
+	
+	# device plugin pod logs
+	DEVICE_PLUGIN_PODS=$(${KNS} get pods -o name --field-selector spec.nodeName=${node} | grep -i device-plugin- || continue)
+	pod_logs $GPUOPER_NS "device-plugin" $node $DEVICE_PLUGIN_PODS
 
-	GPUOPER_PODS=$(${KNS} get pods -o name --field-selector spec.nodeName=${node} -l "app.kubernetes.io/name=gpu-operator-charts")
+	# node labeller pod logs
+	NODE_LABELLER_PODS=$(${KNS} get pods -o name --field-selector spec.nodeName=${node} | grep -i node-labeller- || continue)
+	pod_logs $GPUOPER_NS "node-labeller" $node $NODE_LABELLER_PODS
+
+	# test runner pod logs
+	TEST_RUNNER_PODS=$(${KNS} get pods -o name --field-selector spec.nodeName=${node} | grep -i test-runner- || continue)
+	pod_logs $GPUOPER_NS "test-runner" $node $TEST_RUNNER_PODS
+
+	# operator pod logs
+	GPUOPER_PODS=$(${KNS} get pods -o name --field-selector spec.nodeName=${node} -l "app.kubernetes.io/name=gpu-operator-charts" || continue)
+	if [ -z "$GPUOPER_PODS" ]; then
+		GPUOPER_PODS=$(${KNS} get pods -o name --field-selector spec.nodeName=${node} | grep -i amd-gpu-operator-controller-manager || continue)
+	fi
 	pod_logs $GPUOPER_NS "gpu-operator" $node $GPUOPER_PODS
 
 	# node logs
