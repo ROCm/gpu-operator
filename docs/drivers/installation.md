@@ -100,7 +100,9 @@ spec:
     # Example MCO resource is available at https://instinct.docs.amd.com/projects/gpu-operator/en/latest/installation/openshift-olmhtml#create-blacklist-for-installing-out-of-tree-kernel-module
     blacklist: true
     # Specify your repository to host driver image
-    # DO NOT include the image tag as AMD GPU Operator will automatically manage the image tag for you
+    # Note:
+    # 1. DO NOT include the image tag as AMD GPU Operator will automatically manage the image tag for you
+    # 2. Updating the driver image repository is not supported. Please delete the existing DeviceConfig and create a new one with the updated image repository
     image: docker.io/username/repo
     # (Optional) Specify the credential for your private registry if it requires credential to get pull/push access
     # you can create the docker-registry type secret by running command like:
