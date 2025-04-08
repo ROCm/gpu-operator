@@ -227,7 +227,7 @@ func (nl *metricsExporter) SetMetricsExporterAsDesired(ds *appsv1.DaemonSet, dev
 		if internalPort == port {
 			internalPort = port - 1
 		}
-		// Bind service port to localhost only
+		// Bind service port to localhost only, don't expose port in ContainerPort
 		containers[0].Args = []string{"--bind=127.0.0.1:" + fmt.Sprintf("%v", int32(internalPort))}
 		containers[0].Env[1].Value = fmt.Sprintf("%v", internalPort)
 
@@ -279,12 +279,26 @@ func (nl *metricsExporter) SetMetricsExporterAsDesired(ds *appsv1.DaemonSet, dev
 			},
 			Args:         args,
 			VolumeMounts: volumeMounts,
+			Ports: []v1.ContainerPort{
+				{
+					Name:          "exporter-port",
+					Protocol:      v1.ProtocolTCP,
+					ContainerPort: port,
+				},
+			},
 		})
 
 		// Provide elevated privilege only when rbac-proxy is enabled
 		serviceaccount = kubeRbacSAName
 	} else {
 		containers[0].Env[1].Value = fmt.Sprintf("%v", port)
+		containers[0].Ports = []v1.ContainerPort{
+			{
+				Name:          "exporter-port",
+				Protocol:      v1.ProtocolTCP,
+				ContainerPort: port,
+			},
+		}
 	}
 
 	gracePeriod := int64(1)
