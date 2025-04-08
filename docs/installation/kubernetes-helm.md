@@ -162,7 +162,11 @@ The following parameters are able to be configued when using the Helm Chart. In 
 | controllerManager.manager.image.tag | string | `"v1.2.1"` | AMD GPU operator controller manager image tag |
 | controllerManager.manager.imagePullPolicy | string | `"Always"` | Image pull policy for AMD GPU operator controller manager pod |
 | controllerManager.manager.imagePullSecrets | string | `""` | Image pull secret name for pulling AMD GPU operator controller manager image if registry needs credential to pull image |
-| controllerManager.nodeAffinity.nodeSelectorTerms | list | `[{"key":"node-role.kubernetes.io/control-plane","operator":"Exists"}, {"key":"node-role.kubernetes.io/master","operator":"Exists"}]` | Node affinity selector terms config for the AMD GPU operator controller manager, set it to [] if you want to make affinity config empty |
+| controllerManager.manager.resources.limits.cpu | string | `"1000m"` | CPU limits for the controller manager. Consider increasing for large clusters |
+| controllerManager.manager.resources.limits.memory | string | `"1Gi"` | Memory limits for the controller manager. Consider increasing if experiencing OOM issues |
+| controllerManager.manager.resources.requests.cpu | string | `"100m"` | CPU requests for the controller manager. Adjust based on observed CPU usage |
+| controllerManager.manager.resources.requests.memory | string | `"256Mi"` | Memory requests for the controller manager. Adjust based on observed memory usage |
+| controllerManager.nodeAffinity.nodeSelectorTerms | list | `[{"key":"node-role.kubernetes.io/control-plane","operator":"Exists"},{"key":"node-role.kubernetes.io/master","operator":"Exists"}]` | Node affinity selector terms config for the AMD GPU operator controller manager, set it to [] if you want to make affinity config empty |
 | controllerManager.nodeSelector | object | `{}` | Node selector for AMD GPU operator controller manager deployment |
 | installdefaultNFDRule | bool | `true` | Set to true to install default NFD rule for detecting AMD GPU hardware based on pci vendor ID and device ID |
 | kmm.controller.manager.env.relatedImageBuild | string | `"gcr.io/kaniko-project/executor:v1.23.2"` | KMM kaniko builder image for building driver image within cluster |
@@ -210,6 +214,42 @@ Verify that nodes with AMD GPU hardware are properly labeled:
 
 ```bash
 kubectl get nodes -L feature.node.kubernetes.io/amd-gpu
+```
+
+## Resource Configuration
+
+### Controller Manager Resource Settings
+
+The AMD GPU Operator controller manager component has default resource limits and requests configured for typical usage scenarios. You may need to adjust these values based on your specific cluster environment:
+
+```yaml
+controllerManager:
+  manager:
+    resources:
+      limits:
+        cpu: 1000m
+        memory: 1Gi
+      requests:
+        cpu: 100m
+        memory: 256Mi
+```
+
+#### When to Adjust Resource Settings
+
+You should consider adjusting the controller manager resource settings in these scenarios:
+
+- **Large clusters**: If managing a large number of nodes or GPU devices, consider increasing both CPU and memory limits
+- **Memory pressure**: If you observe OOM (Out of Memory) kills in controller manager pods, increase the memory limit and request
+- **CPU pressure**: If the controller manager is experiencing throttling or slow response times during operations, increase the CPU limit and request
+- **Resource-constrained environments**: For smaller development or test clusters, you may reduce these values to conserve resources
+
+You can apply resource changes by updating your values.yaml file and upgrading the Helm release:
+
+```bash
+helm upgrade amd-gpu-operator amd/gpu-operator-helm \
+  --namespace kube-amd-gpu \
+  --version=v1.0.0 \
+  -f values.yaml
 ```
 
 ## Install Custom Resource
