@@ -548,7 +548,23 @@ func (h *upgradeMgrHelper) isUpgradePolicyViolated(upgradeInProgress int, upgrad
 		return maxParallelUpdates, true
 	}
 
-	return maxParallelUpdates, (upgradeInProgress >= maxParallelUpdates) || (upgradeFailedState >= maxUnavailableNodes)
+	// Remaining space for unavailable nodes
+	remainingUnavailable := maxUnavailableNodes - upgradeFailedState
+
+	var maxParallelAllowed int
+	if maxParallelUpdates == 0 {
+		// "0 means Unlimited parallel" — so allow up to remaining unavailable
+		maxParallelAllowed = remainingUnavailable
+	} else {
+		// Take into consideration minimum between configured value and remaining unavailable
+		maxParallelAllowed = min(maxParallelUpdates, remainingUnavailable)
+	}
+
+	if maxParallelAllowed == 0 || upgradeInProgress >= maxParallelAllowed {
+		return maxParallelAllowed, true
+	}
+
+	return maxParallelAllowed, false
 
 }
 
