@@ -64,6 +64,25 @@ const (
 	defaultSAName     = "amd-gpu-operator-utils-container"
 )
 
+var (
+	computePartitionTypes = []string{"spx", "cpx", "dpx", "qpx", "tpx"}
+	memoryPartitionTypes  = []string{"nps1", "nps4"}
+	validResources        = buildValidResources()
+)
+
+func buildValidResources() map[string]struct{} {
+	resources := map[string]struct{}{
+		"amd.com/gpu": {},
+	}
+	for _, compute := range computePartitionTypes {
+		for _, memory := range memoryPartitionTypes {
+			resourceName := fmt.Sprintf("amd.com/%s_%s", compute, memory)
+			resources[resourceName] = struct{}{}
+		}
+	}
+	return resources
+}
+
 type upgradeMgr struct {
 	helper upgradeMgrHelperAPI
 }
@@ -663,9 +682,11 @@ func (h *upgradeMgrHelper) getPodsToDrainOrDelete(ctx context.Context, deviceCon
 			continue
 		}
 		for _, container := range pod.Spec.Containers {
-			if _, ok := container.Resources.Requests["amd.com/gpu"]; ok {
-				newPods = append(newPods, pod)
-				break
+			for resourceName := range container.Resources.Requests {
+				if _, ok := validResources[string(resourceName)]; ok {
+					newPods = append(newPods, pod)
+					break
+				}
 			}
 		}
 	}
