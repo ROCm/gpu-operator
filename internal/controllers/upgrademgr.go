@@ -168,6 +168,12 @@ func (n *upgradeMgr) HandleUpgrade(ctx context.Context, deviceConfig *amdv1alpha
 			continue
 		}
 
+		// Untaint to let upgrade continue in case of KMM bug after node reboot
+		if n.helper.isNodeNmcStatusMissing(ctx, &nodeList.Items[i], deviceConfig) {
+			upgradeInProgress++
+			continue
+		}
+
 		// 3. Handle Started Nodes
 		if n.helper.isNodeStateUpgradeStarted(&nodeList.Items[i]) {
 			upgradeInProgress++
@@ -273,6 +279,7 @@ type upgradeMgrHelperAPI interface {
 
 	// Handle node state transitions
 	isNodeReady(ctx context.Context, node *v1.Node, deviceConfig *amdv1alpha1.DeviceConfig) bool
+	isNodeNmcStatusMissing(ctx context.Context, node *v1.Node, deviceConfig *amdv1alpha1.DeviceConfig) bool
 	isNodeNew(ctx context.Context, node *v1.Node, deviceConfig *amdv1alpha1.DeviceConfig) bool
 	isNodeStateUpgradeStarted(node *v1.Node) bool
 	isNodeStateInstallInProgress(ctx context.Context, node *v1.Node, deviceConfig *amdv1alpha1.DeviceConfig) bool
@@ -387,22 +394,43 @@ func (h *upgradeMgrHelper) isNodeNew(ctx context.Context, node *v1.Node, deviceC
 	return false
 }
 
+// Handle Driver installation for nodes with nmc status missing
+func (h *upgradeMgrHelper) isNodeNmcStatusMissing(ctx context.Context, node *v1.Node, deviceConfig *amdv1alpha1.DeviceConfig) bool {
+
+	if nodeStatus, ok := deviceConfig.Status.NodeModuleStatus[node.Name]; ok {
+		currentState := h.getNodeStatus(node.Name)
+		// during the automatic upgrade, if node reboot was triggered, KMM could possibly remove the NMC status, making the ContainerImage empty
+		// https://github.com/rh-ecosystem-edge/kernel-module-management/blob/b57037ec1b8ceef9961ca1baeb9529121c6df398/internal/controllers/nmc_reconciler.go#L414-L419
+		// at this moment the node status would be UpgradeStateInProgress with empty ContainerImage
+		// we still need to proceed with this status
+		if nodeStatus.ContainerImage == "" && currentState == amdv1alpha1.UpgradeStateInProgress {
+
+			// Uncordon the node
+			if err := h.cordonOrUncordonNode(ctx, deviceConfig, node, false); err != nil {
+				// Move to failure state if uncordon fails
+				h.setNodeStatus(ctx, node.Name, amdv1alpha1.UpgradeStateUncordonFailed)
+				return false
+			}
+
+			return true
+		}
+	}
+
+	return false
+}
+
 // Handle Driver installation for ready nodes.
 func (h *upgradeMgrHelper) isNodeReady(ctx context.Context, node *v1.Node, deviceConfig *amdv1alpha1.DeviceConfig) bool {
 
 	// Move the node state to complete if the driver install is done
 	if nodeStatus, ok := deviceConfig.Status.NodeModuleStatus[node.Name]; ok {
-		currentState := h.getNodeStatus(node.Name)
 		// If driver install is done but CR version not specified, get default version
 		driverVersion, _ := utils.GetDriverVersion(*node, *deviceConfig)
 
-		// step into the next upgrade state if the driver version matched with node status
-		if strings.HasSuffix(nodeStatus.ContainerImage, driverVersion) ||
-			// during the automatic upgrade, if node reboot was triggered, KMM could possibly remove the NMC status, making the ContainerImage empty
-			// https://github.com/rh-ecosystem-edge/kernel-module-management/blob/b57037ec1b8ceef9961ca1baeb9529121c6df398/internal/controllers/nmc_reconciler.go#L414-L419
-			// at this moment the node status would be UpgradeStateInProgress with empty ContainerImage
-			// we still need to proceed with this status
-			(nodeStatus.ContainerImage == "" && currentState == amdv1alpha1.UpgradeStateInProgress) {
+		if strings.HasSuffix(nodeStatus.ContainerImage, driverVersion) {
+
+			currentState := h.getNodeStatus(node.Name)
+
 			// Return if the node is already taken care
 			if currentState == amdv1alpha1.UpgradeStateComplete || currentState == amdv1alpha1.UpgradeStateInstallComplete {
 				return true
