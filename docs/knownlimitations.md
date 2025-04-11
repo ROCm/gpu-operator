@@ -92,6 +92,13 @@
     - **Recommendation:** Please set maxParallel Upgrades to a number less than total number of worker nodes
 </br></br>
 
+14. **Driver Install/Upgrade Issue if one of the nodes where KMM is running build pod gets rebooted accidentaly when rebootRequired is set to false**
+
+    - **Impact:** Not able to perform driver install/upgrade
+    - **Affected Configurations:** All configurations
+    - **Recommendation:** Please retrigger driver install/upgrade and ensure to not reboot node manually when rebootRequired is false
+</br></br>
+
 ## Fixed Issues
 
 1. **When GPU Operator is installed with Exporter enabled, upgrade of driver is blocked as exporter is actively using the amdgpu module <span style="color:red">(Fixed in v1.2.0)</span>**
