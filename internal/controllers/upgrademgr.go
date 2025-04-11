@@ -444,6 +444,7 @@ func (h *upgradeMgrHelper) isNodeReady(ctx context.Context, node *v1.Node, devic
 	if nodeStatus, ok := deviceConfig.Status.NodeModuleStatus[node.Name]; ok {
 		// If driver install is done but CR version not specified, get default version
 		driverVersion, _ := utils.GetDriverVersion(*node, *deviceConfig)
+
 		if strings.HasSuffix(nodeStatus.ContainerImage, driverVersion) {
 
 			currentState := h.getNodeStatus(node.Name)
@@ -453,8 +454,9 @@ func (h *upgradeMgrHelper) isNodeReady(ctx context.Context, node *v1.Node, devic
 				return true
 			}
 
-			// Move to failure state if uncordon fails
+			// Uncordon the node
 			if err := h.cordonOrUncordonNode(ctx, deviceConfig, node, false); err != nil {
+				// Move to failure state if uncordon fails
 				h.setNodeStatus(ctx, node.Name, amdv1alpha1.UpgradeStateUncordonFailed)
 				return false
 			}
