@@ -394,6 +394,20 @@ func (mr *MockupgradeMgrHelperAPIMockRecorder) isNodeNew(ctx, node, deviceConfig
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "isNodeNew", reflect.TypeOf((*MockupgradeMgrHelperAPI)(nil).isNodeNew), ctx, node, deviceConfig)
 }
 
+// isNodeNmcStatusMissing mocks base method.
+func (m *MockupgradeMgrHelperAPI) isNodeNmcStatusMissing(ctx context.Context, node *v1.Node, deviceConfig *v1alpha1.DeviceConfig) bool {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "isNodeNmcStatusMissing", ctx, node, deviceConfig)
+	ret0, _ := ret[0].(bool)
+	return ret0
+}
+
+// isNodeNmcStatusMissing indicates an expected call of isNodeNmcStatusMissing.
+func (mr *MockupgradeMgrHelperAPIMockRecorder) isNodeNmcStatusMissing(ctx, node, deviceConfig any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "isNodeNmcStatusMissing", reflect.TypeOf((*MockupgradeMgrHelperAPI)(nil).isNodeNmcStatusMissing), ctx, node, deviceConfig)
+}
+
 // isNodeReady mocks base method.
 func (m *MockupgradeMgrHelperAPI) isNodeReady(ctx context.Context, node *v1.Node, deviceConfig *v1alpha1.DeviceConfig) bool {
 	m.ctrl.T.Helper()
