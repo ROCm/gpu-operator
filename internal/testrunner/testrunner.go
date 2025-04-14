@@ -48,7 +48,6 @@ import (
 )
 
 const (
-	// TODO: determine where to host the test runner image and put the registry URL here
 	defaultTestRunnerImage       = "docker.io/rocm/test-runner:v1.2.1-beta.0"
 	defaultInitContainerImage    = "busybox:1.36"
 	TestRunnerName               = "test-runner"
