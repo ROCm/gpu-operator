@@ -729,11 +729,18 @@ func (h *upgradeMgrHelper) getPodsToDrainOrDelete(ctx context.Context, deviceCon
 			newPods = append(newPods, pod)
 			continue
 		}
+	podLoop:
 		for _, container := range pod.Spec.Containers {
 			for resourceName := range container.Resources.Requests {
 				if _, ok := validResources[string(resourceName)]; ok {
 					newPods = append(newPods, pod)
-					break
+					break podLoop
+				}
+			}
+			for _, volumeMount := range container.VolumeMounts {
+				if strings.HasPrefix(volumeMount.MountPath, "/dev/dri") {
+					newPods = append(newPods, pod)
+					break podLoop
 				}
 			}
 		}
