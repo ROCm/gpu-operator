@@ -3,7 +3,7 @@ entries:
   gpu-operator-charts:
   - apiVersion: v2
     appVersion: v1.2.1
-    created: "2025-04-17T07:28:54.911175509Z"
+    created: "2025-04-17T07:45:05.647740069Z"
     dependencies:
     - condition: node-feature-discovery.enabled
       name: node-feature-discovery
@@ -15,7 +15,7 @@ entries:
       version: v1.0.0
     description: AMD GPU Operator simplifies the deployment and management of AMD
       Instinct GPU accelerators within Kubernetes clusters.
-    digest: bf14654d6ac0cf10b07662195348ef4b7c64f11a63810a288e35a7b3a5d1962c
+    digest: 8d7f09fe5270098e96b3dca79fbba06267c32eab87ed3a3d42c62b9fe31a204a
     home: https://github.com/ROCm/gpu-operator
     icon: https://raw.githubusercontent.com/ROCm/k8s-device-plugin/master/helm/logo.png
     keywords:
@@ -35,11 +35,11 @@ entries:
     - https://github.com/ROCm/gpu-operator
     type: application
     urls:
-    - https://rocm.github.io/gpu-operator/charts/gpu-operator-helm-k8s-v1.2.1.tgz
+    - https://rocm.github.io/gpu-operator/charts/gpu-operator-charts-v1.2.1.tgz
     version: v1.2.1
   - apiVersion: v2
     appVersion: v1.2.0
-    created: "2025-04-17T07:28:54.904278222Z"
+    created: "2025-04-17T07:45:05.638977296Z"
     dependencies:
     - condition: node-feature-discovery.enabled
       name: node-feature-discovery
@@ -75,7 +75,7 @@ entries:
     version: v1.2.0
   - apiVersion: v2
     appVersion: v1.1.0
-    created: "2025-04-17T07:28:54.897808767Z"
+    created: "2025-04-17T07:45:05.631671713Z"
     dependencies:
     - condition: node-feature-discovery.enabled
       name: node-feature-discovery
@@ -111,7 +111,7 @@ entries:
     version: v1.1.0
   - apiVersion: v2
     appVersion: v1.0.0
-    created: "2025-04-17T07:28:54.89221682Z"
+    created: "2025-04-17T07:45:05.623266168Z"
     dependencies:
     - condition: node-feature-discovery.enabled
       name: node-feature-discovery
@@ -145,4 +145,4 @@ entries:
     urls:
     - https://rocm.github.io/gpu-operator/charts/gpu-operator-charts-v1.0.0.tgz
     version: v1.0.0
-generated: "2025-04-17T07:28:54.881288478Z"
+generated: "2025-04-17T07:45:05.610817459Z"
