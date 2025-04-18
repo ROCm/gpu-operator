@@ -3,7 +3,7 @@ entries:
   gpu-operator-charts:
   - apiVersion: v2
     appVersion: v1.2.1
-    created: "2025-04-17T19:09:04.582457594Z"
+    created: "2025-04-18T08:50:01.259313852Z"
     dependencies:
     - condition: node-feature-discovery.enabled
       name: node-feature-discovery
@@ -15,7 +15,7 @@ entries:
       version: v1.0.0
     description: AMD GPU Operator simplifies the deployment and management of AMD
       Instinct GPU accelerators within Kubernetes clusters.
-    digest: c28604c8043c9240058c8196118d0c26b0fcc0ebb3f662ee7e9b9373776133a7
+    digest: aea2d8df98427edd41e232845e649b9ece2644c59eac142f0aa8b0c17093b853
     home: https://github.com/ROCm/gpu-operator
     icon: https://raw.githubusercontent.com/ROCm/k8s-device-plugin/master/helm/logo.png
     keywords:
@@ -39,7 +39,7 @@ entries:
     version: v1.2.1
   - apiVersion: v2
     appVersion: v1.2.0
-    created: "2025-04-17T19:09:04.573659666Z"
+    created: "2025-04-18T08:50:01.246278744Z"
     dependencies:
     - condition: node-feature-discovery.enabled
       name: node-feature-discovery
@@ -75,7 +75,7 @@ entries:
     version: v1.2.0
   - apiVersion: v2
     appVersion: v1.1.0
-    created: "2025-04-17T19:09:04.566312805Z"
+    created: "2025-04-18T08:50:01.234736735Z"
     dependencies:
     - condition: node-feature-discovery.enabled
       name: node-feature-discovery
@@ -111,7 +111,7 @@ entries:
     version: v1.1.0
   - apiVersion: v2
     appVersion: v1.0.0
-    created: "2025-04-17T19:09:04.559074479Z"
+    created: "2025-04-18T08:50:01.229252196Z"
     dependencies:
     - condition: node-feature-discovery.enabled
       name: node-feature-discovery
@@ -145,4 +145,4 @@ entries:
     urls:
     - https://rocm.github.io/gpu-operator/charts/gpu-operator-charts-v1.0.0.tgz
     version: v1.0.0
-generated: "2025-04-17T19:09:04.547560644Z"
+generated: "2025-04-18T08:50:01.218688113Z"
