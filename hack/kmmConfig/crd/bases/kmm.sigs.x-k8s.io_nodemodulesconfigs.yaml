@@ -240,6 +240,8 @@ spec:
                   state status
                 items:
                   properties:
+                    bootId:
+                      type: string
                     config:
                       properties:
                         containerImage:
