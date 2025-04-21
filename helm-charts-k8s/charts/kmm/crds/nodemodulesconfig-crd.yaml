@@ -249,6 +249,8 @@ spec:
                   status
                 items:
                   properties:
+                    bootId:
+                      type: string
                     config:
                       properties:
                         containerImage:
