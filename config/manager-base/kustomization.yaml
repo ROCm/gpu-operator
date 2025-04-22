@@ -10,7 +10,7 @@ patches:
 images:
 - name: controller
   newName: docker.io/rocm/gpu-operator
-  newTag: v1.2.0
+  newTag: v1.2.1
 
 configurations:
 - kustomizeconfig.yaml

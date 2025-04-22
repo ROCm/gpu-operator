@@ -12,7 +12,7 @@ controllerManager:
       allowPrivilegeEscalation: false
     image:
       repository: docker.io/rocm/gpu-operator
-      tag: v1.2.0
+      tag: v1.2.1
     imagePullPolicy: Always
     imagePullSecrets: ""
     tolerations:
