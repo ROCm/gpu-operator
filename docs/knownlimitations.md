@@ -85,6 +85,19 @@
     - **Recommendation:** Ensure nodes are fully stable before triggering an upgrade, and if necessary, manually update node labels to enforce the new driver version. Refer to driver upgrade documentation for more details.
 </br></br>
 
+13. **Pods Terminate on GPU Worker Node Reboot During Driver Upgrade**
+
+    - *Impact:* During the GPU driver upgrade process, a node reboot is intentionally triggered to complete the driver installation. However, an issue may arise if the node responsible for building the driver reboots unintentionally before the build is completed and propagated to other nodes. This premature or unintentional reboot disrupts the build process, potentially causing pod terminations on that node and preventing successful upgrades across the cluster.
+    - *Root Cause:* The GPU Operator initiates the node reboot only after the driver build has been completed. However, if the node reboots unexpectedly while still performing the build (e.g., due to external triggers or misconfigurations), it can interrupt the process and affect cluster-wide upgrade stability.
+    - *Recommendation:* Users should ensure the node performing the driver build remains stable and does not reboot unintentionally during the upgrade process. A targeted fix to address this specific scenario is planned for a future release.
+</br></br>
+
+14. **Driver Upgrade Fails with `rebootRequired: true` and `maxParallelUpgrades` Equal to All Workers**
+   - *Issue*: When the GPU Operator was configured with `rebootRequired: true` and `maxParallelUpgrades` set to the total number of worker nodes, the driver upgrade process would fail.
+   - *Root Cause*: Upgrading all nodes simultaneously adds taints to all of them, causing the image registry pod to be unschedulable, which in turn causes issues for the driver upgrade.
+   - *Recommendation*: Avoid setting `maxParallelUpgrades` equal to the total number of worker nodes. For example, in a cluster with two worker (GPU) nodes, set `maxParallelUpgrades` to 1 to avoid this situation.
+</br></br>
+
 ## Fixed Issues
 
 1. **When GPU Operator is installed with Exporter enabled, upgrade of driver is blocked as exporter is actively using the amdgpu module <span style="color:red">(Fixed in v1.2.0)</span>**
@@ -109,5 +122,12 @@
         ```bash
         kubectl label node [node-to-exclude] amd.com/device-metrics-exporter-
         ```
+
+</br>
+
+2. **Failure to Blacklist In-Tree Driver When Creating MachineConfig Manually <span style="color:red">(Fixed in v1.2.1)</span>** [[#93]](https://github.com/ROCm/gpu-operator/issues/93)
+   - *Issue*: When creating a MachineConfig manually, the GPU Operator failed to blacklist the in-tree driver, as it kept deleting the `/etc/modprobe.d/blacklist-amdgpu.conf` file.
+   - *Root Cause*: OpenShift's MachineConfigOperator (MCO) fully manages the CoreOS system’s configuration. Users should use MCO to configure blacklists.
+   - *Resolution*: OpenShift users should apply blacklist configurations through MCO. The GPU Operator will no longer delete files created by MCO.
 
 </br>

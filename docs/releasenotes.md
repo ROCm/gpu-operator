@@ -1,5 +1,78 @@
 # Release Notes
 
+## GPU Operator v1.2.1 Release Notes
+
+The AMD GPU Operator v1.2.1 release introduces expanded platform support and new features to enhance GPU workload management. Notably, this release adds support for OpenShift and Microsoft Azure Kubernetes Service (AKS), and introduces two new **beta features**:
+
+- **Exporting test runner logs to external storage** (AWS S3, Azure Blob, MinIO) for improved audit and analysis workflows.
+- **Custom labels for exported metrics** to enhance observability and workload tagging.
+
+**Note:** These beta features are intended for early access and feedback. Users are encouraged to evaluate them in non-production environments and provide feedback to help shape their evolution in future stable releases.
+
+### Release Highlights
+
+- **Expanded Platform Support**
+  - *OpenShift Support*: 
+  
+    All GPU Operator features introduced in v1.2.0 and v1.2.1 are now available for OpenShift versions 4.16, 4.17, and 4.18.
+
+    Users running GPU Operator v1.1.1 can seamlessly upgrade to v1.2.1 using the OpenShift OperatorHub. The upgrade path ensures continuity of existing features while enabling access to new enhancements introduced in this release.
+
+  - *Microsoft AKS Support*:
+    
+    The GPU Operator now supports deployment on Microsoft Azure Kubernetes Service (AKS), enabling users to manage GPU workloads on Azure.
+
+- **Exporting Test Runner Logs to External Storage (Beta)**
+  - The test runner can now export logs to external storage solutions such as AWS S3, Azure Blob Storage, and MinIO.
+  - This feature allows users to store and analyze test results more effectively, facilitating improved diagnostics and auditing.
+
+- **Support for Custom Labels in Metrics (Beta)**
+  - Users can now add up to 10 custom labels to the metrics exported by the GPU Operator.
+  - Custom labels provide enhanced flexibility and control over the monitoring and management of GPU workloads.
+  - *Limitations*:
+    - Custom labels cannot overwrite automatically generated labels, except for the `CLUSTER_NAME` label, which can be customized.
+
+### Platform Support
+
+- **OpenShift Support**
+  - Full support for OpenShift versions 4.16, 4.17, and 4.18, including features such as GPU health monitoring, automated component and driver upgrades, and the test runner.
+
+- **Microsoft AKS Support**
+  - Support for deploying and managing GPU workloads on Microsoft Azure Kubernetes Service (AKS), encompassing all features introduced in previous releases.
+
+### Documentation Updates
+
+- Updated [Release notes](https://instinct.docs.amd.com/projects/gpu-operator/en/latest/releasenotes.html) detailing new features in v1.2.1.
+- Resolved GitHub issue [[#93]](https://github.com/ROCm/gpu-operator/issues/93) related to blacklisting in-tree drivers when creating MachineConfig manually.
+- Enhanced documentation for the new feature of exporting test runner logs to external storage solutions, including detailed configuration instructions and examples of supported storage providers.
+- Updated [Known Issues and Limitations](https://instinct.docs.amd.com/projects/gpu-operator/en/latest/knownlimitations.html) section to highlight current limitations and resolved issues.
+- A comprehensive list of known issues, feature requests, and enhancements under consideration can be found on the official [GPU Operator GitHub Issues page](https://github.com/ROCm/gpu-operator/issues). The AMD team actively monitors and prioritizes these issues for future GPU Operator releases. Users are encouraged to review, comment on, or open issues to help guide ongoing development and improvements.
+
+### Known Limitations
+
+1. **Pods Terminate on GPU Worker Node Reboot During Driver Upgrade**
+
+    - *Impact:* During the GPU driver upgrade process, a node reboot is intentionally triggered to complete the driver installation. However, an issue may arise if the node responsible for building the driver reboots unintentionally before the build is completed and propagated to other nodes. This premature or unintentional reboot disrupts the build process, potentially causing pod terminations on that node and preventing successful upgrades across the cluster.
+    - *Root Cause:* The GPU Operator initiates the node reboot only after the driver build has been completed. However, if the node reboots unexpectedly while still performing the build (e.g., due to external triggers or misconfigurations), it can interrupt the process and affect cluster-wide upgrade stability.
+    - *Recommendation:* Users should ensure the node performing the driver build remains stable and does not reboot unintentionally during the upgrade process. A targeted fix to address this specific scenario is planned for a future release.
+
+2. **Driver Upgrade Fails with `rebootRequired: true` and `maxParallelUpgrades` Equal to All Workers**
+   - *Issue*: When the GPU Operator was configured with `rebootRequired: true` and `maxParallelUpgrades` set to the total number of worker nodes, the driver upgrade process would fail.
+   - *Root Cause*: Upgrading all nodes simultaneously adds taints to all of them, causing the image registry pod to be unschedulable, which in turn causes issues for the driver upgrade.
+   - *Recommendation*: Avoid setting `maxParallelUpgrades` equal to the total number of worker nodes. For example, in a cluster with two worker (GPU) nodes, set `maxParallelUpgrades` to 1 to avoid this situation.
+
+> **Note:** All current and historical limitations for the GPU Operator, including their latest statuses and any associated workarounds or fixes, are tracked in the following documentation page: https://instinct.docs.amd.com/projects/gpu-operator/en/latest/knownlimitations.html.  
+   Please refer to this page regularly for the most up-to-date information.
+
+### Fixes
+
+1. **Failure to Blacklist In-Tree Driver When Creating MachineConfig Manually** [[#93]](https://github.com/ROCm/gpu-operator/issues/93)
+   - *Issue*: When creating a MachineConfig manually, the GPU Operator failed to blacklist the in-tree driver, as it kept deleting the `/etc/modprobe.d/blacklist-amdgpu.conf` file.
+   - *Root Cause*: OpenShift's MachineConfigOperator (MCO) fully manages the CoreOS system’s configuration. Users should use MCO to configure blacklists.
+   - *Resolution*: OpenShift users should apply blacklist configurations through MCO. The GPU Operator will no longer delete files created by MCO.
+
+</br></br>
+
 ## GPU Operator v1.2.0 Release Notes
 
 The GPU Operator v1.2.0 release introduces significant new features, including **GPU health monitoring**, **automated component and driver upgrades**, and a **test runner** for enhanced validation and troubleshooting. These improvements aim to increase reliability, streamline upgrades, and provide enhanced visibility into GPU health.
