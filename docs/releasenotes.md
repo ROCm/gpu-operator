@@ -12,15 +12,14 @@ The AMD GPU Operator v1.2.1 release introduces expanded platform support and new
 ### Release Highlights
 
 - **Expanded Platform Support**
-  - *OpenShift Support*: 
+  - *OpenShift Support*:
   
-    All GPU Operator features introduced in v1.2.0 and v1.2.1 are now available for OpenShift versions 4.16, 4.17, and 4.18.
-
-    Users running GPU Operator v1.1.1 can seamlessly upgrade to v1.2.1 using the OpenShift OperatorHub. The upgrade path ensures continuity of existing features while enabling access to new enhancements introduced in this release.
+    - All GPU Operator features introduced in v1.2.0 and v1.2.1 are now available for OpenShift versions 4.16, 4.17, and 4.18.
+    - Users running GPU Operator v1.1.1 can seamlessly upgrade to v1.2.1 using the OpenShift OperatorHub. The upgrade path ensures continuity of existing features while enabling access to new enhancements introduced in this release.
 
   - *Microsoft AKS Support*:
-    
-    The GPU Operator now supports deployment on Microsoft Azure Kubernetes Service (AKS), enabling users to manage GPU workloads on Azure.
+
+    - The GPU Operator now supports deployment on Microsoft Azure Kubernetes Service (AKS), enabling users to manage GPU workloads on Azure.
 
 - **Exporting Test Runner Logs to External Storage (Beta)**
   - The test runner can now export logs to external storage solutions such as AWS S3, Azure Blob Storage, and MinIO.

@@ -123,12 +123,11 @@
         ```bash
         kubectl label node [node-to-exclude] amd.com/device-metrics-exporter-
         ```
-
-</br>
+</br></br>
 
 2. **Failure to Blacklist In-Tree Driver When Creating MachineConfig Manually <span style="color:red">(Fixed in v1.2.1)</span>** [[#93]](https://github.com/ROCm/gpu-operator/issues/93)
-   - *Issue*: When creating a MachineConfig manually, the GPU Operator failed to blacklist the in-tree driver, as it kept deleting the `/etc/modprobe.d/blacklist-amdgpu.conf` file.
-   - *Root Cause*: OpenShift's MachineConfigOperator (MCO) fully manages the CoreOS system’s configuration. Users should use MCO to configure blacklists.
-   - *Resolution*: OpenShift users should apply blacklist configurations through MCO. The GPU Operator will no longer delete files created by MCO.
+   - ***Issue***: When creating a MachineConfig manually, the GPU Operator failed to blacklist the in-tree driver, as it kept deleting the `/etc/modprobe.d/blacklist-amdgpu.conf` file.
+   - ***Root Cause***: OpenShift's MachineConfigOperator (MCO) fully manages the CoreOS system’s configuration. Users should use MCO to configure blacklists.
+   - ***Resolution***: OpenShift users should apply blacklist configurations through MCO. The GPU Operator will no longer delete files created by MCO.
 
-</br>
+</br></br>
