@@ -44,7 +44,7 @@ spec:
     nodePort: 32500
 
     # image for the metrics-exporter container
-    image: "docker.io/rocm/device-metrics-exporter:v1.2.0"
+    image: "docker.io/rocm/device-metrics-exporter:v1.2.1"
     
     # Specify the kube-rbac-proxy config
     rbacConfig:

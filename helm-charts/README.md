@@ -65,7 +65,7 @@ Basic installation:
 helm install amd-gpu-operator rocm/gpu-operator-charts \
   --namespace kube-amd-gpu \
   --create-namespace \
-  --version=v1.2.0
+  --version=v1.2.1
 ```
 
 ```{note}
@@ -101,7 +101,7 @@ The AMD GPU Operator is licensed under the [Apache License 2.0](LICENSE).
 
 ## gpu-operator-charts
 
-![Version: v1.2.0](https://img.shields.io/badge/Version-v1.2.0-informational?style=flat-square) ![Type: application](https://img.shields.io/badge/Type-application-informational?style=flat-square) ![AppVersion: v1.2.0](https://img.shields.io/badge/AppVersion-v1.2.0-informational?style=flat-square)
+![Version: v1.2.1](https://img.shields.io/badge/Version-v1.2.1-informational?style=flat-square) ![Type: application](https://img.shields.io/badge/Type-application-informational?style=flat-square) ![AppVersion: v1.2.1](https://img.shields.io/badge/AppVersion-v1.2.1-informational?style=flat-square)
 
 AMD GPU Operator simplifies the deployment and management of AMD Instinct GPU accelerators within Kubernetes clusters.
 
@@ -132,7 +132,7 @@ Kubernetes: `>= 1.29.0-0`
 |-----|------|---------|-------------|
 | controllerManager.affinity | object | `{"nodeAffinity":{"preferredDuringSchedulingIgnoredDuringExecution":[{"preference":{"matchExpressions":[{"key":"node-role.kubernetes.io/control-plane","operator":"Exists"}]},"weight":1}]}}` | Deployment affinity configs for controller manager |
 | controllerManager.manager.image.repository | string | `"docker.io/rocm/gpu-operator"` | AMD GPU operator controller manager image repository |
-| controllerManager.manager.image.tag | string | `"v1.2.0"` | AMD GPU operator controller manager image tag |
+| controllerManager.manager.image.tag | string | `"v1.2.1"` | AMD GPU operator controller manager image tag |
 | controllerManager.manager.imagePullPolicy | string | `"Always"` | Image pull policy for AMD GPU operator controller manager pod |
 | controllerManager.manager.imagePullSecrets | string | `""` | Image pull secret name for pulling AMD GPU operator controller manager image if registry needs credential to pull image |
 | controllerManager.nodeSelector | object | `{}` | Node selector for AMD GPU operator controller manager deployment |
@@ -145,12 +145,12 @@ Kubernetes: `>= 1.29.0-0`
 | kmm.controller.manager.containerSecurityContext.allowPrivilegeEscalation | bool | `false` |  |
 | kmm.controller.manager.env.relatedImageBuild | string | `"gcr.io/kaniko-project/executor:v1.23.2"` | KMM kaniko builder image for building driver image within cluster |
 | kmm.controller.manager.env.relatedImageBuildPullSecret | string | `""` | Image pull secret name for pulling KMM kaniko builder image if registry needs credential to pull image |
-| kmm.controller.manager.env.relatedImageSign | string | `"docker.io/rocm/kernel-module-management-signimage:v1.2.0"` | KMM signer image for signing driver image's kernel module with given key pairs within cluster |
+| kmm.controller.manager.env.relatedImageSign | string | `"docker.io/rocm/kernel-module-management-signimage:v1.2.1"` | KMM signer image for signing driver image's kernel module with given key pairs within cluster |
 | kmm.controller.manager.env.relatedImageSignPullSecret | string | `""` | Image pull secret name for pulling KMM signer image if registry needs credential to pull image |
-| kmm.controller.manager.env.relatedImageWorker | string | `"docker.io/rocm/kernel-module-management-worker:v1.2.0"` | KMM worker image for loading / unloading driver kernel module on worker nodes |
+| kmm.controller.manager.env.relatedImageWorker | string | `"docker.io/rocm/kernel-module-management-worker:v1.2.1"` | KMM worker image for loading / unloading driver kernel module on worker nodes |
 | kmm.controller.manager.env.relatedImageWorkerPullSecret | string | `""` | Image pull secret name for pulling KMM worker image if registry needs credential to pull image |
 | kmm.controller.manager.image.repository | string | `"docker.io/rocm/kernel-module-management-operator"` | KMM controller manager image repository |
-| kmm.controller.manager.image.tag | string | `"v1.2.0"` | KMM controller manager image tag |
+| kmm.controller.manager.image.tag | string | `"v1.2.1"` | KMM controller manager image tag |
 | kmm.controller.manager.imagePullPolicy | string | `"Always"` | Image pull policy for KMM controller manager pod |
 | kmm.controller.manager.imagePullSecrets | string | `""` | Image pull secret name for pulling KMM controller manager image if registry needs credential to pull image |
 | kmm.controller.manager.resources.limits.cpu | string | `"500m"` |  |
@@ -184,7 +184,7 @@ Kubernetes: `>= 1.29.0-0`
 | kmm.webhookServer.webhookServer.args[3] | string | `"--enable-preflightvalidation"` |  |
 | kmm.webhookServer.webhookServer.containerSecurityContext.allowPrivilegeEscalation | bool | `false` |  |
 | kmm.webhookServer.webhookServer.image.repository | string | `"docker.io/rocm/kernel-module-management-webhook-server"` | KMM webhook image repository |
-| kmm.webhookServer.webhookServer.image.tag | string | `"v1.2.0"` | KMM webhook image tag |
+| kmm.webhookServer.webhookServer.image.tag | string | `"v1.2.1"` | KMM webhook image tag |
 | kmm.webhookServer.webhookServer.imagePullPolicy | string | `"Always"` | Image pull policy for KMM webhook pod |
 | kmm.webhookServer.webhookServer.imagePullSecrets | string | `""` | Image pull secret name for pulling KMM webhook image if registry needs credential to pull image |
 | kmm.webhookServer.webhookServer.resources.limits.cpu | string | `"500m"` |  |

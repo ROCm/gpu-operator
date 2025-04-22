@@ -48,7 +48,7 @@ import (
 )
 
 const (
-	defaultMetricsExporterImage       = "docker.io/rocm/device-metrics-exporter:v1.2.0"
+	defaultMetricsExporterImage       = "docker.io/rocm/device-metrics-exporter:v1.2.1"
 	defaultKubeRbacProxyImage         = "quay.io/brancz/kube-rbac-proxy:v0.18.1"
 	defaultInitContainerImage         = "busybox:1.36"
 	servicePort                 int32 = 5000
