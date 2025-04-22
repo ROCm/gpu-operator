@@ -85,17 +85,18 @@
     - **Recommendation:** Ensure nodes are fully stable before triggering an upgrade, and if necessary, manually update node labels to enforce the new driver version. Refer to driver upgrade documentation for more details.
 </br></br>
 
-13. **Pods Terminate on GPU Worker Node Reboot During Driver Upgrade**
+13. **Driver Upgrade Issue when maxParallel Upgrades is equal to total number of worker nodes in Red Hat OpenShift**
 
-    - *Impact:* During the GPU driver upgrade process, a node reboot is intentionally triggered to complete the driver installation. However, an issue may arise if the node responsible for building the driver reboots unintentionally before the build is completed and propagated to other nodes. This premature or unintentional reboot disrupts the build process, potentially causing pod terminations on that node and preventing successful upgrades across the cluster.
-    - *Root Cause:* The GPU Operator initiates the node reboot only after the driver build has been completed. However, if the node reboots unexpectedly while still performing the build (e.g., due to external triggers or misconfigurations), it can interrupt the process and affect cluster-wide upgrade stability.
-    - *Recommendation:* Users should ensure the node performing the driver build remains stable and does not reboot unintentionally during the upgrade process. A targeted fix to address this specific scenario is planned for a future release.
+    - **Impact:** Not able to perform driver upgrade
+    - **Affected Configurations:** This issue only affects Red Hat OpenShift when Image registry pod is running on one of the worker nodes or kmm build pod is required to be run on one of the worker nodes
+    - **Recommendation:** Please set maxParallel Upgrades to a number less than total number of worker nodes
 </br></br>
 
-14. **Driver Upgrade Fails with `rebootRequired: true` and `maxParallelUpgrades` Equal to All Workers**
-   - *Issue*: When the GPU Operator was configured with `rebootRequired: true` and `maxParallelUpgrades` set to the total number of worker nodes, the driver upgrade process would fail.
-   - *Root Cause*: Upgrading all nodes simultaneously adds taints to all of them, causing the image registry pod to be unschedulable, which in turn causes issues for the driver upgrade.
-   - *Recommendation*: Avoid setting `maxParallelUpgrades` equal to the total number of worker nodes. For example, in a cluster with two worker (GPU) nodes, set `maxParallelUpgrades` to 1 to avoid this situation.
+14. **Driver Install/Upgrade Issue if one of the nodes where KMM is running build pod gets rebooted accidentaly when rebootRequired is set to false**
+
+    - **Impact:** Not able to perform driver install/upgrade
+    - **Affected Configurations:** All configurations
+    - **Recommendation:** Please retrigger driver install/upgrade and ensure to not reboot node manually when rebootRequired is false
 </br></br>
 
 ## Fixed Issues
