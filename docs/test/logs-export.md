@@ -26,6 +26,7 @@ The secret should include the following keys:​
 - `aws_region`: The AWS region where your S3 bucket resides
 
 Example:
+
 ```yaml
 apiVersion: v1
 kind: Secret
@@ -43,10 +44,12 @@ data:
 
 For Azure Blob Storage, the secret captures storage account name and key info.
 The secret should include the following keys:​
+
 - `azure_storage_account` - Your Azure storage account name
 - `azure_storage_key` - Your Azure storage account key
 
 Example:
+
 ```yaml
 apiVersion: v1
 kind: Secret
@@ -63,12 +66,14 @@ data:
 
 Minio supports S3 compatible APIs for object storage. So for Minio, we can create AWS secret with extra field to capture Minio S3 endpoint URL.
 The secret should include the following keys:​
+
 - `aws_access_key_id` - Your MinIO access key
 - `aws_secret_access_key` - Your MinIO secret key
 - `aws_region` - In MinIO, `us-east-1` can be used as default aws region
 - `aws_endpoint_url` - Your MinIO server's S3-compatible endpoint URL
 
 Example:
+
 ```yaml
 apiVersion: v1
 kind: Secret
@@ -88,6 +93,7 @@ data:
 Define the storage provider and bucket information in the Test Runner's ConfigMap. This configuration specifies where and how logs should be exported.
 
 Example:
+
 ```yaml
 apiVersion: v1
 kind: ConfigMap
@@ -145,6 +151,7 @@ In scenarios like the Auto Unhealthy GPU Watch, specify the secrets in the testR
 We can export logs to multiple external services. We can specify multiple secrets in device config Custom Resource(CR) and associate each to a particular external storage service.
 
 Example:
+
 ```yaml
   # Specify the testrunner config
   testRunner:
@@ -177,6 +184,7 @@ Example:
       - name: azure-secret
       - name: aws-secret
 ```
+
 > Note: Ensure that the `logsExportSecrets` list includes all the secrets corresponding to the external storage services you intend to use.
 
 ### Additional Notes
