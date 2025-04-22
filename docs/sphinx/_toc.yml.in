@@ -44,6 +44,7 @@ subtrees:
       - file: test/manual-test
       - file: test/pre-start-job-test
       - file: test/appendix-test-recipe
+      - file: test/logs-export
   - caption: Specialized Networks
     entries:
       - file: specialized_networks/airgapped-install
