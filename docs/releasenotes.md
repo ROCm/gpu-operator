@@ -60,7 +60,7 @@ The AMD GPU Operator v1.2.1 release introduces expanded platform support and new
    - *Root Cause*: Upgrading all nodes simultaneously adds taints to all of them, causing the image registry pod to be unschedulable, which in turn causes issues for the driver upgrade.
    - *Recommendation*: Avoid setting `maxParallelUpgrades` equal to the total number of worker nodes. For example, in a cluster with two worker (GPU) nodes, set `maxParallelUpgrades` to 1 to avoid this situation.
 
-> **Note:** All current and historical limitations for the GPU Operator, including their latest statuses and any associated workarounds or fixes, are tracked in the following documentation page: https://instinct.docs.amd.com/projects/gpu-operator/en/latest/knownlimitations.html.  
+> **Note:** All current and historical limitations for the GPU Operator, including their latest statuses and any associated workarounds or fixes, are tracked in the following documentation page: [Known Issues and Limitations](https://instinct.docs.amd.com/projects/gpu-operator/en/latest/knownlimitations.html).  
    Please refer to this page regularly for the most up-to-date information.
 
 ### Fixes
