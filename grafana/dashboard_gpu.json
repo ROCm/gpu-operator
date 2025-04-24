@@ -1744,6 +1744,31 @@
       ],
       "title": "Temperature Sensors",
       "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "gridPos": {
+        "h": 2,
+        "w": 2,
+        "x": 22,
+        "y": 24
+      },
+      "id": 40,
+      "options": {
+        "code": {
+          "language": "plaintext",
+          "showLineNumbers": false,
+          "showMiniMap": false
+        },
+        "content": "v1.2.1",
+        "mode": "markdown"
+      },
+      "pluginVersion": "11.2.2",
+      "title": "Version",
+      "type": "text"
     }
   ],
   "refresh": "",
