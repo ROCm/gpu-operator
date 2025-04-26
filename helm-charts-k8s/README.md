@@ -143,6 +143,8 @@ Kubernetes: `>= 1.29.0-0`
 | installdefaultNFDRule | bool | `true` | Default NFD rule will detect amd gpu based on pci vendor ID |
 | kmm.enabled | bool | `true` | Set to true/false to enable/disable the installation of kernel module management (KMM) operator |
 | node-feature-discovery.enabled | bool | `true` | Set to true/false to enable/disable the installation of node feature discovery (NFD) operator |
+| node-feature-discovery.worker.nodeSelector | object | `{}` | Set nodeSelector for NFD worker daemonset |
+| node-feature-discovery.worker.tolerations | list | `[]` | Set tolerations for NFD worker daemonset |
 | upgradeCRD | bool | `true` | CRD will be patched as pre-upgrade/pre-rollback hook when doing helm upgrade/rollback to current helm chart |
 | kmm.controller.affinity | object | `{"nodeAffinity":{"preferredDuringSchedulingIgnoredDuringExecution":[{"preference":{"matchExpressions":[{"key":"node-role.kubernetes.io/control-plane","operator":"Exists"}]},"weight":1}]}}` | Affinity for the KMM controller manager deployment |
 | kmm.controller.manager.args[0] | string | `"--config=controller_config.yaml"` |  |
