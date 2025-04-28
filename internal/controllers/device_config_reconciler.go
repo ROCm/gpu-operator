@@ -42,6 +42,7 @@ import (
 
 	"github.com/ROCm/gpu-operator/internal/metricsexporter"
 	"github.com/ROCm/gpu-operator/internal/testrunner"
+	monitoringv1 "github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring/v1"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/util/retry"
 
@@ -178,9 +179,10 @@ func (r *DeviceConfigReconciler) init(ctx context.Context) {
 //+kubebuilder:rbac:groups=core,resources=pods,verbs=delete;get;list;watch;create
 //+kubebuilder:rbac:groups=core,resources=pods/status,verbs=delete;get;list;watch
 //+kubebuilder:rbac:groups=core,resources=pods/finalizers,verbs=delete;get;list;watch
-//+kubebuilder:rbac:groups=core,resources=secrets,verbs=get;list;watch
+//+kubebuilder:rbac:groups=core,resources=secrets,verbs=create;delete;get;list;patch;watch
 //+kubebuilder:rbac:groups=core,resources=pods/eviction,verbs=delete;get;list;create
-//+kubebuilder:rbac:groups=apiextensions.k8s.io,resources=customresourcedefinitions,verbs=delete
+//+kubebuilder:rbac:groups=apiextensions.k8s.io,resources=customresourcedefinitions,verbs=get;list;watch;delete
+//+kubebuilder:rbac:groups=monitoring.coreos.com,resources=servicemonitors,verbs=get;list;watch;create;update;delete
 
 func (r *DeviceConfigReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	res := ctrl.Result{}
@@ -652,6 +654,25 @@ func (dcrh *deviceConfigReconcilerHelper) setFinalizer(ctx context.Context, devC
 func (dcrh *deviceConfigReconcilerHelper) finalizeMetricsExporter(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig) error {
 	logger := log.FromContext(ctx)
 
+	// Handle ServiceMonitor deletion
+	serviceMonitor := &monitoringv1.ServiceMonitor{
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace: devConfig.Namespace,
+			Name:      devConfig.Name + "-" + metricsexporter.ExporterName,
+		},
+	}
+	if err := dcrh.client.Get(ctx, client.ObjectKeyFromObject(serviceMonitor), serviceMonitor); err != nil {
+		if !k8serrors.IsNotFound(err) {
+			return fmt.Errorf("failed to get ServiceMonitor %s: %v", serviceMonitor.Name, err)
+		}
+	} else {
+		logger.Info("deleting ServiceMonitor", "ServiceMonitor", serviceMonitor.Name)
+		if err := dcrh.client.Delete(ctx, serviceMonitor); err != nil {
+			return fmt.Errorf("failed to delete ServiceMonitor %s: %v", serviceMonitor.Name, err)
+		}
+	}
+
+	// Handle Service deletion
 	metricsSvc := v1.Service{}
 	svcName := types.NamespacedName{
 		Namespace: devConfig.Namespace,
@@ -669,6 +690,7 @@ func (dcrh *deviceConfigReconcilerHelper) finalizeMetricsExporter(ctx context.Co
 		}
 	}
 
+	// Handle DaemonSet deletion
 	metricsDS := appsv1.DaemonSet{}
 	dsName := types.NamespacedName{
 		Namespace: devConfig.Namespace,
@@ -683,6 +705,23 @@ func (dcrh *deviceConfigReconcilerHelper) finalizeMetricsExporter(ctx context.Co
 		logger.Info("deleting metrics exporter daemonset", "daemonset", dsName)
 		if err := dcrh.client.Delete(ctx, &metricsDS); err != nil {
 			return fmt.Errorf("failed to delete metrics exporter daemonset %s: %v", dsName, err)
+		}
+	}
+
+	// Handle Secret deletion
+	metricsSecret := v1.Secret{}
+	secretName := types.NamespacedName{
+		Namespace: devConfig.Namespace,
+		Name:      devConfig.Name + "-" + metricsexporter.ExporterName,
+	}
+	if err := dcrh.client.Get(ctx, secretName, &metricsSecret); err != nil {
+		if !k8serrors.IsNotFound(err) {
+			return fmt.Errorf("failed to get metrics exporter secret %s: %v", secretName, err)
+		}
+	} else {
+		logger.Info("deleting metrics exporter secret", "secret", secretName)
+		if err := dcrh.client.Delete(ctx, &metricsSecret); err != nil {
+			return fmt.Errorf("failed to delete metrics exporter secret %s: %v", secretName, err)
 		}
 	}
 
@@ -1029,6 +1068,22 @@ func (dcrh *deviceConfigReconcilerHelper) handleMetricsExporter(ctx context.Cont
 		return dcrh.finalizeMetricsExporter(ctx, devConfig)
 	}
 
+	if devConfig.Spec.MetricsExporter.RbacConfig.StaticAuthorization != nil && devConfig.Spec.MetricsExporter.RbacConfig.StaticAuthorization.Enable {
+		secret := &v1.Secret{
+			ObjectMeta: metav1.ObjectMeta{
+				Namespace: devConfig.Namespace,
+				Name:      devConfig.Name + "-" + metricsexporter.StaticAuthSecretName,
+			},
+		}
+		opRes, err := controllerutil.CreateOrPatch(ctx, dcrh.client, secret, func() error {
+			return dcrh.metricsHandler.SetStaticAuthSecretAsDesired(secret, devConfig)
+		})
+		if err != nil {
+			return err
+		}
+		logger.Info("Reconciled static auth secret", "namespace", secret.Namespace, "name", secret.Name, "result", opRes)
+	}
+
 	opRes, err := controllerutil.CreateOrPatch(ctx, dcrh.client, ds, func() error {
 		return dcrh.metricsHandler.SetMetricsExporterAsDesired(ds, devConfig)
 	})
@@ -1047,7 +1102,48 @@ func (dcrh *deviceConfigReconcilerHelper) handleMetricsExporter(ctx context.Cont
 	if err != nil {
 		return err
 	}
-	logger.Info("Reconciled metrics service", "namespace", ds.Namespace, "name", ds.Name, "result", opRes)
+	logger.Info("Reconciled metrics service", "namespace", svc.Namespace, "name", svc.Name, "result", opRes)
+
+	if utils.IsPrometheusServiceMonitorEnable(devConfig) {
+		// Create or update the ServiceMonitor resource
+		sm := &monitoringv1.ServiceMonitor{
+			ObjectMeta: metav1.ObjectMeta{
+				Namespace: devConfig.Namespace,
+				Name:      devConfig.Name + "-" + metricsexporter.ExporterName,
+			},
+		}
+
+		opRes, err = controllerutil.CreateOrPatch(ctx, dcrh.client, sm, func() error {
+			return dcrh.metricsHandler.SetServiceMonitorAsDesired(sm, devConfig)
+		})
+
+		if err != nil {
+			return err
+		}
+		logger.Info("Reconciled ServiceMonitor", "namespace", sm.Namespace, "name", sm.Name, "result", opRes)
+	} else {
+		// Delete any existing ServiceMonitor if the feature is disabled
+		sm := &monitoringv1.ServiceMonitor{
+			ObjectMeta: metav1.ObjectMeta{
+				Namespace: devConfig.Namespace,
+				Name:      devConfig.Name + "-" + metricsexporter.ExporterName,
+			},
+		}
+
+		err = dcrh.client.Get(ctx, client.ObjectKeyFromObject(sm), sm)
+		if err == nil {
+			// ServiceMonitor exists but the feature is disabled, delete it
+			logger.Info("ServiceMonitor feature is disabled, removing existing ServiceMonitor",
+				"namespace", sm.Namespace, "name", sm.Name)
+			if err := dcrh.client.Delete(ctx, sm); err != nil && !k8serrors.IsNotFound(err) {
+				return fmt.Errorf("failed to delete ServiceMonitor: %v", err)
+			}
+		} else if !k8serrors.IsNotFound(err) {
+			// Some other error occurred
+			return fmt.Errorf("failed to get ServiceMonitor: %v", err)
+		}
+		// If error is IsNotFound, then there's nothing to delete
+	}
 
 	return nil
 }

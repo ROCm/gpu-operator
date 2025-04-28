@@ -33,10 +33,13 @@ limitations under the License.
 package metricsexporter
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 
 	amdv1alpha1 "github.com/ROCm/gpu-operator/api/v1alpha1"
+	utils "github.com/ROCm/gpu-operator/internal"
+	monitoringv1 "github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring/v1"
 	"github.com/rh-ecosystem-edge/kernel-module-management/pkg/labels"
 	appsv1 "k8s.io/api/apps/v1"
 	v1 "k8s.io/api/core/v1"
@@ -53,10 +56,12 @@ const (
 	defaultInitContainerImage         = "busybox:1.36"
 	servicePort                 int32 = 5000
 	nobodyUser                        = 65532
-	ExporterName                      = "metrics-exporter"
+	ExporterName                      = "amd-device-metrics-exporter"
 	KubeRbacName                      = "kube-rbac-proxy"
+	StaticAuthSecretName              = ExporterName + "-static-auth-config"
 	defaultSAName                     = "amd-gpu-operator-metrics-exporter"
 	kubeRbacSAName                    = "amd-gpu-operator-metrics-exporter-rbac-proxy"
+	svcLabel                          = "app.kubernetes.io/service"
 )
 
 var metricsExporterLabelPair = []string{"app.kubernetes.io/name", ExporterName}
@@ -65,6 +70,8 @@ var metricsExporterLabelPair = []string{"app.kubernetes.io/name", ExporterName}
 type MetricsExporter interface {
 	SetMetricsExporterAsDesired(ds *appsv1.DaemonSet, devConfig *amdv1alpha1.DeviceConfig) error
 	SetMetricsServiceAsDesired(svc *v1.Service, devConfig *amdv1alpha1.DeviceConfig) error
+	SetStaticAuthSecretAsDesired(secret *v1.Secret, devConfig *amdv1alpha1.DeviceConfig) error
+	SetServiceMonitorAsDesired(sm *monitoringv1.ServiceMonitor, devConfig *amdv1alpha1.DeviceConfig) error
 }
 
 type metricsExporter struct {
@@ -243,6 +250,49 @@ func (nl *metricsExporter) SetMetricsExporterAsDesired(ds *appsv1.DaemonSet, dev
 		}
 
 		volumeMounts := []v1.VolumeMount{}
+
+		// Add client CA config map mount for mTLS if specified
+		if mSpec.RbacConfig.ClientCAConfigMap != nil {
+			volumes = append(volumes, v1.Volume{
+				Name: "client-ca",
+				VolumeSource: v1.VolumeSource{
+					ConfigMap: &v1.ConfigMapVolumeSource{
+						LocalObjectReference: *mSpec.RbacConfig.ClientCAConfigMap,
+					},
+				},
+			})
+			volumeMounts = append(volumeMounts, v1.VolumeMount{
+				Name:      "client-ca",
+				MountPath: "/etc/kube-rbac-proxy/ca",
+				ReadOnly:  true,
+			})
+			args = append(args, "--client-ca-file=/etc/kube-rbac-proxy/ca/ca.crt")
+		}
+
+		// Create and mount static authorization config if enabled
+		if mSpec.RbacConfig.StaticAuthorization != nil && mSpec.RbacConfig.StaticAuthorization.Enable {
+
+			// Mount the static auth config secret
+			staticAuthSecretName := devConfig.Name + "-" + StaticAuthSecretName
+
+			// Add volume and mount for static auth config
+			volumes = append(volumes, v1.Volume{
+				Name: "static-auth-config",
+				VolumeSource: v1.VolumeSource{
+					Secret: &v1.SecretVolumeSource{
+						SecretName: staticAuthSecretName,
+					},
+				},
+			})
+			volumeMounts = append(volumeMounts, v1.VolumeMount{
+				Name:      "static-auth-config",
+				MountPath: "/etc/kube-rbac-proxy",
+				ReadOnly:  true,
+			})
+			args = append(args, "--config-file=/etc/kube-rbac-proxy/config.yaml")
+		}
+
+		// Continue with existing TLS cert handling
 		if mSpec.RbacConfig.DisableHttps != nil && *mSpec.RbacConfig.DisableHttps {
 			args = append(args, "--insecure-listen-address=0.0.0.0:"+fmt.Sprintf("%v", int32(port)))
 		} else {
@@ -374,6 +424,12 @@ func (nl *metricsExporter) SetMetricsServiceAsDesired(svc *v1.Service, devConfig
 		return fmt.Errorf("service  is not initialized, zero pointer")
 	}
 
+	// Add app label for ServiceMonitor selection
+	if svc.Labels == nil {
+		svc.Labels = make(map[string]string)
+	}
+	svc.Labels[svcLabel] = devConfig.Name + "-" + ExporterName
+
 	svc.Spec = v1.ServiceSpec{
 		Selector: map[string]string{
 			"daemonset-name":            devConfig.Name,
@@ -395,6 +451,7 @@ func (nl *metricsExporter) SetMetricsServiceAsDesired(svc *v1.Service, devConfig
 		svc.Spec.ExternalTrafficPolicy = v1.ServiceExternalTrafficPolicyLocal
 		svc.Spec.Ports = []v1.ServicePort{
 			{
+				Name:       "exporter-port",
 				Protocol:   v1.ProtocolTCP,
 				Port:       port,
 				TargetPort: intstr.FromInt32(port),
@@ -405,6 +462,7 @@ func (nl *metricsExporter) SetMetricsServiceAsDesired(svc *v1.Service, devConfig
 		svc.Spec.Type = v1.ServiceTypeClusterIP
 		svc.Spec.Ports = []v1.ServicePort{
 			{
+				Name:       "exporter-port",
 				Protocol:   v1.ProtocolTCP,
 				Port:       port,
 				TargetPort: intstr.FromInt32(port),
@@ -414,4 +472,157 @@ func (nl *metricsExporter) SetMetricsServiceAsDesired(svc *v1.Service, devConfig
 	}
 
 	return controllerutil.SetControllerReference(devConfig, svc, nl.scheme)
+}
+
+// SetServiceMonitorAsDesired configures the ServiceMonitor resource for Prometheus integration
+// Ignoring staticcheck linter for this function. SA1019: we intentionally use BearerTokenFile, a deprecated field for compatibility
+//
+//nolint:staticcheck
+func (nl *metricsExporter) SetServiceMonitorAsDesired(sm *monitoringv1.ServiceMonitor, devConfig *amdv1alpha1.DeviceConfig) error {
+	if sm == nil {
+		return fmt.Errorf("ServiceMonitor is not initialized, zero pointer")
+	}
+
+	// Skip configuration if Prometheus ServiceMonitor is not enabled
+	if !utils.IsPrometheusServiceMonitorEnable(devConfig) {
+		return nil
+	}
+
+	// Configure app label selector for the service
+	labelSelector := metav1.LabelSelector{
+		MatchLabels: map[string]string{
+			svcLabel: devConfig.Name + "-" + ExporterName,
+		},
+	}
+
+	port := servicePort
+	if devConfig.Spec.MetricsExporter.Port > 0 {
+		port = devConfig.Spec.MetricsExporter.Port
+	}
+
+	// Set up the endpoint
+	endpoints := []monitoringv1.Endpoint{
+		{
+			Port:                 "exporter-port",
+			TargetPort:           &intstr.IntOrString{Type: intstr.Int, IntVal: port},
+			RelabelConfigs:       []monitoringv1.RelabelConfig{},
+			MetricRelabelConfigs: []monitoringv1.RelabelConfig{},
+		},
+	}
+
+	// Apply custom interval if specified
+	if devConfig.Spec.MetricsExporter.Prometheus.ServiceMonitor.Interval != "" {
+		endpoints[0].Interval = monitoringv1.Duration(devConfig.Spec.MetricsExporter.Prometheus.ServiceMonitor.Interval)
+	}
+
+	// Apply honorLabels if specified
+	if devConfig.Spec.MetricsExporter.Prometheus.ServiceMonitor.HonorLabels != nil {
+		endpoints[0].HonorLabels = *devConfig.Spec.MetricsExporter.Prometheus.ServiceMonitor.HonorLabels
+	} else {
+		endpoints[0].HonorLabels = false
+	}
+
+	// Apply honorTimestamps if specified
+	if devConfig.Spec.MetricsExporter.Prometheus.ServiceMonitor.HonorTimestamps != nil {
+		endpoints[0].HonorTimestamps = devConfig.Spec.MetricsExporter.Prometheus.ServiceMonitor.HonorTimestamps
+	}
+
+	// Apply relabelings if specified
+	if len(devConfig.Spec.MetricsExporter.Prometheus.ServiceMonitor.Relabelings) > 0 {
+		endpoints[0].RelabelConfigs = devConfig.Spec.MetricsExporter.Prometheus.ServiceMonitor.Relabelings
+	}
+
+	// Apply metricRelabelings if specified
+	if len(devConfig.Spec.MetricsExporter.Prometheus.ServiceMonitor.MetricRelabelings) > 0 {
+		endpoints[0].MetricRelabelConfigs = devConfig.Spec.MetricsExporter.Prometheus.ServiceMonitor.MetricRelabelings
+	}
+
+	// Default scheme to http
+	endpoints[0].Scheme = "http"
+
+	// Use HTTPS when RBAC is enabled and HTTPS is not explicitly disabled
+	if devConfig.Spec.MetricsExporter.RbacConfig.Enable != nil &&
+		*devConfig.Spec.MetricsExporter.RbacConfig.Enable {
+		// If DisableHttps is nil or false, use HTTPS
+		if devConfig.Spec.MetricsExporter.RbacConfig.DisableHttps == nil ||
+			!*devConfig.Spec.MetricsExporter.RbacConfig.DisableHttps {
+			endpoints[0].Scheme = "https"
+		}
+		// Set TLS config for HTTPS
+		if devConfig.Spec.MetricsExporter.Prometheus.ServiceMonitor.TLSConfig != nil {
+			endpoints[0].TLSConfig = devConfig.Spec.MetricsExporter.Prometheus.ServiceMonitor.TLSConfig
+		}
+
+		// Set bearer token file for RBAC proxy
+		if devConfig.Spec.MetricsExporter.Prometheus.ServiceMonitor.BearerTokenFile != "" {
+			endpoints[0].BearerTokenFile = devConfig.Spec.MetricsExporter.Prometheus.ServiceMonitor.BearerTokenFile
+		}
+
+		// Set Authorization if specified
+		if devConfig.Spec.MetricsExporter.Prometheus.ServiceMonitor.Authorization != nil {
+			endpoints[0].Authorization = devConfig.Spec.MetricsExporter.Prometheus.ServiceMonitor.Authorization
+		}
+	}
+
+	// Configure ServiceMonitor
+	sm.Spec = monitoringv1.ServiceMonitorSpec{
+		Selector:          labelSelector,
+		Endpoints:         endpoints,
+		NamespaceSelector: monitoringv1.NamespaceSelector{MatchNames: []string{devConfig.Namespace}},
+		AttachMetadata:    devConfig.Spec.MetricsExporter.Prometheus.ServiceMonitor.AttachMetadata,
+	}
+
+	// Set custom labels or use default
+	if sm.Labels == nil {
+		sm.Labels = make(map[string]string)
+	}
+	if len(devConfig.Spec.MetricsExporter.Prometheus.ServiceMonitor.Labels) > 0 {
+		// Use custom labels from the CRD
+		for k, v := range devConfig.Spec.MetricsExporter.Prometheus.ServiceMonitor.Labels {
+			sm.Labels[k] = v
+		}
+	} else {
+		// Use default labels
+		sm.Labels["release"] = "prometheus-operator"
+	}
+
+	return controllerutil.SetControllerReference(devConfig, sm, nl.scheme)
+}
+
+// SetStaticAuthSecretAsDesired creates a secret containing the kube-rbac-proxy static authorization config
+func (nl *metricsExporter) SetStaticAuthSecretAsDesired(secret *v1.Secret, devConfig *amdv1alpha1.DeviceConfig) error {
+	if secret == nil {
+		return fmt.Errorf("secret is not initialized, zero pointer")
+	}
+
+	mSpec := devConfig.Spec.MetricsExporter
+	if mSpec.RbacConfig.StaticAuthorization == nil || !mSpec.RbacConfig.StaticAuthorization.Enable {
+		return nil
+	}
+
+	staticAuthConfig := map[string]interface{}{
+		"authorization": map[string]interface{}{
+			"static": []map[string]interface{}{
+				{
+					"path":            "/metrics",
+					"resourceRequest": false,
+					"user": map[string]string{
+						"name": mSpec.RbacConfig.StaticAuthorization.ClientName,
+					},
+					"verb": "get",
+				},
+			},
+		},
+	}
+
+	staticAuthConfigJSON, err := json.Marshal(staticAuthConfig)
+	if err != nil {
+		return fmt.Errorf("failed to marshal static auth config: %v", err)
+	}
+
+	secret.StringData = map[string]string{
+		"config.yaml": string(staticAuthConfigJSON),
+	}
+
+	return controllerutil.SetControllerReference(devConfig, secret, nl.scheme)
 }

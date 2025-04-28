@@ -8,6 +8,75 @@ metadata:
   {{- include "helm-charts-openshift.labels" . | nindent 4 }}
 rules:
 - apiGroups:
+  - ""
+  resources:
+  - configmaps
+  - secrets
+  - services
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - watch
+- apiGroups:
+  - ""
+  resources:
+  - nodes
+  verbs:
+  - get
+  - list
+  - patch
+  - watch
+- apiGroups:
+  - ""
+  resources:
+  - nodes/finalizers
+  - nodes/status
+  verbs:
+  - get
+  - update
+  - watch
+- apiGroups:
+  - ""
+  resources:
+  - pods
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - watch
+- apiGroups:
+  - ""
+  resources:
+  - pods/eviction
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+- apiGroups:
+  - ""
+  resources:
+  - pods/finalizers
+  - pods/status
+  verbs:
+  - delete
+  - get
+  - list
+  - watch
+- apiGroups:
+  - ""
+  resources:
+  - services/finalizers
+  verbs:
+  - create
+  - get
+  - update
+  - watch
+- apiGroups:
   - amd.com
   resources:
   - deviceconfigs
@@ -38,10 +107,14 @@ rules:
   - customresourcedefinitions
   verbs:
   - delete
+  - get
+  - list
+  - watch
 - apiGroups:
   - apps
   resources:
   - daemonsets
+  - daemonsets/status
   verbs:
   - create
   - delete
@@ -53,118 +126,6 @@ rules:
   - apps
   resources:
   - daemonsets/finalizers
-  verbs:
-  - create
-  - get
-  - update
-  - watch
-- apiGroups:
-  - apps
-  resources:
-  - daemonsets/status
-  verbs:
-  - create
-  - delete
-  - get
-  - list
-  - patch
-  - watch
-- apiGroups:
-  - ""
-  resources:
-  - configmaps
-  verbs:
-  - create
-  - delete
-  - get
-  - list
-  - patch
-  - watch
-- apiGroups:
-  - ""
-  resources:
-  - nodes
-  verbs:
-  - get
-  - list
-  - patch
-  - watch
-- apiGroups:
-  - ""
-  resources:
-  - nodes/finalizers
-  verbs:
-  - get
-  - update
-  - watch
-- apiGroups:
-  - ""
-  resources:
-  - nodes/status
-  verbs:
-  - get
-  - update
-  - watch
-- apiGroups:
-  - ""
-  resources:
-  - pods
-  verbs:
-  - create
-  - delete
-  - get
-  - list
-  - watch
-- apiGroups:
-  - ""
-  resources:
-  - pods/eviction
-  verbs:
-  - create
-  - delete
-  - get
-  - list
-- apiGroups:
-  - ""
-  resources:
-  - pods/finalizers
-  verbs:
-  - delete
-  - get
-  - list
-  - watch
-- apiGroups:
-  - ""
-  resources:
-  - pods/status
-  verbs:
-  - delete
-  - get
-  - list
-  - watch
-- apiGroups:
-  - ""
-  resources:
-  - secrets
-  verbs:
-  - get
-  - list
-  - watch
-- apiGroups:
-  - ""
-  resources:
-  - services
-  verbs:
-  - create
-  - delete
-  - get
-  - list
-  - patch
-  - watch
-- apiGroups:
-  - ""
-  resources:
-  - services/finalizers
   verbs:
   - create
   - get
@@ -186,6 +147,7 @@ rules:
   - kmm.sigs.x-k8s.io
   resources:
   - modules/finalizers
+  - nodemodulesconfigs/finalizers
   verbs:
   - get
   - update
@@ -202,25 +164,21 @@ rules:
   - kmm.sigs.x-k8s.io
   resources:
   - nodemodulesconfigs
-  verbs:
-  - get
-  - list
-  - watch
-- apiGroups:
-  - kmm.sigs.x-k8s.io
-  resources:
-  - nodemodulesconfigs/finalizers
-  verbs:
-  - get
-  - update
-  - watch
-- apiGroups:
-  - kmm.sigs.x-k8s.io
-  resources:
   - nodemodulesconfigs/status
   verbs:
   - get
   - list
+  - watch
+- apiGroups:
+  - monitoring.coreos.com
+  resources:
+  - servicemonitors
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - update
   - watch
 - apiGroups:
   - nfd.openshift.io
@@ -234,12 +192,6 @@ rules:
   - nfd.openshift.io
   resources:
   - nodefeaturediscoveries/finalizers
-  verbs:
-  - get
-  - update
-- apiGroups:
-  - nfd.openshift.io
-  resources:
   - nodefeaturediscoveries/status
   verbs:
   - get

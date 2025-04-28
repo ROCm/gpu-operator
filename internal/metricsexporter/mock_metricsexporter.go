@@ -28,9 +28,10 @@ import (
 	reflect "reflect"
 
 	v1alpha1 "github.com/ROCm/gpu-operator/api/v1alpha1"
+	v1 "github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring/v1"
 	gomock "go.uber.org/mock/gomock"
-	v1 "k8s.io/api/apps/v1"
-	v10 "k8s.io/api/core/v1"
+	v10 "k8s.io/api/apps/v1"
+	v11 "k8s.io/api/core/v1"
 )
 
 // MockMetricsExporter is a mock of MetricsExporter interface.
@@ -57,7 +58,7 @@ func (m *MockMetricsExporter) EXPECT() *MockMetricsExporterMockRecorder {
 }
 
 // SetMetricsExporterAsDesired mocks base method.
-func (m *MockMetricsExporter) SetMetricsExporterAsDesired(ds *v1.DaemonSet, devConfig *v1alpha1.DeviceConfig) error {
+func (m *MockMetricsExporter) SetMetricsExporterAsDesired(ds *v10.DaemonSet, devConfig *v1alpha1.DeviceConfig) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SetMetricsExporterAsDesired", ds, devConfig)
 	ret0, _ := ret[0].(error)
@@ -71,7 +72,7 @@ func (mr *MockMetricsExporterMockRecorder) SetMetricsExporterAsDesired(ds, devCo
 }
 
 // SetMetricsServiceAsDesired mocks base method.
-func (m *MockMetricsExporter) SetMetricsServiceAsDesired(svc *v10.Service, devConfig *v1alpha1.DeviceConfig) error {
+func (m *MockMetricsExporter) SetMetricsServiceAsDesired(svc *v11.Service, devConfig *v1alpha1.DeviceConfig) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SetMetricsServiceAsDesired", svc, devConfig)
 	ret0, _ := ret[0].(error)
@@ -82,4 +83,32 @@ func (m *MockMetricsExporter) SetMetricsServiceAsDesired(svc *v10.Service, devCo
 func (mr *MockMetricsExporterMockRecorder) SetMetricsServiceAsDesired(svc, devConfig any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetMetricsServiceAsDesired", reflect.TypeOf((*MockMetricsExporter)(nil).SetMetricsServiceAsDesired), svc, devConfig)
+}
+
+// SetServiceMonitorAsDesired mocks base method.
+func (m *MockMetricsExporter) SetServiceMonitorAsDesired(sm *v1.ServiceMonitor, devConfig *v1alpha1.DeviceConfig) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetServiceMonitorAsDesired", sm, devConfig)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// SetServiceMonitorAsDesired indicates an expected call of SetServiceMonitorAsDesired.
+func (mr *MockMetricsExporterMockRecorder) SetServiceMonitorAsDesired(sm, devConfig any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetServiceMonitorAsDesired", reflect.TypeOf((*MockMetricsExporter)(nil).SetServiceMonitorAsDesired), sm, devConfig)
+}
+
+// SetStaticAuthSecretAsDesired mocks base method.
+func (m *MockMetricsExporter) SetStaticAuthSecretAsDesired(secret *v11.Secret, devConfig *v1alpha1.DeviceConfig) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetStaticAuthSecretAsDesired", secret, devConfig)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// SetStaticAuthSecretAsDesired indicates an expected call of SetStaticAuthSecretAsDesired.
+func (mr *MockMetricsExporterMockRecorder) SetStaticAuthSecretAsDesired(secret, devConfig any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetStaticAuthSecretAsDesired", reflect.TypeOf((*MockMetricsExporter)(nil).SetStaticAuthSecretAsDesired), secret, devConfig)
 }

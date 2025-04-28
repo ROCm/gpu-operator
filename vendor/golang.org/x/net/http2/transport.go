@@ -312,25 +312,27 @@ type ClientConn struct {
 	idleTimeout time.Duration // or 0 for never
 	idleTimer   timer
 
-	mu              sync.Mutex // guards following
-	cond            *sync.Cond // hold mu; broadcast on flow/closed changes
-	flow            outflow    // our conn-level flow control quota (cs.outflow is per stream)
-	inflow          inflow     // peer's conn-level flow control
-	doNotReuse      bool       // whether conn is marked to not be reused for any future requests
-	closing         bool
-	closed          bool
-	seenSettings    bool                     // true if we've seen a settings frame, false otherwise
-	wantSettingsAck bool                     // we sent a SETTINGS frame and haven't heard back
-	goAway          *GoAwayFrame             // if non-nil, the GoAwayFrame we received
-	goAwayDebug     string                   // goAway frame's debug data, retained as a string
-	streams         map[uint32]*clientStream // client-initiated
-	streamsReserved int                      // incr by ReserveNewRequest; decr on RoundTrip
-	nextStreamID    uint32
-	pendingRequests int                       // requests blocked and waiting to be sent because len(streams) == maxConcurrentStreams
-	pings           map[[8]byte]chan struct{} // in flight ping data to notification channel
-	br              *bufio.Reader
-	lastActive      time.Time
-	lastIdle        time.Time // time last idle
+	mu               sync.Mutex // guards following
+	cond             *sync.Cond // hold mu; broadcast on flow/closed changes
+	flow             outflow    // our conn-level flow control quota (cs.outflow is per stream)
+	inflow           inflow     // peer's conn-level flow control
+	doNotReuse       bool       // whether conn is marked to not be reused for any future requests
+	closing          bool
+	closed           bool
+	closedOnIdle     bool                     // true if conn was closed for idleness
+	seenSettings     bool                     // true if we've seen a settings frame, false otherwise
+	seenSettingsChan chan struct{}            // closed when seenSettings is true or frame reading fails
+	wantSettingsAck  bool                     // we sent a SETTINGS frame and haven't heard back
+	goAway           *GoAwayFrame             // if non-nil, the GoAwayFrame we received
+	goAwayDebug      string                   // goAway frame's debug data, retained as a string
+	streams          map[uint32]*clientStream // client-initiated
+	streamsReserved  int                      // incr by ReserveNewRequest; decr on RoundTrip
+	nextStreamID     uint32
+	pendingRequests  int                       // requests blocked and waiting to be sent because len(streams) == maxConcurrentStreams
+	pings            map[[8]byte]chan struct{} // in flight ping data to notification channel
+	br               *bufio.Reader
+	lastActive       time.Time
+	lastIdle         time.Time // time last idle
 	// Settings from peer: (also guarded by wmu)
 	maxFrameSize           uint32
 	maxConcurrentStreams   uint32
@@ -1065,6 +1067,18 @@ func (cc *ClientConn) idleStateLocked() (st clientConnIdleState) {
 		!cc.doNotReuse &&
 		int64(cc.nextStreamID)+2*int64(cc.pendingRequests) < math.MaxInt32 &&
 		!cc.tooIdleLocked()
+
+	// If this connection has never been used for a request and is closed,
+	// then let it take a request (which will fail).
+	// If the conn was closed for idleness, we're racing the idle timer;
+	// don't try to use the conn. (Issue #70515.)
+	//
+	// This avoids a situation where an error early in a connection's lifetime
+	// goes unreported.
+	if cc.nextStreamID == 1 && cc.streamsReserved == 0 && cc.closed && !cc.closedOnIdle {
+		st.canTakeNewRequest = true
+	}
+
 	return
 }
 
@@ -1118,6 +1132,7 @@ func (cc *ClientConn) closeIfIdle() {
 		return
 	}
 	cc.closed = true
+	cc.closedOnIdle = true
 	nextID := cc.nextStreamID
 	// TODO: do clients send GOAWAY too? maybe? Just Close:
 	cc.mu.Unlock()
@@ -2389,6 +2404,27 @@ func (rl *clientConnReadLoop) cleanup() {
 		err = io.ErrUnexpectedEOF
 	}
 	cc.closed = true
+
+	// If the connection has never been used, and has been open for only a short time,
+	// leave it in the connection pool for a little while.
+	//
+	// This avoids a situation where new connections are constantly created,
+	// added to the pool, fail, and are removed from the pool, without any error
+	// being surfaced to the user.
+	unusedWaitTime := 5 * time.Second
+	if cc.idleTimeout > 0 && unusedWaitTime > cc.idleTimeout {
+		unusedWaitTime = cc.idleTimeout
+	}
+	idleTime := cc.t.now().Sub(cc.lastActive)
+	if atomic.LoadUint32(&cc.atomicReused) == 0 && idleTime < unusedWaitTime && !cc.closedOnIdle {
+		cc.idleTimer = cc.t.afterFunc(unusedWaitTime-idleTime, func() {
+			cc.t.connPool().MarkDead(cc)
+		})
+	} else {
+		cc.mu.Unlock() // avoid any deadlocks in MarkDead
+		cc.t.connPool().MarkDead(cc)
+		cc.mu.Lock()
+	}
 
 	for _, cs := range cc.streams {
 		select {
