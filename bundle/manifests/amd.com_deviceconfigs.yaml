@@ -263,6 +263,15 @@ spec:
                         type: string
                     type: object
                     x-kubernetes-map-type: atomic
+                  nodeLabellerArguments:
+                    description: |-
+                      node labeller arguments is used to pass supported labels while starting node labeller daemonset
+                      some flags are enabled by default as they are applicable and bare minimum for all setups and are supported in all versions of node labeller
+                      default flags: {"vram", "cu-count", "simd-count", "device-id", "family", "product-name", "driver-version"}
+                      supported flags: {"compute-memory-partition", "compute-partitioning-supported", "memory-partitioning-supported"}
+                    items:
+                      type: string
+                    type: array
                   nodeLabellerImage:
                     description: node labeller image
                     pattern: ^([a-z0-9]+(?:[._-][a-z0-9]+)*(:[0-9]+)?)(/[a-z0-9]+(?:[._-][a-z0-9]+)*)*(?::[a-z0-9._-]+)?(?:@[a-zA-Z0-9]+:[a-f0-9]+)?$
