@@ -36,7 +36,79 @@ const (
 	openShiftNodeLabel      = "node.openshift.io/os_id"
 	NodeFeatureLabelAmdGpu  = "feature.node.kubernetes.io/amd-gpu"
 	NodeFeatureLabelAmdVGpu = "feature.node.kubernetes.io/amd-vgpu"
+	// node labeller
+	experimentalAMDPrefix             = "beta.amd.com"
+	amdPrefix                         = "amd.com"
+	computePartitioningSupportedLabel = "amd.com/compute-partitioning-supported"
+	memoryPartitioningSupportedLabel  = "amd.com/memory-partitioning-supported"
+	partitionTypeLabel                = "amd.com/compute-memory-partition"
 )
+
+var (
+	nodeLabellerKinds = []string{
+		"firmware", "family", "driver-version",
+		"driver-src-version", "device-id", "product-name",
+		"vram", "simd-count", "cu-count",
+	}
+	allAMDComLabels     = []string{}
+	allBetaAMDComLabels = []string{}
+)
+
+func init() {
+	initLabelLists()
+}
+
+func initLabelLists() {
+	// pre-generate all the available node labeller labels
+	// these 2 lists will be used to clean up old labels on the node
+	for _, name := range nodeLabellerKinds {
+		allAMDComLabels = append(allAMDComLabels, createLabelPrefix(name, false))
+		allBetaAMDComLabels = append(allBetaAMDComLabels, createLabelPrefix(name, true))
+	}
+	allAMDComLabels = append(allAMDComLabels,
+		computePartitioningSupportedLabel,
+		memoryPartitioningSupportedLabel,
+		partitionTypeLabel,
+	)
+}
+
+func createLabelPrefix(name string, experimental bool) string {
+	var prefix string
+	if experimental {
+		prefix = experimentalAMDPrefix
+	} else {
+		prefix = amdPrefix
+	}
+	return fmt.Sprintf("%s/gpu.%s", prefix, name)
+}
+
+func RemoveOldNodeLabels(node *v1.Node) bool {
+	updated := false
+	if node == nil {
+		return false
+	}
+	// for the amd.com node labels
+	// directly remove the old labels
+	for _, label := range allAMDComLabels {
+		if _, ok := node.Labels[label]; ok {
+			delete(node.Labels, label)
+			updated = true
+		}
+	}
+	// for the beta.amd.com node labels
+	// if it exists, both original label and counter label need to be removed, e.g.
+	// beta.amd.com/gpu.family: AI
+	// beta.amd.com/gpu.family.AI: "1"
+	for _, label := range allBetaAMDComLabels {
+		if val, ok := node.Labels[label]; ok {
+			delete(node.Labels, label)
+			counterLabel := fmt.Sprintf("%s.%s", label, val)
+			delete(node.Labels, counterLabel)
+			updated = true
+		}
+	}
+	return updated
+}
 
 func GetDriverVersion(node v1.Node, deviceConfig amdv1alpha1.DeviceConfig) (string, error) {
 	var driverVersion string
