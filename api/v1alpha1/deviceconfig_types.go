@@ -277,6 +277,14 @@ type DevicePluginSpec struct {
 	// +optional
 	NodeLabellerTolerations []v1.Toleration `json:"nodeLabellerTolerations,omitempty"`
 
+	// node labeller arguments is used to pass supported labels while starting node labeller daemonset
+	// some flags are enabled by default as they are applicable and bare minimum for all setups and are supported in all versions of node labeller
+	// default flags: {"vram", "cu-count", "simd-count", "device-id", "family", "product-name", "driver-version"}
+	// supported flags: {"compute-memory-partition", "compute-partitioning-supported", "memory-partitioning-supported"}
+	//+operator-sdk:csv:customresourcedefinitions:type=spec,displayName="NodeLabellerArguments",xDescriptors={"urn:alm:descriptor:com.amd.deviceconfigs:nodeLabellerArguments"}
+	// +optional
+	NodeLabellerArguments []string `json:"nodeLabellerArguments,omitempty"`
+
 	// node labeller image registry secret used to pull/push images
 	//+operator-sdk:csv:customresourcedefinitions:type=spec,displayName="ImageRegistrySecret",xDescriptors={"urn:alm:descriptor:com.amd.deviceconfigs:imageRegistrySecret"}
 	// +optional

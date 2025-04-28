@@ -47,13 +47,14 @@ import (
 )
 
 const (
-	rocmDevicePluginRepo        = "rocm/k8s-device-plugin"
-	rocmUbiNodeLabellerRepo     = "rocm/k8s-node-labeller"
-	defaultNodeLabellerImage    = "rocm/k8s-device-plugin:labeller-latest"
-	defaultUbiNodeLabellerImage = "rocm/k8s-node-labeller:rhubi-latest"
-	defaultInitContainerImage   = "busybox:1.36"
-	defaultBlacklistFileName    = "blacklist-amdgpu.conf"
-	openShiftBlacklistFileName  = "blacklist-amdgpu-by-operator.conf"
+	rocmDevicePluginRepo           = "rocm/k8s-device-plugin"
+	rocmUbiNodeLabellerRepo        = "rocm/k8s-node-labeller"
+	defaultNodeLabellerImage       = "rocm/k8s-device-plugin:labeller-latest"
+	defaultUbiNodeLabellerImage    = "rocm/k8s-node-labeller:rhubi-latest"
+	defaultNodeLabellerCommandArgs = "./k8s-node-labeller -vram -cu-count -simd-count -device-id -family -product-name -driver-version"
+	defaultInitContainerImage      = "busybox:1.36"
+	defaultBlacklistFileName       = "blacklist-amdgpu.conf"
+	openShiftBlacklistFileName     = "blacklist-amdgpu-by-operator.conf"
 )
 
 //go:generate mockgen -source=nodelabeller.go -package=nodelabeller -destination=mock_nodelabeller.go NodeLabeller
@@ -165,6 +166,15 @@ func (nl *nodeLabeller) SetNodeLabellerAsDesired(ds *appsv1.DaemonSet, devConfig
 		imagePullSecrets = append(imagePullSecrets, *devConfig.Spec.DevicePlugin.ImageRegistrySecret)
 	}
 	matchLabels := map[string]string{"daemonset-name": devConfig.Name}
+	commandArgs := defaultNodeLabellerCommandArgs
+
+	nodeLabellerArguments := devConfig.Spec.DevicePlugin.NodeLabellerArguments
+	for _, label := range nodeLabellerArguments {
+		commandArgs += " -" + label
+	}
+
+	command := []string{"-c", commandArgs}
+
 	ds.Spec = appsv1.DaemonSetSpec{
 		Selector: &metav1.LabelSelector{MatchLabels: matchLabels},
 		Template: v1.PodTemplateSpec{
@@ -175,7 +185,7 @@ func (nl *nodeLabeller) SetNodeLabellerAsDesired(ds *appsv1.DaemonSet, devConfig
 				InitContainers: initContainers,
 				Containers: []v1.Container{
 					{
-						Args:    []string{"-c", "./k8s-node-labeller -vram -cu-count -simd-count -device-id -family -product-name -driver-version"},
+						Args:    command,
 						Command: []string{"sh"},
 						Env: []v1.EnvVar{
 							{

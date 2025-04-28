@@ -281,6 +281,11 @@ func (in *DevicePluginSpec) DeepCopyInto(out *DevicePluginSpec) {
 			(*in)[i].DeepCopyInto(&(*out)[i])
 		}
 	}
+	if in.NodeLabellerArguments != nil {
+		in, out := &in.NodeLabellerArguments, &out.NodeLabellerArguments
+		*out = make([]string, len(*in))
+		copy(*out, *in)
+	}
 	if in.ImageRegistrySecret != nil {
 		in, out := &in.ImageRegistrySecret, &out.ImageRegistrySecret
 		*out = new(v1.LocalObjectReference)
