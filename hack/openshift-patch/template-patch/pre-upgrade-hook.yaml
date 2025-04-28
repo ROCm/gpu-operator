@@ -100,7 +100,6 @@ spec:
             kubectl apply -f /opt/helm-charts-crds-openshift/nodefeature-crd.yaml
             kubectl apply -f /opt/helm-charts-crds-openshift/nodefeaturediscovery-crd.yaml
             kubectl apply -f /opt/helm-charts-crds-openshift/nodefeaturerule-crd.yaml
-            kubectl apply -f /opt/helm-charts-crds-openshift/noderesourcetopology-crd.yaml
             {{- end }}
             {{- if .Values.kmm.enabled }}
             kubectl apply -f /opt/helm-charts-crds-openshift/module-crd.yaml

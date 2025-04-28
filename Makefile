@@ -36,7 +36,7 @@ YAML_FILES=bundle/manifests/amd-gpu-operator-node-metrics_rbac.authorization.k8s
 CRD_YAML_FILES = deviceconfig-crd.yaml
 K8S_KMM_CRD_YAML_FILES=module-crd.yaml nodemodulesconfig-crd.yaml
 OPENSHIFT_KMM_CRD_YAML_FILES=module-crd.yaml nodemodulesconfig-crd.yaml
-OPENSHIFT_CLUSTER_NFD_CRD_YAML_FILES=nodefeature-crd.yaml nodefeaturediscovery-crd.yaml nodefeaturerule-crd.yaml noderesourcetopology-crd.yaml
+OPENSHIFT_CLUSTER_NFD_CRD_YAML_FILES=nodefeature-crd.yaml nodefeaturediscovery-crd.yaml nodefeaturerule-crd.yaml
 
 ifdef OPENSHIFT
 $(info selected openshift)
