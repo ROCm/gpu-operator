@@ -173,6 +173,16 @@ spec:
         path: devicePlugin.imageRegistrySecret
         x-descriptors:
         - urn:alm:descriptor:com.amd.deviceconfigs:imageRegistrySecret
+      - description: 'node labeller arguments is used to pass supported labels while
+          starting node labeller daemonset some flags are enabled by default as they
+          are applicable and bare minimum for all setups and are supported in all
+          versions of node labeller default flags: {"vram", "cu-count", "simd-count",
+          "device-id", "family", "product-name", "driver-version"} supported flags:
+          {"compute-memory-partition", "compute-partitioning-supported", "memory-partitioning-supported"}'
+        displayName: NodeLabellerArguments
+        path: devicePlugin.nodeLabellerArguments
+        x-descriptors:
+        - urn:alm:descriptor:com.amd.deviceconfigs:nodeLabellerArguments
       - description: node labeller image
         displayName: NodeLabellerImage
         path: devicePlugin.nodeLabellerImage
