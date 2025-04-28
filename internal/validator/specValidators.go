@@ -21,6 +21,7 @@ import (
 	"fmt"
 
 	amdv1alpha1 "github.com/ROCm/gpu-operator/api/v1alpha1"
+	utils "github.com/ROCm/gpu-operator/internal"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
@@ -70,6 +71,13 @@ func ValidateMetricsExporterSpec(ctx context.Context, client client.Client, devC
 	if mSpec.Config.Name != "" {
 		if err := validateConfigMap(ctx, client, mSpec.Config.Name, devConfig.Namespace); err != nil {
 			return fmt.Errorf("ConfigMap: %v", err)
+		}
+	}
+
+	// Validate ServiceMonitor CRD availability if ServiceMonitor is enabled
+	if utils.IsPrometheusServiceMonitorEnable(devConfig) {
+		if err := validateServiceMonitorCRD(ctx, client); err != nil {
+			return fmt.Errorf("ServiceMonitor: %v", err)
 		}
 	}
 

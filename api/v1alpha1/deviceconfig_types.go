@@ -33,6 +33,7 @@ limitations under the License.
 package v1alpha1
 
 import (
+	monitoringv1 "github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring/v1"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
@@ -331,6 +332,11 @@ type MetricsExporterSpec struct {
 	// +kubebuilder:validation:Pattern=`^([a-z0-9]+(?:[._-][a-z0-9]+)*(:[0-9]+)?)(/[a-z0-9]+(?:[._-][a-z0-9]+)*)*(?::[a-z0-9._-]+)?(?:@[a-zA-Z0-9]+:[a-f0-9]+)?$`
 	Image string `json:"image,omitempty"`
 
+	// Prometheus configuration for metrics exporter
+	//+operator-sdk:csv:customresourcedefinitions:type=spec,displayName="Prometheus",xDescriptors={"urn:alm:descriptor:com.amd.deviceconfigs:prometheus"}
+	// +optional
+	Prometheus *PrometheusConfig `json:"prometheus,omitempty"`
+
 	// metrics exporter image registry secret used to pull/push images
 	//+operator-sdk:csv:customresourcedefinitions:type=spec,displayName="ImageRegistrySecret",xDescriptors={"urn:alm:descriptor:com.amd.deviceconfigs:imageRegistrySecret"}
 	// +optional
@@ -386,6 +392,84 @@ type MetricsExporterSpec struct {
 	UpgradePolicy *DaemonSetUpgradeSpec `json:"upgradePolicy,omitempty"`
 }
 
+type PrometheusConfig struct {
+	// ServiceMonitor configuration for Prometheus integration
+	//+operator-sdk:csv:customresourcedefinitions:type=spec,displayName="ServiceMonitor",xDescriptors={"urn:alm:descriptor:com.amd.deviceconfigs:serviceMonitor"}
+	// +optional
+	ServiceMonitor *ServiceMonitorConfig `json:"serviceMonitor,omitempty"`
+}
+
+// ServiceMonitorConfig provides configuration for ServiceMonitor
+type ServiceMonitorConfig struct {
+	// Enable or disable ServiceMonitor creation (default false)
+	//+operator-sdk:csv:customresourcedefinitions:type=spec,displayName="Enable",xDescriptors={"urn:alm:descriptor:com.amd.deviceconfigs:enable"}
+	// +optional
+	Enable *bool `json:"enable,omitempty"`
+
+	// How frequently to scrape metrics. Accepts values with time unit suffix: "30s", "1m", "2h", "500ms"
+	//+operator-sdk:csv:customresourcedefinitions:type=spec,displayName="Interval",xDescriptors={"urn:alm:descriptor:com.amd.deviceconfigs:interval"}
+	// +optional
+	// +kubebuilder:validation:Pattern=`^([0-9]+)(ms|s|m|h)$`
+	Interval string `json:"interval,omitempty"`
+
+	// AttachMetadata defines if Prometheus should attach node metadata to the target
+	//+operator-sdk:csv:customresourcedefinitions:type=spec,displayName="AttachMetadata",xDescriptors={"urn:alm:descriptor:com.amd.deviceconfigs:attachMetadata"}
+	// +optional
+	AttachMetadata *monitoringv1.AttachMetadata `json:"attachMetadata,omitempty"`
+
+	// HonorLabels chooses the metric's labels on collisions with target labels (default false)
+	//+operator-sdk:csv:customresourcedefinitions:type=spec,displayName="HonorLabels",xDescriptors={"urn:alm:descriptor:com.amd.deviceconfigs:honorLabels"}
+	// +optional
+	HonorLabels *bool `json:"honorLabels,omitempty"`
+
+	// HonorTimestamps controls whether the scrape endpoints honor timestamps (default false)
+	//+operator-sdk:csv:customresourcedefinitions:type=spec,displayName="HonorTimestamps",xDescriptors={"urn:alm:descriptor:com.amd.deviceconfigs:honorTimestamps"}
+	// +optional
+	HonorTimestamps *bool `json:"honorTimestamps,omitempty"`
+
+	// Additional labels to add to the ServiceMonitor (default release: prometheus)
+	//+operator-sdk:csv:customresourcedefinitions:type=spec,displayName="Labels",xDescriptors={"urn:alm:descriptor:com.amd.deviceconfigs:labels"}
+	// +optional
+	Labels map[string]string `json:"labels,omitempty"`
+
+	// RelabelConfigs to apply to samples before ingestion
+	//+operator-sdk:csv:customresourcedefinitions:type=spec,displayName="Relabelings",xDescriptors={"urn:alm:descriptor:com.amd.deviceconfigs:relabelings"}
+	// +optional
+	Relabelings []monitoringv1.RelabelConfig `json:"relabelings,omitempty"`
+
+	// Relabeling rules applied to individual scraped metrics
+	//+operator-sdk:csv:customresourcedefinitions:type=spec,displayName="MetricRelabelings",xDescriptors={"urn:alm:descriptor:com.amd.deviceconfigs:metricRelabelings"}
+	// +optional
+	MetricRelabelings []monitoringv1.RelabelConfig `json:"metricRelabelings,omitempty"`
+
+	// Optional Prometheus authorization configuration for accessing the endpoint
+	//+operator-sdk:csv:customresourcedefinitions:type=spec,displayName="Authorization",xDescriptors={"urn:alm:descriptor:com.amd.deviceconfigs:authorization"}
+	// +optional
+	Authorization *monitoringv1.SafeAuthorization `json:"authorization,omitempty"`
+
+	// Path to bearer token file to be used by Prometheus (e.g., service account token path)
+	// Deprecated: Use Authorization instead. This field is kept for backward compatibility.
+	//+operator-sdk:csv:customresourcedefinitions:type=spec,displayName="BearerTokenFile",xDescriptors={"urn:alm:descriptor:com.amd.deviceconfigs:bearerTokenFile"}
+	// +optional
+	BearerTokenFile string `json:"bearerTokenFile,omitempty"`
+
+	// TLS settings used by Prometheus to connect to the metrics endpoint
+	//+operator-sdk:csv:customresourcedefinitions:type=spec,displayName="TLSConfig",xDescriptors={"urn:alm:descriptor:com.amd.deviceconfigs:tlsConfig"}
+	// +optional
+	TLSConfig *monitoringv1.TLSConfig `json:"tlsConfig,omitempty"`
+}
+
+// StaticAuthConfig contains static authorization configuration for kube-rbac-proxy
+type StaticAuthConfig struct {
+	// Enables static authorization using client certificate CN
+	//+operator-sdk:csv:customresourcedefinitions:type=spec,displayName="Enable",xDescriptors={"urn:alm:descriptor:com.amd.deviceconfigs:enable"}
+	Enable bool `json:"enable,omitempty"`
+
+	// Expected CN (Common Name) from client cert (e.g., Prometheus SA identity)
+	//+operator-sdk:csv:customresourcedefinitions:type=spec,displayName="ClientName",xDescriptors={"urn:alm:descriptor:com.amd.deviceconfigs:clientName"}
+	ClientName string `json:"clientName,omitempty"`
+}
+
 // KubeRbacConfig contains configs for kube-rbac-proxy sidecar
 type KubeRbacConfig struct {
 	// enable kube-rbac-proxy, disabled by default
@@ -408,6 +492,16 @@ type KubeRbacConfig struct {
 	//+operator-sdk:csv:customresourcedefinitions:type=spec,displayName="Secret",xDescriptors={"urn:alm:descriptor:com.amd.deviceconfigs:secret"}
 	// +optional
 	Secret *v1.LocalObjectReference `json:"secret,omitempty"`
+
+	// Reference to a configmap containing the client CA (key: ca.crt) for mTLS client validation
+	//+operator-sdk:csv:customresourcedefinitions:type=spec,displayName="ClientCAConfigMap",xDescriptors={"urn:alm:descriptor:com.amd.deviceconfigs:clientCAConfigMap"}
+	// +optional
+	ClientCAConfigMap *v1.LocalObjectReference `json:"clientCAConfigMap,omitempty"`
+
+	// Optional static RBAC rules based on client certificate Common Name (CN)
+	//+operator-sdk:csv:customresourcedefinitions:type=spec,displayName="StaticAuthorization",xDescriptors={"urn:alm:descriptor:com.amd.deviceconfigs:staticAuthorization"}
+	// +optional
+	StaticAuthorization *StaticAuthConfig `json:"staticAuthorization,omitempty"`
 }
 
 // MetricsConfig contains list of metrics to collect/report

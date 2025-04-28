@@ -31,7 +31,7 @@ metadata:
       ]
     capabilities: Seamless Upgrades
     categories: AI/Machine Learning,Monitoring
-    containerImage: docker.io/rocm/gpu-operator:v1.2.1
+    containerImage: docker.io/rocm/gpu-operator:v1.2.2
     createdAt: "2025-05-15T01:26:46Z"
     description: |-
       Operator responsible for deploying AMD GPU kernel drivers, device plugin, device test runner and device metrics exporter
@@ -350,11 +350,90 @@ spec:
         path: metricsExporter.port
         x-descriptors:
         - urn:alm:descriptor:com.amd.deviceconfigs:port
+      - description: Prometheus configuration for metrics exporter
+        displayName: Prometheus
+        path: metricsExporter.prometheus
+        x-descriptors:
+        - urn:alm:descriptor:com.amd.deviceconfigs:prometheus
+      - description: ServiceMonitor configuration for Prometheus integration
+        displayName: ServiceMonitor
+        path: metricsExporter.prometheus.serviceMonitor
+        x-descriptors:
+        - urn:alm:descriptor:com.amd.deviceconfigs:serviceMonitor
+      - description: AttachMetadata defines if Prometheus should attach node metadata
+          to the target
+        displayName: AttachMetadata
+        path: metricsExporter.prometheus.serviceMonitor.attachMetadata
+        x-descriptors:
+        - urn:alm:descriptor:com.amd.deviceconfigs:attachMetadata
+      - description: Optional Prometheus authorization configuration for accessing
+          the endpoint
+        displayName: Authorization
+        path: metricsExporter.prometheus.serviceMonitor.authorization
+        x-descriptors:
+        - urn:alm:descriptor:com.amd.deviceconfigs:authorization
+      - description: 'Path to bearer token file to be used by Prometheus (e.g., service
+          account token path) Deprecated: Use Authorization instead. This field is
+          kept for backward compatibility.'
+        displayName: BearerTokenFile
+        path: metricsExporter.prometheus.serviceMonitor.bearerTokenFile
+        x-descriptors:
+        - urn:alm:descriptor:com.amd.deviceconfigs:bearerTokenFile
+      - description: Enable or disable ServiceMonitor creation (default false)
+        displayName: Enable
+        path: metricsExporter.prometheus.serviceMonitor.enable
+        x-descriptors:
+        - urn:alm:descriptor:com.amd.deviceconfigs:enable
+      - description: HonorLabels chooses the metric's labels on collisions with target
+          labels (default false)
+        displayName: HonorLabels
+        path: metricsExporter.prometheus.serviceMonitor.honorLabels
+        x-descriptors:
+        - urn:alm:descriptor:com.amd.deviceconfigs:honorLabels
+      - description: HonorTimestamps controls whether the scrape endpoints honor timestamps
+          (default false)
+        displayName: HonorTimestamps
+        path: metricsExporter.prometheus.serviceMonitor.honorTimestamps
+        x-descriptors:
+        - urn:alm:descriptor:com.amd.deviceconfigs:honorTimestamps
+      - description: 'How frequently to scrape metrics. Accepts values with time unit
+          suffix: "30s", "1m", "2h", "500ms"'
+        displayName: Interval
+        path: metricsExporter.prometheus.serviceMonitor.interval
+        x-descriptors:
+        - urn:alm:descriptor:com.amd.deviceconfigs:interval
+      - description: 'Additional labels to add to the ServiceMonitor (default release:
+          prometheus)'
+        displayName: Labels
+        path: metricsExporter.prometheus.serviceMonitor.labels
+        x-descriptors:
+        - urn:alm:descriptor:com.amd.deviceconfigs:labels
+      - description: Relabeling rules applied to individual scraped metrics
+        displayName: MetricRelabelings
+        path: metricsExporter.prometheus.serviceMonitor.metricRelabelings
+        x-descriptors:
+        - urn:alm:descriptor:com.amd.deviceconfigs:metricRelabelings
+      - description: RelabelConfigs to apply to samples before ingestion
+        displayName: Relabelings
+        path: metricsExporter.prometheus.serviceMonitor.relabelings
+        x-descriptors:
+        - urn:alm:descriptor:com.amd.deviceconfigs:relabelings
+      - description: TLS settings used by Prometheus to connect to the metrics endpoint
+        displayName: TLSConfig
+        path: metricsExporter.prometheus.serviceMonitor.tlsConfig
+        x-descriptors:
+        - urn:alm:descriptor:com.amd.deviceconfigs:tlsConfig
       - description: optional kube-rbac-proxy config to provide rbac services
         displayName: RbacConfig
         path: metricsExporter.rbacConfig
         x-descriptors:
         - urn:alm:descriptor:com.amd.deviceconfigs:rbacConfig
+      - description: 'Reference to a configmap containing the client CA (key: ca.crt)
+          for mTLS client validation'
+        displayName: ClientCAConfigMap
+        path: metricsExporter.rbacConfig.clientCAConfigMap
+        x-descriptors:
+        - urn:alm:descriptor:com.amd.deviceconfigs:clientCAConfigMap
       - description: disable https protecting the proxy endpoint
         displayName: DisableHttps
         path: metricsExporter.rbacConfig.disableHttps
@@ -376,6 +455,23 @@ spec:
         path: metricsExporter.rbacConfig.secret
         x-descriptors:
         - urn:alm:descriptor:com.amd.deviceconfigs:secret
+      - description: Optional static RBAC rules based on client certificate Common
+          Name (CN)
+        displayName: StaticAuthorization
+        path: metricsExporter.rbacConfig.staticAuthorization
+        x-descriptors:
+        - urn:alm:descriptor:com.amd.deviceconfigs:staticAuthorization
+      - description: Expected CN (Common Name) from client cert (e.g., Prometheus
+          SA identity)
+        displayName: ClientName
+        path: metricsExporter.rbacConfig.staticAuthorization.clientName
+        x-descriptors:
+        - urn:alm:descriptor:com.amd.deviceconfigs:clientName
+      - description: Enables static authorization using client certificate CN
+        displayName: Enable
+        path: metricsExporter.rbacConfig.staticAuthorization.enable
+        x-descriptors:
+        - urn:alm:descriptor:com.amd.deviceconfigs:enable
       - description: Selector describes on which nodes to enable metrics exporter
         displayName: Selector
         path: metricsExporter.selector
@@ -568,6 +664,75 @@ spec:
           - create
           - patch
         - apiGroups:
+          - ""
+          resources:
+          - configmaps
+          - secrets
+          - services
+          verbs:
+          - create
+          - delete
+          - get
+          - list
+          - patch
+          - watch
+        - apiGroups:
+          - ""
+          resources:
+          - nodes
+          verbs:
+          - get
+          - list
+          - patch
+          - watch
+        - apiGroups:
+          - ""
+          resources:
+          - nodes/finalizers
+          - nodes/status
+          verbs:
+          - get
+          - update
+          - watch
+        - apiGroups:
+          - ""
+          resources:
+          - pods
+          verbs:
+          - create
+          - delete
+          - get
+          - list
+          - watch
+        - apiGroups:
+          - ""
+          resources:
+          - pods/eviction
+          verbs:
+          - create
+          - delete
+          - get
+          - list
+        - apiGroups:
+          - ""
+          resources:
+          - pods/finalizers
+          - pods/status
+          verbs:
+          - delete
+          - get
+          - list
+          - watch
+        - apiGroups:
+          - ""
+          resources:
+          - services/finalizers
+          verbs:
+          - create
+          - get
+          - update
+          - watch
+        - apiGroups:
           - amd.com
           resources:
           - deviceconfigs
@@ -598,10 +763,14 @@ spec:
           - customresourcedefinitions
           verbs:
           - delete
+          - get
+          - list
+          - watch
         - apiGroups:
           - apps
           resources:
           - daemonsets
+          - daemonsets/status
           verbs:
           - create
           - delete
@@ -613,118 +782,6 @@ spec:
           - apps
           resources:
           - daemonsets/finalizers
-          verbs:
-          - create
-          - get
-          - update
-          - watch
-        - apiGroups:
-          - apps
-          resources:
-          - daemonsets/status
-          verbs:
-          - create
-          - delete
-          - get
-          - list
-          - patch
-          - watch
-        - apiGroups:
-          - ""
-          resources:
-          - configmaps
-          verbs:
-          - create
-          - delete
-          - get
-          - list
-          - patch
-          - watch
-        - apiGroups:
-          - ""
-          resources:
-          - nodes
-          verbs:
-          - get
-          - list
-          - patch
-          - watch
-        - apiGroups:
-          - ""
-          resources:
-          - nodes/finalizers
-          verbs:
-          - get
-          - update
-          - watch
-        - apiGroups:
-          - ""
-          resources:
-          - nodes/status
-          verbs:
-          - get
-          - update
-          - watch
-        - apiGroups:
-          - ""
-          resources:
-          - pods
-          verbs:
-          - create
-          - delete
-          - get
-          - list
-          - watch
-        - apiGroups:
-          - ""
-          resources:
-          - pods/eviction
-          verbs:
-          - create
-          - delete
-          - get
-          - list
-        - apiGroups:
-          - ""
-          resources:
-          - pods/finalizers
-          verbs:
-          - delete
-          - get
-          - list
-          - watch
-        - apiGroups:
-          - ""
-          resources:
-          - pods/status
-          verbs:
-          - delete
-          - get
-          - list
-          - watch
-        - apiGroups:
-          - ""
-          resources:
-          - secrets
-          verbs:
-          - get
-          - list
-          - watch
-        - apiGroups:
-          - ""
-          resources:
-          - services
-          verbs:
-          - create
-          - delete
-          - get
-          - list
-          - patch
-          - watch
-        - apiGroups:
-          - ""
-          resources:
-          - services/finalizers
           verbs:
           - create
           - get
@@ -746,6 +803,7 @@ spec:
           - kmm.sigs.x-k8s.io
           resources:
           - modules/finalizers
+          - nodemodulesconfigs/finalizers
           verbs:
           - get
           - update
@@ -762,25 +820,21 @@ spec:
           - kmm.sigs.x-k8s.io
           resources:
           - nodemodulesconfigs
-          verbs:
-          - get
-          - list
-          - watch
-        - apiGroups:
-          - kmm.sigs.x-k8s.io
-          resources:
-          - nodemodulesconfigs/finalizers
-          verbs:
-          - get
-          - update
-          - watch
-        - apiGroups:
-          - kmm.sigs.x-k8s.io
-          resources:
           - nodemodulesconfigs/status
           verbs:
           - get
           - list
+          - watch
+        - apiGroups:
+          - monitoring.coreos.com
+          resources:
+          - servicemonitors
+          verbs:
+          - create
+          - delete
+          - get
+          - list
+          - update
           - watch
         - apiGroups:
           - nfd.openshift.io
@@ -794,12 +848,6 @@ spec:
           - nfd.openshift.io
           resources:
           - nodefeaturediscoveries/finalizers
-          verbs:
-          - get
-          - update
-        - apiGroups:
-          - nfd.openshift.io
-          resources:
           - nodefeaturediscoveries/status
           verbs:
           - get
