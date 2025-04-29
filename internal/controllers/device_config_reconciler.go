@@ -1159,12 +1159,11 @@ func (dcrh *deviceConfigReconcilerHelper) updateNodeLabels(ctx context.Context, 
 				}
 			}
 
-			for k := range nodeObjCopy.Labels {
-				if strings.HasPrefix(k, "beta.amd.com") ||
-					strings.HasPrefix(k, "amd.com") {
-					delete(nodeObj.Labels, k)
-					updated = true
-				}
+			// search for all existing node labeller labels and remove them
+			// NOTE: don't try to remove all labels with prefix amd.com and beta.amd.com
+			// users may want to self-define labels under amd.com domain like amd.com/gpu:true
+			if utils.RemoveOldNodeLabels(nodeObj) {
+				updated = true
 			}
 
 			// use PATCH instead of UPDATE
