@@ -1,13 +1,17 @@
 # NFD related configs
+# schema reference: https://github.com/kubernetes-sigs/node-feature-discovery/blob/release-0.16/deployment/helm/node-feature-discovery/values.yaml
 node-feature-discovery:
   # -- Set to true/false to enable/disable the installation of node feature discovery (NFD) operator
   enabled: true
   worker:
+    # -- Set tolerations for NFD worker daemonset
     tolerations:
       - key: "amd-dcm"
         operator: "Equal"
         value: "up"
         effect: "NoExecute"
+    # -- Set nodeSelector for NFD worker daemonset
+    nodeSelector: {}
 
 # KMM related configs
 kmm:
