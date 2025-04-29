@@ -216,7 +216,8 @@ fmt: ## Run go fmt against code.
 vet: ## Run go vet against code.
 	go vet ./...
 
-UNIT_TEST ?= ./internal/controllers ./internal/kmmmodule
+UNIT_TEST ?= ./internal/controllers ./internal/kmmmodule ./internal
+
 .PHONY: unit-test
 unit-test: vet ## Run the unit tests.
 	go test $(UNIT_TEST) -v -coverprofile cover.out
