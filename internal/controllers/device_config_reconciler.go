@@ -58,6 +58,7 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	v1 "k8s.io/api/core/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
+	meta "k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -662,7 +663,7 @@ func (dcrh *deviceConfigReconcilerHelper) finalizeMetricsExporter(ctx context.Co
 		},
 	}
 	if err := dcrh.client.Get(ctx, client.ObjectKeyFromObject(serviceMonitor), serviceMonitor); err != nil {
-		if !k8serrors.IsNotFound(err) {
+		if !k8serrors.IsNotFound(err) && !meta.IsNoMatchError(err) {
 			return fmt.Errorf("failed to get ServiceMonitor %s: %v", serviceMonitor.Name, err)
 		}
 	} else {
@@ -1138,11 +1139,11 @@ func (dcrh *deviceConfigReconcilerHelper) handleMetricsExporter(ctx context.Cont
 			if err := dcrh.client.Delete(ctx, sm); err != nil && !k8serrors.IsNotFound(err) {
 				return fmt.Errorf("failed to delete ServiceMonitor: %v", err)
 			}
-		} else if !k8serrors.IsNotFound(err) {
+		} else if !k8serrors.IsNotFound(err) && !meta.IsNoMatchError(err) {
 			// Some other error occurred
 			return fmt.Errorf("failed to get ServiceMonitor: %v", err)
 		}
-		// If error is IsNotFound, then there's nothing to delete
+		// If error is IsNotFound or NoMatch (CRD not available), then there's nothing to delete
 	}
 
 	return nil
