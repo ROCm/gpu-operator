@@ -202,6 +202,9 @@ update-version:
 	sed -i '0,/version:/s|version:.*|version: ${PROJECT_VERSION}|' hack/k8s-patch/metadata-patch/Chart.yaml
 	sed -i -e 's|appVersion:.*$$|appVersion: "${PROJECT_VERSION}"|' hack/openshift-patch/metadata-patch/Chart.yaml
 	sed -i '0,/version:/s|version:.*|version: ${PROJECT_VERSION}|' hack/openshift-patch/metadata-patch/Chart.yaml
+	# updating project version in Dockerfile metadata
+	sed -i 's/release="[^"]*"/release="${PROJECT_VERSION}"/g' Dockerfile internal/utils_container/Dockerfile
+	sed -i 's/version="[^"]*"/version="${PROJECT_VERSION}"/g' Dockerfile internal/utils_container/Dockerfile
 
 .PHONY: manifests
 manifests: controller-gen update-registry update-version ## Generate ClusterRole and CustomResourceDefinition objects.
