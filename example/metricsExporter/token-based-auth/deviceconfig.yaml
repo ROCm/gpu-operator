@@ -1,0 +1,41 @@
+# deviceconfig.yaml
+apiVersion: amd.com/v1alpha1
+kind: DeviceConfig
+metadata:
+  name: gpu-operator
+  namespace: kube-amd-gpu
+spec:
+  selector:
+    feature.node.kubernetes.io/amd-gpu: "true"
+
+  metricsExporter:
+    enable: true
+    serviceType: ClusterIP
+    image: "docker.io/rocm/device-metrics-exporter:latest"
+
+    rbacConfig:
+      enable: true
+      secret:
+        name: server-metrics-tls
+
+    prometheus:
+      serviceMonitor:
+        enable: true
+        interval: 60s
+        honorLabels: true
+        labels:
+          "example": "prom-token"
+        attachMetadata:
+          node: true
+        tlsConfig:
+          ca:
+            configMap:
+              key: ca.crt
+              name: prom-server-ca
+          serverName: my-metrics-service
+          insecureSkipVerify: false
+        authorization:
+          type: Bearer
+          credentials:
+            key: token
+            name: prom-token
