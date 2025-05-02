@@ -372,6 +372,14 @@ spec:
                       Not working for OpenShift cluster. OpenShift users please use the Machine Config Operator (MCO) resource to configure amdgpu blacklist.
                       Example MCO resource is available at https://instinct.docs.amd.com/projects/gpu-operator/en/latest/installation/openshift-olm.html#create-blacklist-for-installing-out-of-tree-kernel-module
                     type: boolean
+                  driverType:
+                    default: container
+                    description: specify the type of driver (container/vf-passthrough)
+                      to install on the worker node. default value is gpu.
+                    enum:
+                    - container
+                    - vf-passthrough
+                    type: string
                   enable:
                     default: true
                     description: |-
@@ -594,6 +602,17 @@ spec:
                       version of the drivers source code, can be used as part of image of dockerfile source image
                       default value for different OS is: ubuntu: 6.1.3, coreOS: 6.2.2
                     type: string
+                  vfPassthrough:
+                    description: vf-passthrough host driver specific configs. Only applies
+                      when the driverType is vf-passthrough
+                    properties:
+                      gpuModel:
+                        default: mi300x
+                        enum:
+                        - mi210
+                        - mi300x
+                        type: string
+                    type: object
                 type: object
               metricsExporter:
                 description: metrics exporter

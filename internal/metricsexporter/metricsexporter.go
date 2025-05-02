@@ -37,8 +37,6 @@ import (
 	"fmt"
 	"os"
 
-	amdv1alpha1 "github.com/ROCm/gpu-operator/api/v1alpha1"
-	utils "github.com/ROCm/gpu-operator/internal"
 	monitoringv1 "github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring/v1"
 	"github.com/rh-ecosystem-edge/kernel-module-management/pkg/labels"
 	appsv1 "k8s.io/api/apps/v1"
@@ -48,6 +46,9 @@ import (
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
+
+	amdv1alpha1 "github.com/ROCm/gpu-operator/api/v1alpha1"
+	utils "github.com/ROCm/gpu-operator/internal"
 )
 
 const (
@@ -374,6 +375,13 @@ func (nl *metricsExporter) SetMetricsExporterAsDesired(ds *appsv1.DaemonSet, dev
 	if devConfig.Spec.CommonConfig.InitContainerImage != "" {
 		initContainerImage = devConfig.Spec.CommonConfig.InitContainerImage
 	}
+
+	initContainerCommand := "if [ \"$SIM_ENABLE\" = \"true\" ]; then exit 0; fi; while [ ! -d /host-sys/class/kfd ] || [ ! -d /host-sys/module/amdgpu/drivers/ ]; do echo \"amdgpu driver is not loaded \"; sleep 2 ;done"
+	switch devConfig.Spec.Driver.DriverType {
+	case utils.DriverTypeVFPassthrough:
+		initContainerCommand = "if [ \"$SIM_ENABLE\" = \"true\" ]; then exit 0; fi; while [ ! -d /host-sys/module/gim/drivers/ ]; do echo \"gim driver is not loaded \"; sleep 2 ;done"
+	}
+
 	ds.Spec = appsv1.DaemonSetSpec{
 		Selector: &metav1.LabelSelector{MatchLabels: matchLabels},
 		Template: v1.PodTemplateSpec{
@@ -386,7 +394,7 @@ func (nl *metricsExporter) SetMetricsExporterAsDesired(ds *appsv1.DaemonSet, dev
 					{
 						Name:            "driver-init",
 						Image:           initContainerImage,
-						Command:         []string{"sh", "-c", "if [ \"$SIM_ENABLE\" = \"true\" ]; then exit 0; fi; while [ ! -d /host-sys/class/kfd ] || [ ! -d /host-sys/module/amdgpu/drivers/ ]; do echo \"amdgpu driver is not loaded \"; sleep 2 ;done"},
+						Command:         []string{"sh", "-c", initContainerCommand},
 						SecurityContext: &v1.SecurityContext{Privileged: ptr.To(true)},
 						VolumeMounts: []v1.VolumeMount{
 							{
