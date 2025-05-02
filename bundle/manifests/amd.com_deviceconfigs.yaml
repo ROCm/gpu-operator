@@ -599,17 +599,6 @@ spec:
                       version of the drivers source code, can be used as part of image of dockerfile source image
                       default value for different OS is: ubuntu: 6.1.3, coreOS: 6.2.2
                     type: string
-                  vfPassthrough:
-                    description: vf-passthrough host driver specific configs. Only
-                      applies when the driverType is vf-passthrough
-                    properties:
-                      gpuModel:
-                        default: mi300x
-                        enum:
-                        - mi210
-                        - mi300x
-                        type: string
-                    type: object
                 type: object
               metricsExporter:
                 description: metrics exporter
