@@ -25,6 +25,6 @@ resources:
   - utils_container_service_account.yaml
   - utils_container_role.yaml
   - utils_container_role_binding.yaml
+  - config_manager_role.yaml
   - config_manager_role_binding.yaml
   - config_manager_service_account.yaml
-  - config_manager_role.yaml

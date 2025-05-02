@@ -18,3 +18,11 @@ rules:
 - apiGroups: [""]
   resources: ["pods"]
   verbs: ["get", "list", "watch", "delete", "create", "update"]
+- apiGroups:
+  - security.openshift.io
+  resourceNames:
+  - privileged
+  resources:
+  - securitycontextconstraints
+  verbs:
+  - use

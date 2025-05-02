@@ -1176,6 +1176,57 @@ spec:
           verbs:
           - use
         serviceAccountName: amd-gpu-operator-utils-container
+      - rules:
+        - apiGroups:
+          - ""
+          resources:
+          - events
+          verbs:
+          - create
+          - list
+          - get
+          - update
+          - watch
+        - apiGroups:
+          - ""
+          resources:
+          - nodes
+          verbs:
+          - get
+          - list
+          - watch
+          - update
+        - apiGroups:
+          - "apps"
+          resources:
+          - daemonsets
+          verbs:
+          - get
+          - list
+          - watch
+          - delete
+          - create
+          - update
+        - apiGroups:
+          - ""
+          resources:
+          - pods
+          verbs:
+          - get
+          - list
+          - watch
+          - delete
+          - create
+          - update
+        - apiGroups:
+          - security.openshift.io
+          resourceNames:
+          - privileged
+          resources:
+          - securitycontextconstraints
+          verbs:
+          - use
+        serviceAccountName: amd-gpu-operator-config-manager
       deployments:
       - label:
           app.kubernetes.io/component: amd-gpu
