@@ -36,7 +36,6 @@ import (
 	"fmt"
 	"strings"
 
-	amdv1alpha1 "github.com/ROCm/gpu-operator/api/v1alpha1"
 	appsv1 "k8s.io/api/apps/v1"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -44,6 +43,9 @@ import (
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
+
+	amdv1alpha1 "github.com/ROCm/gpu-operator/api/v1alpha1"
+	utils "github.com/ROCm/gpu-operator/internal"
 )
 
 const (
@@ -137,16 +139,7 @@ func (nl *nodeLabeller) SetNodeLabellerAsDesired(ds *appsv1.DaemonSet, devConfig
 		blackListFileName = openShiftBlacklistFileName
 	}
 
-	var initContainerCommand []string
-	if devConfig.Spec.Driver.Blacklist != nil && *devConfig.Spec.Driver.Blacklist {
-		// if users want to apply the blacklist, init container will add the amdgpu to the blacklist
-		initContainerCommand = []string{"sh", "-c", fmt.Sprintf("echo \"# added by gpu operator \nblacklist amdgpu\" > /host-etc/modprobe.d/%v; while [ ! -d /host-sys/class/kfd ] || [ ! -d /host-sys/module/amdgpu/drivers/ ]; do echo \"amdgpu driver is not loaded \"; sleep 2 ;done", blackListFileName)}
-	} else {
-		// if users disabled the KMM driver, or disabled the blacklist
-		// init container will remove any hanging amdgpu blacklist entry from the list
-		initContainerCommand = []string{"sh", "-c", fmt.Sprintf("rm -f /host-etc/modprobe.d/%v; while [ ! -d /host-sys/class/kfd ] || [ ! -d /host-sys/module/amdgpu/drivers/ ]; do echo \"amdgpu driver is not loaded \"; sleep 2 ;done", blackListFileName)}
-	}
-
+	initContainerCommand := getNodeLabellerInitContainerCommand(devConfig, blackListFileName)
 	initContainerImage := defaultInitContainerImage
 	if devConfig.Spec.CommonConfig.InitContainerImage != "" {
 		initContainerImage = devConfig.Spec.CommonConfig.InitContainerImage
@@ -264,4 +257,25 @@ func getDevicePluginVersion(devConfig *amdv1alpha1.DeviceConfig) string {
 		return strings.Replace(imgInfo[len(imgInfo)-1], ":", "", -1)
 	}
 	return ""
+}
+
+func getNodeLabellerInitContainerCommand(devConfig *amdv1alpha1.DeviceConfig, blackListFileName string) []string {
+	if devConfig.Spec.Driver.Blacklist != nil && *devConfig.Spec.Driver.Blacklist {
+		// if users want to apply the blacklist, init container will add the amdgpu to the blacklist
+		initContainerCommand := []string{"sh", "-c", fmt.Sprintf("echo \"# added by gpu operator \nblacklist amdgpu\" > /host-etc/modprobe.d/%v; while [ ! -d /host-sys/class/kfd ] || [ ! -d /host-sys/module/amdgpu/drivers/ ]; do echo \"amdgpu driver is not loaded \"; sleep 2 ;done", blackListFileName)}
+		switch devConfig.Spec.Driver.DriverType {
+		case utils.DriverTypeVFPassthrough:
+			initContainerCommand = []string{"sh", "-c", fmt.Sprintf("echo \"# added by gpu operator \nblacklist amdgpu\" > /host-etc/modprobe.d/%v; while [ ! -d /host-sys/module/gim/drivers/ ]; do echo \"gim driver is not loaded \"; sleep 2 ;done", blackListFileName)}
+		}
+		return initContainerCommand
+	} else {
+		// if users disabled the KMM driver, or disabled the blacklist
+		// init container will remove any hanging amdgpu blacklist entry from the list
+		initContainerCommand := []string{"sh", "-c", fmt.Sprintf("rm -f /host-etc/modprobe.d/%v; while [ ! -d /host-sys/class/kfd ] || [ ! -d /host-sys/module/amdgpu/drivers/ ]; do echo \"amdgpu driver is not loaded \"; sleep 2 ;done", blackListFileName)}
+		switch devConfig.Spec.Driver.DriverType {
+		case utils.DriverTypeVFPassthrough:
+			initContainerCommand = []string{"sh", "-c", fmt.Sprintf("rm -f /host-etc/modprobe.d/%v; while [ ! -d /host-sys/module/gim/drivers/ ]; do echo \"gim driver is not loaded \"; sleep 2 ;done", blackListFileName)}
+		}
+		return initContainerCommand
+	}
 }

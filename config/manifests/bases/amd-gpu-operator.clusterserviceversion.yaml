@@ -236,6 +236,12 @@ spec:
         path: driver.blacklist
         x-descriptors:
         - urn:alm:descriptor:com.amd.deviceconfigs:blacklistDrivers
+      - description: specify the type of driver (container/vf-passthrough) to install
+          on the worker node. default value is gpu.
+        displayName: DriverType
+        path: driver.driverType
+        x-descriptors:
+        - urn:alm:descriptor:com.amd.deviceconfigs:driverType
       - description: enable driver install. default value is true. disable is for
           skipping driver install/uninstall for dryrun or using in-tree amdgpu kernel
           module
@@ -370,6 +376,16 @@ spec:
         path: driver.version
         x-descriptors:
         - urn:alm:descriptor:com.amd.deviceconfigs:version
+      - description: vf-passthrough host driver specific configs. Only applies when
+          the driverType is vf-passthrough
+        displayName: VFPassthrough
+        path: driver.vfPassthrough
+        x-descriptors:
+        - urn:alm:descriptor:com.amd.deviceconfigs:vfPassthrough
+      - displayName: GPUModel
+        path: driver.vfPassthrough.gpuModel
+        x-descriptors:
+        - urn:alm:descriptor:com.amd.deviceconfigs:gpuModel
       - description: metrics exporter
         displayName: MetricsExporter
         path: metricsExporter
