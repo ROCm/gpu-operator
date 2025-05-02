@@ -183,7 +183,7 @@ func (r *DeviceConfigReconciler) init(ctx context.Context) {
 //+kubebuilder:rbac:groups=core,resources=secrets,verbs=create;delete;get;list;patch;watch
 //+kubebuilder:rbac:groups=core,resources=pods/eviction,verbs=delete;get;list;create
 //+kubebuilder:rbac:groups=apiextensions.k8s.io,resources=customresourcedefinitions,verbs=get;list;watch;delete
-//+kubebuilder:rbac:groups=monitoring.coreos.com,resources=servicemonitors,verbs=get;list;watch;create;update;delete
+//+kubebuilder:rbac:groups=monitoring.coreos.com,resources=servicemonitors,verbs=get;list;watch;create;update;patch;delete
 
 func (r *DeviceConfigReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	res := ctrl.Result{}
