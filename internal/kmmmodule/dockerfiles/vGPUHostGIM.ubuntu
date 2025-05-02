@@ -1,4 +1,3 @@
-FROM registry.test.pensando.io:5000/host_gim_driver_source:latest AS source
 FROM ubuntu:$$VERSION AS builder
 
 ARG KERNEL_FULL_VERSION
@@ -7,20 +6,17 @@ ARG DRIVERS_VERSION
 
 ARG REPO_URL
 
-RUN apt-get update && apt-get install -y automake \
-    make \
-    autoconf \
+RUN apt-get update && \
+    apt-get install -y build-essential \
     dkms \
-    bc \
-    gcc-12 \
-    dpkg-dev \
-    initramfs-tools \
+    autoconf \
+    automake \
     linux-headers-${KERNEL_FULL_VERSION} && \
-    update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-12 60
+    apt-get clean
 
-COPY --from=source /gim_drivers/* /gim_drivers/
-
-RUN dpkg -i /gim_drivers/$$GPU_MODEL*
+RUN wget https://github.com/amd/MxGPU-Virtualization/releases/download/mainline%2F${DRIVERS_VERSION}/gim-dkms_${DRIVERS_VERSION}_all.deb && \
+    dpkg -i gim-dkms_${DRIVERS_VERSION}_all.deb && \
+    rm gim-dkms_${DRIVERS_VERSION}_all.deb
 
 RUN depmod ${KERNEL_FULL_VERSION}
 
