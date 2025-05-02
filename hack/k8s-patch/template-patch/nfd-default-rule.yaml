@@ -198,4 +198,22 @@ spec:
             matchExpressions:
               vendor: {op: In, value: ["1002"]}
               device: {op: In, value: ["73bf"]} # RX 6800 / 6800 XT / 6900 XT
+  - name: amd-gpu-mi210
+    labels:
+      feature.node.kubernetes.io/amd-gpu-mi210: "true"
+    matchAny:
+      - matchFeatures:
+          - feature: pci.device
+            matchExpressions:
+              vendor: {op: In, value: ["1002"]}
+              device: {op: In, value: ["740f"]} # MI210
+  - name: amd-gpu-mi300x
+    labels:
+      feature.node.kubernetes.io/amd-gpu-mi300x: "true"
+    matchAny:
+      - matchFeatures:
+          - feature: pci.device
+            matchExpressions:
+              vendor: {op: In, value: ["1002"]}
+              device: {op: In, value: ["74a1"]} # MI300X
 {{- end }}
