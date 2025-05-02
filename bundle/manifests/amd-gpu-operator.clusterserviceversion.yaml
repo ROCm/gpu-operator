@@ -405,16 +405,6 @@ spec:
         path: driver.version
         x-descriptors:
         - urn:alm:descriptor:com.amd.deviceconfigs:version
-      - description: vf-passthrough host driver specific configs. Only applies when
-          the driverType is vf-passthrough
-        displayName: VFPassthrough
-        path: driver.vfPassthrough
-        x-descriptors:
-        - urn:alm:descriptor:com.amd.deviceconfigs:vfPassthrough
-      - displayName: GPUModel
-        path: driver.vfPassthrough.gpuModel
-        x-descriptors:
-        - urn:alm:descriptor:com.amd.deviceconfigs:gpuModel
       - description: metrics exporter
         displayName: MetricsExporter
         path: metricsExporter

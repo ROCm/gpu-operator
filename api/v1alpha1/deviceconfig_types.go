@@ -101,10 +101,6 @@ type DriverSpec struct {
 	// +kubebuilder:default=container
 	DriverType string `json:"driverType,omitempty"`
 
-	// vf-passthrough host driver specific configs. Only applies when the driverType is vf-passthrough
-	//+operator-sdk:csv:customresourcedefinitions:type=spec,displayName="VFPassthrough",xDescriptors={"urn:alm:descriptor:com.amd.deviceconfigs:vfPassthrough"}
-	VFPassthrough VFPassthroughSpec `json:"vfPassthrough,omitempty"`
-
 	// blacklist amdgpu drivers on the host. Node reboot is required to apply the baclklist on the worker nodes.
 	// Not working for OpenShift cluster. OpenShift users please use the Machine Config Operator (MCO) resource to configure amdgpu blacklist.
 	// Example MCO resource is available at https://instinct.docs.amd.com/projects/gpu-operator/en/latest/installation/openshift-olm.html#create-blacklist-for-installing-out-of-tree-kernel-module
@@ -717,14 +713,6 @@ type CommonConfigSpec struct {
 	//+operator-sdk:csv:customresourcedefinitions:type=spec,displayName="UtilsContainer",xDescriptors={"urn:alm:descriptor:com.amd.deviceconfigs:utilsContainer"}
 	// +optional
 	UtilsContainer UtilsContainerSpec `json:"utilsContainer,omitempty"`
-}
-
-// VFPassthroughSpec vf-passthrough host driver specific configs
-type VFPassthroughSpec struct {
-	//+operator-sdk:csv:customresourcedefinitions:type=spec,displayName="GPUModel",xDescriptors={"urn:alm:descriptor:com.amd.deviceconfigs:gpuModel"}
-	// +kubebuilder:validation:Enum=mi210;mi300x
-	// +kubebuilder:default=mi300x
-	GPUModel string `json:"gpuModel,omitempty"`
 }
 
 // DeploymentStatus contains the status for a daemonset deployed during
