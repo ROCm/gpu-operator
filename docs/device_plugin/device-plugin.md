@@ -18,6 +18,12 @@ To start the Device Plugin along with the GPU Operator configure fields under th
     # default value is rocm/k8s-device-plugin:labeller-latest
     nodeLabellerImage: rocm/k8s-device-plugin:labeller-latest
 
+    # The node labeller arguments is used to pass supported flags while starting node labeller daemonset
+    nodeLabellerArguments:
+     - compute-partitioning-supported
+     - memory-partitioning-supported
+     - compute-memory-partition
+
     # Specify whether to bring up node labeller component
     # default value is true
     enableNodeLabeller: True
@@ -52,6 +58,7 @@ test-deviceconfig-node-labeller-bxk7x                             1/1     Runnin
 | **NodeLabellerImagePullPolicy**  | One of Always, Never, IfNotPresent.          |
 | **EnableNodeLabeller**           | Enable/Disable node labeller with True/False |
 | **DevicePluginArguments**        | The flag/values to pass on to Device Plugin  |
+| **NodeLabellerArguments**        | The flags to pass on to Node Labeller        |
 </br>
 
 1. Both the `ImagePullPolicy` fields default to `Always` if `:latest` tag is specified on the respective Image, or defaults to `IfNotPresent` otherwise. This is default k8s behaviour for `ImagePullPolicy`
@@ -59,6 +66,14 @@ test-deviceconfig-node-labeller-bxk7x                             1/1     Runnin
 2. `DevicePluginArguments` is of type `map[string]string`. Currently supported key value pairs to set under `DevicePluginArguments` are:
    -> "resource_naming_strategy": {"single", "mixed"}
 
+
+3. `NodeLabellerArguments` is of type `[]string`. Currently supported flags to set under `NodeLabellerArguments` are:
+   - {"compute-memory-partition", "compute-partitioning-supported", "memory-partitioning-supported"}
+   - For the above new partition labels, the labels being set under this field will be applied by nodelabeller on the node
+ 
+    The below labels are enabled by nodelabeller by default internally :
+   - {"vram", "cu-count", "simd-count", "device-id", "family", "product-name", "driver-version"}
+ 
 ## How to choose Resource Naming Strategy
 
 To customize the way device plugin reports gpu resources to kubernetes as allocatable k8s resources, use the `single` or `mixed` resource naming strategy in **DeviceConfig** CR
