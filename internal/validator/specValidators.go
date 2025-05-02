@@ -74,6 +74,13 @@ func ValidateMetricsExporterSpec(ctx context.Context, client client.Client, devC
 		}
 	}
 
+	// Validate ServiceMonitor CRD availability if ServiceMonitor is enabled
+	if utils.IsPrometheusServiceMonitorEnable(devConfig) {
+		if err := validateServiceMonitorCRD(ctx, client); err != nil {
+			return fmt.Errorf("ServiceMonitor: %v", err)
+		}
+	}
+
 	return nil
 }
 
