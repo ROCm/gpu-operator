@@ -129,8 +129,16 @@ func (n *upgradeMgr) HandleUpgrade(ctx context.Context, deviceConfig *amdv1alpha
 			} else if moduleStatus.Status == amdv1alpha1.UpgradeStateRebootInProgress {
 				// Operator restarted during upgrade operation. Schedule the reboot pod deletion
 				log.FromContext(ctx).Info(fmt.Sprintf("Node: %v: Reboot is in progress, scheduling reboot pod deletion", nodeName))
-				n.helper.setNodeStatus(ctx, nodeName, moduleStatus.Status)
-				go n.helper.deleteRebootPod(ctx, nodeName, deviceConfig, false, deviceConfig.Generation)
+				// If the pod is still present, schedule reboot pod deletion, else, move ahead to Upgrade-In-Progress
+				rebootPod := n.helper.getRebootPod(nodeName, deviceConfig)
+				podObj, err := n.helper.getPod(ctx, rebootPod.Name, deviceConfig.Namespace)
+				if err != nil {
+					log.FromContext(ctx).Info(fmt.Sprintf("Pod: %v: reboot pod not found: %v", podObj, err))
+					n.helper.setNodeStatus(ctx, nodeName, amdv1alpha1.UpgradeStateInProgress)
+				} else {
+					n.helper.setNodeStatus(ctx, nodeName, moduleStatus.Status)
+					go n.helper.deleteRebootPod(ctx, nodeName, deviceConfig, false, deviceConfig.Generation)
+				}
 			} else {
 				n.helper.setNodeStatus(ctx, nodeName, moduleStatus.Status)
 			}
@@ -310,6 +318,7 @@ type upgradeMgrHelperAPI interface {
 	setcurrentSpec(deviceConfig *amdv1alpha1.DeviceConfig)
 	getNodeStatus(nodeName string) amdv1alpha1.UpgradeState
 	getNode(ctx context.Context, nodeName string) (node *v1.Node, err error)
+	getPod(ctx context.Context, podName string, namespace string) (pod *v1.Pod, err error)
 	setNodeStatus(ctx context.Context, nodeName string, status amdv1alpha1.UpgradeState)
 	getUpgradeStartTime(nodeName string) string
 	setUpgradeStartTime(nodeName string)
@@ -639,6 +648,14 @@ func (h *upgradeMgrHelper) getNode(ctx context.Context, nodeName string) (*v1.No
 	return nodeObj, err
 }
 
+func (h *upgradeMgrHelper) getPod(ctx context.Context, podName string, namespace string) (*v1.Pod, error) {
+	pod := &v1.Pod{}
+	if err := h.client.Get(ctx, types.NamespacedName{Namespace: namespace, Name: podName}, pod); err != nil {
+		return pod, err
+	}
+	return pod, nil
+}
+
 func (h *upgradeMgrHelper) clearNodeStatus() {
 
 	h.nodeStatus = new(sync.Map)
@@ -687,6 +704,7 @@ func (h *upgradeMgrHelper) deleteOrDrainPods(ctx context.Context, deviceConfig *
 				h.drainHelper.Force = *dc.NodeDrainPolicy.Force
 			}
 			h.drainHelper.Timeout = time.Duration(float64(dc.NodeDrainPolicy.TimeoutSeconds) * float64(time.Second))
+			h.drainHelper.GracePeriodSeconds = dc.NodeDrainPolicy.GracePeriodSeconds
 		} else if dc.PodDeletionPolicy != nil {
 			h.drainHelper.DisableEviction = true
 			h.drainHelper.Force = false
@@ -694,6 +712,7 @@ func (h *upgradeMgrHelper) deleteOrDrainPods(ctx context.Context, deviceConfig *
 				h.drainHelper.Force = *dc.PodDeletionPolicy.Force
 			}
 			h.drainHelper.Timeout = time.Duration(float64(dc.PodDeletionPolicy.TimeoutSeconds) * float64(time.Second))
+			h.drainHelper.GracePeriodSeconds = dc.PodDeletionPolicy.GracePeriodSeconds
 		}
 
 		if err := h.drainHelper.DeleteOrEvictPods(pods); err != nil {
