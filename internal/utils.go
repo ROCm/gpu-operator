@@ -198,3 +198,14 @@ func IsOpenShift(logger logr.Logger) bool {
 	logger.Info(fmt.Sprintf("IsOpenShift: %+v", isOpenShift))
 	return isOpenShift
 }
+
+// IsPrometheusServiceMonitorEnable checks if the Prometheus ServiceMonitor is enabled in the DeviceConfig
+func IsPrometheusServiceMonitorEnable(devConfig *amdv1alpha1.DeviceConfig) bool {
+	if devConfig.Spec.MetricsExporter.Prometheus != nil &&
+		devConfig.Spec.MetricsExporter.Prometheus.ServiceMonitor != nil &&
+		devConfig.Spec.MetricsExporter.Prometheus.ServiceMonitor.Enable != nil &&
+		*devConfig.Spec.MetricsExporter.Prometheus.ServiceMonitor.Enable {
+		return true
+	}
+	return false
+}
