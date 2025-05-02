@@ -191,7 +191,6 @@ func resolveDockerfile(cmName string, devConfig *amdv1alpha1.DeviceConfig) (stri
 		switch devConfig.Spec.Driver.DriverType {
 		case utils.DriverTypeVFPassthrough:
 			dockerfileTemplate = dockerfileTemplateUbuntuVGPUHost
-			dockerfileTemplate = strings.Replace(dockerfileTemplate, "$$GPU_MODEL", devConfig.Spec.Driver.VFPassthrough.GPUModel, -1)
 		}
 		driverLabel, present := driverLabels[version]
 		if !present {
@@ -459,7 +458,7 @@ func setKMMModuleLoader(ctx context.Context, mod *kmmv1beta1.Module, devConfig *
 			ModuleName:          moduleName,
 			FirmwarePath:        firmwarePath,
 			Args:                &kmmv1beta1.ModprobeArgs{},
-			Parameters:          getModprobeParametersFromNodeInfo(nodes),
+			Parameters:          getModprobeParametersFromNodeInfo(nodes, devConfig),
 			ModulesLoadingOrder: modLoadingOrder,
 		},
 		Version:        devConfig.Spec.Driver.Version,
@@ -616,11 +615,8 @@ func getKM(devConfig *amdv1alpha1.DeviceConfig, node v1.Node, inTreeModuleToRemo
 }
 
 func addNodeInfoSuffixToImageTag(imgStr, osName, driversVersion string, devCfg *amdv1alpha1.DeviceConfig) string {
-	// if driver is vGPU host, different GPU model's driver image would be different
-	// need to add a suffix to distinguish them
-	gpuModelSuffix := utils.GetGPUModelSuffix(devCfg)
 	// KMM will render and fulfill the value of ${KERNEL_FULL_VERSION}
-	tag := osName + "-${KERNEL_FULL_VERSION}-" + driversVersion + gpuModelSuffix
+	tag := osName + "-${KERNEL_FULL_VERSION}-" + driversVersion
 	// tag cannot be more than 128 chars
 	if len(tag) > 128 {
 		tag = tag[len(tag)-128:]
@@ -763,12 +759,15 @@ func getNodeSelector(devConfig *amdv1alpha1.DeviceConfig) map[string]string {
 	return ns
 }
 
-func getModprobeParametersFromNodeInfo(nodes *v1.NodeList) []string {
-	// if selected nodes have VF device, we need to pass specific argument to modprobe command
-	// in order to make sure the amdgpu was loaded successfully into guest VM
-	for _, node := range nodes.Items {
-		if utils.HasNodeLabelKey(node, utils.NodeFeatureLabelAmdVGpu) {
-			return []string{"ip_block_mask=0x7f"}
+func getModprobeParametersFromNodeInfo(nodes *v1.NodeList, devConfig *amdv1alpha1.DeviceConfig) []string {
+	switch devConfig.Spec.Driver.DriverType {
+	case utils.DriverTypeContainer:
+		// if selected nodes have VF device and the driver type is container, we need to pass specific argument to modprobe command
+		// in order to make sure the amdgpu was loaded successfully into guest VM
+		for _, node := range nodes.Items {
+			if utils.HasNodeLabelKey(node, utils.NodeFeatureLabelAmdVGpu) {
+				return []string{"ip_block_mask=0x7f"}
+			}
 		}
 	}
 	return nil
