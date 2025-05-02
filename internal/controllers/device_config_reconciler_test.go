@@ -337,7 +337,7 @@ var _ = Describe("finalizeDeviceConfig", func() {
 		kubeClient.EXPECT().Get(ctx, configmanagerNN, gomock.Any()).Return(statusErr).Times(1)
 		kubeClient.EXPECT().Get(ctx, testrunnerNN, gomock.Any()).Return(statusErr).Times(1)
 		kubeClient.EXPECT().Get(ctx, testNodeNN, gomock.Any()).Return(nil).Times(1)
-		kubeClient.EXPECT().Get(ctx, metricsNN, gomock.Any()).Return(statusErr).Times(2)
+		kubeClient.EXPECT().Get(ctx, metricsNN, gomock.Any()).Return(statusErr).Times(4)
 		kubeClient.EXPECT().Get(ctx, nodeLabellerNN, gomock.Any()).Return(fmt.Errorf("some error"))
 
 		err := dcrh.finalizeDeviceConfig(ctx, devConfig, testNodeList)
@@ -376,7 +376,7 @@ var _ = Describe("finalizeDeviceConfig", func() {
 			kubeClient.EXPECT().Get(ctx, configmanagerNN, gomock.Any()).Return(statusErr).Times(1),
 			kubeClient.EXPECT().Get(ctx, testrunnerNN, gomock.Any()).Return(statusErr).Times(1),
 			kubeClient.EXPECT().Get(ctx, testNodeNN, gomock.Any()).Return(nil).Times(1),
-			kubeClient.EXPECT().Get(ctx, metricsNN, gomock.Any()).Return(statusErr).Times(2),
+			kubeClient.EXPECT().Get(ctx, metricsNN, gomock.Any()).Return(statusErr).Times(4),
 			kubeClient.EXPECT().Get(ctx, devPluginNN, gomock.Any()).Return(statusErr).Times(1),
 			kubeClient.EXPECT().Get(ctx, nodeLabellerNN, gomock.Any()).Return(k8serrors.NewNotFound(schema.GroupResource{}, "dsName")),
 			kubeClient.EXPECT().Get(ctx, nn, gomock.Any()).Return(nil),
@@ -399,7 +399,7 @@ var _ = Describe("finalizeDeviceConfig", func() {
 			kubeClient.EXPECT().Get(ctx, configmanagerNN, gomock.Any()).Return(statusErr).Times(1),
 			kubeClient.EXPECT().Get(ctx, testrunnerNN, gomock.Any()).Return(statusErr).Times(1),
 			kubeClient.EXPECT().Get(ctx, testNodeNN, gomock.Any()).Return(nil).Times(1),
-			kubeClient.EXPECT().Get(ctx, metricsNN, gomock.Any()).Return(statusErr).Times(2),
+			kubeClient.EXPECT().Get(ctx, metricsNN, gomock.Any()).Return(statusErr).Times(4),
 			kubeClient.EXPECT().Get(ctx, devPluginNN, gomock.Any()).Return(statusErr).Times(1),
 			kubeClient.EXPECT().Get(ctx, nodeLabellerNN, gomock.Any()).Return(k8serrors.NewNotFound(schema.GroupResource{}, "dsName")),
 			kubeClient.EXPECT().Get(ctx, nn, gomock.Any()).Return(fmt.Errorf("some error")),
@@ -424,7 +424,7 @@ var _ = Describe("finalizeDeviceConfig", func() {
 			kubeClient.EXPECT().Get(ctx, configmanagerNN, gomock.Any()).Return(statusErr).Times(1),
 			kubeClient.EXPECT().Get(ctx, testrunnerNN, gomock.Any()).Return(statusErr).Times(1),
 			kubeClient.EXPECT().Get(ctx, testNodeNN, gomock.Any()).Return(nil).Times(1),
-			kubeClient.EXPECT().Get(ctx, metricsNN, gomock.Any()).Return(statusErr).Times(2),
+			kubeClient.EXPECT().Get(ctx, metricsNN, gomock.Any()).Return(statusErr).Times(4),
 			kubeClient.EXPECT().Get(ctx, devPluginNN, gomock.Any()).Return(statusErr).Times(1),
 			kubeClient.EXPECT().Get(ctx, nodeLabellerNN, gomock.Any()).Return(k8serrors.NewNotFound(schema.GroupResource{}, "dsName")),
 			kubeClient.EXPECT().Get(ctx, nn, gomock.Any()).Return(k8serrors.NewNotFound(schema.GroupResource{}, "moduleName")),
@@ -457,7 +457,7 @@ var _ = Describe("finalizeDeviceConfig", func() {
 			kubeClient.EXPECT().Get(ctx, configmanagerNN, gomock.Any()).Return(statusErr).Times(1),
 			kubeClient.EXPECT().Get(ctx, testrunnerNN, gomock.Any()).Return(statusErr).Times(1),
 			kubeClient.EXPECT().Get(ctx, testNodeNN, gomock.Any()).Return(nil).Times(1),
-			kubeClient.EXPECT().Get(ctx, metricsNN, gomock.Any()).Return(statusErr).Times(2),
+			kubeClient.EXPECT().Get(ctx, metricsNN, gomock.Any()).Return(statusErr).Times(4),
 			kubeClient.EXPECT().Get(ctx, devPluginNN, gomock.Any()).Return(statusErr).Times(1),
 			kubeClient.EXPECT().Get(ctx, nodeLabellerNN, gomock.Any()).Return(k8serrors.NewNotFound(schema.GroupResource{}, "dsName")),
 			kubeClient.EXPECT().Get(ctx, nn, gomock.Any()).Do(

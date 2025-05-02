@@ -20,10 +20,17 @@ import (
 	"context"
 	"fmt"
 
-	"k8s.io/api/core/v1"
+	v1 "k8s.io/api/core/v1"
+	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+)
+
+const (
+	ServiceMonitorCRDName    = "servicemonitors.monitoring.coreos.com"
+	ServiceMonitorCRDGroup   = "monitoring.coreos.com"
+	ServiceMonitorCRDVersion = "v1"
 )
 
 func validateSecret(ctx context.Context, client client.Client, secretRef *v1.LocalObjectReference, namespace string) error {
@@ -57,5 +64,34 @@ func validateConfigMap(ctx context.Context, client client.Client, mapRef string,
 		return fmt.Errorf("failed to get ConfigMap %s: %v", mapRef, err)
 	}
 
+	return nil
+}
+
+// validateServiceMonitorCRD checks if the ServiceMonitor CRD is available in the cluster
+func validateServiceMonitorCRD(ctx context.Context, c client.Client) error {
+	// Define the ServiceMonitor CRD we want to check
+	crd := &apiextensionsv1.CustomResourceDefinition{}
+	err := c.Get(ctx, client.ObjectKey{Name: ServiceMonitorCRDName}, crd)
+	if err != nil {
+		return fmt.Errorf("ServiceMonitor CRD is not available in the cluster. Please ensure the Prometheus Operator is installed: %v", err)
+	}
+
+	// Check if the CRD is in the correct group
+	if crd.Spec.Group != ServiceMonitorCRDGroup {
+		return fmt.Errorf("ServiceMonitor CRD group mismatch. Expected %s, got %s", ServiceMonitorCRDGroup, crd.Spec.Group)
+	}
+
+	found := false
+	// Check if the expected version is served
+	for _, version := range crd.Spec.Versions {
+		if version.Name == ServiceMonitorCRDVersion && version.Served {
+			found = true
+			break
+		}
+	}
+
+	if !found {
+		return fmt.Errorf("ServiceMonitor CRD does not support version %s", ServiceMonitorCRDVersion)
+	}
 	return nil
 }

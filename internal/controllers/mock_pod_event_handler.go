@@ -30,7 +30,9 @@ import (
 
 	gomock "go.uber.org/mock/gomock"
 	workqueue "k8s.io/client-go/util/workqueue"
+	client "sigs.k8s.io/controller-runtime/pkg/client"
 	event "sigs.k8s.io/controller-runtime/pkg/event"
+	reconcile "sigs.k8s.io/controller-runtime/pkg/reconcile"
 )
 
 // MockpodEventHandlerAPI is a mock of podEventHandlerAPI interface.
@@ -57,49 +59,49 @@ func (m *MockpodEventHandlerAPI) EXPECT() *MockpodEventHandlerAPIMockRecorder {
 }
 
 // Create mocks base method.
-func (m *MockpodEventHandlerAPI) Create(ctx context.Context, evt event.CreateEvent, q workqueue.RateLimitingInterface) {
+func (m *MockpodEventHandlerAPI) Create(arg0 context.Context, arg1 event.TypedCreateEvent[client.Object], arg2 workqueue.TypedRateLimitingInterface[reconcile.Request]) {
 	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "Create", ctx, evt, q)
+	m.ctrl.Call(m, "Create", arg0, arg1, arg2)
 }
 
 // Create indicates an expected call of Create.
-func (mr *MockpodEventHandlerAPIMockRecorder) Create(ctx, evt, q any) *gomock.Call {
+func (mr *MockpodEventHandlerAPIMockRecorder) Create(arg0, arg1, arg2 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Create", reflect.TypeOf((*MockpodEventHandlerAPI)(nil).Create), ctx, evt, q)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Create", reflect.TypeOf((*MockpodEventHandlerAPI)(nil).Create), arg0, arg1, arg2)
 }
 
 // Delete mocks base method.
-func (m *MockpodEventHandlerAPI) Delete(ctx context.Context, evt event.DeleteEvent, q workqueue.RateLimitingInterface) {
+func (m *MockpodEventHandlerAPI) Delete(arg0 context.Context, arg1 event.TypedDeleteEvent[client.Object], arg2 workqueue.TypedRateLimitingInterface[reconcile.Request]) {
 	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "Delete", ctx, evt, q)
+	m.ctrl.Call(m, "Delete", arg0, arg1, arg2)
 }
 
 // Delete indicates an expected call of Delete.
-func (mr *MockpodEventHandlerAPIMockRecorder) Delete(ctx, evt, q any) *gomock.Call {
+func (mr *MockpodEventHandlerAPIMockRecorder) Delete(arg0, arg1, arg2 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Delete", reflect.TypeOf((*MockpodEventHandlerAPI)(nil).Delete), ctx, evt, q)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Delete", reflect.TypeOf((*MockpodEventHandlerAPI)(nil).Delete), arg0, arg1, arg2)
 }
 
 // Generic mocks base method.
-func (m *MockpodEventHandlerAPI) Generic(ctx context.Context, evt event.GenericEvent, q workqueue.RateLimitingInterface) {
+func (m *MockpodEventHandlerAPI) Generic(arg0 context.Context, arg1 event.TypedGenericEvent[client.Object], arg2 workqueue.TypedRateLimitingInterface[reconcile.Request]) {
 	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "Generic", ctx, evt, q)
+	m.ctrl.Call(m, "Generic", arg0, arg1, arg2)
 }
 
 // Generic indicates an expected call of Generic.
-func (mr *MockpodEventHandlerAPIMockRecorder) Generic(ctx, evt, q any) *gomock.Call {
+func (mr *MockpodEventHandlerAPIMockRecorder) Generic(arg0, arg1, arg2 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Generic", reflect.TypeOf((*MockpodEventHandlerAPI)(nil).Generic), ctx, evt, q)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Generic", reflect.TypeOf((*MockpodEventHandlerAPI)(nil).Generic), arg0, arg1, arg2)
 }
 
 // Update mocks base method.
-func (m *MockpodEventHandlerAPI) Update(ctx context.Context, evt event.UpdateEvent, q workqueue.RateLimitingInterface) {
+func (m *MockpodEventHandlerAPI) Update(arg0 context.Context, arg1 event.TypedUpdateEvent[client.Object], arg2 workqueue.TypedRateLimitingInterface[reconcile.Request]) {
 	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "Update", ctx, evt, q)
+	m.ctrl.Call(m, "Update", arg0, arg1, arg2)
 }
 
 // Update indicates an expected call of Update.
-func (mr *MockpodEventHandlerAPIMockRecorder) Update(ctx, evt, q any) *gomock.Call {
+func (mr *MockpodEventHandlerAPIMockRecorder) Update(arg0, arg1, arg2 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Update", reflect.TypeOf((*MockpodEventHandlerAPI)(nil).Update), ctx, evt, q)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Update", reflect.TypeOf((*MockpodEventHandlerAPI)(nil).Update), arg0, arg1, arg2)
 }

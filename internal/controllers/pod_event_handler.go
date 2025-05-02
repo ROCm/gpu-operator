@@ -41,16 +41,15 @@ import (
 	"k8s.io/client-go/util/workqueue"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/event"
+	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
+	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 )
 
 //go:generate mockgen -source=pod_event_handler.go -package=controllers -destination=mock_pod_event_handler.go podEventHandlerAPI
 type podEventHandlerAPI interface {
-	Create(ctx context.Context, evt event.CreateEvent, q workqueue.RateLimitingInterface)
-	Update(ctx context.Context, evt event.UpdateEvent, q workqueue.RateLimitingInterface)
-	Delete(ctx context.Context, evt event.DeleteEvent, q workqueue.RateLimitingInterface)
-	Generic(ctx context.Context, evt event.GenericEvent, q workqueue.RateLimitingInterface)
+	handler.TypedEventHandler[client.Object, reconcile.Request]
 }
 
 func newPodEventHandler(client client.Client) podEventHandlerAPI {
@@ -64,24 +63,45 @@ type PodEventHandler struct {
 }
 
 // Create handle pod create event
-func (h *PodEventHandler) Create(ctx context.Context, evt event.CreateEvent, q workqueue.RateLimitingInterface) {
+func (h *PodEventHandler) Create(
+	ctx context.Context,
+	evt event.TypedCreateEvent[client.Object],
+	q workqueue.TypedRateLimitingInterface[reconcile.Request],
+) {
 	// Handle create event if needed
 }
 
 // Delete handle pod delete event
-func (h *PodEventHandler) Delete(ctx context.Context, evt event.DeleteEvent, q workqueue.RateLimitingInterface) {
+func (h *PodEventHandler) Delete(
+	ctx context.Context,
+	evt event.TypedDeleteEvent[client.Object],
+	q workqueue.TypedRateLimitingInterface[reconcile.Request],
+) {
 	// Handle delete event if needed
 }
 
 // Create handle pod generic event
-func (h *PodEventHandler) Generic(ctx context.Context, evt event.GenericEvent, q workqueue.RateLimitingInterface) {
+func (h *PodEventHandler) Generic(
+	ctx context.Context,
+	evt event.TypedGenericEvent[client.Object],
+	q workqueue.TypedRateLimitingInterface[reconcile.Request],
+) {
 	// Handle generic event if needed
 }
 
 // Update handle pod update event
-func (h *PodEventHandler) Update(ctx context.Context, evt event.UpdateEvent, q workqueue.RateLimitingInterface) {
+func (h *PodEventHandler) Update(
+	ctx context.Context,
+	evt event.TypedUpdateEvent[client.Object],
+	q workqueue.TypedRateLimitingInterface[reconcile.Request],
+) {
 	// Handle update event
-	pod, ok := evt.ObjectNew.(*v1.Pod)
+	objNew := evt.ObjectNew
+	if objNew == nil {
+		return
+	}
+
+	pod, ok := objNew.(*v1.Pod)
 	if !ok {
 		return
 	}

@@ -66,8 +66,7 @@ helm repo update
 ```bash
 helm install amd-gpu-operator rocm/gpu-operator-charts \
   --namespace kube-amd-gpu \
-  --create-namespace \
-  --version=v1.2.0
+  --create-namespace
 ```
 
 #### Installation Options
