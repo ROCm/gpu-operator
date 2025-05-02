@@ -45,6 +45,11 @@ const (
 	computePartitioningSupportedLabel = "amd.com/compute-partitioning-supported"
 	memoryPartitioningSupportedLabel  = "amd.com/memory-partitioning-supported"
 	partitionTypeLabel                = "amd.com/compute-memory-partition"
+	// kubevirt
+	DriverTypeContainer     = "container"
+	DriverTypeVFPassthrough = "vf-passthrough"
+	VGPUHostModelMI210      = "mi210"
+	VGPUHostModelMI300X     = "mi300x"
 )
 
 var (
@@ -208,4 +213,18 @@ func IsPrometheusServiceMonitorEnable(devConfig *amdv1alpha1.DeviceConfig) bool 
 		return true
 	}
 	return false
+}
+
+func GetGPUModelSuffix(devCfg *amdv1alpha1.DeviceConfig) string {
+	gpuModelSuffix := ""
+	switch devCfg.Spec.Driver.DriverType {
+	case DriverTypeVFPassthrough:
+		switch devCfg.Spec.Driver.VFPassthrough.GPUModel {
+		case VGPUHostModelMI210:
+			gpuModelSuffix = "-" + VGPUHostModelMI210
+		case VGPUHostModelMI300X:
+			gpuModelSuffix = "-" + VGPUHostModelMI300X
+		}
+	}
+	return gpuModelSuffix
 }
