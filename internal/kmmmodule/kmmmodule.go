@@ -43,14 +43,10 @@ import (
 	"strings"
 
 	"github.com/go-logr/logr"
-	"github.com/rh-ecosystem-edge/kernel-module-management/pkg/labels"
-	appsv1 "k8s.io/api/apps/v1"
-	"k8s.io/utils/ptr"
-
-	amdv1alpha1 "github.com/ROCm/gpu-operator/api/v1alpha1"
-	utils "github.com/ROCm/gpu-operator/internal"
 	kmmv1beta1 "github.com/rh-ecosystem-edge/kernel-module-management/api/v1beta1"
+	"github.com/rh-ecosystem-edge/kernel-module-management/pkg/labels"
 	"golang.org/x/exp/maps"
+	appsv1 "k8s.io/api/apps/v1"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -58,9 +54,13 @@ import (
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
+	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/log"
+
+	amdv1alpha1 "github.com/ROCm/gpu-operator/api/v1alpha1"
+	utils "github.com/ROCm/gpu-operator/internal"
 )
 
 const (
@@ -68,6 +68,7 @@ const (
 	kubeletDevicePluginsPath       = "/var/lib/kubelet/device-plugins"
 	nodeVarLibFirmwarePath         = "/var/lib/firmware"
 	gpuDriverModuleName            = "amdgpu"
+	vGPUHostDriverModuleName       = "gim"
 	ttmModuleName                  = "amdttm"
 	kclModuleName                  = "amdkcl"
 	imageFirmwarePath              = "firmwareDir/updates"
@@ -91,6 +92,8 @@ var (
 	buildOcDockerfile string
 	//go:embed devdockerfiles/devdockerfile.txt
 	dockerfileDevTemplateUbuntu string
+	//go:embed dockerfiles/vGPUHostGIM.ubuntu
+	dockerfileTemplateUbuntuVGPUHost string
 )
 
 //go:generate mockgen -source=kmmmodule.go -package=kmmmodule -destination=mock_kmmmodule.go KMMModuleAPI
@@ -178,13 +181,18 @@ var driverLabels = map[string]string{
 }
 
 func resolveDockerfile(cmName string, devConfig *amdv1alpha1.DeviceConfig) (string, error) {
-	splits := strings.SplitN(cmName, "-", 4)
+	splits := strings.SplitN(cmName, "-", -1)
 	osDistro := splits[0]
 	version := splits[1]
 	var dockerfileTemplate string
 	switch osDistro {
 	case "ubuntu":
 		dockerfileTemplate = dockerfileTemplateUbuntu
+		switch devConfig.Spec.Driver.DriverType {
+		case utils.DriverTypeVFPassthrough:
+			dockerfileTemplate = dockerfileTemplateUbuntuVGPUHost
+			dockerfileTemplate = strings.Replace(dockerfileTemplate, "$$GPU_MODEL", devConfig.Spec.Driver.VFPassthrough.GPUModel, -1)
+		}
 		driverLabel, present := driverLabels[version]
 		if !present {
 			return "", fmt.Errorf("invalid ubuntu version, expected to be one of %v", maps.Keys(driverLabels))
@@ -292,6 +300,13 @@ func (km *kmmModule) SetDevicePluginAsDesired(ds *appsv1.DaemonSet, devConfig *a
 	if devConfig.Spec.CommonConfig.InitContainerImage != "" {
 		initContainerImage = devConfig.Spec.CommonConfig.InitContainerImage
 	}
+
+	initContainerCommand := "while [ ! -d /sys/class/kfd ] || [ ! -d /sys/module/amdgpu/drivers/ ]; do echo \"amdgpu driver is not loaded \"; sleep 2 ;done"
+	switch devConfig.Spec.Driver.DriverType {
+	case utils.DriverTypeVFPassthrough:
+		initContainerCommand = "while [ ! -d /sys/module/gim/drivers/ ]; do echo \"gim driver is not loaded \"; sleep 2 ;done"
+	}
+
 	ds.Spec = appsv1.DaemonSetSpec{
 		Selector: &metav1.LabelSelector{MatchLabels: matchLabels},
 		Template: v1.PodTemplateSpec{
@@ -303,7 +318,7 @@ func (km *kmmModule) SetDevicePluginAsDesired(ds *appsv1.DaemonSet, devConfig *a
 					{
 						Name:            "driver-init",
 						Image:           initContainerImage,
-						Command:         []string{"sh", "-c", "while [ ! -d /sys/class/kfd ] || [ ! -d /sys/module/amdgpu/drivers/ ]; do echo \"amdgpu driver is not loaded \"; sleep 2 ;done"},
+						Command:         []string{"sh", "-c", initContainerCommand},
 						SecurityContext: &v1.SecurityContext{Privileged: ptr.To(true)},
 						VolumeMounts: []v1.VolumeMount{
 							{
@@ -431,10 +446,18 @@ func setKMMModuleLoader(ctx context.Context, mod *kmmv1beta1.Module, devConfig *
 		}
 	}
 
+	firmwarePath := imageFirmwarePath
+	switch devConfig.Spec.Driver.DriverType {
+	case utils.DriverTypeVFPassthrough:
+		moduleName = vGPUHostDriverModuleName
+		modLoadingOrder = []string{}
+		firmwarePath = ""
+	}
+
 	mod.Spec.ModuleLoader.Container = kmmv1beta1.ModuleLoaderContainerSpec{
 		Modprobe: kmmv1beta1.ModprobeSpec{
 			ModuleName:          moduleName,
-			FirmwarePath:        imageFirmwarePath,
+			FirmwarePath:        firmwarePath,
 			Args:                &kmmv1beta1.ModprobeArgs{},
 			Parameters:          getModprobeParametersFromNodeInfo(nodes),
 			ModulesLoadingOrder: modLoadingOrder,
@@ -509,7 +532,7 @@ func getKM(devConfig *amdv1alpha1.DeviceConfig, node v1.Node, inTreeModuleToRemo
 		if driversImage == "" {
 			driversImage = defaultOcDriversImageTemplate
 		}
-		driversImage = addNodeInfoSuffixToImageTag(driversImage, osName, driversVersion)
+		driversImage = addNodeInfoSuffixToImageTag(driversImage, osName, driversVersion, devConfig)
 	} else {
 		if driversVersion == "" {
 			driversVersion, err = utils.GetDefaultDriversVersion(node)
@@ -520,7 +543,7 @@ func getKM(devConfig *amdv1alpha1.DeviceConfig, node v1.Node, inTreeModuleToRemo
 		if driversImage == "" {
 			driversImage = defaultDriversImageTemplate
 		}
-		driversImage = addNodeInfoSuffixToImageTag(driversImage, osName, driversVersion)
+		driversImage = addNodeInfoSuffixToImageTag(driversImage, osName, driversVersion, devConfig)
 	}
 
 	repoURL := defaultInstallerRepoURL
@@ -577,7 +600,7 @@ func getKM(devConfig *amdv1alpha1.DeviceConfig, node v1.Node, inTreeModuleToRemo
 		kmmBuild.BaseImageRegistryTLS.InsecureSkipTLSVerify = *devConfig.Spec.Driver.ImageBuild.BaseImageRegistryTLS.InsecureSkipTLSVerify
 	}
 	_, isCIEnvSet := os.LookupEnv("CI_ENV")
-	if isCIEnvSet {
+	if isCIEnvSet || devConfig.Spec.Driver.DriverType == utils.DriverTypeVFPassthrough {
 		kmmBuild.BaseImageRegistryTLS.Insecure = true
 		kmmBuild.BaseImageRegistryTLS.InsecureSkipTLSVerify = true
 	}
@@ -592,9 +615,12 @@ func getKM(devConfig *amdv1alpha1.DeviceConfig, node v1.Node, inTreeModuleToRemo
 	}, driversVersion, nil
 }
 
-func addNodeInfoSuffixToImageTag(imgStr string, osName, driversVersion string) string {
+func addNodeInfoSuffixToImageTag(imgStr, osName, driversVersion string, devCfg *amdv1alpha1.DeviceConfig) string {
+	// if driver is vGPU host, different GPU model's driver image would be different
+	// need to add a suffix to distinguish them
+	gpuModelSuffix := utils.GetGPUModelSuffix(devCfg)
 	// KMM will render and fulfill the value of ${KERNEL_FULL_VERSION}
-	tag := osName + "-${KERNEL_FULL_VERSION}-" + driversVersion
+	tag := osName + "-${KERNEL_FULL_VERSION}-" + driversVersion + gpuModelSuffix
 	// tag cannot be more than 128 chars
 	if len(tag) > 128 {
 		tag = tag[len(tag)-128:]
