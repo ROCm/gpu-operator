@@ -94,6 +94,72 @@ After the **ServiceMonitor** is deployed, Prometheus automatically begins scrapi
 
 These selectors help Prometheus identify the correct ServiceMonitor to use in the AMD GPU Operator namespace and begin metrics scraping.
 
+## Using with device-metrics-exporter Grafana Dashboards
+
+The [ROCm/device-metrics-exporter](https://github.com/ROCm/device-metrics-exporter) repository includes Grafana dashboards designed to visualize the exported metrics, particularly focusing on job-level or pod-level GPU usage. These dashboards rely on specific labels exported by the metrics exporter, such as:
+
+*   `pod`: The name of the workload Pod currently utilizing the GPU.
+*   `job_id`: An identifier for the job associated with the workload Pod.
+
+### The `pod` Label Conflict
+
+When Prometheus scrapes targets defined by a `ServiceMonitor`, it automatically attaches labels to the metrics based on the target's metadata. One such label is `pod`, which identifies the Pod being scraped (in this case, the metrics exporter Pod itself).
+
+This creates a conflict:
+1.  **Exporter Metric Label:** `pod="<workload-pod-name>"` (Indicates the actual GPU user)
+2.  **Prometheus Target Label:** `pod="<metrics-exporter-pod-name>"` (Indicates the source of the metric)
+
+### Solution 1: `honorLabels: true` (Default)
+
+To ensure the Grafana dashboards function correctly by using the workload pod name, the `ServiceMonitor` created by the GPU Operator needs to prioritize the labels coming directly from the metrics exporter over the labels added by Prometheus during the scrape.
+
+This is achieved by setting `honorLabels: true` in the `ServiceMonitor` configuration within the `DeviceConfig`. **This is the default setting in the GPU Operator.**
+
+```yaml
+# Example DeviceConfig snippet
+spec:
+  metricsExporter:
+    prometheus:
+      serviceMonitor:
+        enable: true
+        # honorLabels defaults to true, ensuring exporter's 'pod' label is kept
+        # honorLabels: true 
+        # ... other ServiceMonitor settings
+```
+
+**Important:** For this to work, the `device-metrics-exporter` must actually be exporting the `pod` label, which typically only happens when a workload is actively using the GPU on that node. If no workload is present, the `pod` label might be missing from the metric, and the dashboards might not display data as expected for that specific GPU/node.
+
+### Solution 2: Relabeling
+
+An alternative approach is to use Prometheus relabeling rules within the `ServiceMonitor` definition. This allows you to explicitly handle the conflicting `pod` label added by Prometheus.
+
+You can rename the Prometheus-added `pod` label (identifying the exporter pod) to something else (e.g., `exporter_pod`) and then drop the original `pod` label added by Prometheus. This prevents the conflict and ensures the `pod` label from the exporter (identifying the workload) is the only one present on the final ingested metric.
+
+Add the following `relabelings` to your `ServiceMonitor` configuration in the `DeviceConfig`:
+
+```yaml
+# Example DeviceConfig snippet
+spec:
+  metricsExporter:
+    prometheus:
+      serviceMonitor:
+        enable: true
+        honorLabels: false # Must be false if using relabeling to preserve exporter_pod
+        relabelings:
+          # Rename the Prometheus-added 'pod' label to 'exporter_pod'
+          - sourceLabels: [pod]
+            targetLabel: exporter_pod
+            action: replace
+            regex: (.*)
+            replacement: $1
+          # Drop the Prometheus-added 'pod' label to avoid conflict
+          - action: labeldrop
+            regex: pod
+        # ... other ServiceMonitor settings
+```
+
+This method explicitly resolves the conflict by manipulating the labels before ingestion, ensuring the `pod` label always refers to the workload pod as intended by the `device-metrics-exporter`.
+
 ## Conclusion
 
 The AMD GPU Operator provides native support for Prometheus integration, simplifying GPU monitoring and alerting within Kubernetes clusters. By configuring the DeviceConfig CR, you can manage GPU metrics collection tailored to your requirements and preferences.

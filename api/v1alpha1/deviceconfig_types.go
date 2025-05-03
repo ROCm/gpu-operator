@@ -489,9 +489,10 @@ type ServiceMonitorConfig struct {
 	// +optional
 	AttachMetadata *monitoringv1.AttachMetadata `json:"attachMetadata,omitempty"`
 
-	// HonorLabels chooses the metric's labels on collisions with target labels (default false)
+	// HonorLabels chooses the metric's labels on collisions with target labels (default true)
 	//+operator-sdk:csv:customresourcedefinitions:type=spec,displayName="HonorLabels",xDescriptors={"urn:alm:descriptor:com.amd.deviceconfigs:honorLabels"}
 	// +optional
+	// +kubebuilder:default=true
 	HonorLabels *bool `json:"honorLabels,omitempty"`
 
 	// HonorTimestamps controls whether the scrape endpoints honor timestamps (default false)
