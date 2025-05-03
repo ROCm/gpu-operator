@@ -273,6 +273,21 @@ func (mr *MockupgradeMgrHelperAPIMockRecorder) getNodeStatus(nodeName any) *gomo
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "getNodeStatus", reflect.TypeOf((*MockupgradeMgrHelperAPI)(nil).getNodeStatus), nodeName)
 }
 
+// getPod mocks base method.
+func (m *MockupgradeMgrHelperAPI) getPod(ctx context.Context, podName, namespace string) (*v1.Pod, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "getPod", ctx, podName, namespace)
+	ret0, _ := ret[0].(*v1.Pod)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// getPod indicates an expected call of getPod.
+func (mr *MockupgradeMgrHelperAPIMockRecorder) getPod(ctx, podName, namespace any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "getPod", reflect.TypeOf((*MockupgradeMgrHelperAPI)(nil).getPod), ctx, podName, namespace)
+}
+
 // getPodsToDrainOrDelete mocks base method.
 func (m *MockupgradeMgrHelperAPI) getPodsToDrainOrDelete(ctx context.Context, deviceConfig *v1alpha1.DeviceConfig, node *v1.Node) ([]v1.Pod, error) {
 	m.ctrl.T.Helper()

@@ -222,6 +222,10 @@ type DrainSpec struct {
 	// +kubebuilder:default:=300
 	// +kubebuilder:validation:Minimum:=0
 	TimeoutSeconds int `json:"timeoutSeconds,omitempty"`
+	// GracePeriodSeconds indicates the time kubernetes waits for a pod to shut down gracefully after receiving a termination signal
+	// +optional
+	// +kubebuilder:default:=-1
+	GracePeriodSeconds int `json:"gracePeriodSeconds,omitempty"`
 }
 
 type PodDeletionSpec struct {
@@ -234,6 +238,10 @@ type PodDeletionSpec struct {
 	// +kubebuilder:default:=300
 	// +kubebuilder:validation:Minimum:=0
 	TimeoutSeconds int `json:"timeoutSeconds,omitempty"`
+	// GracePeriodSeconds indicates the time kubernetes waits for a pod to shut down gracefully after receiving a termination signal
+	// +optional
+	// +kubebuilder:default:=-1
+	GracePeriodSeconds int `json:"gracePeriodSeconds,omitempty"`
 }
 
 type DevicePluginSpec struct {
