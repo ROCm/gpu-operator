@@ -5,7 +5,8 @@ endif
 
 # PROJECT_VERSION defines the project version.
 # Update this value when you upgrade the version of your project.
-PROJECT_VERSION ?= v1.2.0
+EXISTING_PROJECT_VERSION ?= v1.2.0
+PROJECT_VERSION ?= v1.2.1
 
 ####################################
 # GPU Operator Image Build variables
@@ -146,11 +147,21 @@ update-registry:
 .PHONY: update-version
 update-version:
 	# updating project version in manifests
-	sed -i -e 's|appVersion:.*$$|appVersion: "${PROJECT_VERSION}"|' hack/k8s-patch/metadata-patch/Chart.yaml
-	sed -i '0,/version:/s|version:.*|version: ${PROJECT_VERSION}|' hack/k8s-patch/metadata-patch/Chart.yaml
-	sed -i -e 's|appVersion:.*$$|appVersion: "${PROJECT_VERSION}"|' hack/openshift-patch/metadata-patch/Chart.yaml
-	sed -i '0,/version:/s|version:.*|version: ${PROJECT_VERSION}|' hack/openshift-patch/metadata-patch/Chart.yaml
-
+	find . -type f \( -name "*.yaml" -o -name "*.go" -o -name "Makefile" -o -name "*.md" \) | while read file; do \
+		sed -i -e 's|appVersion: "${EXISTING_PROJECT_VERSION}"|appVersion: "${PROJECT_VERSION}"|' "$$file"; \
+		sed -i -e 's|version: ${EXISTING_PROJECT_VERSION}|version: ${PROJECT_VERSION}|' "$$file"; \
+		sed -i -e 's|version: "${EXISTING_PROJECT_VERSION}"|version: "${PROJECT_VERSION}"|' "$$file"; \
+		sed -i -e 's|version=${EXISTING_PROJECT_VERSION}|version=${PROJECT_VERSION}|' "$$file"; \
+		sed -i -e 's|newTag: ${EXISTING_PROJECT_VERSION}|newTag: ${PROJECT_VERSION}|' "$$file"; \
+		sed -i -e 's|tag: ${EXISTING_PROJECT_VERSION}|tag: ${PROJECT_VERSION}|' "$$file"; \
+		sed -i -e 's|gpu-operator:${EXISTING_PROJECT_VERSION}|gpu-operator:${PROJECT_VERSION}|' "$$file"; \
+		sed -i -e 's|device-metrics-exporter:${EXISTING_PROJECT_VERSION}|device-metrics-exporter:${PROJECT_VERSION}|' "$$file"; \
+		sed -i -e 's|test-runner:${EXISTING_PROJECT_VERSION}|test-runner:${PROJECT_VERSION}|' "$$file"; \
+		sed -i -e 's|amd-gpu-operator.${EXISTING_PROJECT_VERSION}|amd-gpu-operator.${PROJECT_VERSION}|' "$$file"; \
+		sed -i -e 's|gpu-operator-charts-${EXISTING_PROJECT_VERSION}|gpu-operator-charts-${PROJECT_VERSION}|' "$$file"; \
+		sed -i -e 's|kernel-module-management-worker:${EXISTING_PROJECT_VERSION}|kernel-module-management-worker:${PROJECT_VERSION}|' "$$file"; \
+		sed -i -e 's|kernel-module-management-signimage:${EXISTING_PROJECT_VERSION}|kernel-module-management-signimage:${PROJECT_VERSION}|' "$$file"; \
+	done
 .PHONY: manifests
 manifests: controller-gen update-registry update-version ## Generate ClusterRole and CustomResourceDefinition objects.
 	$(CONTROLLER_GEN) crd paths="./api/..." output:crd:artifacts:config=config/crd/bases
