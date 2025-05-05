@@ -35,11 +35,13 @@ package kmmmodule
 import (
 	"context"
 	"fmt"
+	reflect "reflect"
 
 	//"gopkg.in/yaml.v3"
 	"os"
 
 	amdv1alpha1 "github.com/ROCm/gpu-operator/api/v1alpha1"
+	"github.com/go-logr/logr"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	kmmv1beta1 "github.com/rh-ecosystem-edge/kernel-module-management/api/v1beta1"
@@ -271,5 +273,388 @@ var _ = Describe("setKMMDevicePlugin", func() {
 		setKMMDevicePlugin(&mod, &input)
 
 		Expect(mod).To(Equal(expectedMod))
+	})
+})
+
+var testGetKernelMappingsDeviceConfig = amdv1alpha1.DeviceConfig{
+	ObjectMeta: metav1.ObjectMeta{
+		Name: "test",
+	},
+	Spec: amdv1alpha1.DeviceConfigSpec{
+		Driver: amdv1alpha1.DriverSpec{
+			Version: "6.3",
+			Image:   "test.repo/driverImage",
+		},
+	},
+}
+
+var testGetKernelMappingsTestCases = []struct {
+	tcName              string
+	nodeList            v1.NodeList
+	expectKernelMapping []kmmv1beta1.KernelMapping
+	expectError         bool
+}{
+	{
+		tcName: "multiple valid homogeneous nodes",
+		nodeList: v1.NodeList{
+			Items: []v1.Node{
+				{
+					TypeMeta: metav1.TypeMeta{
+						Kind: "Node",
+					},
+					ObjectMeta: metav1.ObjectMeta{
+						Name: "unit-test-node",
+					},
+					Spec: v1.NodeSpec{},
+					Status: v1.NodeStatus{
+						NodeInfo: v1.NodeSystemInfo{
+							Architecture:            "amd64",
+							ContainerRuntimeVersion: "containerd://1.7.19",
+							KernelVersion:           "5.15.0-40-generic",
+							KubeProxyVersion:        "v1.30.3",
+							KubeletVersion:          "v1.30.3",
+							OperatingSystem:         "linux",
+							OSImage:                 "Ubuntu 22.04.3 LTS",
+						},
+					},
+				},
+				{
+					TypeMeta: metav1.TypeMeta{
+						Kind: "Node",
+					},
+					ObjectMeta: metav1.ObjectMeta{
+						Name: "unit-test-node2",
+					},
+					Spec: v1.NodeSpec{},
+					Status: v1.NodeStatus{
+						NodeInfo: v1.NodeSystemInfo{
+							Architecture:            "amd64",
+							ContainerRuntimeVersion: "containerd://1.7.19",
+							KernelVersion:           "5.15.0-40-generic",
+							KubeProxyVersion:        "v1.30.3",
+							KubeletVersion:          "v1.30.3",
+							OperatingSystem:         "linux",
+							OSImage:                 "Ubuntu 22.04.3 LTS",
+						},
+					},
+				},
+				{
+					TypeMeta: metav1.TypeMeta{
+						Kind: "Node",
+					},
+					ObjectMeta: metav1.ObjectMeta{
+						Name: "unit-test-node3",
+					},
+					Spec: v1.NodeSpec{},
+					Status: v1.NodeStatus{
+						NodeInfo: v1.NodeSystemInfo{
+							Architecture:            "amd64",
+							ContainerRuntimeVersion: "containerd://1.7.19",
+							KernelVersion:           "5.15.0-40-generic",
+							KubeProxyVersion:        "v1.30.3",
+							KubeletVersion:          "v1.30.3",
+							OperatingSystem:         "linux",
+							OSImage:                 "Ubuntu 22.04.3 LTS",
+						},
+					},
+				},
+			},
+		},
+		expectKernelMapping: []kmmv1beta1.KernelMapping{
+			{
+				Build: &kmmv1beta1.Build{
+					DockerfileConfigMap: &v1.LocalObjectReference{
+						Name: "ubuntu-22.04" + "-" + testGetKernelMappingsDeviceConfig.Name + "-" + testGetKernelMappingsDeviceConfig.Namespace,
+					},
+					BuildArgs: []kmmv1beta1.BuildArg{
+						{
+							Name:  "DRIVERS_VERSION",
+							Value: testGetKernelMappingsDeviceConfig.Spec.Driver.Version,
+						},
+						{
+							Name:  "REPO_URL",
+							Value: defaultInstallerRepoURL,
+						},
+					},
+				},
+				Literal:        "5.15.0-40-generic",
+				ContainerImage: testGetKernelMappingsDeviceConfig.Spec.Driver.Image + ":ubuntu-22.04-${KERNEL_FULL_VERSION}-" + testGetKernelMappingsDeviceConfig.Spec.Driver.Version,
+			},
+		},
+		expectError: false,
+	},
+	{
+		tcName: "multiple valid heterogeneous nodes",
+		nodeList: v1.NodeList{
+			Items: []v1.Node{
+				{
+					TypeMeta: metav1.TypeMeta{
+						Kind: "Node",
+					},
+					ObjectMeta: metav1.ObjectMeta{
+						Name: "unit-test-node",
+					},
+					Spec: v1.NodeSpec{},
+					Status: v1.NodeStatus{
+						NodeInfo: v1.NodeSystemInfo{
+							Architecture:            "amd64",
+							ContainerRuntimeVersion: "containerd://1.7.19",
+							KernelVersion:           "5.15.0-40-generic",
+							KubeProxyVersion:        "v1.30.3",
+							KubeletVersion:          "v1.30.3",
+							OperatingSystem:         "linux",
+							OSImage:                 "Ubuntu 22.04.3 LTS",
+						},
+					},
+				},
+				{
+					TypeMeta: metav1.TypeMeta{
+						Kind: "Node",
+					},
+					ObjectMeta: metav1.ObjectMeta{
+						Name: "unit-test-node2",
+					},
+					Spec: v1.NodeSpec{},
+					Status: v1.NodeStatus{
+						NodeInfo: v1.NodeSystemInfo{
+							Architecture:            "amd64",
+							ContainerRuntimeVersion: "containerd://1.7.19",
+							KernelVersion:           "6.8.0-40-generic",
+							KubeProxyVersion:        "v1.30.3",
+							KubeletVersion:          "v1.30.3",
+							OperatingSystem:         "linux",
+							OSImage:                 "Ubuntu 24.04.3 LTS",
+						},
+					},
+				},
+			},
+		},
+		expectKernelMapping: []kmmv1beta1.KernelMapping{
+			{
+				Build: &kmmv1beta1.Build{
+					DockerfileConfigMap: &v1.LocalObjectReference{
+						Name: "ubuntu-22.04" + "-" + testGetKernelMappingsDeviceConfig.Name + "-" + testGetKernelMappingsDeviceConfig.Namespace,
+					},
+					BuildArgs: []kmmv1beta1.BuildArg{
+						{
+							Name:  "DRIVERS_VERSION",
+							Value: testGetKernelMappingsDeviceConfig.Spec.Driver.Version,
+						},
+						{
+							Name:  "REPO_URL",
+							Value: defaultInstallerRepoURL,
+						},
+					},
+				},
+				Literal:        "5.15.0-40-generic",
+				ContainerImage: testGetKernelMappingsDeviceConfig.Spec.Driver.Image + ":ubuntu-22.04-${KERNEL_FULL_VERSION}-" + testGetKernelMappingsDeviceConfig.Spec.Driver.Version,
+			},
+			{
+				Build: &kmmv1beta1.Build{
+					DockerfileConfigMap: &v1.LocalObjectReference{
+						Name: "ubuntu-24.04" + "-" + testGetKernelMappingsDeviceConfig.Name + "-" + testGetKernelMappingsDeviceConfig.Namespace,
+					},
+					BuildArgs: []kmmv1beta1.BuildArg{
+						{
+							Name:  "DRIVERS_VERSION",
+							Value: testGetKernelMappingsDeviceConfig.Spec.Driver.Version,
+						},
+						{
+							Name:  "REPO_URL",
+							Value: defaultInstallerRepoURL,
+						},
+					},
+				},
+				Literal:        "6.8.0-40-generic",
+				ContainerImage: testGetKernelMappingsDeviceConfig.Spec.Driver.Image + ":ubuntu-24.04-${KERNEL_FULL_VERSION}-" + testGetKernelMappingsDeviceConfig.Spec.Driver.Version,
+			},
+		},
+		expectError: false,
+	},
+	{
+		tcName: "multiple valid heterogeneous nodes + one unsupported node",
+		nodeList: v1.NodeList{
+			Items: []v1.Node{
+				{
+					TypeMeta: metav1.TypeMeta{
+						Kind: "Node",
+					},
+					ObjectMeta: metav1.ObjectMeta{
+						Name: "unit-test-node",
+					},
+					Spec: v1.NodeSpec{},
+					Status: v1.NodeStatus{
+						NodeInfo: v1.NodeSystemInfo{
+							Architecture:            "amd64",
+							ContainerRuntimeVersion: "containerd://1.7.19",
+							KernelVersion:           "5.15.0-40-generic",
+							KubeProxyVersion:        "v1.30.3",
+							KubeletVersion:          "v1.30.3",
+							OperatingSystem:         "linux",
+							OSImage:                 "Ubuntu 22.04.3 LTS",
+						},
+					},
+				},
+				{
+					TypeMeta: metav1.TypeMeta{
+						Kind: "Node",
+					},
+					ObjectMeta: metav1.ObjectMeta{
+						Name: "unit-test-node2",
+					},
+					Spec: v1.NodeSpec{},
+					Status: v1.NodeStatus{
+						NodeInfo: v1.NodeSystemInfo{
+							Architecture:            "amd64",
+							ContainerRuntimeVersion: "containerd://1.7.19",
+							KernelVersion:           "6.8.0-40-generic",
+							KubeProxyVersion:        "v1.30.3",
+							KubeletVersion:          "v1.30.3",
+							OperatingSystem:         "linux",
+							OSImage:                 "Ubuntu 24.04.3 LTS",
+						},
+					},
+				},
+				{
+					TypeMeta: metav1.TypeMeta{
+						Kind: "Node",
+					},
+					ObjectMeta: metav1.ObjectMeta{
+						Name: "unit-test-node3",
+					},
+					Spec: v1.NodeSpec{},
+					Status: v1.NodeStatus{
+						NodeInfo: v1.NodeSystemInfo{
+							Architecture:            "amd64",
+							ContainerRuntimeVersion: "containerd://1.7.19",
+							KernelVersion:           "6.8.0-40-generic",
+							KubeProxyVersion:        "v1.30.3",
+							KubeletVersion:          "v1.30.3",
+							OperatingSystem:         "linux",
+							OSImage:                 "unsupported os platform",
+						},
+					},
+				},
+			},
+		},
+		expectKernelMapping: []kmmv1beta1.KernelMapping{
+			{
+				Build: &kmmv1beta1.Build{
+					DockerfileConfigMap: &v1.LocalObjectReference{
+						Name: "ubuntu-22.04" + "-" + testGetKernelMappingsDeviceConfig.Name + "-" + testGetKernelMappingsDeviceConfig.Namespace,
+					},
+					BuildArgs: []kmmv1beta1.BuildArg{
+						{
+							Name:  "DRIVERS_VERSION",
+							Value: testGetKernelMappingsDeviceConfig.Spec.Driver.Version,
+						},
+						{
+							Name:  "REPO_URL",
+							Value: defaultInstallerRepoURL,
+						},
+					},
+				},
+				Literal:        "5.15.0-40-generic",
+				ContainerImage: testGetKernelMappingsDeviceConfig.Spec.Driver.Image + ":ubuntu-22.04-${KERNEL_FULL_VERSION}-" + testGetKernelMappingsDeviceConfig.Spec.Driver.Version,
+			},
+			{
+				Build: &kmmv1beta1.Build{
+					DockerfileConfigMap: &v1.LocalObjectReference{
+						Name: "ubuntu-24.04" + "-" + testGetKernelMappingsDeviceConfig.Name + "-" + testGetKernelMappingsDeviceConfig.Namespace,
+					},
+					BuildArgs: []kmmv1beta1.BuildArg{
+						{
+							Name:  "DRIVERS_VERSION",
+							Value: testGetKernelMappingsDeviceConfig.Spec.Driver.Version,
+						},
+						{
+							Name:  "REPO_URL",
+							Value: defaultInstallerRepoURL,
+						},
+					},
+				},
+				Literal:        "6.8.0-40-generic",
+				ContainerImage: testGetKernelMappingsDeviceConfig.Spec.Driver.Image + ":ubuntu-24.04-${KERNEL_FULL_VERSION}-" + testGetKernelMappingsDeviceConfig.Spec.Driver.Version,
+			},
+		},
+		expectError: false,
+	},
+	{
+		tcName: "multiple unsupported nodes",
+		nodeList: v1.NodeList{
+			Items: []v1.Node{
+				{
+					TypeMeta: metav1.TypeMeta{
+						Kind: "Node",
+					},
+					ObjectMeta: metav1.ObjectMeta{
+						Name: "unit-test-node",
+					},
+					Spec: v1.NodeSpec{},
+					Status: v1.NodeStatus{
+						NodeInfo: v1.NodeSystemInfo{
+							Architecture:            "amd64",
+							ContainerRuntimeVersion: "containerd://1.7.19",
+							KernelVersion:           "5.15.0-40-generic",
+							KubeProxyVersion:        "v1.30.3",
+							KubeletVersion:          "v1.30.3",
+							OperatingSystem:         "linux",
+							OSImage:                 "unsupported linux distro",
+						},
+					},
+				},
+				{
+					TypeMeta: metav1.TypeMeta{
+						Kind: "Node",
+					},
+					ObjectMeta: metav1.ObjectMeta{
+						Name: "unit-test-node2",
+					},
+					Spec: v1.NodeSpec{},
+					Status: v1.NodeStatus{
+						NodeInfo: v1.NodeSystemInfo{
+							Architecture:            "amd64",
+							ContainerRuntimeVersion: "containerd://1.7.19",
+							KernelVersion:           "6.8.0-40-generic",
+							KubeProxyVersion:        "v1.30.3",
+							KubeletVersion:          "v1.30.3",
+							OperatingSystem:         "linux",
+							OSImage:                 "unsupported os platform",
+						},
+					},
+				},
+			},
+		},
+		expectKernelMapping: nil,
+		expectError:         true,
+	},
+	{
+		tcName: "empty node list",
+		nodeList: v1.NodeList{
+			Items: []v1.Node{},
+		},
+		expectKernelMapping: nil,
+		expectError:         true,
+	},
+}
+
+var _ = Describe("getKernelMappings", func() {
+	It("test getKernelMappings", func() {
+		logger := logr.New(nil)
+		for _, tc := range testGetKernelMappingsTestCases {
+			fmt.Printf("testing %v\n", tc.tcName)
+			km, driverVersion, err := getKernelMappings(logger, &testGetKernelMappingsDeviceConfig, false, &tc.nodeList)
+			Expect(err != nil).To(Equal(tc.expectError))
+			if !reflect.DeepEqual(km, tc.expectKernelMapping) {
+				fmt.Printf("expect kernel mapping %+v \nbut got %+v\n", tc.expectKernelMapping, km)
+			}
+			Expect(reflect.DeepEqual(km, tc.expectKernelMapping)).To(BeTrue())
+			if !tc.expectError {
+				Expect(driverVersion).To(Equal(testGetKernelMappingsDeviceConfig.Spec.Driver.Version))
+			} else {
+				Expect(km).To(BeNil())
+				Expect(driverVersion).To(BeEmpty())
+			}
+		}
 	})
 })
