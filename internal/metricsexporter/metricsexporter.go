@@ -56,7 +56,7 @@ const (
 	defaultInitContainerImage         = "busybox:1.36"
 	servicePort                 int32 = 5000
 	nobodyUser                        = 65532
-	ExporterName                      = "amd-device-metrics-exporter"
+	ExporterName                      = "metrics-exporter"
 	KubeRbacName                      = "kube-rbac-proxy"
 	StaticAuthSecretName              = ExporterName + "-static-auth-config"
 	defaultSAName                     = "amd-gpu-operator-metrics-exporter"
@@ -64,6 +64,7 @@ const (
 	svcLabel                          = "app.kubernetes.io/service"
 )
 
+var serviceMonitorLabelPair = []string{"app", "amd-device-metrics-exporter"}
 var metricsExporterLabelPair = []string{"app.kubernetes.io/name", ExporterName}
 
 //go:generate mockgen -source=metricsexporter.go -package=metricsexporter -destination=mock_metricsexporter.go MetricsExporter
@@ -428,6 +429,7 @@ func (nl *metricsExporter) SetMetricsServiceAsDesired(svc *v1.Service, devConfig
 	if svc.Labels == nil {
 		svc.Labels = make(map[string]string)
 	}
+
 	svc.Labels[svcLabel] = devConfig.Name + "-" + ExporterName
 
 	svc.Spec = v1.ServiceSpec{
@@ -572,18 +574,16 @@ func (nl *metricsExporter) SetServiceMonitorAsDesired(sm *monitoringv1.ServiceMo
 		AttachMetadata:    devConfig.Spec.MetricsExporter.Prometheus.ServiceMonitor.AttachMetadata,
 	}
 
-	// Set custom labels or use default
-	if sm.Labels == nil {
-		sm.Labels = make(map[string]string)
+	// Set custom labels
+	sm.Labels = map[string]string{
+		serviceMonitorLabelPair[0]: serviceMonitorLabelPair[1],
 	}
+
 	if len(devConfig.Spec.MetricsExporter.Prometheus.ServiceMonitor.Labels) > 0 {
 		// Use custom labels from the CRD
 		for k, v := range devConfig.Spec.MetricsExporter.Prometheus.ServiceMonitor.Labels {
 			sm.Labels[k] = v
 		}
-	} else {
-		// Use default labels
-		sm.Labels["release"] = "prometheus-operator"
 	}
 
 	return controllerutil.SetControllerReference(devConfig, sm, nl.scheme)
