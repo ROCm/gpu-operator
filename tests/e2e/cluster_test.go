@@ -452,6 +452,47 @@ func (s *E2ESuite) verifyNodeGPULabel(devCfg *v1alpha1.DeviceConfig, c *C) {
 	}, 5*time.Minute, 5*time.Second)
 }
 
+func (s *E2ESuite) verifyNodePartitionLabels(devCfg *v1alpha1.DeviceConfig, labelNames []string, labelsPresent bool, c *C) {
+	assert.Eventually(c, func() bool {
+		nodes, err := s.clientSet.CoreV1().Nodes().List(context.TODO(), metav1.ListOptions{
+			LabelSelector: func() string {
+				s := []string{}
+				for k, v := range devCfg.Spec.Selector {
+					s = append(s, fmt.Sprintf("%v=%v", k, v))
+				}
+				return strings.Join(s, ",")
+			}(),
+		})
+		if err != nil {
+			logger.Errorf("failed to get nodes %v", err)
+			return false
+		}
+
+		for _, node := range nodes.Items {
+			for _, label := range labelNames {
+				_, exists := node.Labels[label]
+				if labelsPresent && !exists {
+					// label should be present, but it is not present on the node
+					logger.Infof("label %s not found on node %s", label, node.Name)
+					return false
+				}
+				if !labelsPresent && exists {
+					// label should not be present, but it is present on the node
+					logger.Infof("label %s still present on node %s", label, node.Name)
+					return false
+				}
+			}
+		}
+		if labelsPresent {
+			logger.Infof("labels %v are present as expected", labelNames)
+		} else {
+			logger.Infof("labels %v are absent as expected", labelNames)
+		}
+		return true
+
+	}, 15*time.Minute, 5*time.Second)
+}
+
 func (s *E2ESuite) verifyNodeDriverVersionLabel(devCfg *v1alpha1.DeviceConfig, c *C) {
 	assert.Eventually(c, func() bool {
 		nodes, err := s.clientSet.CoreV1().Nodes().List(context.TODO(), metav1.ListOptions{
@@ -1328,6 +1369,49 @@ func (s *E2ESuite) TestWorkloadRequestedGPUsHeterogeneousMixed(c *C) {
 
 	err = utils.DelRocmPods(context.TODO(), s.clientSet)
 	assert.NoError(c, err, "failed to remove rocm pods")
+}
+
+func (s *E2ESuite) TestNodeLabellerPartitionLabelsPresent(c *C) {
+	if s.simEnable {
+		c.Skip("Skipping for non amd gpu testbed")
+	}
+
+	logger.Infof("create %v", s.cfgName)
+	devCfg := s.getDeviceConfig(c)
+	labelNames := []string{"compute-partitioning-supported", "memory-partitioning-supported", "compute-memory-partition"}
+	devCfg.Spec.DevicePlugin.NodeLabellerArguments = labelNames
+	s.createDeviceConfig(devCfg, c)
+	s.checkNFDWorkerStatus(s.ns, c, "")
+	s.checkNodeLabellerStatus(s.ns, c, devCfg)
+	s.verifyDeviceConfigStatus(devCfg, c)
+	s.verifyNodePartitionLabels(devCfg, labelNames, true, c)
+
+	// delete
+	s.deleteDeviceConfig(devCfg, c)
+	nodes := utils.GetAMDGpuWorker(s.clientSet, s.openshift)
+	err := utils.HandleNodesReboot(context.TODO(), s.clientSet, nodes)
+	assert.NoError(c, err, "failed to reboot nodes")
+}
+
+func (s *E2ESuite) TestNodeLabellerPartitionLabelsAbsent(c *C) {
+	if s.simEnable {
+		c.Skip("Skipping for non amd gpu testbed")
+	}
+
+	logger.Infof("create %v", s.cfgName)
+	devCfg := s.getDeviceConfig(c)
+	labelNames := []string{"compute-partitioning-supported", "memory-partitioning-supported", "compute-memory-partition"}
+	s.createDeviceConfig(devCfg, c)
+	s.checkNFDWorkerStatus(s.ns, c, "")
+	s.checkNodeLabellerStatus(s.ns, c, devCfg)
+	s.verifyDeviceConfigStatus(devCfg, c)
+	s.verifyNodePartitionLabels(devCfg, labelNames, false, c)
+
+	// delete
+	s.deleteDeviceConfig(devCfg, c)
+	nodes := utils.GetAMDGpuWorker(s.clientSet, s.openshift)
+	err := utils.HandleNodesReboot(context.TODO(), s.clientSet, nodes)
+	assert.NoError(c, err, "failed to reboot nodes")
 }
 
 func (s *E2ESuite) TestKubeRbacProxyClusterIP(c *C) {
