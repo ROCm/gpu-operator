@@ -744,7 +744,7 @@ func (h *upgradeMgrHelper) getPodsToDrainOrDelete(ctx context.Context, deviceCon
 	}
 
 	for _, pod := range pods.Items {
-		if strings.HasPrefix(pod.Name, fmt.Sprintf("%v-%v", deviceConfig.Name, "metrics-exporter")) {
+		if strings.HasPrefix(pod.Name, fmt.Sprintf("%v-%v", deviceConfig.Name, "metrics-exporter")) || strings.HasPrefix(pod.Name, fmt.Sprintf("%v-%v", deviceConfig.Name, "device-config-manager")) {
 			newPods = append(newPods, pod)
 			continue
 		}
