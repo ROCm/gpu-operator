@@ -21,7 +21,11 @@
 #
 set -e
 
-TECH_SUPPORT_FILE=techsupport-$(date "+%F_%T" | sed -e 's/:/-/g')
+# generate a uuid to mark the techsupport daemonset
+# so that the concurrent techsupport run won't affect each other
+UUID=$(uuidgen)
+
+TECH_SUPPORT_FILE=techsupport-${UUID}-$(date "+%F_%T" | sed -e 's/:/-/g')
 DEFAULT_RESOURCES="nodes events"
 NFD_RESOURCES="pods daemonsets deployments configmap"
 KMM_RESOURCES="pods daemonsets deployments modules configmap"
@@ -165,21 +169,21 @@ else
 	NODES=$(echo "${NODES} ${CONTROL_PLANE}" | tr ' ' '\n' | sort -u)
 fi
 
-cat <<EOF >/tmp/techsupport.json
+cat <<EOF >/tmp/techsupport-${UUID}.json
 apiVersion: apps/v1
 kind: DaemonSet
 metadata:
-  name: techsupport
+  name: techsupport-${UUID}
   labels:
-    app: techsupport
+    app: techsupport-${UUID}
 spec:
   selector:
     matchLabels:
-      app: techsupport
+      app: techsupport-${UUID}
   template:
     metadata:
       labels:
-        app: techsupport
+        app: techsupport-${UUID}
     spec:
       containers:
       - name: busybox
@@ -190,10 +194,10 @@ spec:
         - sleep
         - 1h
 EOF
-${KUBECTL} apply -f /tmp/techsupport.json
+${KUBECTL} apply -f /tmp/techsupport-${UUID}.json
 
 cleanup() {
-        ${KUBECTL} delete -f /tmp/techsupport.json
+        ${KUBECTL} delete -f /tmp/techsupport-${UUID}.json
 }
 
 trap cleanup EXIT
@@ -255,15 +259,15 @@ for node in "${nodeList[@]}"; do
 	pod_logs $GPUOPER_NS "gpu-operator" $node $GPUOPER_PODS
 
 	# node logs
-	dbgpods=$(${KUBECTL} get pods -o name --field-selector spec.nodeName=${node} -l "app=techsupport" || continue)
+	dbgpods=$(${KUBECTL} get pods -o name --field-selector spec.nodeName=${node} -l "app=techsupport-${UUID}" || continue)
 
 	# wait for the debug pod
 	for dbgpod in ${dbgpods}; do
 		${KUBECTL} wait --for=condition=Ready=true ${dbgpod} >/dev/null
 		log "   lsmod"
-		${KUBECTL} exec -it ${dbgpod} -- sh -c "lsmod | grep amdgpu || true" >${TECH_SUPPORT_FILE}/${node}/lsmod.txt
+		${KUBECTL} exec ${dbgpod} -- sh -c "lsmod | grep amdgpu || true" >${TECH_SUPPORT_FILE}/${node}/lsmod.txt
 		log "   dmesg"
-		${KUBECTL} exec -it ${dbgpod} -- sh -c "dmesg || true" >${TECH_SUPPORT_FILE}/${node}/dmesg.txt
+		${KUBECTL} exec ${dbgpod} -- sh -c "dmesg || true" >${TECH_SUPPORT_FILE}/${node}/dmesg.txt
 	done
 done
 
