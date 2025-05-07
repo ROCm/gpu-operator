@@ -11,6 +11,7 @@ RUN apt-get update && \
     dkms \
     autoconf \
     automake \
+    wget \
     linux-headers-${KERNEL_FULL_VERSION} && \
     apt-get clean
 
