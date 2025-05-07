@@ -131,13 +131,13 @@ func (n *upgradeMgr) HandleUpgrade(ctx context.Context, deviceConfig *amdv1alpha
 						// trigger reboot only for nodes which are in UpgradeStarted but haven't rebooted yet
 						if nodeObj.Status.NodeInfo.BootID == moduleStatus.BootId {
 							log.FromContext(ctx).Info(fmt.Sprintf("Node: %v: Reboot is required for driver upgrade, triggering node reboot", nodeName))
-							n.helper.handleNodeReboot(ctx, nodeObj, deviceConfig)
+							n.helper.handleNodeReboot(ctx, nodeObj, *deviceConfig)
 							// for nodes which are in UpgradeStarted but already rebooted. Schedule the reboot pod deletion
 						} else {
 							currentBootID := nodeObj.Status.NodeInfo.BootID
 							n.helper.setBootID(nodeObj.Name, currentBootID)
 							log.FromContext(ctx).Info(fmt.Sprintf("Node: %v: Node already rebooted, scheduling reboot pod deletion", nodeName))
-							go n.helper.deleteRebootPod(ctx, nodeName, deviceConfig, false, deviceConfig.Generation)
+							go n.helper.deleteRebootPod(ctx, nodeName, *deviceConfig, false)
 						}
 					}
 				} else {
@@ -155,7 +155,7 @@ func (n *upgradeMgr) HandleUpgrade(ctx context.Context, deviceConfig *amdv1alpha
 					n.helper.setNodeStatus(ctx, nodeName, amdv1alpha1.UpgradeStateInProgress)
 				} else {
 					n.helper.setNodeStatus(ctx, nodeName, moduleStatus.Status)
-					go n.helper.deleteRebootPod(ctx, nodeName, deviceConfig, false, deviceConfig.Generation)
+					go n.helper.deleteRebootPod(ctx, nodeName, *deviceConfig, false)
 				}
 			} else {
 				n.helper.setNodeStatus(ctx, nodeName, moduleStatus.Status)
@@ -276,7 +276,7 @@ func (n *upgradeMgr) HandleDelete(ctx context.Context, deviceConfig *amdv1alpha1
 		if err := n.helper.cordonOrUncordonNode(ctx, deviceConfig, &nodeList.Items[i], false); err != nil {
 			log.FromContext(ctx).Error(err, fmt.Sprintf("Taint Removal failed for %v during deviceconfig delete:%v", &nodeList.Items[i].Name, err))
 		}
-		n.helper.deleteRebootPod(ctx, nodeList.Items[i].Name, deviceConfig, true, deviceConfig.Generation)
+		n.helper.deleteRebootPod(ctx, nodeList.Items[i].Name, *deviceConfig, true)
 	}
 	n.helper.clearNodeStatus()
 	return
@@ -322,8 +322,8 @@ type upgradeMgrHelperAPI interface {
 	getPodsToDrainOrDelete(ctx context.Context, deviceConfig *amdv1alpha1.DeviceConfig, node *v1.Node) (newPods []v1.Pod, err error)
 	deleteOrDrainPods(ctx context.Context, deviceConfig *amdv1alpha1.DeviceConfig, node *v1.Node) error
 	updateModuleVersionOnNode(ctx context.Context, deviceConfig *amdv1alpha1.DeviceConfig, node *v1.Node) error
-	handleNodeReboot(ctx context.Context, node *v1.Node, dc *amdv1alpha1.DeviceConfig)
-	deleteRebootPod(ctx context.Context, nodeName string, dc *amdv1alpha1.DeviceConfig, force bool, genId int64)
+	handleNodeReboot(ctx context.Context, node *v1.Node, dc amdv1alpha1.DeviceConfig)
+	deleteRebootPod(ctx context.Context, nodeName string, dc amdv1alpha1.DeviceConfig, force bool)
 	getRebootPod(nodeName string, dc *amdv1alpha1.DeviceConfig) *v1.Pod
 
 	// getters and setters
@@ -817,7 +817,7 @@ func (h *upgradeMgrHelper) handleNodeUpgrade(ctx context.Context, deviceConfig a
 
 	// Reboot the node if required
 	if deviceConfig.Spec.Driver.UpgradePolicy.RebootRequired != nil && *deviceConfig.Spec.Driver.UpgradePolicy.RebootRequired {
-		h.handleNodeReboot(ctx, &node, &deviceConfig)
+		h.handleNodeReboot(ctx, &node, deviceConfig)
 	} else {
 		// Update expected module version on the node
 		if err := h.updateModuleVersionOnNode(ctx, &deviceConfig, &node); err != nil {
@@ -956,9 +956,9 @@ func (h *upgradeMgrHelper) updateModuleVersionOnNode(ctx context.Context, device
 	return nil
 }
 
-func (h *upgradeMgrHelper) handleNodeReboot(ctx context.Context, node *v1.Node, dc *amdv1alpha1.DeviceConfig) {
+func (h *upgradeMgrHelper) handleNodeReboot(ctx context.Context, node *v1.Node, dc amdv1alpha1.DeviceConfig) {
 	logger := log.FromContext(ctx)
-	rebootPod := h.getRebootPod(node.Name, dc)
+	rebootPod := h.getRebootPod(node.Name, &dc)
 	// Delete the existing pod if present
 	pod := &v1.Pod{}
 	if err := h.client.Get(ctx, types.NamespacedName{Namespace: dc.Namespace, Name: rebootPod.Name}, pod); err == nil {
@@ -970,7 +970,7 @@ func (h *upgradeMgrHelper) handleNodeReboot(ctx context.Context, node *v1.Node, 
 	}
 
 	// Update expected module version on the node
-	if err := h.updateModuleVersionOnNode(ctx, dc, node); err != nil {
+	if err := h.updateModuleVersionOnNode(ctx, &dc, node); err != nil {
 		logger.Error(err, fmt.Sprintf("Node: %v State: %v UpgradeFailed with Error: %v", node.Name, h.getNodeStatus(node.Name), err))
 		// Mark the state as failed
 		h.setNodeStatus(ctx, node.Name, amdv1alpha1.UpgradeStateFailed)
@@ -1037,15 +1037,22 @@ func (h *upgradeMgrHelper) handleNodeReboot(ctx context.Context, node *v1.Node, 
 	// Wait for the rebootPod to get spawned
 	waitForRebootPod()
 
-	h.setNodeStatus(ctx, node.Name, amdv1alpha1.UpgradeStateRebootInProgress)
-	h.deleteRebootPod(ctx, node.Name, dc, false, dc.Generation)
+	fetchedDeviceConfig := &amdv1alpha1.DeviceConfig{}
+	if err := h.client.Get(ctx, types.NamespacedName{Namespace: dc.Namespace, Name: dc.Name}, fetchedDeviceConfig); err != nil {
+		logger.Error(err, "Failed to fetch DeviceConfig from API server")
+		return
+	}
+	if fetchedDeviceConfig.Spec.Driver.Version == dc.Spec.Driver.Version {
+		h.setNodeStatus(ctx, node.Name, amdv1alpha1.UpgradeStateRebootInProgress)
+	}
+	h.deleteRebootPod(ctx, node.Name, dc, false)
 
 }
 
-func (h *upgradeMgrHelper) deleteRebootPod(ctx context.Context, nodeName string, dc *amdv1alpha1.DeviceConfig, force bool, genId int64) {
+func (h *upgradeMgrHelper) deleteRebootPod(ctx context.Context, nodeName string, dc amdv1alpha1.DeviceConfig, force bool) {
 
 	logger := log.FromContext(ctx)
-	rebootPod := h.getRebootPod(nodeName, dc)
+	rebootPod := h.getRebootPod(nodeName, &dc)
 	fetchedDeviceConfig := &amdv1alpha1.DeviceConfig{}
 	pod := &v1.Pod{}
 	if err := h.client.Get(ctx, types.NamespacedName{Namespace: dc.Namespace, Name: rebootPod.Name}, pod); err != nil {
@@ -1077,7 +1084,7 @@ func (h *upgradeMgrHelper) deleteRebootPod(ctx context.Context, nodeName string,
 					if err := h.client.Delete(ctx, rebootPod); err != nil {
 						logger.Error(err, fmt.Sprintf("Node: %v State: %v RebootPod Delete failed with Error: %v", nodeName, h.getNodeStatus(nodeName), err))
 					}
-					if fetchedDeviceConfig.Generation == genId {
+					if fetchedDeviceConfig.Spec.Driver.Version == dc.Spec.Driver.Version {
 						logger.Info("Setting to In-Progress after deleting reboot pod")
 						h.setNodeStatus(ctx, nodeName, amdv1alpha1.UpgradeStateInProgress)
 					}
@@ -1100,7 +1107,7 @@ func (h *upgradeMgrHelper) deleteRebootPod(ctx context.Context, nodeName string,
 		logger.Error(err, "Failed to fetch DeviceConfig from API server")
 		return
 	}
-	if fetchedDeviceConfig.Generation == genId {
+	if fetchedDeviceConfig.Spec.Driver.Version == dc.Spec.Driver.Version {
 		logger.Info("Setting to In-Progress after deleting reboot pod eventually")
 		h.setNodeStatus(ctx, nodeName, amdv1alpha1.UpgradeStateInProgress)
 	}
