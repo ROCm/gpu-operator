@@ -2,7 +2,7 @@
   "__inputs": [
     {
       "name": "DS_PROMETHEUS",
-      "label": "prometheus",
+      "label": "Prometheus",
       "description": "",
       "type": "datasource",
       "pluginId": "prometheus",
@@ -112,7 +112,23 @@
             ]
           }
         },
-        "overrides": []
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byFrameRefID",
+              "options": "Unhealthy"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "red",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          }
+        ]
       },
       "gridPos": {
         "h": 6,
@@ -155,6 +171,24 @@
           "legendFormat": "GPUs",
           "range": false,
           "refId": "A",
+          "useBackend": false
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "disableTextWrap": false,
+          "editorMode": "code",
+          "exemplar": false,
+          "expr": "count(${g_metrics_prefix}gpu_health < 1)",
+          "fullMetaSearch": false,
+          "hide": false,
+          "includeNullMetadata": true,
+          "instant": true,
+          "legendFormat": "Unhealthy GPUs",
+          "range": false,
+          "refId": "Unhealthy",
           "useBackend": false
         }
       ],
@@ -1936,7 +1970,7 @@
         "type": "prometheus",
         "uid": "${DS_PROMETHEUS}"
       },
-      "description": "List of all GPUs. Click on the row to go to that GPU's dashboard (opens new tab).",
+      "description": "List of all GPUs.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -1950,24 +1984,37 @@
             "filterable": true,
             "inspect": false
           },
-          "links": [
-            {
-              "targetBlank": true,
-              "title": "Go to GPU Dashboard",
-              "url": "/d/ae0aj8euc43r4b/gpu?var-g_gpu_uuid=${__data.fields[\"gpu_uuid\"]}&var-g_hostname=${__data.fields.HOSTNAME}&var-g_gpu_id=${__data.fields[\"GPU ID\"]}"
-            }
-          ],
+          "links": [],
           "mappings": [],
           "thresholds": {
             "mode": "absolute",
             "steps": [
               {
-                "color": "green"
+                "color": "green",
+                "value": null
               }
             ]
           }
         },
         "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "HOSTNAME"
+            },
+            "properties": [
+              {
+                "id": "links",
+                "value": [
+                  {
+                    "targetBlank": true,
+                    "title": "Go to Compute Node Dashboard",
+                    "url": "/d/de1q9vq97fe2oc/compute-node?var-g_hostname=${__data.fields.HOSTNAME}"
+                  }
+                ]
+              }
+            ]
+          },
           {
             "matcher": {
               "id": "byName",
@@ -1977,6 +2024,16 @@
               {
                 "id": "custom.width",
                 "value": 100
+              },
+              {
+                "id": "links",
+                "value": [
+                  {
+                    "targetBlank": true,
+                    "title": "Go to GPU Dashboard",
+                    "url": "/d/ae0aj8euc43r4b/gpu?var-g_gpu_uuid=${__data.fields[\"gpu_uuid\"]}&var-g_hostname=${__data.fields.HOSTNAME}&var-g_gpu_id=${__data.fields[\"GPU ID\"]}"
+                  }
+                ]
               }
             ]
           },
@@ -1989,6 +2046,54 @@
               {
                 "id": "custom.width",
                 "value": 320
+              },
+              {
+                "id": "links",
+                "value": [
+                  {
+                    "targetBlank": true,
+                    "title": "Go to GPU Dashboard",
+                    "url": "/d/ae0aj8euc43r4b/gpu?var-g_gpu_uuid=${__data.fields[\"gpu_uuid\"]}&var-g_hostname=${__data.fields.HOSTNAME}&var-g_gpu_id=${__data.fields[\"GPU ID\"]}"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "HEALTH"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 105
+              },
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "options": {
+                      "0": {
+                        "color": "red",
+                        "index": 0,
+                        "text": "unhealthy"
+                      },
+                      "1": {
+                        "color": "green",
+                        "index": 1,
+                        "text": "healthy"
+                      }
+                    },
+                    "type": "value"
+                  }
+                ]
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-text"
+                }
               }
             ]
           }
@@ -2015,6 +2120,10 @@
         "showHeader": true,
         "sortBy": [
           {
+            "desc": true,
+            "displayName": "HEALTH"
+          },
+          {
             "desc": false,
             "displayName": "HOSTNAME"
           },
@@ -2033,7 +2142,7 @@
           },
           "disableTextWrap": false,
           "editorMode": "builder",
-          "expr": "${g_metrics_prefix}gpu_gfx_activity",
+          "expr": "${g_metrics_prefix}gpu_health",
           "fullMetaSearch": false,
           "includeNullMetadata": true,
           "instant": false,
@@ -2061,6 +2170,12 @@
               "GPU UUID": {
                 "aggregations": [],
                 "operation": "groupby"
+              },
+              "Last": {
+                "aggregations": [
+                  "last"
+                ],
+                "operation": "aggregate"
               },
               "gpu_id": {
                 "aggregations": [
@@ -2109,6 +2224,7 @@
               "hostname (last)": 0
             },
             "renameByName": {
+              "Last (last)": "HEALTH",
               "gpu_id": "GPU ID",
               "gpu_id (last)": "GPU ID",
               "gpu_uuid": "GPU UUID",
@@ -2122,10 +2238,6 @@
       "type": "table"
     },
     {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "${DS_PROMETHEUS}"
-      },
       "gridPos": {
         "h": 2,
         "w": 2,
