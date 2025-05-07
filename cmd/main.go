@@ -53,6 +53,7 @@ import (
 	"github.com/ROCm/gpu-operator/internal/config"
 	"github.com/ROCm/gpu-operator/internal/configmanager"
 	"github.com/ROCm/gpu-operator/internal/controllers"
+	"github.com/ROCm/gpu-operator/internal/controllers/workermgr"
 	"github.com/ROCm/gpu-operator/internal/kmmmodule"
 	"github.com/ROCm/gpu-operator/internal/metricsexporter"
 	"github.com/ROCm/gpu-operator/internal/nodelabeller"
@@ -111,6 +112,7 @@ func main() {
 		cmd.FatalError(setupLogger, err, "unable to create manager")
 	}
 
+	// Use manager's client, it may read from a cache.
 	client := mgr.GetClient()
 	isOpenShift := utils.IsOpenShift(setupLogger)
 	kmmHandler := kmmmodule.NewKMMModule(client, scheme, isOpenShift)
@@ -118,6 +120,7 @@ func main() {
 	metricsHandler := metricsexporter.NewMetricsExporter(scheme)
 	testrunnerHandler := testrunner.NewTestRunner(scheme)
 	configmanagerHandler := configmanager.NewConfigManager(scheme)
+	workerMgr := workermgr.NewWorkerMgr(client, scheme)
 	dcr := controllers.NewDeviceConfigReconciler(
 		mgr.GetConfig(),
 		client,
@@ -125,7 +128,9 @@ func main() {
 		nlHandler,
 		metricsHandler,
 		testrunnerHandler,
-		configmanagerHandler)
+		configmanagerHandler,
+		workerMgr,
+		isOpenShift)
 	if err = dcr.SetupWithManager(mgr); err != nil {
 		cmd.FatalError(setupLogger, err, "unable to create controller", "name", controllers.DeviceConfigReconcilerName)
 	}
