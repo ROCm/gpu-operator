@@ -67,6 +67,9 @@ spec:
       - kind: Daemonset
         name: apps
         version: v1
+      - kind: Pod
+        name: core
+        version: v1
       - kind: services
         name: core
         version: v1
