@@ -229,7 +229,7 @@ fmt: ## Run go fmt against code.
 vet: ## Run go vet against code.
 	go vet ./...
 
-UNIT_TEST ?= ./internal/controllers ./internal/kmmmodule ./internal
+UNIT_TEST ?= ./internal ./internal/controllers ./internal/kmmmodule
 
 .PHONY: unit-test
 unit-test: vet ## Run the unit tests.
