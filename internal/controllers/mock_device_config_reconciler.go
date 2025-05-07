@@ -146,20 +146,6 @@ func (mr *MockdeviceConfigReconcilerHelperAPIMockRecorder) findDeviceConfigsForS
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "findDeviceConfigsForSecret", reflect.TypeOf((*MockdeviceConfigReconcilerHelperAPI)(nil).findDeviceConfigsForSecret), ctx, secret)
 }
 
-// findDeviceConfigsWithKMM mocks base method.
-func (m *MockdeviceConfigReconcilerHelperAPI) findDeviceConfigsWithKMM(ctx context.Context, node client.Object) []reconcile.Request {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "findDeviceConfigsWithKMM", ctx, node)
-	ret0, _ := ret[0].([]reconcile.Request)
-	return ret0
-}
-
-// findDeviceConfigsWithKMM indicates an expected call of findDeviceConfigsWithKMM.
-func (mr *MockdeviceConfigReconcilerHelperAPIMockRecorder) findDeviceConfigsWithKMM(ctx, node any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "findDeviceConfigsWithKMM", reflect.TypeOf((*MockdeviceConfigReconcilerHelperAPI)(nil).findDeviceConfigsWithKMM), ctx, node)
-}
-
 // getDeviceConfigOwnedKMMModule mocks base method.
 func (m *MockdeviceConfigReconcilerHelperAPI) getDeviceConfigOwnedKMMModule(ctx context.Context, devConfig *v1alpha1.DeviceConfig) (*v1beta1.Module, error) {
 	m.ctrl.T.Helper()

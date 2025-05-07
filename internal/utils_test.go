@@ -17,6 +17,7 @@ limitations under the License.
 package utils
 
 import (
+	"fmt"
 	"reflect"
 	"testing"
 
@@ -141,6 +142,56 @@ func TestRemoveOldNodeLabels(t *testing.T) {
 		}
 		if updated != tc.expectUpdated {
 			t.Errorf("failed to get expected node labels updated flag, got %+v, expect %+v", updated, tc.expectUpdated)
+		}
+	}
+}
+
+func TestHasNodeLabelTemplateMatch(t *testing.T) {
+	testCases := []struct {
+		Namespace string
+		Name      string
+	}{
+		{
+			Namespace: "kube-amd-gpu",
+			Name:      "test-config",
+		},
+		{
+			Namespace: "openshift-amd-gpu",
+			Name:      "test-config",
+		},
+		{
+			Namespace: "amd-gpu",
+			Name:      "test-config123",
+		},
+		{
+			Namespace: "amd-gpu",
+			Name:      "test-config.123",
+		},
+		{
+			Namespace: "test-amd-gpu",
+			Name:      "testconfig.123",
+		},
+		{
+			Namespace: "ns",
+			Name:      "test-config.1.2.3",
+		},
+	}
+
+	templates := []string{VFIOMountReadyLabelTemplate, KMMModuleReadyLabelTemplate}
+
+	for _, tc := range testCases {
+		for _, template := range templates {
+			nodeLabels := map[string]string{fmt.Sprintf(template, tc.Namespace, tc.Name): ""}
+			found, key, namespace, name := HasNodeLabelTemplateMatch(nodeLabels, template)
+
+			if !found {
+				t.Errorf("Expected matched label key, but got mismatch for %+v", nodeLabels)
+			}
+
+			if namespace != tc.Namespace || name != tc.Name {
+				t.Errorf("Expected namespace %v and name %v, but got namespace %v and name %v", tc.Namespace, tc.Name, namespace, name)
+			}
+			t.Logf("Matched label key: %s, namespace: %s, name: %s", key, namespace, name)
 		}
 	}
 }

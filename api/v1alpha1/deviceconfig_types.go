@@ -763,7 +763,7 @@ type DeviceConfigStatus struct {
 //+kubebuilder:subresource:status
 
 // DeviceConfig describes how to enable AMD GPU device
-// +operator-sdk:csv:customresourcedefinitions:displayName="DeviceConfig",resources={{Module,v1beta1,modules.kmm.sigs.x-k8s.io},{Daemonset,v1,apps}, {services,v1,core}}
+// +operator-sdk:csv:customresourcedefinitions:displayName="DeviceConfig",resources={{Module,v1beta1,modules.kmm.sigs.x-k8s.io},{Daemonset,v1,apps},{services,v1,core},{Pod,v1,core}}
 type DeviceConfig struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`

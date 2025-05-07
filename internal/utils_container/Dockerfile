@@ -1,7 +1,7 @@
 FROM registry.access.redhat.com/ubi9/ubi-minimal:9.3
 
 # Install nsenter from util-linux package
-RUN microdnf install -y util-linux && \
+RUN microdnf install -y util-linux pciutils && \
     cp /usr/bin/nsenter /nsenter && \
     microdnf clean all
 
