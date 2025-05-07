@@ -40,37 +40,38 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/ROCm/gpu-operator/internal/configmanager"
-	"github.com/ROCm/gpu-operator/internal/metricsexporter"
-	"github.com/ROCm/gpu-operator/internal/testrunner"
 	monitoringv1 "github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring/v1"
-	"k8s.io/client-go/rest"
-	"k8s.io/client-go/util/retry"
-
-	"github.com/rh-ecosystem-edge/kernel-module-management/pkg/labels"
-
-	amdv1alpha1 "github.com/ROCm/gpu-operator/api/v1alpha1"
-	utils "github.com/ROCm/gpu-operator/internal"
-	"github.com/ROCm/gpu-operator/internal/conditions"
-	"github.com/ROCm/gpu-operator/internal/kmmmodule"
-	"github.com/ROCm/gpu-operator/internal/nodelabeller"
-	"github.com/ROCm/gpu-operator/internal/validator"
 	kmmv1beta1 "github.com/rh-ecosystem-edge/kernel-module-management/api/v1beta1"
+	kmmLabels "github.com/rh-ecosystem-edge/kernel-module-management/pkg/labels"
 	appsv1 "k8s.io/api/apps/v1"
 	v1 "k8s.io/api/core/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	meta "k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/client-go/rest"
+	"k8s.io/client-go/util/retry"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
-	event "sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
+
+	amdv1alpha1 "github.com/ROCm/gpu-operator/api/v1alpha1"
+	utils "github.com/ROCm/gpu-operator/internal"
+	"github.com/ROCm/gpu-operator/internal/conditions"
+	"github.com/ROCm/gpu-operator/internal/configmanager"
+	"github.com/ROCm/gpu-operator/internal/controllers/watchers"
+	"github.com/ROCm/gpu-operator/internal/controllers/workermgr"
+	"github.com/ROCm/gpu-operator/internal/kmmmodule"
+	"github.com/ROCm/gpu-operator/internal/metricsexporter"
+	"github.com/ROCm/gpu-operator/internal/nodelabeller"
+	"github.com/ROCm/gpu-operator/internal/testrunner"
+	"github.com/ROCm/gpu-operator/internal/validator"
 )
 
 const (
@@ -81,10 +82,13 @@ const (
 
 // ModuleReconciler reconciles a Module object
 type DeviceConfigReconciler struct {
-	once            sync.Once
-	initErr         error
-	helper          deviceConfigReconcilerHelperAPI
-	podEventHandler podEventHandlerAPI
+	client.Client
+	once                  sync.Once
+	initErr               error
+	helper                deviceConfigReconcilerHelperAPI
+	podEventHandler       watchers.PodEventHandlerAPI
+	nodeEventHandler      watchers.NodeEventHandlerAPI
+	daemonsetEventHandler watchers.DaemonsetEventHandlerAPI
 }
 
 func NewDeviceConfigReconciler(
@@ -94,56 +98,53 @@ func NewDeviceConfigReconciler(
 	nlHandler nodelabeller.NodeLabeller,
 	metricsHandler metricsexporter.MetricsExporter,
 	testrunnerHandler testrunner.TestRunner,
-	configmanagerHandler configmanager.ConfigManager) *DeviceConfigReconciler {
+	configmanagerHandler configmanager.ConfigManager,
+	workerMgr workermgr.WorkerMgrAPI,
+	isOpenShift bool) *DeviceConfigReconciler {
 	upgradeMgrHandler := newUpgradeMgrHandler(client, k8sConfig)
-	helper := newDeviceConfigReconcilerHelper(client, kmmHandler, nlHandler, upgradeMgrHandler, metricsHandler, testrunnerHandler, configmanagerHandler)
-	podEventHandler := newPodEventHandler(client)
+	helper := newDeviceConfigReconcilerHelper(client, kmmHandler, nlHandler, upgradeMgrHandler, metricsHandler, testrunnerHandler, configmanagerHandler, workerMgr)
+	podEventHandler := watchers.NewPodEventHandler(client, workerMgr)
+	nodeEventHandler := watchers.NewNodeEventHandler(client, workerMgr)
+	daemonsetEventHandler := watchers.NewDaemonsetEventHandler(client)
 	return &DeviceConfigReconciler{
-		helper:          helper,
-		podEventHandler: podEventHandler,
+		Client:                client,
+		helper:                helper,
+		podEventHandler:       podEventHandler,
+		nodeEventHandler:      nodeEventHandler,
+		daemonsetEventHandler: daemonsetEventHandler,
 	}
 }
 
 // SetupWithManager sets up the controller with the Manager.
-//  1. Owns() will tell the manager that if any Module or Daemonset object or their status got updated
-//     the DeviceConfig object in their ref field need to be reconciled
-//  2. findDeviceConfigsForNMC: when a NMC changed, only trigger reconcile for related DeviceConfig
 func (r *DeviceConfigReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
-		For(&amdv1alpha1.DeviceConfig{}).
-		Owns(&kmmv1beta1.Module{}).
-		Owns(&appsv1.DaemonSet{}).
-		Owns(&v1.Service{}).
 		Named(DeviceConfigReconcilerName).
-		Watches( // watch NMC for updating the DeviceConfigs CR status
+		// just reconcile the spec change or deletion
+		For(&amdv1alpha1.DeviceConfig{}, builder.WithPredicates(watchers.SpecChangedOrDeletionPredicate{})).
+		Owns(&v1.Service{}, builder.WithPredicates(watchers.SpecChangedOrDeletionPredicate{})).
+		Owns(&kmmv1beta1.Module{}, builder.WithPredicates(watchers.SpecChangedOrDeletionPredicate{})).
+		Watches( // watch for owned daemonset, only update status
+			&appsv1.DaemonSet{},
+			r.daemonsetEventHandler,
+			builder.WithPredicates(watchers.DaemonsetPredicate{}),
+		).
+		Watches( // watch for KMM build/sign/install related secrets event, reconcile corresponding DeviceConfig
+			&v1.Secret{},
+			handler.EnqueueRequestsFromMapFunc(r.helper.findDeviceConfigsForSecret),
+		).
+		Watches(&v1.Node{}, // watch for Node resource to get latest kernel mapping for KMM CR
+			r.nodeEventHandler,
+			builder.WithPredicates(watchers.NodePredicate{}),
+		).
+		Watches( // watch NMC for upgrademgr
 			&kmmv1beta1.NodeModulesConfig{},
 			handler.EnqueueRequestsFromMapFunc(r.helper.findDeviceConfigsForNMC),
 			builder.WithPredicates(predicate.ResourceVersionChangedPredicate{}),
 		).
-		Watches(&v1.Secret{}, // watch for KMM build/sign/install related secrets
-			handler.EnqueueRequestsFromMapFunc(r.helper.findDeviceConfigsForSecret),
-			builder.WithPredicates(
-				predicate.Funcs{
-					CreateFunc: func(e event.CreateEvent) bool {
-						return true
-					},
-					UpdateFunc: func(e event.UpdateEvent) bool {
-						return true
-					},
-					DeleteFunc: func(e event.DeleteEvent) bool {
-						return true
-					},
-				},
-			),
-		).
-		Watches(&v1.Node{}, // watch for Node resource to get latest kernel mapping for KMM CR
-			handler.EnqueueRequestsFromMapFunc(r.helper.findDeviceConfigsWithKMM),
-			builder.WithPredicates(NodeKernelVersionPredicate{}),
-		).
-		Watches( // watch for KMM builder pod event to auto-clean unknown status builder pod
+		Watches( // watch pod event to auto-clean unknown status builder pod and cleanup post-process worker pod
 			&v1.Pod{},
 			r.podEventHandler,
-			builder.WithPredicates(PodLabelPredicate{}), // only watch for event from kmm builder pod
+			builder.WithPredicates(watchers.PodLabelPredicate{}),
 		).Complete(r)
 }
 
@@ -208,7 +209,7 @@ func (r *DeviceConfigReconciler) Reconcile(ctx context.Context, req ctrl.Request
 		return res, fmt.Errorf("failed to get the requested %s CR: %v", req.NamespacedName, err)
 	}
 
-	nodes, err := kmmmodule.GetK8SNodes(kmmmodule.MapToLabelSelector(devConfig.Spec.Selector))
+	nodes, err := kmmmodule.GetK8SNodes(ctx, r.Client, labels.SelectorFromSet(labels.Set(devConfig.Spec.Selector)))
 	if err != nil {
 		return res, fmt.Errorf("failed to list Node for DeviceConfig %s: %v", req.NamespacedName, err)
 	}
@@ -332,9 +333,8 @@ type deviceConfigReconcilerHelperAPI interface {
 	buildDeviceConfigStatus(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig, nodes *v1.NodeList) error
 	updateDeviceConfigStatus(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig) error
 	finalizeDeviceConfig(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig, nodes *v1.NodeList) error
-	findDeviceConfigsForNMC(ctx context.Context, nmc client.Object) []reconcile.Request
 	findDeviceConfigsForSecret(ctx context.Context, secret client.Object) []reconcile.Request
-	findDeviceConfigsWithKMM(ctx context.Context, node client.Object) []reconcile.Request
+	findDeviceConfigsForNMC(ctx context.Context, nmc client.Object) []reconcile.Request
 	setFinalizer(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig) error
 	handleKMMModule(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig, nodes *v1.NodeList) error
 	handleDevicePlugin(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig, nodes *v1.NodeList) error
@@ -360,6 +360,7 @@ type deviceConfigReconcilerHelper struct {
 	nodeAssignments      map[string]string
 	conditionUpdater     conditions.ConditionUpdater
 	validator            validator.ValidatorAPI
+	kmmPostProcessor     workermgr.WorkerMgrAPI
 	upgradeMgrHandler    upgradeMgrAPI
 	namespace            string
 }
@@ -370,7 +371,8 @@ func newDeviceConfigReconcilerHelper(client client.Client,
 	upgradeMgrHandler upgradeMgrAPI,
 	metricsHandler metricsexporter.MetricsExporter,
 	testrunnerHandler testrunner.TestRunner,
-	configmanagerHandler configmanager.ConfigManager) deviceConfigReconcilerHelperAPI {
+	configmanagerHandler configmanager.ConfigManager,
+	workerMgr workermgr.WorkerMgrAPI) deviceConfigReconcilerHelperAPI {
 	conditionUpdater := conditions.NewDeviceConfigConditionMgr()
 	validator := validator.NewValidator()
 	return &deviceConfigReconcilerHelper{
@@ -383,6 +385,7 @@ func newDeviceConfigReconcilerHelper(client client.Client,
 		nodeAssignments:      make(map[string]string),
 		conditionUpdater:     conditionUpdater,
 		validator:            validator,
+		kmmPostProcessor:     workerMgr,
 		upgradeMgrHandler:    upgradeMgrHandler,
 		namespace:            os.Getenv("OPERATOR_NAMESPACE"),
 	}
@@ -405,28 +408,6 @@ func (dcrh *deviceConfigReconcilerHelper) getRequestedDeviceConfig(ctx context.C
 		return nil, fmt.Errorf("failed to get DeviceConfig %s: %v", namespacedName, err)
 	}
 	return &devConfig, nil
-}
-
-// findDeviceConfigsForNMC when a NMC changed, only trigger reconcile for related DeviceConfig
-func (drch *deviceConfigReconcilerHelper) findDeviceConfigsForNMC(ctx context.Context, nmc client.Object) []reconcile.Request {
-	reqs := []reconcile.Request{}
-	logger := log.FromContext(ctx)
-	nmcObj, ok := nmc.(*kmmv1beta1.NodeModulesConfig)
-	if !ok {
-		logger.Error(fmt.Errorf("failed to convert object %+v to NodeModulesConfig", nmc), "")
-		return reqs
-	}
-	if len(nmcObj.Status.Modules) > 0 {
-		for _, module := range nmcObj.Status.Modules {
-			reqs = append(reqs, reconcile.Request{
-				NamespacedName: types.NamespacedName{
-					Namespace: module.Namespace,
-					Name:      module.Name,
-				},
-			})
-		}
-	}
-	return reqs
 }
 
 // findDeviceConfigsForSecret when a secret changed, only trigger reconcile for related DeviceConfig
@@ -478,31 +459,6 @@ func (dcrh *deviceConfigReconcilerHelper) hasSecretReference(secretName string, 
 	return false
 }
 
-// findDeviceConfigsWithKMM only reconcile deviceconfigs with KMM enabled to manage out-of-tree kernel module
-func (drch *deviceConfigReconcilerHelper) findDeviceConfigsWithKMM(ctx context.Context, node client.Object) []reconcile.Request {
-	reqs := []reconcile.Request{}
-	logger := log.FromContext(ctx)
-	deviceConfigList, err := drch.listDeviceConfigs(ctx)
-	if err != nil || deviceConfigList == nil {
-		logger.Error(err, "failed to list deviceconfigs")
-		return reqs
-	}
-	for _, dcfg := range deviceConfigList.Items {
-		if dcfg.Namespace == drch.namespace &&
-			dcfg.Spec.Driver.Enable != nil &&
-			*dcfg.Spec.Driver.Enable {
-			reqs = append(reqs, reconcile.Request{
-				NamespacedName: types.NamespacedName{
-					Namespace: dcfg.Namespace,
-					Name:      dcfg.Name,
-				},
-			})
-		}
-	}
-
-	return reqs
-}
-
 func (dcrh *deviceConfigReconcilerHelper) buildDeviceConfigStatus(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig, nodes *v1.NodeList) error {
 	// fetch DeviceConfig-owned custom resource
 	// then retrieve its status and put it to DeviceConfig's status fields
@@ -514,49 +470,15 @@ func (dcrh *deviceConfigReconcilerHelper) buildDeviceConfigStatus(ctx context.Co
 		}
 		if kmmModuleObj != nil {
 			devConfig.Status.Drivers = amdv1alpha1.DeploymentStatus{
-				NodesMatchingSelectorNumber: kmmModuleObj.Status.ModuleLoader.DesiredNumber,
+				NodesMatchingSelectorNumber: kmmModuleObj.Status.ModuleLoader.NodesMatchingSelectorNumber,
 				DesiredNumber:               kmmModuleObj.Status.ModuleLoader.DesiredNumber,
 				AvailableNumber:             kmmModuleObj.Status.ModuleLoader.AvailableNumber,
 			}
 		}
 	}
 
-	devPlDs := appsv1.DaemonSet{}
-	dsName := types.NamespacedName{
-		Namespace: devConfig.Namespace,
-		Name:      devConfig.Name + "-device-plugin",
-	}
-
-	if err := dcrh.client.Get(ctx, dsName, &devPlDs); err == nil {
-		devConfig.Status.DevicePlugin = amdv1alpha1.DeploymentStatus{
-			NodesMatchingSelectorNumber: devPlDs.Status.NumberAvailable,
-			DesiredNumber:               devPlDs.Status.DesiredNumberScheduled,
-			AvailableNumber:             devPlDs.Status.NumberAvailable,
-		}
-	} else {
-		return fmt.Errorf("failed to fetch device-plugin %+v: %+v", dsName, err)
-	}
-
-	if devConfig.Spec.MetricsExporter.Enable != nil && *devConfig.Spec.MetricsExporter.Enable {
-		metricsDS := appsv1.DaemonSet{}
-		dsName := types.NamespacedName{
-			Namespace: devConfig.Namespace,
-			Name:      devConfig.Name + "-" + metricsexporter.ExporterName,
-		}
-
-		if err := dcrh.client.Get(ctx, dsName, &metricsDS); err == nil {
-			devConfig.Status.MetricsExporter = amdv1alpha1.DeploymentStatus{
-				NodesMatchingSelectorNumber: metricsDS.Status.NumberAvailable,
-				DesiredNumber:               metricsDS.Status.DesiredNumberScheduled,
-				AvailableNumber:             metricsDS.Status.NumberAvailable,
-			}
-		} else {
-			return fmt.Errorf("failed to fetch metricsExporter %+v: %+v", dsName, err)
-		}
-	}
-
 	// fetch latest node modules config, push their status back to DeviceConfig's status fields
-	if err := dcrh.updateDeviceConfigNodeStatus(ctx, devConfig, nodes); err != nil {
+	if err := dcrh.buildDeviceConfigNodeStatus(ctx, devConfig, nodes); err != nil {
 		return err
 	}
 
@@ -576,8 +498,9 @@ func (dcrh *deviceConfigReconcilerHelper) updateDeviceConfigStatus(ctx context.C
 		if err != nil {
 			return err
 		}
+		originalObj := latestObj.DeepCopy()
 		devConfig.Status.DeepCopyInto(&latestObj.Status)
-		if err := dcrh.client.Status().Update(ctx, latestObj); err != nil {
+		if err := dcrh.client.Status().Patch(ctx, latestObj, client.MergeFrom(originalObj)); err != nil {
 			return err
 		}
 		return nil
@@ -593,7 +516,7 @@ func (dcrh *deviceConfigReconcilerHelper) getDeviceConfigOwnedKMMModule(ctx cont
 	return &module, nil
 }
 
-func (dcrh *deviceConfigReconcilerHelper) updateDeviceConfigNodeStatus(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig, nodes *v1.NodeList) error {
+func (dcrh *deviceConfigReconcilerHelper) buildDeviceConfigNodeStatus(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig, nodes *v1.NodeList) error {
 	logger := log.FromContext(ctx)
 	previousUpgradeTimes := make(map[string]string)
 	previousBootIds := make(map[string]string)
@@ -648,7 +571,6 @@ func (dcrh *deviceConfigReconcilerHelper) updateDeviceConfigNodeStatus(ctx conte
 			}
 		}
 	}
-
 	return nil
 }
 
@@ -882,7 +804,14 @@ func (dcrh *deviceConfigReconcilerHelper) finalizeDeviceConfig(ctx context.Conte
 		if k8serrors.IsNotFound(err) {
 			// if KMM module CR is not found
 			if devConfig.Spec.Driver.Enable != nil && *devConfig.Spec.Driver.Enable {
-				logger.Info("module already deleted, removing finalizer", "module", namespacedName)
+				switch devConfig.Spec.Driver.DriverType {
+				case utils.DriverTypeVFPassthrough:
+					if !dcrh.checkPostProcessFinalizeCondition(ctx, devConfig, nodes) {
+						return errors.New("waiting for post-process finalize condition")
+					}
+				default:
+					logger.Info("module already deleted, removing finalizer", "module", namespacedName)
+				}
 			} else {
 				// driver disabled mode won't have KMM CR created
 				// but it still requries the removal of node labels
@@ -911,6 +840,65 @@ func (dcrh *deviceConfigReconcilerHelper) finalizeDeviceConfig(ctx context.Conte
 	dcrh.updateNodeAssignments(namespacedName.String(), nodes, true)
 
 	return nil
+}
+
+func (dcrh *deviceConfigReconcilerHelper) checkPostProcessFinalizeCondition(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig, nodes *v1.NodeList) bool {
+	logger := log.FromContext(ctx)
+	for _, node := range nodes.Items {
+		pod, err := dcrh.kmmPostProcessor.GetWorkerPod(ctx, devConfig, &node)
+		if err == nil {
+			logger.Info(fmt.Sprintf("post-process worker pod %+v still exist on node %+v", pod.Name, node.Name))
+			return false
+		}
+		if !k8serrors.IsNotFound(err) {
+			logger.Error(err, fmt.Sprintf("failed to get post-process worker pod on node %+v", node.Name))
+			return false
+		}
+		if _, ok := node.Labels[dcrh.kmmPostProcessor.GetWorkReadyLabel(types.NamespacedName{
+			Namespace: devConfig.Namespace,
+			Name:      devConfig.Name,
+		})]; ok {
+			logger.Info(fmt.Sprintf("post-process label still exist on node %+v", node.Name))
+			return false
+		}
+	}
+	return true
+}
+
+// findDeviceConfigsForNMC when a NMC changed, only trigger reconcile for related DeviceConfig
+func (drch *deviceConfigReconcilerHelper) findDeviceConfigsForNMC(ctx context.Context, nmc client.Object) []reconcile.Request {
+	reqs := []reconcile.Request{}
+	logger := log.FromContext(ctx)
+	nmcObj, ok := nmc.(*kmmv1beta1.NodeModulesConfig)
+	if !ok {
+		logger.Error(fmt.Errorf("failed to convert object %+v to NodeModulesConfig", nmc), "")
+		return reqs
+	}
+	reconcileDeviceConfig := func(moduleConfig kmmv1beta1.ModuleConfig, nsn types.NamespacedName) {
+		switch moduleConfig.Modprobe.ModuleName {
+		// only reconcile for the kernel module whose name is amdgpu or gim
+		case kmmmodule.ContainerDriverModuleName,
+			kmmmodule.VFPassthroughDriverModuleName:
+			reqs = append(reqs, reconcile.Request{
+				NamespacedName: nsn,
+			})
+		}
+	}
+	// reconcile for all the detected DeviceConfig in both NMC Spec and Status
+	// the external function EnqueueRequestsFromMapFunc is already deduplicating the reconcile request to the same DeviceConfig
+	for _, module := range nmcObj.Spec.Modules {
+		reconcileDeviceConfig(module.Config, types.NamespacedName{
+			Namespace: module.Namespace,
+			Name:      module.Name,
+		})
+	}
+	for _, module := range nmcObj.Status.Modules {
+		reconcileDeviceConfig(module.Config, types.NamespacedName{
+			Namespace: module.Namespace,
+			Name:      module.Name,
+		})
+	}
+	return reqs
 }
 
 func (dcrh *deviceConfigReconcilerHelper) handleBuildConfigMap(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig, nodes *v1.NodeList) error {
@@ -993,7 +981,7 @@ func (dcrh *deviceConfigReconcilerHelper) handleKMMModule(ctx context.Context, d
 func (dcrh *deviceConfigReconcilerHelper) handleDevicePlugin(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig, nodes *v1.NodeList) error {
 	logger := log.FromContext(ctx)
 	ds := &appsv1.DaemonSet{
-		ObjectMeta: metav1.ObjectMeta{Namespace: devConfig.Namespace, Name: devConfig.Name + "-device-plugin"},
+		ObjectMeta: metav1.ObjectMeta{Namespace: devConfig.Namespace, Name: devConfig.Name + utils.DevicePluginNameSuffix},
 	}
 
 	opRes, err := controllerutil.CreateOrPatch(ctx, dcrh.client, ds, func() error {
@@ -1027,7 +1015,7 @@ func (dcrh *deviceConfigReconcilerHelper) handleNodeLabeller(ctx context.Context
 		existingDS := &appsv1.DaemonSet{}
 		existingDSMetadata := types.NamespacedName{
 			Namespace: devConfig.Namespace,
-			Name:      devConfig.Name + "-node-labeller",
+			Name:      devConfig.Name + utils.NodeLabellerNameSuffix,
 		}
 		if err := dcrh.client.Get(ctx, existingDSMetadata, existingDS); err == nil {
 			logger.Info("disabling node labeller, deleting existing node labeller daemonset", "daemonset", existingDSMetadata.Name)
@@ -1045,7 +1033,7 @@ func (dcrh *deviceConfigReconcilerHelper) handleNodeLabeller(ctx context.Context
 	}
 
 	ds := &appsv1.DaemonSet{
-		ObjectMeta: metav1.ObjectMeta{Namespace: devConfig.Namespace, Name: devConfig.Name + "-node-labeller"},
+		ObjectMeta: metav1.ObjectMeta{Namespace: devConfig.Namespace, Name: devConfig.Name + utils.NodeLabellerNameSuffix},
 	}
 	opRes, err := controllerutil.CreateOrPatch(ctx, dcrh.client, ds, func() error {
 		return dcrh.nlHandler.SetNodeLabellerAsDesired(ds, devConfig)
@@ -1059,7 +1047,7 @@ func (dcrh *deviceConfigReconcilerHelper) handleNodeLabeller(ctx context.Context
 
 	// todo: temp. cleanup labels set by node-labeller
 	// not required once label cleanup is added in node-labeller
-	nodeLabels := func() string {
+	labelSelector, err := func() (labels.Selector, error) {
 		// nodes without gpu, kmm, dev-plugin
 		sel := []string{
 			"! " + utils.NodeFeatureLabelAmdGpu,
@@ -1068,8 +1056,8 @@ func (dcrh *deviceConfigReconcilerHelper) handleNodeLabeller(ctx context.Context
 
 		if devConfig.Spec.Driver.Enable != nil && *devConfig.Spec.Driver.Enable {
 			sel = append(sel,
-				"! "+labels.GetKernelModuleReadyNodeLabel(devConfig.Namespace, devConfig.Name),
-				"! "+labels.GetDevicePluginNodeLabel(devConfig.Namespace, devConfig.Name),
+				"! "+kmmLabels.GetKernelModuleReadyNodeLabel(devConfig.Namespace, devConfig.Name),
+				"! "+kmmLabels.GetDevicePluginNodeLabel(devConfig.Namespace, devConfig.Name),
 			)
 		}
 
@@ -1080,15 +1068,22 @@ func (dcrh *deviceConfigReconcilerHelper) handleNodeLabeller(ctx context.Context
 			}
 			sel = append(sel, fmt.Sprintf("%s=%s", k, v))
 		}
-		return strings.Join(sel, ",")
+		selector, err := labels.Parse(strings.Join(sel, ","))
+		if err != nil {
+			return nil, err
+		}
+		return selector, nil
 	}()
+	if err != nil {
+		return err
+	}
 
-	its, err := kmmmodule.GetK8SNodes(nodeLabels)
+	its, err := kmmmodule.GetK8SNodes(ctx, dcrh.client, labelSelector)
 	if err != nil {
 		logger.Info("failed to get node list ", err)
 		return nil
 	}
-	logger.Info(fmt.Sprintf("select (%v) found %v nodes", nodeLabels, len(its.Items)))
+	logger.Info(fmt.Sprintf("select (%v) found %v nodes", labelSelector, len(its.Items)))
 
 	if err := dcrh.updateNodeLabels(ctx, devConfig, its, false); err != nil {
 		logger.Error(err, "failed to update node labels")
@@ -1106,7 +1101,7 @@ func (dcrh *deviceConfigReconcilerHelper) handleModuleUpgrade(ctx context.Contex
 func (dcrh *deviceConfigReconcilerHelper) handleMetricsExporter(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig) error {
 	logger := log.FromContext(ctx)
 	ds := &appsv1.DaemonSet{
-		ObjectMeta: metav1.ObjectMeta{Namespace: devConfig.Namespace, Name: devConfig.Name + "-" + metricsexporter.ExporterName},
+		ObjectMeta: metav1.ObjectMeta{Namespace: devConfig.Namespace, Name: devConfig.Name + utils.MetricsExporterNameSuffix},
 	}
 
 	// delete if disabled
@@ -1197,7 +1192,7 @@ func (dcrh *deviceConfigReconcilerHelper) handleMetricsExporter(ctx context.Cont
 func (dcrh *deviceConfigReconcilerHelper) handleTestRunner(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig, nodes *v1.NodeList) error {
 	logger := log.FromContext(ctx)
 	ds := &appsv1.DaemonSet{
-		ObjectMeta: metav1.ObjectMeta{Namespace: devConfig.Namespace, Name: devConfig.Name + "-" + testrunner.TestRunnerName},
+		ObjectMeta: metav1.ObjectMeta{Namespace: devConfig.Namespace, Name: devConfig.Name + utils.TestRunnerNameSuffix},
 	}
 
 	// delete if disabled

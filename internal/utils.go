@@ -19,6 +19,7 @@ package utils
 import (
 	"context"
 	"fmt"
+	"regexp"
 	"strings"
 
 	"github.com/go-logr/logr"
@@ -32,6 +33,7 @@ import (
 )
 
 const (
+	KindDeviceConfig           = "DeviceConfig"
 	defaultOcDriversVersion    = "6.2.2"
 	openShiftNodeLabel         = "node.openshift.io/os_id"
 	NodeFeatureLabelAmdGpu     = "feature.node.kubernetes.io/amd-gpu"
@@ -48,6 +50,18 @@ const (
 	// kubevirt
 	DriverTypeContainer     = "container"
 	DriverTypeVFPassthrough = "vf-passthrough"
+	DefaultUtilsImage       = "docker.io/rocm/gpu-operator-utils:latest"
+	// workerMgr related labels
+	LoadVFIOAction              = "loadVFIO"
+	UnloadVFIOAction            = "unloadVFIO"
+	WorkerActionLabelKey        = "gpu.operator.amd.com/worker-action"
+	VFIOMountReadyLabelTemplate = "gpu.operator.amd.com/%v.%v.vfio.ready"
+	KMMModuleReadyLabelTemplate = "kmm.node.kubernetes.io/%v.%v.ready"
+	// Operand metadata
+	MetricsExporterNameSuffix = "-metrics-exporter"
+	TestRunnerNameSuffix      = "-test-runner"
+	DevicePluginNameSuffix    = "-device-plugin"
+	NodeLabellerNameSuffix    = "-node-labeller"
 )
 
 var (
@@ -211,4 +225,39 @@ func IsPrometheusServiceMonitorEnable(devConfig *amdv1alpha1.DeviceConfig) bool 
 		return true
 	}
 	return false
+}
+
+func GetDriverTypeTag(devCfg *amdv1alpha1.DeviceConfig) string {
+	driverTypeTag := ""
+	switch devCfg.Spec.Driver.DriverType {
+	case DriverTypeVFPassthrough:
+		driverTypeTag = "-" + DriverTypeVFPassthrough
+	case DriverTypeContainer:
+		driverTypeTag = "-" + DriverTypeContainer
+	}
+	return driverTypeTag
+}
+
+func generateRegexPattern(template string) string {
+	// Escape dots
+	pattern := strings.Replace(template, ".", `\.`, -1)
+	// Replace %v with .+ to match any valid characters
+	pattern = strings.Replace(pattern, "%v", "([^.]+)", 1)
+	pattern = strings.Replace(pattern, "%v", "(.+)", 1)
+	// Add start and end anchors
+	pattern = "^" + pattern + "$"
+	return pattern
+}
+
+func HasNodeLabelTemplateMatch(nodeLabels map[string]string, template string) (bool, string, string, string) {
+	pattern := generateRegexPattern(template)
+	re := regexp.MustCompile(pattern)
+	// Check each label key against the pattern
+	for key := range nodeLabels {
+		matches := re.FindStringSubmatch(key)
+		if len(matches) >= 3 {
+			return true, key, matches[1], matches[2]
+		}
+	}
+	return false, "", "", ""
 }
