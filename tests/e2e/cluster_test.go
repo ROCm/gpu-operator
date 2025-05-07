@@ -39,11 +39,13 @@ import (
 	"github.com/stretchr/testify/assert"
 	. "gopkg.in/check.v1"
 	batchv1 "k8s.io/api/batch/v1"
+	corev1 "k8s.io/api/core/v1"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/intstr"
+	"k8s.io/utils/ptr"
 
 	"github.com/ROCm/gpu-operator/api/v1alpha1"
 	"github.com/ROCm/gpu-operator/internal/kmmmodule"
@@ -838,6 +840,121 @@ func (s *E2ESuite) getNFDCurrentCSV() (currentCSV string) {
 	return
 }
 
+// setupKubeRbacCerts generates a CA, server TLS cert/key (with SANs), and optionally a client cert/key.
+func (s *E2ESuite) setupKubeRbacCerts(c *C, includeClient bool) (
+	caCertPEM, serverCertPEM, serverKeyPEM, clientCertPEM, clientKeyPEM []byte,
+	err error,
+) {
+	// Generate CA
+	caKey, err := rsa.GenerateKey(rand.Reader, 2048)
+	if err != nil {
+		return
+	}
+	caTmpl := x509.Certificate{
+		SerialNumber:          big.NewInt(1),
+		Subject:               pkix.Name{Organization: []string{"My CA"}},
+		NotBefore:             time.Now(),
+		NotAfter:              time.Now().Add(365 * 24 * time.Hour),
+		KeyUsage:              x509.KeyUsageKeyEncipherment | x509.KeyUsageDigitalSignature | x509.KeyUsageCertSign,
+		ExtKeyUsage:           []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth, x509.ExtKeyUsageClientAuth},
+		IsCA:                  true,
+		BasicConstraintsValid: true,
+	}
+	caDER, err := x509.CreateCertificate(rand.Reader, &caTmpl, &caTmpl, &caKey.PublicKey, caKey)
+	if err != nil {
+		return
+	}
+	caBuf := &bytes.Buffer{}
+	err = pem.Encode(caBuf, &pem.Block{Type: "CERTIFICATE", Bytes: caDER})
+	if err != nil {
+		return
+	}
+
+	// Generate Server cert/key with SANs
+	serverKey, err := rsa.GenerateKey(rand.Reader, 2048)
+	if err != nil {
+		return
+	}
+	nodeIPs, err := utils.GetNodeIPs(s.clientSet)
+	assert.NoError(c, err, "failed to get node IPs for SANs")
+	ips := make([]net.IP, 0, len(nodeIPs))
+	for _, ip := range nodeIPs {
+		ips = append(ips, net.ParseIP(ip))
+	}
+	serverTmpl := x509.Certificate{
+		SerialNumber: big.NewInt(2),
+		Subject:      pkix.Name{Organization: []string{"My TLS"}, CommonName: "metrics-server"},
+		NotBefore:    time.Now(),
+		NotAfter:     time.Now().Add(365 * 24 * time.Hour),
+		KeyUsage:     x509.KeyUsageKeyEncipherment | x509.KeyUsageDigitalSignature,
+		ExtKeyUsage:  []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
+		IPAddresses:  ips,
+	}
+	serverDER, err := x509.CreateCertificate(rand.Reader, &serverTmpl, &caTmpl, &serverKey.PublicKey, caKey)
+	if err != nil {
+		return
+	}
+	serverBuf := &bytes.Buffer{}
+	err = pem.Encode(serverBuf, &pem.Block{Type: "CERTIFICATE", Bytes: serverDER})
+	if err != nil {
+		return
+	}
+	err = pem.Encode(serverBuf, &pem.Block{Type: "CERTIFICATE", Bytes: caDER})
+	if err != nil {
+		return
+	}
+	keyBuf := &bytes.Buffer{}
+	privBytes, err := x509.MarshalPKCS8PrivateKey(serverKey)
+	if err != nil {
+		return
+	}
+	err = pem.Encode(keyBuf, &pem.Block{Type: "PRIVATE KEY", Bytes: privBytes})
+	if err != nil {
+		return
+	}
+
+	caCertPEM = caBuf.Bytes()
+	serverCertPEM = serverBuf.Bytes()
+	serverKeyPEM = keyBuf.Bytes()
+
+	if includeClient {
+		// Generate Client cert/key
+		clientKey, err := rsa.GenerateKey(rand.Reader, 2048)
+		if err != nil {
+			return
+		}
+		clientTmpl := x509.Certificate{
+			SerialNumber: big.NewInt(3),
+			Subject:      pkix.Name{Organization: []string{"My Client"}, CommonName: "metrics-reader"},
+			NotBefore:    time.Now(),
+			NotAfter:     time.Now().Add(365 * 24 * time.Hour),
+			KeyUsage:     x509.KeyUsageKeyEncipherment | x509.KeyUsageDigitalSignature,
+			ExtKeyUsage:  []x509.ExtKeyUsage{x509.ExtKeyUsageClientAuth},
+		}
+		clientDER, err := x509.CreateCertificate(rand.Reader, &clientTmpl, &caTmpl, &clientKey.PublicKey, caKey)
+		if err != nil {
+			return
+		}
+		cliCertBuf := &bytes.Buffer{}
+		err = pem.Encode(cliCertBuf, &pem.Block{Type: "CERTIFICATE", Bytes: clientDER})
+		if err != nil {
+			return
+		}
+		cliKeyBuf := &bytes.Buffer{}
+		privCliBytes, err := x509.MarshalPKCS8PrivateKey(clientKey)
+		if err != nil {
+			return
+		}
+		err = pem.Encode(cliKeyBuf, &pem.Block{Type: "PRIVATE KEY", Bytes: privCliBytes})
+		if err != nil {
+			return
+		}
+		clientCertPEM = cliCertBuf.Bytes()
+		clientKeyPEM = cliKeyBuf.Bytes()
+	}
+	return
+}
+
 func (s *E2ESuite) TestDeploymentWithPreInstalledKMMAndNFD(c *C) {
 	if s.simEnable {
 		c.Skip("Skipping for non amd gpu testbed")
@@ -1574,7 +1691,7 @@ func (s *E2ESuite) TestKubeRbacProxyNodePort(c *C) {
 
 	// Test 1: Run the curl job repeatedly using nodeport
 	assert.Eventually(c, func() bool {
-		err = utils.CurlMetrics(nodeIPs, token, int(devCfg.Spec.MetricsExporter.NodePort), true, "")
+		err = utils.CurlMetrics(nodeIPs, token, int(devCfg.Spec.MetricsExporter.NodePort), true, "", "", "")
 		if err != nil {
 			logger.Errorf("Error: %v", err.Error())
 			return false
@@ -1603,7 +1720,7 @@ func (s *E2ESuite) TestKubeRbacProxyNodePort(c *C) {
 
 	// Test 2: Run the curl job repeatedly using nodeport
 	assert.Eventually(c, func() bool {
-		err = utils.CurlMetrics(nodeIPs, token, int(devCfg.Spec.MetricsExporter.NodePort), false, "")
+		err = utils.CurlMetrics(nodeIPs, token, int(devCfg.Spec.MetricsExporter.NodePort), false, "", "", "")
 		if err != nil {
 			logger.Errorf("Error: %v", err.Error())
 			return false
@@ -1627,57 +1744,11 @@ func (s *E2ESuite) TestKubeRbacProxyNodePortCerts(c *C) {
 	assert.Errorf(c, err, "config deviceconfig-kuberbac-nodeport exists")
 
 	// Create the cacert, cert and private key
-	caPrivateKey, err := rsa.GenerateKey(rand.Reader, 2048)
-	assert.NoErrorf(c, err, "failed to create caPrivateKey")
-
-	caTemplate := x509.Certificate{
-		SerialNumber: big.NewInt(1),
-		Subject:      pkix.Name{Organization: []string{"My CA"}},
-		NotBefore:    time.Now(),
-		NotAfter:     time.Now().Add(365 * 24 * time.Hour),
-		KeyUsage:     x509.KeyUsageKeyEncipherment | x509.KeyUsageDigitalSignature | x509.KeyUsageCertSign,
-		ExtKeyUsage:  []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth, x509.ExtKeyUsageClientAuth},
-		IsCA:         true,
-	}
-	caCertDER, err := x509.CreateCertificate(rand.Reader, &caTemplate, &caTemplate, &caPrivateKey.PublicKey, caPrivateKey)
-	assert.NoErrorf(c, err, "failed to create caCert")
-
-	tlsPrivateKey, err := rsa.GenerateKey(rand.Reader, 2048)
-	assert.NoErrorf(c, err, "failed to create tlsPrivateKey")
-	tlsTemplate := x509.Certificate{
-		SerialNumber: big.NewInt(2),
-		Subject:      pkix.Name{Organization: []string{"My TLS"}},
-		NotBefore:    time.Now(),
-		NotAfter:     time.Now().Add(365 * 24 * time.Hour),
-		KeyUsage:     x509.KeyUsageKeyEncipherment | x509.KeyUsageDigitalSignature,
-		ExtKeyUsage:  []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
-		IPAddresses:  []net.IP{},
-	}
-
-	nodeIPs, err := utils.GetNodeIPs(s.clientSet)
-	assert.NoErrorf(c, err, "failed to get nodeIPs")
-	for _, ip := range nodeIPs {
-		tlsTemplate.IPAddresses = append(tlsTemplate.IPAddresses, net.ParseIP(ip))
-	}
-
-	tlsCertDER, err := x509.CreateCertificate(rand.Reader, &tlsTemplate, &caTemplate, &tlsPrivateKey.PublicKey, caPrivateKey)
-	assert.NoErrorf(c, err, "failed to create tlsCert")
-	combinedCertPEM := &bytes.Buffer{}
-	caCertPEM := &bytes.Buffer{}
-	err = pem.Encode(combinedCertPEM, &pem.Block{Type: "CERTIFICATE", Bytes: tlsCertDER})
-	assert.NoErrorf(c, err, "failed to encode certificate %v", err)
-	err = pem.Encode(combinedCertPEM, &pem.Block{Type: "CERTIFICATE", Bytes: caCertDER})
-	assert.NoErrorf(c, err, "failed to encode ca certificate %v", err)
-	err = pem.Encode(caCertPEM, &pem.Block{Type: "CERTIFICATE", Bytes: caCertDER})
-	assert.NoErrorf(c, err, "failed to encode ca certificate %v", err)
-	tlsKeyPEM := &bytes.Buffer{}
-	pkcs8PrivateKey, err := x509.MarshalPKCS8PrivateKey(tlsPrivateKey)
-	assert.NoErrorf(c, err, "failed to encode private key in PKCS#8 format")
-	err = pem.Encode(tlsKeyPEM, &pem.Block{Type: "PRIVATE KEY", Bytes: pkcs8PrivateKey})
-	assert.NoErrorf(c, err, "failed to encode private key %v", err)
+	caCert, serverCert, serverKey, _, _, err := s.setupKubeRbacCerts(c, false)
+	assert.NoErrorf(c, err, "failed to generate certs")
 
 	secretName := "kube-tls-secret"
-	err = utils.CreateTLSSecret(context.TODO(), s.clientSet, secretName, s.ns, combinedCertPEM.Bytes(), tlsKeyPEM.Bytes())
+	err = utils.CreateTLSSecret(context.TODO(), s.clientSet, secretName, s.ns, serverCert, serverKey)
 	assert.NoErrorf(c, err, fmt.Sprintf("failed to create secret %v", err))
 
 	logger.Info("create deviceconfig-kuberbac-nodeport")
@@ -1740,22 +1811,22 @@ func (s *E2ESuite) TestKubeRbacProxyNodePortCerts(c *C) {
 	}, 1*time.Minute, 10*time.Second)
 	assert.NoError(c, err, fmt.Sprintf("failed to generate token for default serviceaccount in metrics-client: %+v", err))
 
-	file, err := utils.CreateTempFile("cacert-*.crt", caCertPEM.Bytes())
+	file, err := utils.CreateTempFile("cacert-*.crt", caCert)
 	assert.NoError(c, err, fmt.Sprintf("failed to create cacert file: %v", err))
 
 	// Get the nodeIPs of the nodes where the daemonset pods are deployed
-	nodeIPs, err = utils.GetNodeIPsForDaemonSet(s.clientSet, devCfg.Name+"-"+metricsexporter.ExporterName, s.ns)
+	nodeIPs, err := utils.GetNodeIPsForDaemonSet(s.clientSet, devCfg.Name+"-"+metricsexporter.ExporterName, s.ns)
 
 	// Run the curl job repeatedly using nodeport
 	assert.Eventually(c, func() bool {
-		err = utils.CurlMetrics(nodeIPs, token, int(devCfg.Spec.MetricsExporter.NodePort), true, file.Name())
+		err = utils.CurlMetrics(nodeIPs, token, int(devCfg.Spec.MetricsExporter.NodePort), true, file.Name(), "", "")
 		if err != nil {
 			logger.Errorf("Error: %v", err.Error())
 			return false
 		}
 
 		return true
-	}, 3*time.Minute, 10*time.Second)
+	}, 2*time.Minute, 10*time.Second)
 	err = utils.DeleteTempFile(file)
 	assert.NoError(c, err, fmt.Sprintf("failed to delete cacert file: %v", err))
 
@@ -1770,6 +1841,124 @@ func (s *E2ESuite) TestKubeRbacProxyNodePortCerts(c *C) {
 		err = utils.HandleNodesReboot(context.TODO(), s.clientSet, nodes)
 		assert.NoError(c, err, "failed to reboot nodes")
 	}
+}
+
+// TestKubeRbacProxyNodePortMTLS exercises mTLS auth with User binding
+func (s *E2ESuite) TestKubeRbacProxyNodePortMTLS(c *C) {
+	// RBAC
+	err := utils.DeployResourcesFromFile("clusterrole_mtls.yaml", s.clientSet, true)
+	assert.NoError(c, err)
+	defer func() {
+		utils.DeployResourcesFromFile("clusterrole_mtls.yaml", s.clientSet, false)
+	}()
+
+	// Certs
+	caCert, serverCert, serverKey, clientCert, clientKey, err := s.setupKubeRbacCerts(c, true)
+	assert.NoError(c, err)
+
+	// Secret
+	secretName := "kube-tls-secret"
+	err = utils.CreateTLSSecret(context.TODO(), s.clientSet, secretName, s.ns, serverCert, serverKey)
+	assert.NoError(c, err)
+	defer utils.DeleteTLSSecret(context.TODO(), s.clientSet, secretName, s.ns)
+
+	// Client CA ConfigMap
+	cmName := "client-ca-cm"
+	cm := &corev1.ConfigMap{
+		ObjectMeta: metav1.ObjectMeta{Name: cmName, Namespace: s.ns},
+		Data:       map[string]string{"ca.crt": string(caCert)},
+	}
+	_, err = s.clientSet.CoreV1().ConfigMaps(s.ns).Create(context.TODO(), cm, metav1.CreateOptions{})
+	assert.NoError(c, err)
+	defer s.clientSet.CoreV1().ConfigMaps(s.ns).Delete(context.TODO(), cmName, metav1.DeleteOptions{})
+
+	// Temp files
+	caFile, err := utils.CreateTempFile("cacert-*.crt", caCert)
+	assert.NoError(c, err)
+	defer utils.DeleteTempFile(caFile)
+	certFile, err := utils.CreateTempFile("client-*.crt", clientCert)
+	assert.NoError(c, err)
+	defer utils.DeleteTempFile(certFile)
+	keyFile, err := utils.CreateTempFile("client-*.key", clientKey)
+	assert.NoError(c, err)
+	defer utils.DeleteTempFile(keyFile)
+	serverCertFile, err := utils.CreateTempFile("server-*.crt", serverCert)
+	assert.NoError(c, err)
+	defer utils.DeleteTempFile(serverCertFile)
+	serverKeyFile, err := utils.CreateTempFile("server-*.key", serverKey)
+	assert.NoError(c, err)
+	defer utils.DeleteTempFile(serverKeyFile)
+
+	// DeviceConfig
+	devCfg := s.getDeviceConfigFromFile(c, "devcfg_kuberbac_nodeport.yaml")
+	devCfg.Spec.MetricsExporter.RbacConfig.Enable = ptr.To(true)
+	devCfg.Spec.MetricsExporter.RbacConfig.Secret = &corev1.LocalObjectReference{Name: secretName}
+	devCfg.Spec.MetricsExporter.RbacConfig.ClientCAConfigMap = &corev1.LocalObjectReference{Name: cmName}
+	s.createDeviceConfig(devCfg, c)
+	s.checkMetricsExporterStatus(devCfg, s.ns, corev1.ServiceTypeNodePort, c)
+
+	// Curl mTLS
+	nodeIPs, err := utils.GetNodeIPsForDaemonSet(s.clientSet, devCfg.Name+"-"+metricsexporter.ExporterName, s.ns)
+	assert.NoError(c, err)
+	assert.Eventually(c, func() bool {
+		err = utils.CurlMetrics(nodeIPs, "", int(devCfg.Spec.MetricsExporter.NodePort), true, caFile.Name(), certFile.Name(), keyFile.Name())
+		if err != nil {
+			log.Errorf("Error: %v", err.Error())
+			return false
+		}
+
+		return true
+	}, 2*time.Minute, 10*time.Second)
+}
+
+// TestKubeRbacProxyNodePortMTLSWithStaticAuth verifies static-auth mapping
+func (s *E2ESuite) TestKubeRbacProxyNodePortMTLSWithStaticAuth(c *C) {
+	// No RBAC setup necessary
+	// Certs
+	caPEM, srvPEM, srvKeyPEM, cliPEM, cliKeyPEM, err := s.setupKubeRbacCerts(c, true)
+	assert.NoError(c, err)
+
+	// Secret & CA
+	secretName := "kube-tls-secret"
+	err = utils.CreateTLSSecret(context.TODO(), s.clientSet, secretName, s.ns, srvPEM, srvKeyPEM)
+	assert.NoError(c, err)
+	defer utils.DeleteTLSSecret(context.TODO(), s.clientSet, secretName, s.ns)
+
+	cmName := "client-ca-cm"
+	cm := &corev1.ConfigMap{ObjectMeta: metav1.ObjectMeta{Name: cmName, Namespace: s.ns}, Data: map[string]string{"ca.crt": string(caPEM)}}
+	_, err = s.clientSet.CoreV1().ConfigMaps(s.ns).Create(context.TODO(), cm, metav1.CreateOptions{})
+	assert.NoError(c, err)
+	defer s.clientSet.CoreV1().ConfigMaps(s.ns).Delete(context.TODO(), cmName, metav1.DeleteOptions{})
+
+	// Files
+	caFile, _ := utils.CreateTempFile("cacert-*.crt", caPEM)
+	defer utils.DeleteTempFile(caFile)
+	certFile, _ := utils.CreateTempFile("client-*.crt", cliPEM)
+	defer utils.DeleteTempFile(certFile)
+	keyFile, _ := utils.CreateTempFile("client-*.key", cliKeyPEM)
+	defer utils.DeleteTempFile(keyFile)
+
+	// DeviceConfig w/static-auth
+	devCfg := s.getDeviceConfigFromFile(c, "devcfg_kuberbac_nodeport.yaml")
+	devCfg.Spec.MetricsExporter.RbacConfig.Enable = ptr.To(true)
+	devCfg.Spec.MetricsExporter.RbacConfig.Secret = &corev1.LocalObjectReference{Name: secretName}
+	devCfg.Spec.MetricsExporter.RbacConfig.ClientCAConfigMap = &corev1.LocalObjectReference{Name: cmName}
+	devCfg.Spec.MetricsExporter.RbacConfig.StaticAuthorization = &v1alpha1.StaticAuthConfig{Enable: true, ClientName: "metrics-reader"}
+	s.createDeviceConfig(devCfg, c)
+	s.checkMetricsExporterStatus(devCfg, s.ns, corev1.ServiceTypeNodePort, c)
+
+	// Curl mTLS+static-auth
+	nodeIPs, err := utils.GetNodeIPsForDaemonSet(s.clientSet, devCfg.Name+"-"+metricsexporter.ExporterName, s.ns)
+	assert.NoError(c, err)
+	assert.Eventually(c, func() bool {
+		err = utils.CurlMetrics(nodeIPs, "", int(devCfg.Spec.MetricsExporter.NodePort), true, caFile.Name(), certFile.Name(), keyFile.Name())
+		if err != nil {
+			log.Errorf("Error: %v", err.Error())
+			return false
+		}
+
+		return true
+	}, 2*time.Minute, 10*time.Second)
 }
 
 func (s *E2ESuite) TestDeployDefaultDriver(c *C) {
