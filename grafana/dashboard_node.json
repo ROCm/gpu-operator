@@ -14,13 +14,6 @@
       "description": "",
       "type": "datasource",
       "pluginId": "__expr__"
-    },
-    {
-      "name": "VAR_G_METRICS_PREFIX",
-      "type": "constant",
-      "label": "metrics prefix",
-      "value": "",
-      "description": ""
     }
   ],
   "__elements": {},
@@ -2274,25 +2267,25 @@
   "templating": {
     "list": [
       {
+        "current": {
+          "selected": false,
+          "text": "",
+          "value": ""
+        },
         "description": "string to prefix names of metrics queries (e.g. gpu_gfx_activity -> amd_gpu_gfx_activity)",
         "hide": 2,
-        "label": "metrics prefix",
+        "label": "Metrics Prefix",
         "name": "g_metrics_prefix",
-        "query": "${VAR_G_METRICS_PREFIX}",
-        "skipUrlSync": false,
-        "type": "constant",
-        "current": {
-          "value": "${VAR_G_METRICS_PREFIX}",
-          "text": "${VAR_G_METRICS_PREFIX}",
-          "selected": false
-        },
         "options": [
           {
-            "value": "${VAR_G_METRICS_PREFIX}",
-            "text": "${VAR_G_METRICS_PREFIX}",
-            "selected": false
+            "selected": true,
+            "text": "",
+            "value": ""
           }
-        ]
+        ],
+        "query": "",
+        "skipUrlSync": false,
+        "type": "textbox"
       },
       {
         "current": {},
