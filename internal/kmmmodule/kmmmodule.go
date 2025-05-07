@@ -44,16 +44,15 @@ import (
 
 	"github.com/go-logr/logr"
 	kmmv1beta1 "github.com/rh-ecosystem-edge/kernel-module-management/api/v1beta1"
-	"github.com/rh-ecosystem-edge/kernel-module-management/pkg/labels"
+	kmmLabels "github.com/rh-ecosystem-edge/kernel-module-management/pkg/labels"
 	"golang.org/x/exp/maps"
 	appsv1 "k8s.io/api/apps/v1"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/intstr"
-	"k8s.io/client-go/kubernetes"
-	"k8s.io/client-go/rest"
 	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
@@ -67,8 +66,8 @@ const (
 	kubeletDevicePluginsVolumeName = "kubelet-device-plugins"
 	kubeletDevicePluginsPath       = "/var/lib/kubelet/device-plugins"
 	nodeVarLibFirmwarePath         = "/var/lib/firmware"
-	gpuDriverModuleName            = "amdgpu"
-	vGPUHostDriverModuleName       = "gim"
+	ContainerDriverModuleName      = "amdgpu"
+	VFPassthroughDriverModuleName  = "gim"
 	ttmModuleName                  = "amdttm"
 	kclModuleName                  = "amdkcl"
 	imageFirmwarePath              = "firmwareDir/updates"
@@ -287,7 +286,7 @@ func (km *kmmModule) SetDevicePluginAsDesired(ds *appsv1.DaemonSet, devConfig *a
 		nodeSelector[key] = val
 	}
 	if devConfig.Spec.Driver.Enable != nil && *devConfig.Spec.Driver.Enable {
-		nodeSelector[labels.GetKernelModuleReadyNodeLabel(devConfig.Namespace, devConfig.Name)] = ""
+		nodeSelector[kmmLabels.GetKernelModuleReadyNodeLabel(devConfig.Namespace, devConfig.Name)] = ""
 	}
 	imagePullSecrets := []v1.LocalObjectReference{}
 	if devConfig.Spec.DevicePlugin.ImageRegistrySecret != nil {
@@ -433,13 +432,13 @@ func setKMMModuleLoader(ctx context.Context, mod *kmmv1beta1.Module, devConfig *
 	}
 
 	var modLoadingOrder []string
-	var moduleName = gpuDriverModuleName
+	var moduleName = ContainerDriverModuleName
 	if !isOpenshift {
 		// specify this order fror k8s in order to make sure amdttm and amdkcl was properly cleaned up after deletion of CR
 		// module will be loaded in this order: amdkcl, amdttm, amdgpu
 		// module will be unloaded in this order: amdgpu, amdttm, amdkcl
 		modLoadingOrder = []string{
-			gpuDriverModuleName,
+			ContainerDriverModuleName,
 			ttmModuleName,
 			kclModuleName,
 		}
@@ -448,7 +447,7 @@ func setKMMModuleLoader(ctx context.Context, mod *kmmv1beta1.Module, devConfig *
 	firmwarePath := imageFirmwarePath
 	switch devConfig.Spec.Driver.DriverType {
 	case utils.DriverTypeVFPassthrough:
-		moduleName = vGPUHostDriverModuleName
+		moduleName = VFPassthroughDriverModuleName
 		modLoadingOrder = []string{}
 		firmwarePath = ""
 	}
@@ -615,8 +614,11 @@ func getKM(devConfig *amdv1alpha1.DeviceConfig, node v1.Node, inTreeModuleToRemo
 }
 
 func addNodeInfoSuffixToImageTag(imgStr, osName, driversVersion string, devCfg *amdv1alpha1.DeviceConfig) string {
+	// if driver is vGPU host, different GPU model's driver image would be different
+	// need to add a suffix to distinguish them
+	driverTypeInfo := utils.GetDriverTypeTag(devCfg)
 	// KMM will render and fulfill the value of ${KERNEL_FULL_VERSION}
-	tag := osName + "-${KERNEL_FULL_VERSION}-" + driversVersion
+	tag := osName + "-${KERNEL_FULL_VERSION}" + driverTypeInfo + "-" + driversVersion
 	// tag cannot be more than 128 chars
 	if len(tag) > 128 {
 		tag = tag[len(tag)-128:]
@@ -687,20 +689,16 @@ func ubuntuCMNameMapper(osImageStr string) string {
 	return fmt.Sprintf("%s-%s", os, trimmedVersion)
 }
 
-func GetK8SNodes(ls string) (*v1.NodeList, error) {
-	config, err := rest.InClusterConfig()
+func GetK8SNodes(ctx context.Context, cli client.Client, labelSelector labels.Selector) (*v1.NodeList, error) {
+	options := &client.ListOptions{
+		LabelSelector: labelSelector,
+	}
+	nodeList := &v1.NodeList{}
+	err := cli.List(ctx, nodeList, options)
 	if err != nil {
 		return nil, err
 	}
-	// creates the clientset
-	clientset, err := kubernetes.NewForConfig(config)
-	if err != nil {
-		return nil, err
-	}
-	options := metav1.ListOptions{
-		LabelSelector: ls,
-	}
-	return clientset.CoreV1().Nodes().List(context.TODO(), options)
+	return nodeList, nil
 }
 
 func MapToLabelSelector(selector map[string]string) string {
