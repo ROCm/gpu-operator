@@ -46,6 +46,8 @@ var (
 	vfioBindScript string
 	//go:embed scripts/vfio_unbind.sh
 	vfioUnbindScript string
+
+	WorkerPodGracePeriod int64 = 2
 )
 
 //go:generate mockgen -source=workermgr.go -package=workermgr -destination=mock_workermgr.go WorkerMgrAPI

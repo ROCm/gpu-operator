@@ -848,7 +848,7 @@ func (dcrh *deviceConfigReconcilerHelper) checkPostProcessFinalizeCondition(ctx 
 		pod, err := dcrh.kmmPostProcessor.GetWorkerPod(ctx, devConfig, &node)
 		if err == nil {
 			logger.Info(fmt.Sprintf("post-process worker pod %+v still exist on node %+v", pod.Name, node.Name))
-			if err := dcrh.client.Delete(ctx, pod); err != nil && !k8serrors.IsNotFound(err) {
+			if err := dcrh.client.Delete(ctx, pod, &client.DeleteOptions{GracePeriodSeconds: &workermgr.WorkerPodGracePeriod}); err != nil && !k8serrors.IsNotFound(err) {
 				logger.Error(err, "failed to delete existing worker pod")
 			}
 			return false
