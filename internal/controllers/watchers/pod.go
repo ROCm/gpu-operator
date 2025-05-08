@@ -155,9 +155,9 @@ func (h *PodEventHandler) handleWorkerMgrPodEvt(ctx context.Context, logger logr
 		// modify the node label based on action
 		switch action {
 		case utils.LoadVFIOAction:
-			h.workerMgr.AddWorkReadyLabel(ctx, logger, nsn, pod)
+			h.workerMgr.AddWorkReadyLabel(ctx, logger, nsn, pod.Spec.NodeName)
 		case utils.UnloadVFIOAction:
-			h.workerMgr.RemoveWorkReadyLabel(ctx, logger, nsn, pod)
+			h.workerMgr.RemoveWorkReadyLabel(ctx, logger, nsn, pod.Spec.NodeName)
 		}
 		// remove the completed pod
 		logger.Info(fmt.Sprintf("remove worker pod %v after its completion", pod.Name))
