@@ -649,8 +649,9 @@ spec:
                               (default false)
                             type: boolean
                           honorLabels:
+                            default: true
                             description: HonorLabels chooses the metric's labels on
-                              collisions with target labels (default false)
+                              collisions with target labels (default true)
                             type: boolean
                           honorTimestamps:
                             description: HonorTimestamps controls whether the scrape
