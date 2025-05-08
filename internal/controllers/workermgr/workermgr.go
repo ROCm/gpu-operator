@@ -38,6 +38,7 @@ import (
 
 const (
 	workerContainerName = "worker"
+	initContainerName   = "pci-device-detector"
 )
 
 var (
@@ -56,11 +57,11 @@ type WorkerMgrAPI interface {
 	// GetWorkerPod fetches the worker pod info from cluster
 	GetWorkerPod(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig, node *v1.Node) (*v1.Pod, error)
 	// Add a node label to mark that the work is completed
-	AddWorkReadyLabel(ctx context.Context, logger logr.Logger, nsn types.NamespacedName, pod *v1.Pod)
+	AddWorkReadyLabel(ctx context.Context, logger logr.Logger, nsn types.NamespacedName, nodeName string)
 	// GetWorkReadyLabel get the label key to mark that the work is completed
 	GetWorkReadyLabel(nsn types.NamespacedName) string
 	// Remove the node label that indicates the work is completed
-	RemoveWorkReadyLabel(ctx context.Context, logger logr.Logger, nsn types.NamespacedName, pod *v1.Pod)
+	RemoveWorkReadyLabel(ctx context.Context, logger logr.Logger, nsn types.NamespacedName, nodeName string)
 }
 
 type workerMgr struct {
@@ -105,11 +106,11 @@ func (w *workerMgr) Cleanup(ctx context.Context, devConfig *amdv1alpha1.DeviceCo
 	return err
 }
 
-func (w *workerMgr) AddWorkReadyLabel(ctx context.Context, logger logr.Logger, nsn types.NamespacedName, pod *v1.Pod) {
+func (w *workerMgr) AddWorkReadyLabel(ctx context.Context, logger logr.Logger, nsn types.NamespacedName, nodeName string) {
 	node := v1.Node{}
-	err := w.client.Get(ctx, types.NamespacedName{Name: pod.Spec.NodeName}, &node)
+	err := w.client.Get(ctx, types.NamespacedName{Name: nodeName}, &node)
 	if err != nil {
-		logger.Error(err, fmt.Sprintf("failed to get node resource %+v", pod.Spec.NodeName))
+		logger.Error(err, fmt.Sprintf("failed to get node resource %+v", nodeName))
 		return
 	}
 	patch := map[string]interface{}{
@@ -126,11 +127,11 @@ func (w *workerMgr) GetWorkReadyLabel(nsn types.NamespacedName) string {
 	return fmt.Sprintf(utils.VFIOMountReadyLabelTemplate, nsn.Namespace, nsn.Name)
 }
 
-func (w *workerMgr) RemoveWorkReadyLabel(ctx context.Context, logger logr.Logger, nsn types.NamespacedName, pod *v1.Pod) {
+func (w *workerMgr) RemoveWorkReadyLabel(ctx context.Context, logger logr.Logger, nsn types.NamespacedName, nodeName string) {
 	node := v1.Node{}
-	err := w.client.Get(ctx, types.NamespacedName{Name: pod.Spec.NodeName}, &node)
+	err := w.client.Get(ctx, types.NamespacedName{Name: nodeName}, &node)
 	if err != nil {
-		logger.Error(err, fmt.Sprintf("failed to get node resource %+v", pod.Spec.NodeName))
+		logger.Error(err, fmt.Sprintf("failed to get node resource %+v", nodeName))
 		return
 	}
 	patch := map[string]interface{}{
@@ -238,6 +239,29 @@ func (w *workerMgr) getPodDef(devConfig *amdv1alpha1.DeviceConfig, nodeName, act
 		},
 	}
 
+	// init container
+	initContainers := []v1.Container{}
+	switch action {
+	case utils.LoadVFIOAction:
+		// for loading device to VFIO driver
+		// need to use init container to make sure the device exists
+		initContainers = []v1.Container{
+			{
+				Name:    initContainerName,
+				Image:   utilsContainerImage,
+				Command: []string{"sh", "-c", "while ! lspci -nn | grep -q -e 7410 -e 74b5 -e 74b9; do echo \"PCI device not found\"; sleep 2; done"},
+				SecurityContext: &v1.SecurityContext{
+					RunAsUser:  ptr.To(int64(0)),
+					Privileged: ptr.To(true),
+				},
+				VolumeMounts: volumeMounts,
+			},
+		}
+		// for unloading device from VFIO
+		// VF devices are already removed due to the removal of GIM driver
+		// no need to use an init container to detect them
+	}
+
 	worker := &v1.Pod{
 		TypeMeta: metav1.TypeMeta{
 			APIVersion: "v1",
@@ -251,7 +275,8 @@ func (w *workerMgr) getPodDef(devConfig *amdv1alpha1.DeviceConfig, nodeName, act
 			},
 		},
 		Spec: v1.PodSpec{
-			NodeName: nodeName,
+			NodeName:       nodeName,
+			InitContainers: initContainers,
 			Containers: []v1.Container{
 				{
 					Name:    workerContainerName,
@@ -272,6 +297,9 @@ func (w *workerMgr) getPodDef(devConfig *amdv1alpha1.DeviceConfig, nodeName, act
 	// add image pull policy if specified
 	if devConfig.Spec.CommonConfig.UtilsContainer.ImagePullPolicy != "" {
 		worker.Spec.Containers[0].ImagePullPolicy = v1.PullPolicy(devConfig.Spec.CommonConfig.UtilsContainer.ImagePullPolicy)
+		if len(worker.Spec.InitContainers) > 0 {
+			worker.Spec.InitContainers[0].ImagePullPolicy = v1.PullPolicy(devConfig.Spec.CommonConfig.UtilsContainer.ImagePullPolicy)
+		}
 	}
 	// add image pull secret if specified
 	if devConfig.Spec.CommonConfig.UtilsContainer.ImageRegistrySecret != nil {
