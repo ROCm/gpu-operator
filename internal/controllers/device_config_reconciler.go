@@ -848,17 +848,26 @@ func (dcrh *deviceConfigReconcilerHelper) checkPostProcessFinalizeCondition(ctx 
 		pod, err := dcrh.kmmPostProcessor.GetWorkerPod(ctx, devConfig, &node)
 		if err == nil {
 			logger.Info(fmt.Sprintf("post-process worker pod %+v still exist on node %+v", pod.Name, node.Name))
+			if err := dcrh.client.Delete(ctx, pod); err != nil && !k8serrors.IsNotFound(err) {
+				logger.Error(err, "failed to delete existing worker pod")
+			}
 			return false
 		}
 		if !k8serrors.IsNotFound(err) {
 			logger.Error(err, fmt.Sprintf("failed to get post-process worker pod on node %+v", node.Name))
 			return false
 		}
-		if _, ok := node.Labels[dcrh.kmmPostProcessor.GetWorkReadyLabel(types.NamespacedName{
+		vfioReadyLabel := dcrh.kmmPostProcessor.GetWorkReadyLabel(types.NamespacedName{
 			Namespace: devConfig.Namespace,
 			Name:      devConfig.Name,
-		})]; ok {
+		})
+		if _, ok := node.Labels[vfioReadyLabel]; ok {
 			logger.Info(fmt.Sprintf("post-process label still exist on node %+v", node.Name))
+			nodeCopy := node.DeepCopy()
+			delete(node.Labels, vfioReadyLabel)
+			if err := dcrh.client.Patch(ctx, &node, client.MergeFrom(nodeCopy)); err != nil && !k8serrors.IsNotFound(err) {
+				logger.Error(err, "failed to remove vfio ready label from node", "node", node.Name)
+			}
 			return false
 		}
 	}
