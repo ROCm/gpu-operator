@@ -233,7 +233,10 @@ func GetDriverTypeTag(devCfg *amdv1alpha1.DeviceConfig) string {
 	case DriverTypeVFPassthrough:
 		driverTypeTag = "-" + DriverTypeVFPassthrough
 	case DriverTypeContainer:
-		driverTypeTag = "-" + DriverTypeContainer
+		// when the driver type is container
+		// don't add any driver type inside the driver image tag
+		// in order to make sure driver image tag is backward compatible
+		// so that the driver image tag built before KubeVirt integration could still apply
 	}
 	return driverTypeTag
 }

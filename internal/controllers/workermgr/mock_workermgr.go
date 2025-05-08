@@ -59,15 +59,15 @@ func (m *MockWorkerMgrAPI) EXPECT() *MockWorkerMgrAPIMockRecorder {
 }
 
 // AddWorkReadyLabel mocks base method.
-func (m *MockWorkerMgrAPI) AddWorkReadyLabel(ctx context.Context, logger logr.Logger, nsn types.NamespacedName, pod *v1.Pod) {
+func (m *MockWorkerMgrAPI) AddWorkReadyLabel(ctx context.Context, logger logr.Logger, nsn types.NamespacedName, nodeName string) {
 	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "AddWorkReadyLabel", ctx, logger, nsn, pod)
+	m.ctrl.Call(m, "AddWorkReadyLabel", ctx, logger, nsn, nodeName)
 }
 
 // AddWorkReadyLabel indicates an expected call of AddWorkReadyLabel.
-func (mr *MockWorkerMgrAPIMockRecorder) AddWorkReadyLabel(ctx, logger, nsn, pod any) *gomock.Call {
+func (mr *MockWorkerMgrAPIMockRecorder) AddWorkReadyLabel(ctx, logger, nsn, nodeName any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AddWorkReadyLabel", reflect.TypeOf((*MockWorkerMgrAPI)(nil).AddWorkReadyLabel), ctx, logger, nsn, pod)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AddWorkReadyLabel", reflect.TypeOf((*MockWorkerMgrAPI)(nil).AddWorkReadyLabel), ctx, logger, nsn, nodeName)
 }
 
 // Cleanup mocks base method.
@@ -114,15 +114,15 @@ func (mr *MockWorkerMgrAPIMockRecorder) GetWorkerPod(ctx, devConfig, node any) *
 }
 
 // RemoveWorkReadyLabel mocks base method.
-func (m *MockWorkerMgrAPI) RemoveWorkReadyLabel(ctx context.Context, logger logr.Logger, nsn types.NamespacedName, pod *v1.Pod) {
+func (m *MockWorkerMgrAPI) RemoveWorkReadyLabel(ctx context.Context, logger logr.Logger, nsn types.NamespacedName, nodeName string) {
 	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "RemoveWorkReadyLabel", ctx, logger, nsn, pod)
+	m.ctrl.Call(m, "RemoveWorkReadyLabel", ctx, logger, nsn, nodeName)
 }
 
 // RemoveWorkReadyLabel indicates an expected call of RemoveWorkReadyLabel.
-func (mr *MockWorkerMgrAPIMockRecorder) RemoveWorkReadyLabel(ctx, logger, nsn, pod any) *gomock.Call {
+func (mr *MockWorkerMgrAPIMockRecorder) RemoveWorkReadyLabel(ctx, logger, nsn, nodeName any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RemoveWorkReadyLabel", reflect.TypeOf((*MockWorkerMgrAPI)(nil).RemoveWorkReadyLabel), ctx, logger, nsn, pod)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RemoveWorkReadyLabel", reflect.TypeOf((*MockWorkerMgrAPI)(nil).RemoveWorkReadyLabel), ctx, logger, nsn, nodeName)
 }
 
 // Work mocks base method.
