@@ -432,7 +432,7 @@ spec:
         x-descriptors:
         - urn:alm:descriptor:com.amd.deviceconfigs:enable
       - description: HonorLabels chooses the metric's labels on collisions with target
-          labels (default false)
+          labels (default true)
         displayName: HonorLabels
         path: metricsExporter.prometheus.serviceMonitor.honorLabels
         x-descriptors:
