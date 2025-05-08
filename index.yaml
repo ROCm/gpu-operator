@@ -3,7 +3,7 @@ entries:
   gpu-operator-charts:
   - apiVersion: v2
     appVersion: v1.2.2
-    created: "2025-05-08T16:03:11.068294331Z"
+    created: "2025-05-08T17:02:55.687880352Z"
     dependencies:
     - condition: node-feature-discovery.enabled
       name: node-feature-discovery
@@ -39,7 +39,7 @@ entries:
     version: v1.2.2
   - apiVersion: v2
     appVersion: v1.2.2
-    created: "2025-05-08T16:03:11.120889064Z"
+    created: "2025-05-08T17:02:55.739720204Z"
     dependencies:
     - condition: node-feature-discovery.enabled
       name: node-feature-discovery
@@ -71,11 +71,11 @@ entries:
     - https://github.com/ROCm/gpu-operator
     type: application
     urls:
-    - https://rocm.github.io/gpu-operator/charts/gpu-operator-helm-k8s-v1.2.2.tgz
+    - https://rocm.github.io/gpu-operator/charts/gpu-operator-charts-v1.2.2.tgz
     version: v1.2.2
   - apiVersion: v2
     appVersion: v1.2.2
-    created: "2025-05-08T16:03:11.135132972Z"
+    created: "2025-05-08T17:02:55.75025569Z"
     dependencies:
     - condition: node-feature-discovery.enabled
       name: node-feature-discovery
@@ -111,7 +111,7 @@ entries:
     version: v1.2.2
   - apiVersion: v2
     appVersion: v1.2.1
-    created: "2025-05-08T16:03:11.114924567Z"
+    created: "2025-05-08T17:02:55.725380849Z"
     dependencies:
     - condition: node-feature-discovery.enabled
       name: node-feature-discovery
@@ -147,7 +147,7 @@ entries:
     version: v1.2.1
   - apiVersion: v2
     appVersion: v1.2.0
-    created: "2025-05-08T16:03:11.102930561Z"
+    created: "2025-05-08T17:02:55.71944234Z"
     dependencies:
     - condition: node-feature-discovery.enabled
       name: node-feature-discovery
@@ -183,7 +183,7 @@ entries:
     version: v1.2.0
   - apiVersion: v2
     appVersion: v1.1.0
-    created: "2025-05-08T16:03:11.089967373Z"
+    created: "2025-05-08T17:02:55.707698763Z"
     dependencies:
     - condition: node-feature-discovery.enabled
       name: node-feature-discovery
@@ -219,7 +219,7 @@ entries:
     version: v1.1.0
   - apiVersion: v2
     appVersion: v1.0.0
-    created: "2025-05-08T16:03:11.083836584Z"
+    created: "2025-05-08T17:02:55.694083295Z"
     dependencies:
     - condition: node-feature-discovery.enabled
       name: node-feature-discovery
@@ -253,4 +253,4 @@ entries:
     urls:
     - https://rocm.github.io/gpu-operator/charts/gpu-operator-charts-v1.0.0.tgz
     version: v1.0.0
-generated: "2025-05-08T16:03:11.061721674Z"
+generated: "2025-05-08T17:02:55.674770724Z"
