@@ -153,7 +153,7 @@ func (h *NodeEventHandler) Update(ctx context.Context, evt event.UpdateEvent, q 
 		!reflect.DeepEqual(oldNode.Labels, newNode.Labels) {
 		h.reconcileAllDeviceConfigs(ctx, q)
 	}
-	h.handlePostProcess(ctx, logger, newNode)
+	h.handlePostProcess(ctx, logger, oldNode, newNode)
 }
 
 func (h *NodeEventHandler) reconcileAllDeviceConfigs(ctx context.Context, q workqueue.TypedRateLimitingInterface[reconcile.Request]) {
@@ -207,7 +207,7 @@ func (h *NodeEventHandler) reconcileRelatedDeviceConfig(ctx context.Context, obj
 	}
 }
 
-func (h *NodeEventHandler) handlePostProcess(ctx context.Context, logger logr.Logger, node *v1.Node) {
+func (h *NodeEventHandler) handlePostProcess(ctx context.Context, logger logr.Logger, oldNode, node *v1.Node) {
 	hasVFIOReadyLabel, vfioLabel, vfioDevConfigNamespace, vfioDevConfigName := utils.HasNodeLabelTemplateMatch(node.Labels, utils.VFIOMountReadyLabelTemplate)
 	hasModuleReadyLabel, moduleLabel, moduleDevConfigNamespace, moduleDevConfigName := utils.HasNodeLabelTemplateMatch(node.Labels, utils.KMMModuleReadyLabelTemplate)
 	if hasModuleReadyLabel && !hasVFIOReadyLabel {
@@ -248,5 +248,15 @@ func (h *NodeEventHandler) handlePostProcess(ctx context.Context, logger logr.Lo
 		if err := h.workerMgr.Cleanup(ctx, devConfig, node); err != nil {
 			logger.Error(err, "failed to create cleanup worker pod")
 		}
+	} else if hasModuleReadyLabel && hasVFIOReadyLabel &&
+		oldNode.Status.NodeInfo.BootID != node.Status.NodeInfo.BootID {
+		// if the node was rebooted
+		// don't wait for KMM to remove the module ready label then wait for workermgr to trigger a unload worker
+		// directly remove the VFIO ready label
+		// so that the event handler will bring up a new worker pod to load device into VFIO
+		h.workerMgr.RemoveWorkReadyLabel(ctx, logger, types.NamespacedName{
+			Namespace: vfioDevConfigNamespace,
+			Name:      vfioDevConfigName,
+		}, node.Name)
 	}
 }
