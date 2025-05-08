@@ -1063,12 +1063,19 @@ func (dcrh *deviceConfigReconcilerHelper) handleNodeLabeller(ctx context.Context
 		// nodes without gpu, kmm, dev-plugin
 		sel := []string{
 			"! " + utils.NodeFeatureLabelAmdGpu,
-			"! " + labels.GetKernelModuleReadyNodeLabel(devConfig.Namespace, devConfig.Name),
-			"! " + labels.GetDevicePluginNodeLabel(devConfig.Namespace, devConfig.Name),
+			"! " + utils.NodeFeatureLabelAmdVGpu,
+		}
+
+		if devConfig.Spec.Driver.Enable != nil && *devConfig.Spec.Driver.Enable {
+			sel = append(sel,
+				"! "+labels.GetKernelModuleReadyNodeLabel(devConfig.Namespace, devConfig.Name),
+				"! "+labels.GetDevicePluginNodeLabel(devConfig.Namespace, devConfig.Name),
+			)
 		}
 
 		for k, v := range devConfig.Spec.Selector {
-			if k == utils.NodeFeatureLabelAmdGpu { // skip
+			if k == utils.NodeFeatureLabelAmdGpu ||
+				k == utils.NodeFeatureLabelAmdVGpu { // skip
 				continue
 			}
 			sel = append(sel, fmt.Sprintf("%s=%s", k, v))
