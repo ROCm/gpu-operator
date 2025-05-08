@@ -2423,7 +2423,7 @@
         "type": "prometheus",
         "uid": "${DS_PROMETHEUS}"
       },
-      "description": "List of all GPUs used by this job.",
+      "description": "List of all GPUs used by this job. Health is the last known status of the GPU during a running job in the selected time range.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -2573,7 +2573,7 @@
         "showHeader": true,
         "sortBy": [
           {
-            "desc": true,
+            "desc": false,
             "displayName": "HEALTH"
           },
           {
@@ -2593,8 +2593,8 @@
             "type": "prometheus",
             "uid": "${DS_PROMETHEUS}"
           },
-          "editorMode": "builder",
-          "expr": "${g_metrics_prefix}gpu_health{job_id!=\"\", job_id=\"$g_job_id\"}",
+          "editorMode": "code",
+          "expr": "${g_metrics_prefix}gpu_health{job_id!=\"\", job_id=\"$g_job_id\"} or vector(0)",
           "instant": false,
           "legendFormat": "__auto",
           "range": true,
@@ -2605,8 +2605,8 @@
             "type": "prometheus",
             "uid": "${DS_PROMETHEUS}"
           },
-          "editorMode": "builder",
-          "expr": "${g_metrics_prefix}gpu_health{pod!=\"\", pod=\"$g_pod\"}",
+          "editorMode": "code",
+          "expr": "${g_metrics_prefix}gpu_health{pod!=\"\", pod=\"$g_pod\"} or vector(0)",
           "hide": false,
           "instant": false,
           "legendFormat": "__auto",
@@ -2675,6 +2675,22 @@
               "gpu_uuid": "GPU UUID",
               "hostname (last)": "HOSTNAME"
             }
+          }
+        },
+        {
+          "id": "filterByValue",
+          "options": {
+            "filters": [
+              {
+                "config": {
+                  "id": "isNull",
+                  "options": {}
+                },
+                "fieldName": "GPU UUID"
+              }
+            ],
+            "match": "any",
+            "type": "exclude"
           }
         }
       ],

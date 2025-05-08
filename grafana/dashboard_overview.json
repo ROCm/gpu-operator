@@ -2120,7 +2120,7 @@
         "showHeader": true,
         "sortBy": [
           {
-            "desc": true,
+            "desc": false,
             "displayName": "HEALTH"
           },
           {
