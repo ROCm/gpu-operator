@@ -110,7 +110,7 @@ SHELL = /usr/bin/env bash -o pipefail
 DOCKER_GID := $(shell stat -c '%g' /var/run/docker.sock)
 USER_UID := $(shell id -u)
 USER_GID := $(shell id -g)
-DOCKER_BUILDER_TAG := v1.1
+DOCKER_BUILDER_TAG := v1.2
 DOCKER_BUILDER_IMAGE := $(DOCKER_REGISTRY)/gpu-operator-build:$(DOCKER_BUILDER_TAG)
 CONTAINER_WORKDIR := /gpu-operator
 BUILD_BASE_IMG ?= ubuntu:22.04
@@ -132,6 +132,7 @@ default: docker-build-env ## Quick start to build everything from docker shell c
 		-v $(CURDIR):/gpu-operator \
 		-v $(CURDIR):/home/$(shell whoami)/go/src/github.com/ROCm/gpu-operator \
 		-v $(HOME)/.ssh:/home/$(shell whoami)/.ssh \
+		-v /var/run/docker.sock:/var/run/docker.sock \
 		-w $(CONTAINER_WORKDIR) \
 		$(DOCKER_BUILDER_IMAGE) \
 		bash -c "source ~/.bashrc && cd /gpu-operator && git config --global --add safe.directory /gpu-operator && make all && GOFLAGS=-mod=mod go run tools/build/copyright/main.go && make fmt"
@@ -268,7 +269,7 @@ manager: $(shell find -name "*.go") go.mod go.sum  ## Build manager binary.
 
 .PHONY: docker-build
 docker-build: ## Build docker image with the manager.
-	docker build -t $(IMG) --label HOURLY_TAG=$(HOURLY_TAG_LABEL) --build-arg TARGET=manager --build-arg GOLANG_BASE_IMG=$(GOLANG_BASE_IMG) .
+	DOCKER_BUILDKIT=1 docker build -t $(IMG) --label HOURLY_TAG=$(HOURLY_TAG_LABEL) --build-arg TARGET=manager --build-arg GOLANG_BASE_IMG=$(GOLANG_BASE_IMG) .
 
 .PHONY: docker-push
 docker-push: ## Push docker image with the manager.
