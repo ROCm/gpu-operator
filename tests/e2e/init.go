@@ -22,16 +22,18 @@ import (
 )
 
 var (
-	initContainerImage     string
-	kubeRbacProxyCurlImage string
-	exporterImage          string
-	exporterImage2         string
-	devicePluginImage      string
-	nodeLabellerImage      string
-	devicePluginImage2     string
-	nodeLabellerImage2     string
-	testRunnerImage        string
-	driverImageRepo        string
+	initContainerImage            string
+	kubeRbacProxyCurlImage        string
+	exporterImage                 string
+	exporterImage2                string
+	devicePluginImage             string
+	nodeLabellerImage             string
+	devicePluginImage2            string
+	nodeLabellerImage2            string
+	testRunnerImage               string
+	driverImageRepo               string
+	kubeVirtHostDevicePluginImage string
+	kubeVirtHostNodeLabellerImage string
 )
 
 func init() {
@@ -76,5 +78,13 @@ func init() {
 	driverImageRepo, ok = os.LookupEnv("E2E_DRIVER_IMAGE_REPO")
 	if !ok {
 		log.Fatalf("E2E_DRIVER_IMAGE_REPO is not defined. Please prepare a iamge registry repo to store your driver image and put the image repo URL into E2E_DRIVER_IMAGE_REPO. E.g. docker.io/<your username>/amdgpu-driver-image")
+	}
+	kubeVirtHostDevicePluginImage, ok = os.LookupEnv("E2E_KUBEVIRT_DEVICE_PLUGIN_IMAGE")
+	if !ok {
+		log.Fatalf("E2E_KUBEVIRT_DEVICE_PLUGIN_IMAGE is not defined.")
+	}
+	kubeVirtHostNodeLabellerImage, ok = os.LookupEnv("E2E_KUBEVIRT_NODE_LABELLER_IMAGE")
+	if !ok {
+		log.Fatalf("E2E_KUBEVIRT_NODE_LABELLER_IMAGE is not defined.")
 	}
 }
