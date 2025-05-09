@@ -141,6 +141,7 @@ func (n *upgradeMgr) HandleUpgrade(ctx context.Context, deviceConfig *amdv1alpha
 						}
 					}
 				} else {
+					go n.helper.deleteRebootPod(ctx, nodeName, *deviceConfig, true)
 					log.FromContext(ctx).Info(fmt.Sprintf("Node: %v: Resetting Upgrade State to UpgradeStateEmpty", nodeName))
 					n.helper.setNodeStatus(ctx, nodeName, amdv1alpha1.UpgradeStateEmpty)
 				}
