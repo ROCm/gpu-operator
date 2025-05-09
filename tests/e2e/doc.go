@@ -18,6 +18,8 @@ package e2e
 
 import (
 	"github.com/ROCm/gpu-operator/tests/e2e/client"
+	monitoringClient "github.com/prometheus-operator/prometheus-operator/pkg/client/versioned"
+	apiextClient "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
 	"k8s.io/client-go/kubernetes"
 )
 
@@ -35,4 +37,6 @@ type E2ESuite struct {
 	openshift            bool
 	simEnable            bool
 	ciEnv                bool
+	monClient            monitoringClient.Interface
+	apiClientSet         *apiextClient.Clientset
 }
