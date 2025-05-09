@@ -11,7 +11,6 @@ term() {
 # Optionally run Docker in the container if you need nested Docker
 #sudo dockerd -s vfs &
 trap term INT TERM
-dockerd -s vfs &
 
 # If your build or environment requires this sysctl tweak
 sudo sysctl -w vm.max_map_count=262144 || true
@@ -40,7 +39,7 @@ if [[ -n "${USER_NAME:-}" && -n "${USER_UID:-}" && -n "${USER_GID:-}" ]]; then
 	su - "$USER_NAME" -c "echo 'export GOPATH=/home/$USER_NAME/go' >> ~/.bashrc"
 	su - "$USER_NAME" -c "echo 'export PATH=\$GOPATH/bin:/usr/local/go/bin:\$PATH' >> ~/.bashrc"
 	su - "$USER_NAME" -c "echo 'export PATH=/usr/local/go/bin:\$PATH' >> ~/.bashrc"
-	exec su - "$USER_NAME" -c "$@"
+	exec gosu "$USER_NAME" bash -c "$@"
 else
 	echo "Running as default user (root)..."
 	exec "$@"
