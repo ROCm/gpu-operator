@@ -27,16 +27,20 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ROCm/gpu-operator/tests/e2e/utils"
-	"github.com/stretchr/testify/assert"
-
-	"github.com/ROCm/gpu-operator/tests/e2e/client"
+	monitoringClient "github.com/prometheus-operator/prometheus-operator/pkg/client/versioned"
 	"github.com/sirupsen/logrus"
+	"github.com/stretchr/testify/assert"
 	. "gopkg.in/check.v1"
+	apiextv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
+	apiextClient "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/client-go/util/homedir"
+
+	"github.com/ROCm/gpu-operator/tests/e2e/client"
+	"github.com/ROCm/gpu-operator/tests/e2e/utils"
 )
 
 var logger = logrus.Logger{
@@ -93,12 +97,32 @@ func (s *E2ESuite) SetUpSuite(c *C) {
 	}
 	s.dClient = dcCli
 
+	err = apiextv1.AddToScheme(scheme.Scheme)
+	if err != nil {
+		c.Fatalf("Error: %v", err.Error())
+	}
+
 	// creates the clientset
 	cs, err := kubernetes.NewForConfig(config)
 	if err != nil {
 		c.Fatalf(err.Error())
 	}
 	s.clientSet = cs
+
+	// create the apiext clientset
+	apiClientSet, err := apiextClient.NewForConfig(config)
+	if err != nil {
+		c.Fatalf("Error: %v", err.Error())
+	}
+	s.apiClientSet = apiClientSet
+
+	// create the monitoring client
+	monClient, err := monitoringClient.NewForConfig(config)
+	if err != nil {
+		c.Fatalf("Error: %v", err.Error())
+	}
+	s.monClient = monClient
+
 	s.clusterType = utils.GetClusterType(config)
 
 	if s.openshift == false {
