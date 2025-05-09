@@ -14,6 +14,8 @@ E2E_NODE_LABELLER_IMAGE ?= rocm/k8s-device-plugin:labeller-latest
 E2E_DEVICE_PLUGIN_IMAGE_2 ?= rocm/k8s-device-plugin:1.31.0.6
 E2E_NODE_LABELLER_IMAGE_2 ?= rocm/k8s-device-plugin:labeller-1.31.0.6
 E2E_TEST_RUNNER_IMAGE ?= rocm/test-runner:v1.3.1
+E2E_KUBEVIRT_DEVICE_PLUGIN_IMAGE ?= rocm/k8s-device-plugin:latest
+E2E_KUBEVIRT_NODE_LABELLER_IMAGE ?= rocm/k8s-device-plugin:labeller-latest
 
 export E2E_INIT_CONTAINER_IMAGE
 export E2E_KUBE_RBAC_PROXY_CURL_IMAGE
@@ -26,6 +28,8 @@ export E2E_NODE_LABELLER_IMAGE
 export E2E_DEVICE_PLUGIN_IMAGE_2
 export E2E_NODE_LABELLER_IMAGE_2
 export E2E_TEST_RUNNER_IMAGE
+export E2E_KUBEVIRT_DEVICE_PLUGIN_IMAGE
+export E2E_KUBEVIRT_NODE_LABELLER_IMAGE
 
 export E2E_DCM_IMAGE
 export E2E_NODEAPP_IMG
