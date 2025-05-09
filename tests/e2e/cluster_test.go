@@ -29,6 +29,7 @@ import (
 	"fmt"
 	"math/big"
 	"net"
+	"os"
 	"os/exec"
 	"strings"
 	"time"
@@ -36,20 +37,24 @@ import (
 	"github.com/ROCm/gpu-operator/internal/configmanager"
 	"github.com/ROCm/gpu-operator/internal/metricsexporter"
 
+	"github.com/ROCm/gpu-operator/api/v1alpha1"
+	"github.com/ROCm/gpu-operator/internal/conditions"
+	"github.com/ROCm/gpu-operator/internal/kmmmodule"
+	"github.com/ROCm/gpu-operator/tests/e2e/utils"
+	monitoringv1 "github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring/v1"
 	"github.com/stretchr/testify/assert"
 	. "gopkg.in/check.v1"
 	batchv1 "k8s.io/api/batch/v1"
-	corev1 "k8s.io/api/core/v1"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/utils/ptr"
+)
 
-	"github.com/ROCm/gpu-operator/api/v1alpha1"
-	"github.com/ROCm/gpu-operator/internal/kmmmodule"
-	"github.com/ROCm/gpu-operator/tests/e2e/utils"
+const (
+	serviceMonitorCRDURL = "https://raw.githubusercontent.com/prometheus-operator/prometheus-operator/v0.81.0/example/prometheus-operator-crd/monitoring.coreos.com_servicemonitors.yaml"
 )
 
 func (s *E2ESuite) getDeviceConfigForDCM(c *C) *v1alpha1.DeviceConfig {
@@ -919,7 +924,9 @@ func (s *E2ESuite) setupKubeRbacCerts(c *C, includeClient bool) (
 
 	if includeClient {
 		// Generate Client cert/key
-		clientKey, err := rsa.GenerateKey(rand.Reader, 2048)
+		var clientKey *rsa.PrivateKey
+		var clientDER, privCliBytes []byte
+		clientKey, err = rsa.GenerateKey(rand.Reader, 2048)
 		if err != nil {
 			return
 		}
@@ -931,7 +938,7 @@ func (s *E2ESuite) setupKubeRbacCerts(c *C, includeClient bool) (
 			KeyUsage:     x509.KeyUsageKeyEncipherment | x509.KeyUsageDigitalSignature,
 			ExtKeyUsage:  []x509.ExtKeyUsage{x509.ExtKeyUsageClientAuth},
 		}
-		clientDER, err := x509.CreateCertificate(rand.Reader, &clientTmpl, &caTmpl, &clientKey.PublicKey, caKey)
+		clientDER, err = x509.CreateCertificate(rand.Reader, &clientTmpl, &caTmpl, &clientKey.PublicKey, caKey)
 		if err != nil {
 			return
 		}
@@ -941,7 +948,7 @@ func (s *E2ESuite) setupKubeRbacCerts(c *C, includeClient bool) (
 			return
 		}
 		cliKeyBuf := &bytes.Buffer{}
-		privCliBytes, err := x509.MarshalPKCS8PrivateKey(clientKey)
+		privCliBytes, err = x509.MarshalPKCS8PrivateKey(clientKey)
 		if err != nil {
 			return
 		}
@@ -1609,12 +1616,12 @@ func (s *E2ESuite) TestKubeRbacProxyClusterIP(c *C) {
 	clusterIP, err := utils.GetClusterIP(s.clientSet, devCfg.Name+"-"+metricsexporter.ExporterName, s.ns)
 	assert.NoError(c, err, fmt.Sprintf("couldn't get cluster IP for metrics exporter service: %+v", err))
 
-	err = utils.DeployResourcesFromFile("clusterrole_kuberbac.yaml", s.clientSet, true)
+	err = utils.DeployResourcesFromFile("clusterrole_kuberbac.yaml", s.clientSet, s.apiClientSet, true)
 	assert.NoError(c, err, fmt.Sprintf("failed to deploy resources from clusterrole_kuberbac.yaml: %+v", err))
 	s.manageCurlJob(clusterIP, c)
 	// delete
 	s.deleteDeviceConfig(devCfg, c)
-	err = utils.DeployResourcesFromFile("clusterrole_kuberbac.yaml", s.clientSet, false)
+	err = utils.DeployResourcesFromFile("clusterrole_kuberbac.yaml", s.clientSet, s.apiClientSet, false)
 	assert.NoError(c, err, fmt.Sprintf("failed to delete resources from clusterrole_kuberbac.yaml: %+v", err))
 	nodes := utils.GetAMDGpuWorker(s.clientSet, s.openshift)
 	if !s.simEnable {
@@ -1671,7 +1678,7 @@ func (s *E2ESuite) TestKubeRbacProxyNodePort(c *C) {
 	s.createDeviceConfig(devCfg, c)
 	s.checkMetricsExporterStatus(devCfg, s.ns, v1.ServiceTypeNodePort, c)
 
-	err = utils.DeployResourcesFromFile("clusterrole_kuberbac.yaml", s.clientSet, true)
+	err = utils.DeployResourcesFromFile("clusterrole_kuberbac.yaml", s.clientSet, s.apiClientSet, true)
 	assert.NoError(c, err, fmt.Sprintf("failed to deploy resources from clusterrole_kuberbac.yaml: %+v", err))
 
 	// Run the token request repeatedly
@@ -1731,7 +1738,7 @@ func (s *E2ESuite) TestKubeRbacProxyNodePort(c *C) {
 
 	// delete
 	s.deleteDeviceConfig(devCfg, c)
-	err = utils.DeployResourcesFromFile("clusterrole_kuberbac.yaml", s.clientSet, false)
+	err = utils.DeployResourcesFromFile("clusterrole_kuberbac.yaml", s.clientSet, s.apiClientSet, false)
 	assert.NoError(c, err, fmt.Sprintf("failed to delete resources from clusterrole_kuberbac.yaml: %+v", err))
 	if !s.simEnable {
 		err = utils.HandleNodesReboot(context.TODO(), s.clientSet, nodes)
@@ -1796,7 +1803,7 @@ func (s *E2ESuite) TestKubeRbacProxyNodePortCerts(c *C) {
 	s.createDeviceConfig(devCfg, c)
 	s.checkMetricsExporterStatus(devCfg, s.ns, v1.ServiceTypeNodePort, c)
 
-	err = utils.DeployResourcesFromFile("clusterrole_kuberbac.yaml", s.clientSet, true)
+	err = utils.DeployResourcesFromFile("clusterrole_kuberbac.yaml", s.clientSet, s.apiClientSet, true)
 	assert.NoError(c, err, fmt.Sprintf("failed to deploy resources from clusterrole_kuberbac.yaml: %+v", err))
 
 	// Run the token request repeatedly
@@ -1834,7 +1841,7 @@ func (s *E2ESuite) TestKubeRbacProxyNodePortCerts(c *C) {
 	err = utils.DeleteTLSSecret(context.TODO(), s.clientSet, secretName, s.ns)
 	assert.NoErrorf(c, err, fmt.Sprintf("failed to delete secret %v", err))
 	s.deleteDeviceConfig(devCfg, c)
-	err = utils.DeployResourcesFromFile("clusterrole_kuberbac.yaml", s.clientSet, false)
+	err = utils.DeployResourcesFromFile("clusterrole_kuberbac.yaml", s.clientSet, s.apiClientSet, false)
 	assert.NoError(c, err, fmt.Sprintf("failed to delete resources from clusterrole_kuberbac.yaml: %+v", err))
 	nodes := utils.GetAMDGpuWorker(s.clientSet, s.openshift)
 	if !s.simEnable {
@@ -1846,10 +1853,12 @@ func (s *E2ESuite) TestKubeRbacProxyNodePortCerts(c *C) {
 // TestKubeRbacProxyNodePortMTLS exercises mTLS auth with User binding
 func (s *E2ESuite) TestKubeRbacProxyNodePortMTLS(c *C) {
 	// RBAC
-	err := utils.DeployResourcesFromFile("clusterrole_mtls.yaml", s.clientSet, true)
+	err := utils.DeployResourcesFromFile("clusterrole_mtls.yaml", s.clientSet, s.apiClientSet, true)
 	assert.NoError(c, err)
 	defer func() {
-		utils.DeployResourcesFromFile("clusterrole_mtls.yaml", s.clientSet, false)
+		if errDel := utils.DeployResourcesFromFile("clusterrole_mtls.yaml", s.clientSet, s.apiClientSet, false); errDel != nil {
+			log.Errorf("failed to delete resources from clusterrole_mtls.yaml: %+v", errDel)
+		}
 	}()
 
 	// Certs
@@ -1860,42 +1869,80 @@ func (s *E2ESuite) TestKubeRbacProxyNodePortMTLS(c *C) {
 	secretName := "kube-tls-secret"
 	err = utils.CreateTLSSecret(context.TODO(), s.clientSet, secretName, s.ns, serverCert, serverKey)
 	assert.NoError(c, err)
-	defer utils.DeleteTLSSecret(context.TODO(), s.clientSet, secretName, s.ns)
+	defer func() {
+		if errDel := utils.DeleteTLSSecret(context.TODO(), s.clientSet, secretName, s.ns); errDel != nil {
+			log.Errorf("failed to delete TLS secret %s: %+v", secretName, errDel)
+		}
+	}()
 
 	// Client CA ConfigMap
 	cmName := "client-ca-cm"
-	cm := &corev1.ConfigMap{
+	cm := &v1.ConfigMap{
 		ObjectMeta: metav1.ObjectMeta{Name: cmName, Namespace: s.ns},
 		Data:       map[string]string{"ca.crt": string(caCert)},
 	}
 	_, err = s.clientSet.CoreV1().ConfigMaps(s.ns).Create(context.TODO(), cm, metav1.CreateOptions{})
 	assert.NoError(c, err)
-	defer s.clientSet.CoreV1().ConfigMaps(s.ns).Delete(context.TODO(), cmName, metav1.DeleteOptions{})
+	defer func() {
+		if errDel := s.clientSet.CoreV1().ConfigMaps(s.ns).Delete(context.TODO(), cmName, metav1.DeleteOptions{}); errDel != nil {
+			log.Errorf("failed to delete ConfigMap %s: %+v", cmName, errDel)
+		}
+	}()
 
 	// Temp files
 	caFile, err := utils.CreateTempFile("cacert-*.crt", caCert)
 	assert.NoError(c, err)
-	defer utils.DeleteTempFile(caFile)
+	defer func(file *os.File) {
+		if file != nil {
+			if errDel := utils.DeleteTempFile(file); errDel != nil {
+				log.Errorf("failed to delete temp file %s: %+v", file.Name(), errDel)
+			}
+		}
+	}(caFile)
 	certFile, err := utils.CreateTempFile("client-*.crt", clientCert)
 	assert.NoError(c, err)
-	defer utils.DeleteTempFile(certFile)
+	defer func(file *os.File) {
+		if file != nil {
+			if errDel := utils.DeleteTempFile(file); errDel != nil {
+				log.Errorf("failed to delete temp file %s: %+v", file.Name(), errDel)
+			}
+		}
+	}(certFile)
 	keyFile, err := utils.CreateTempFile("client-*.key", clientKey)
 	assert.NoError(c, err)
-	defer utils.DeleteTempFile(keyFile)
+	defer func(file *os.File) {
+		if file != nil {
+			if errDel := utils.DeleteTempFile(file); errDel != nil {
+				log.Errorf("failed to delete temp file %s: %+v", file.Name(), errDel)
+			}
+		}
+	}(keyFile)
 	serverCertFile, err := utils.CreateTempFile("server-*.crt", serverCert)
 	assert.NoError(c, err)
-	defer utils.DeleteTempFile(serverCertFile)
+	defer func(file *os.File) {
+		if file != nil {
+			if errDel := utils.DeleteTempFile(file); errDel != nil {
+				log.Errorf("failed to delete temp file %s: %+v", file.Name(), errDel)
+			}
+		}
+	}(serverCertFile)
 	serverKeyFile, err := utils.CreateTempFile("server-*.key", serverKey)
 	assert.NoError(c, err)
-	defer utils.DeleteTempFile(serverKeyFile)
+	defer func(file *os.File) {
+		if file != nil {
+			if errDel := utils.DeleteTempFile(file); errDel != nil {
+				log.Errorf("failed to delete temp file %s: %+v", file.Name(), errDel)
+			}
+		}
+	}(serverKeyFile)
 
 	// DeviceConfig
 	devCfg := s.getDeviceConfigFromFile(c, "devcfg_kuberbac_nodeport.yaml")
 	devCfg.Spec.MetricsExporter.RbacConfig.Enable = ptr.To(true)
-	devCfg.Spec.MetricsExporter.RbacConfig.Secret = &corev1.LocalObjectReference{Name: secretName}
-	devCfg.Spec.MetricsExporter.RbacConfig.ClientCAConfigMap = &corev1.LocalObjectReference{Name: cmName}
+	devCfg.Spec.MetricsExporter.RbacConfig.Secret = &v1.LocalObjectReference{Name: secretName}
+	devCfg.Spec.MetricsExporter.RbacConfig.ClientCAConfigMap = &v1.LocalObjectReference{Name: cmName}
 	s.createDeviceConfig(devCfg, c)
-	s.checkMetricsExporterStatus(devCfg, s.ns, corev1.ServiceTypeNodePort, c)
+	s.checkMetricsExporterStatus(devCfg, s.ns, v1.ServiceTypeNodePort, c)
 
 	// Curl mTLS
 	nodeIPs, err := utils.GetNodeIPsForDaemonSet(s.clientSet, devCfg.Name+"-"+metricsexporter.ExporterName, s.ns)
@@ -1922,30 +1969,59 @@ func (s *E2ESuite) TestKubeRbacProxyNodePortMTLSWithStaticAuth(c *C) {
 	secretName := "kube-tls-secret"
 	err = utils.CreateTLSSecret(context.TODO(), s.clientSet, secretName, s.ns, srvPEM, srvKeyPEM)
 	assert.NoError(c, err)
-	defer utils.DeleteTLSSecret(context.TODO(), s.clientSet, secretName, s.ns)
+	defer func() {
+		if errDel := utils.DeleteTLSSecret(context.TODO(), s.clientSet, secretName, s.ns); errDel != nil {
+			log.Errorf("failed to delete TLS secret %s: %+v", secretName, errDel)
+		}
+	}()
 
 	cmName := "client-ca-cm"
-	cm := &corev1.ConfigMap{ObjectMeta: metav1.ObjectMeta{Name: cmName, Namespace: s.ns}, Data: map[string]string{"ca.crt": string(caPEM)}}
+	cm := &v1.ConfigMap{ObjectMeta: metav1.ObjectMeta{Name: cmName, Namespace: s.ns}, Data: map[string]string{"ca.crt": string(caPEM)}}
 	_, err = s.clientSet.CoreV1().ConfigMaps(s.ns).Create(context.TODO(), cm, metav1.CreateOptions{})
 	assert.NoError(c, err)
-	defer s.clientSet.CoreV1().ConfigMaps(s.ns).Delete(context.TODO(), cmName, metav1.DeleteOptions{})
+	defer func() {
+		if errDel := s.clientSet.CoreV1().ConfigMaps(s.ns).Delete(context.TODO(), cmName, metav1.DeleteOptions{}); errDel != nil {
+			log.Errorf("failed to delete ConfigMap %s: %+v", cmName, errDel)
+		}
+	}()
 
 	// Files
-	caFile, _ := utils.CreateTempFile("cacert-*.crt", caPEM)
-	defer utils.DeleteTempFile(caFile)
-	certFile, _ := utils.CreateTempFile("client-*.crt", cliPEM)
-	defer utils.DeleteTempFile(certFile)
-	keyFile, _ := utils.CreateTempFile("client-*.key", cliKeyPEM)
-	defer utils.DeleteTempFile(keyFile)
+	caFile, err := utils.CreateTempFile("cacert-*.crt", caPEM)
+	assert.NoError(c, err)
+	defer func(file *os.File) {
+		if file != nil {
+			if errDel := utils.DeleteTempFile(file); errDel != nil {
+				log.Errorf("failed to delete temp file %s: %+v", file.Name(), errDel)
+			}
+		}
+	}(caFile)
+	certFile, err := utils.CreateTempFile("client-*.crt", cliPEM)
+	assert.NoError(c, err)
+	defer func(file *os.File) {
+		if file != nil {
+			if errDel := utils.DeleteTempFile(file); errDel != nil {
+				log.Errorf("failed to delete temp file %s: %+v", file.Name(), errDel)
+			}
+		}
+	}(certFile)
+	keyFile, err := utils.CreateTempFile("client-*.key", cliKeyPEM)
+	assert.NoError(c, err)
+	defer func(file *os.File) {
+		if file != nil {
+			if errDel := utils.DeleteTempFile(file); errDel != nil {
+				log.Errorf("failed to delete temp file %s: %+v", file.Name(), errDel)
+			}
+		}
+	}(keyFile)
 
 	// DeviceConfig w/static-auth
 	devCfg := s.getDeviceConfigFromFile(c, "devcfg_kuberbac_nodeport.yaml")
 	devCfg.Spec.MetricsExporter.RbacConfig.Enable = ptr.To(true)
-	devCfg.Spec.MetricsExporter.RbacConfig.Secret = &corev1.LocalObjectReference{Name: secretName}
-	devCfg.Spec.MetricsExporter.RbacConfig.ClientCAConfigMap = &corev1.LocalObjectReference{Name: cmName}
+	devCfg.Spec.MetricsExporter.RbacConfig.Secret = &v1.LocalObjectReference{Name: secretName}
+	devCfg.Spec.MetricsExporter.RbacConfig.ClientCAConfigMap = &v1.LocalObjectReference{Name: cmName}
 	devCfg.Spec.MetricsExporter.RbacConfig.StaticAuthorization = &v1alpha1.StaticAuthConfig{Enable: true, ClientName: "metrics-reader"}
 	s.createDeviceConfig(devCfg, c)
-	s.checkMetricsExporterStatus(devCfg, s.ns, corev1.ServiceTypeNodePort, c)
+	s.checkMetricsExporterStatus(devCfg, s.ns, v1.ServiceTypeNodePort, c)
 
 	// Curl mTLS+static-auth
 	nodeIPs, err := utils.GetNodeIPsForDaemonSet(s.clientSet, devCfg.Name+"-"+metricsexporter.ExporterName, s.ns)
@@ -1959,6 +2035,103 @@ func (s *E2ESuite) TestKubeRbacProxyNodePortMTLSWithStaticAuth(c *C) {
 
 		return true
 	}, 2*time.Minute, 10*time.Second)
+}
+
+// TestServiceMonitorCreation verifies ServiceMonitor CR creation and fields
+func (s *E2ESuite) TestServiceMonitorCreation(c *C) {
+	// Ensure CRD installed
+	err := utils.DeployResourcesFromFile(serviceMonitorCRDURL, s.clientSet, s.apiClientSet, true)
+	assert.NoError(c, err)
+	defer func() {
+		if errDel := utils.DeployResourcesFromFile(serviceMonitorCRDURL, s.clientSet, s.apiClientSet, false); errDel != nil {
+			log.Errorf("failed to delete resources from %s: %+v", serviceMonitorCRDURL, errDel)
+		}
+	}()
+
+	// Build DeviceConfig with ServiceMonitor enabled
+	dc := s.getDeviceConfigFromFile(c, "devcfg_kuberbac_nodeport.yaml")
+	dc.Spec.MetricsExporter.Prometheus = &v1alpha1.PrometheusConfig{
+		ServiceMonitor: &v1alpha1.ServiceMonitorConfig{
+			Enable:   ptr.To(true),
+			Interval: "30s",
+			Labels:   map[string]string{"custom": "label"},
+		},
+	}
+	// Create and wait
+	s.createDeviceConfig(dc, c)
+
+	smName := dc.Name + "-" + metricsexporter.ExporterName
+	var sm *monitoringv1.ServiceMonitor
+	assert.Eventually(c, func() bool {
+		var getErr error
+		sm, getErr = s.monClient.MonitoringV1().ServiceMonitors(s.ns).Get(context.TODO(), smName, metav1.GetOptions{})
+		return getErr == nil
+	}, 1*time.Minute, 5*time.Second)
+
+	// Validate metadata labels
+	c.Assert(sm.Labels["custom"], Equals, "label")
+	c.Assert(sm.Labels["app"], Equals, "amd-device-metrics-exporter")
+
+	// Validate selector matches underlying Service
+	svc, err := s.clientSet.CoreV1().Services(s.ns).Get(context.TODO(), smName, metav1.GetOptions{})
+	assert.NoError(c, err)
+	for k, v := range sm.Spec.Selector.MatchLabels {
+		c.Assert(svc.Labels[k], Equals, v)
+	}
+
+	// Validate scrape endpoint interval
+	c.Assert(sm.Spec.Endpoints[0].Interval, Equals, monitoringv1.Duration("30s"))
+}
+
+// TestServiceMonitorCRDFlow tests failure if CRD missing and success after install
+func (s *E2ESuite) TestServiceMonitorCRDFlow(c *C) {
+	// Remove CRD if present
+	err := utils.DeployResourcesFromFile(serviceMonitorCRDURL, s.clientSet, s.apiClientSet, false)
+	assert.NoError(c, err)
+
+	// Build DeviceConfig
+	dc := s.getDeviceConfigFromFile(c, "devcfg_kuberbac_nodeport.yaml")
+	dc.Spec.MetricsExporter.Prometheus = &v1alpha1.PrometheusConfig{
+		ServiceMonitor: &v1alpha1.ServiceMonitorConfig{Enable: ptr.To(true)},
+	}
+
+	// Create and expect validation error
+	s.createDeviceConfig(dc, c)
+	assert.Eventually(c, func() bool {
+		d2, getErr := s.dClient.DeviceConfigs(s.ns).Get(dc.Name, metav1.GetOptions{})
+		if getErr != nil {
+			return false
+		}
+		for _, cond := range d2.Status.Conditions {
+			if cond.Type == conditions.ConditionTypeError &&
+				cond.Status == metav1.ConditionTrue &&
+				cond.Reason == conditions.ValidationError {
+				return true
+			}
+		}
+		return false
+	}, 1*time.Minute, 5*time.Second)
+
+	// Install CRD
+	err = utils.DeployResourcesFromFile(serviceMonitorCRDURL, s.clientSet, s.apiClientSet, true)
+	assert.NoError(c, err)
+	defer func() {
+		errDel := utils.DeployResourcesFromFile(serviceMonitorCRDURL, s.clientSet, s.apiClientSet, false)
+		if errDel != nil {
+			log.Errorf("failed to delete resources from %s: %+v", serviceMonitorCRDURL, errDel)
+		}
+	}()
+
+	// Re-create DeviceConfig
+	s.deleteDeviceConfig(dc, c)
+	s.createDeviceConfig(dc, c)
+
+	// Now ServiceMonitor should be created
+	smName := dc.Name + "-" + metricsexporter.ExporterName
+	assert.Eventually(c, func() bool {
+		_, getErr := s.monClient.MonitoringV1().ServiceMonitors(s.ns).Get(context.TODO(), smName, metav1.GetOptions{})
+		return getErr == nil
+	}, 1*time.Minute, 5*time.Second)
 }
 
 func (s *E2ESuite) TestDeployDefaultDriver(c *C) {
