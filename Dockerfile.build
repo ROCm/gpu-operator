@@ -16,11 +16,26 @@ RUN apt-get update -y && \
     wget \
     git \
     curl \
+    gosu \
+    gpg \
     protobuf-compiler \
     locales \
     ca-certificates \
-    docker.io \
     sudo && \
+    apt-get clean && rm -rf /var/lib/apt/lists/*
+
+# Add Docker's official GPG key
+RUN curl -fsSL https://download.docker.com/linux/ubuntu/gpg | gpg --dearmor -o /usr/share/keyrings/docker-archive-keyring.gpg
+
+# Add Docker APT repository
+RUN echo "deb [arch=amd64 signed-by=/usr/share/keyrings/docker-archive-keyring.gpg] https://download.docker.com/linux/ubuntu jammy stable" \
+    > /etc/apt/sources.list.d/docker.list
+
+RUN apt-get update -y && \
+    apt-get install -y --no-install-recommends \
+    docker-ce \
+    docker-ce-cli \
+    docker-buildx-plugin && \
     apt-get clean && rm -rf /var/lib/apt/lists/*
 
 # Set up locale
