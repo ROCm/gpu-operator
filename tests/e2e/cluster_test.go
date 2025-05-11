@@ -360,6 +360,12 @@ func (s *E2ESuite) patchDriversVersion(devCfg *v1alpha1.DeviceConfig, c *C) {
 	logger.Info(fmt.Sprintf("updated device config %+v", result))
 }
 
+func (s *E2ESuite) patchUpgradePolicy(devCfg *v1alpha1.DeviceConfig, c *C) {
+	result, err := s.dClient.DeviceConfigs(s.ns).PatchUpgradePolicy(devCfg)
+	assert.NoError(c, err, "failed to update %v", s.cfgName)
+	logger.Info(fmt.Sprintf("updated device config %+v", result))
+}
+
 func (s *E2ESuite) patchDevicePluginImage(devCfg *v1alpha1.DeviceConfig, c *C) {
 	result, err := s.dClient.DeviceConfigs(s.ns).PatchDevicePluginImage(devCfg)
 	assert.NoError(c, err, "failed to update %v", devCfg.Name)
@@ -397,6 +403,28 @@ func (s *E2ESuite) isUpgradeInProgress(devCfg *v1alpha1.DeviceConfig) bool {
 
 	logger.Infof("No nodes in blocked states. Upgrade not in progress.")
 	return false
+}
+
+func (s *E2ESuite) verifyUpgradeComplete(devCfg *v1alpha1.DeviceConfig, c *C) {
+	assert.Eventually(c, func() bool {
+		devCfg, err := s.dClient.DeviceConfigs(s.ns).Get(devCfg.Name, metav1.GetOptions{})
+		if err != nil {
+			logger.Errorf("Failed to get deviceConfig %v", err)
+			return false
+		}
+
+		// Check if all NodeModuleStatus entries are in UpgradeStateComplete
+		for nodeName, moduleStatus := range devCfg.Status.NodeModuleStatus {
+			if moduleStatus.Status != v1alpha1.UpgradeStateComplete {
+				logger.Infof("Upgrade not complete for node %s with state %s", nodeName, moduleStatus.Status)
+				return false
+			}
+		}
+
+		logger.Infof("All nodes are in UpgradeComplete state.")
+		return true
+
+	}, 30*time.Minute, 5*time.Second)
 }
 
 func (s *E2ESuite) verifyDeviceConfigStatus(devCfg *v1alpha1.DeviceConfig, c *C) {
@@ -490,7 +518,7 @@ func (s *E2ESuite) verifyNodePartitionLabels(devCfg *v1alpha1.DeviceConfig, labe
 		}
 		return true
 
-	}, 15*time.Minute, 5*time.Second)
+	}, 5*time.Minute, 5*time.Second)
 }
 
 func (s *E2ESuite) verifyNodeDriverVersionLabel(devCfg *v1alpha1.DeviceConfig, c *C) {
@@ -1851,8 +1879,9 @@ func (s *E2ESuite) TestMaxParallelUpgradePolicyDefaults(c *C) {
 		rebootRequired = true
 	}
 	upgradePolicy := v1alpha1.DriverUpgradePolicySpec{
-		Enable:         &enable,
-		RebootRequired: &rebootRequired,
+		Enable:              &enable,
+		RebootRequired:      &rebootRequired,
+		MaxUnavailableNodes: intstr.FromString("100%"),
 	}
 	devCfg.Spec.Driver.UpgradePolicy = &upgradePolicy
 	s.createDeviceConfig(devCfg, c)
@@ -1869,6 +1898,7 @@ func (s *E2ESuite) TestMaxParallelUpgradePolicyDefaults(c *C) {
 	}
 	nodes := utils.GetAMDGpuWorker(s.clientSet, s.openshift)
 	s.patchDriversVersion(devCfg, c)
+	s.verifyUpgradeComplete(devCfg, c)
 	s.verifyDeviceConfigStatus(devCfg, c)
 
 	if !s.simEnable {
@@ -1907,6 +1937,7 @@ func (s *E2ESuite) TestMaxParallelUpgradeTwoNodes(c *C) {
 		Enable:              &enable,
 		RebootRequired:      &rebootRequired,
 		MaxParallelUpgrades: 2,
+		MaxUnavailableNodes: intstr.FromString("100%"),
 	}
 	devCfg.Spec.Driver.UpgradePolicy = &upgradePolicy
 	s.createDeviceConfig(devCfg, c)
@@ -1923,6 +1954,7 @@ func (s *E2ESuite) TestMaxParallelUpgradeTwoNodes(c *C) {
 	}
 	nodes := utils.GetAMDGpuWorker(s.clientSet, s.openshift)
 	s.patchDriversVersion(devCfg, c)
+	s.verifyUpgradeComplete(devCfg, c)
 	s.verifyDeviceConfigStatus(devCfg, c)
 
 	// Verify rocm pod deployment only for real amd gpu setup
@@ -1968,6 +2000,7 @@ func (s *E2ESuite) TestMaxParallelUpgradeWithDrainPolicy(c *C) {
 		Enable:              &enable,
 		RebootRequired:      &rebootRequired,
 		MaxParallelUpgrades: 2,
+		MaxUnavailableNodes: intstr.FromString("100%"),
 		NodeDrainPolicy:     &drainPolicy,
 	}
 	devCfg.Spec.Driver.UpgradePolicy = &upgradePolicy
@@ -1985,6 +2018,7 @@ func (s *E2ESuite) TestMaxParallelUpgradeWithDrainPolicy(c *C) {
 	}
 	nodes := utils.GetAMDGpuWorker(s.clientSet, s.openshift)
 	s.patchDriversVersion(devCfg, c)
+	s.verifyUpgradeComplete(devCfg, c)
 	s.verifyDeviceConfigStatus(devCfg, c)
 
 	// Verify rocm pod deployment only for real amd gpu setup
@@ -2030,6 +2064,7 @@ func (s *E2ESuite) TestMaxParallelUpgradeWithPodDeletionPolicy(c *C) {
 		Enable:              &enable,
 		RebootRequired:      &rebootRequired,
 		MaxParallelUpgrades: 2,
+		MaxUnavailableNodes: intstr.FromString("100%"),
 		PodDeletionPolicy:   &podDeletionPolicy,
 	}
 	devCfg.Spec.Driver.UpgradePolicy = &upgradePolicy
@@ -2047,6 +2082,7 @@ func (s *E2ESuite) TestMaxParallelUpgradeWithPodDeletionPolicy(c *C) {
 	}
 	nodes := utils.GetAMDGpuWorker(s.clientSet, s.openshift)
 	s.patchDriversVersion(devCfg, c)
+	s.verifyUpgradeComplete(devCfg, c)
 	s.verifyDeviceConfigStatus(devCfg, c)
 
 	// Verify rocm pod deployment only for real amd gpu setup
@@ -2087,6 +2123,7 @@ func (s *E2ESuite) TestMaxParallelUpgradeBackToDefaultVersion(c *C) {
 		Enable:              &enable,
 		RebootRequired:      &rebootRequired,
 		MaxParallelUpgrades: 2,
+		MaxUnavailableNodes: intstr.FromString("100%"),
 	}
 	devCfg.Spec.Driver.UpgradePolicy = &upgradePolicy
 	devCfg.Spec.Driver.Version = "6.2.2"
@@ -2100,6 +2137,7 @@ func (s *E2ESuite) TestMaxParallelUpgradeBackToDefaultVersion(c *C) {
 	devCfg.Spec.Driver.Version = ""
 	nodes := utils.GetAMDGpuWorker(s.clientSet, s.openshift)
 	s.patchDriversVersion(devCfg, c)
+	s.verifyUpgradeComplete(devCfg, c)
 	s.verifyDeviceConfigStatus(devCfg, c)
 
 	// Verify rocm pod deployment only for real amd gpu setup
@@ -2140,6 +2178,7 @@ func (s *E2ESuite) TestMaxParallelUpgradeFromDefaultVersion(c *C) {
 		Enable:              &enable,
 		RebootRequired:      &rebootRequired,
 		MaxParallelUpgrades: 2,
+		MaxUnavailableNodes: intstr.FromString("100%"),
 	}
 	devCfg.Spec.Driver.UpgradePolicy = &upgradePolicy
 	devCfg.Spec.Driver.Version = ""
@@ -2153,6 +2192,7 @@ func (s *E2ESuite) TestMaxParallelUpgradeFromDefaultVersion(c *C) {
 	devCfg.Spec.Driver.Version = "6.2.2"
 	nodes := utils.GetAMDGpuWorker(s.clientSet, s.openshift)
 	s.patchDriversVersion(devCfg, c)
+	s.verifyUpgradeComplete(devCfg, c)
 	s.verifyDeviceConfigStatus(devCfg, c)
 
 	// Verify rocm pod deployment only for real amd gpu setup
@@ -2176,6 +2216,185 @@ func (s *E2ESuite) TestMaxParallelUpgradeFromDefaultVersion(c *C) {
 		err = utils.HandleNodesReboot(context.TODO(), s.clientSet, nodes)
 		assert.NoError(c, err, "failed to reboot nodes")
 	}
+}
+
+func (s *E2ESuite) TestMaxParallelChangeDuringUpgrade(c *C) {
+	_, err := s.dClient.DeviceConfigs(s.ns).Get(s.cfgName, metav1.GetOptions{})
+	assert.Errorf(c, err, fmt.Sprintf("config %v exists", s.cfgName))
+
+	logger.Infof("create %v", s.cfgName)
+	devCfg := s.getDeviceConfig(c)
+	enable := true
+	rebootRequired := false
+	if !s.simEnable {
+		rebootRequired = true
+	}
+	upgradePolicy := v1alpha1.DriverUpgradePolicySpec{
+		Enable:              &enable,
+		RebootRequired:      &rebootRequired,
+		MaxParallelUpgrades: 1,
+		MaxUnavailableNodes: intstr.FromString("100%"),
+	}
+	devCfg.Spec.Driver.UpgradePolicy = &upgradePolicy
+	devCfg.Spec.Driver.Version = ""
+	s.createDeviceConfig(devCfg, c)
+	s.checkNFDWorkerStatus(s.ns, c, "")
+	s.checkNodeLabellerStatus(s.ns, c, devCfg)
+	s.verifyDeviceConfigStatus(devCfg, c)
+
+	// update
+	// update the CR's driver version config
+	devCfg.Spec.Driver.Version = "6.2.2"
+	s.patchDriversVersion(devCfg, c)
+	// update upgradePolicy maxParallel
+	upgradePolicy = v1alpha1.DriverUpgradePolicySpec{
+		Enable:              &enable,
+		RebootRequired:      &rebootRequired,
+		MaxParallelUpgrades: 2,
+		MaxUnavailableNodes: intstr.FromString("100%"),
+	}
+	s.patchUpgradePolicy(devCfg, c)
+
+	nodes := utils.GetAMDGpuWorker(s.clientSet, s.openshift)
+	s.checkNFDWorkerStatus(s.ns, c, "")
+	s.verifyDevicePluginStatus(s.ns, c, devCfg)
+	s.checkNodeLabellerStatus(s.ns, c, devCfg)
+	s.verifyUpgradeComplete(devCfg, c)
+	s.verifyDeviceConfigStatus(devCfg, c)
+
+	if !s.simEnable {
+		err = utils.HandleNodesReboot(context.TODO(), s.clientSet, nodes)
+		assert.NoError(c, err, "failed to reboot nodes")
+		s.verifyNodeDriverVersionLabel(devCfg, c)
+	}
+
+	// delete
+	s.deleteDeviceConfig(devCfg, c)
+
+	if !s.simEnable {
+		err = utils.HandleNodesReboot(context.TODO(), s.clientSet, nodes)
+		assert.NoError(c, err, "failed to reboot nodes")
+	}
+}
+
+func (s *E2ESuite) TestMaxUnavailableChangeDuringUpgrade(c *C) {
+	_, err := s.dClient.DeviceConfigs(s.ns).Get(s.cfgName, metav1.GetOptions{})
+	assert.Errorf(c, err, fmt.Sprintf("config %v exists", s.cfgName))
+
+	logger.Infof("create %v", s.cfgName)
+	devCfg := s.getDeviceConfig(c)
+	enable := true
+	rebootRequired := false
+	if !s.simEnable {
+		rebootRequired = true
+	}
+	upgradePolicy := v1alpha1.DriverUpgradePolicySpec{
+		Enable:              &enable,
+		RebootRequired:      &rebootRequired,
+		MaxParallelUpgrades: 1,
+		MaxUnavailableNodes: intstr.FromString("100%"),
+	}
+	devCfg.Spec.Driver.UpgradePolicy = &upgradePolicy
+	devCfg.Spec.Driver.Version = ""
+	s.createDeviceConfig(devCfg, c)
+	s.checkNFDWorkerStatus(s.ns, c, "")
+	s.checkNodeLabellerStatus(s.ns, c, devCfg)
+	s.verifyDeviceConfigStatus(devCfg, c)
+
+	// update
+	// update the CR's driver version config
+	devCfg.Spec.Driver.Version = "6.2.2"
+	s.patchDriversVersion(devCfg, c)
+
+	// update upgradePolicy maxUnavailable
+	upgradePolicy = v1alpha1.DriverUpgradePolicySpec{
+		Enable:              &enable,
+		RebootRequired:      &rebootRequired,
+		MaxParallelUpgrades: 1,
+		MaxUnavailableNodes: intstr.FromString("50%"),
+	}
+	s.patchUpgradePolicy(devCfg, c)
+
+	nodes := utils.GetAMDGpuWorker(s.clientSet, s.openshift)
+	s.checkNFDWorkerStatus(s.ns, c, "")
+	s.verifyDevicePluginStatus(s.ns, c, devCfg)
+	s.checkNodeLabellerStatus(s.ns, c, devCfg)
+	s.verifyUpgradeComplete(devCfg, c)
+	s.verifyDeviceConfigStatus(devCfg, c)
+
+	if !s.simEnable {
+		err = utils.HandleNodesReboot(context.TODO(), s.clientSet, nodes)
+		assert.NoError(c, err, "failed to reboot nodes")
+		s.verifyNodeDriverVersionLabel(devCfg, c)
+	}
+
+	// delete
+	s.deleteDeviceConfig(devCfg, c)
+
+	if !s.simEnable {
+		err = utils.HandleNodesReboot(context.TODO(), s.clientSet, nodes)
+		assert.NoError(c, err, "failed to reboot nodes")
+	}
+}
+
+func (s *E2ESuite) TestRebootRequiredChangeDuringUpgrade(c *C) {
+	if s.simEnable {
+		c.Skip("Skipping for non amd gpu testbed")
+	}
+
+	_, err := s.dClient.DeviceConfigs(s.ns).Get(s.cfgName, metav1.GetOptions{})
+	assert.Errorf(c, err, fmt.Sprintf("config %v exists", s.cfgName))
+
+	logger.Infof("create %v", s.cfgName)
+	devCfg := s.getDeviceConfig(c)
+	enable := true
+	rebootRequired := true
+
+	upgradePolicy := v1alpha1.DriverUpgradePolicySpec{
+		Enable:              &enable,
+		RebootRequired:      &rebootRequired,
+		MaxParallelUpgrades: 1,
+		MaxUnavailableNodes: intstr.FromString("100%"),
+	}
+	devCfg.Spec.Driver.UpgradePolicy = &upgradePolicy
+	devCfg.Spec.Driver.Version = ""
+	s.createDeviceConfig(devCfg, c)
+	s.checkNFDWorkerStatus(s.ns, c, "")
+	s.checkNodeLabellerStatus(s.ns, c, devCfg)
+	s.verifyDeviceConfigStatus(devCfg, c)
+
+	// update
+	// update the CR's driver version config
+	devCfg.Spec.Driver.Version = "6.2.2"
+	s.patchDriversVersion(devCfg, c)
+
+	// update upgradePolicy rebootRequired
+	rebootRequired = false
+	upgradePolicy = v1alpha1.DriverUpgradePolicySpec{
+		Enable:              &enable,
+		RebootRequired:      &rebootRequired,
+		MaxParallelUpgrades: 1,
+		MaxUnavailableNodes: intstr.FromString("100%"),
+	}
+	s.patchUpgradePolicy(devCfg, c)
+
+	nodes := utils.GetAMDGpuWorker(s.clientSet, s.openshift)
+	s.checkNFDWorkerStatus(s.ns, c, "")
+	s.verifyDevicePluginStatus(s.ns, c, devCfg)
+	s.checkNodeLabellerStatus(s.ns, c, devCfg)
+	s.verifyUpgradeComplete(devCfg, c)
+	s.verifyDeviceConfigStatus(devCfg, c)
+
+	err = utils.HandleNodesReboot(context.TODO(), s.clientSet, nodes)
+	assert.NoError(c, err, "failed to reboot nodes")
+	s.verifyNodeDriverVersionLabel(devCfg, c)
+
+	// delete
+	s.deleteDeviceConfig(devCfg, c)
+
+	err = utils.HandleNodesReboot(context.TODO(), s.clientSet, nodes)
+	assert.NoError(c, err, "failed to reboot nodes")
+
 }
 
 func (s *E2ESuite) TestDevicePluginNodeLabellerDaemonSetUpgrade(c *C) {
