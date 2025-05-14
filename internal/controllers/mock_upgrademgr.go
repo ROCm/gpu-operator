@@ -166,6 +166,20 @@ func (mr *MockupgradeMgrHelperAPIMockRecorder) checkUpgradeTimeExceeded(ctx, nod
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "checkUpgradeTimeExceeded", reflect.TypeOf((*MockupgradeMgrHelperAPI)(nil).checkUpgradeTimeExceeded), ctx, nodeName, deviceConfig)
 }
 
+// cleanupDanglingKMMPods mocks base method.
+func (m *MockupgradeMgrHelperAPI) cleanupDanglingKMMPods(ctx context.Context, node *v1.Node, deviceConfig *v1alpha1.DeviceConfig) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "cleanupDanglingKMMPods", ctx, node, deviceConfig)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// cleanupDanglingKMMPods indicates an expected call of cleanupDanglingKMMPods.
+func (mr *MockupgradeMgrHelperAPIMockRecorder) cleanupDanglingKMMPods(ctx, node, deviceConfig any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "cleanupDanglingKMMPods", reflect.TypeOf((*MockupgradeMgrHelperAPI)(nil).cleanupDanglingKMMPods), ctx, node, deviceConfig)
+}
+
 // clearNodeStatus mocks base method.
 func (m *MockupgradeMgrHelperAPI) clearNodeStatus() {
 	m.ctrl.T.Helper()
@@ -332,15 +346,15 @@ func (mr *MockupgradeMgrHelperAPIMockRecorder) getUpgradeStartTime(nodeName any)
 }
 
 // handleInitStatus mocks base method.
-func (m *MockupgradeMgrHelperAPI) handleInitStatus(ctx context.Context, node *v1.Node) {
+func (m *MockupgradeMgrHelperAPI) handleInitStatus(ctx context.Context, node *v1.Node, deviceConfig *v1alpha1.DeviceConfig) {
 	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "handleInitStatus", ctx, node)
+	m.ctrl.Call(m, "handleInitStatus", ctx, node, deviceConfig)
 }
 
 // handleInitStatus indicates an expected call of handleInitStatus.
-func (mr *MockupgradeMgrHelperAPIMockRecorder) handleInitStatus(ctx, node any) *gomock.Call {
+func (mr *MockupgradeMgrHelperAPIMockRecorder) handleInitStatus(ctx, node, deviceConfig any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "handleInitStatus", reflect.TypeOf((*MockupgradeMgrHelperAPI)(nil).handleInitStatus), ctx, node)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "handleInitStatus", reflect.TypeOf((*MockupgradeMgrHelperAPI)(nil).handleInitStatus), ctx, node, deviceConfig)
 }
 
 // handleNodeReboot mocks base method.
@@ -393,6 +407,34 @@ func (m *MockupgradeMgrHelperAPI) isInit() bool {
 func (mr *MockupgradeMgrHelperAPIMockRecorder) isInit() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "isInit", reflect.TypeOf((*MockupgradeMgrHelperAPI)(nil).isInit))
+}
+
+// isLabelUpgradeRequiredOnNode mocks base method.
+func (m *MockupgradeMgrHelperAPI) isLabelUpgradeRequiredOnNode(ctx context.Context, deviceConfig *v1alpha1.DeviceConfig, node *v1.Node) bool {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "isLabelUpgradeRequiredOnNode", ctx, deviceConfig, node)
+	ret0, _ := ret[0].(bool)
+	return ret0
+}
+
+// isLabelUpgradeRequiredOnNode indicates an expected call of isLabelUpgradeRequiredOnNode.
+func (mr *MockupgradeMgrHelperAPIMockRecorder) isLabelUpgradeRequiredOnNode(ctx, deviceConfig, node any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "isLabelUpgradeRequiredOnNode", reflect.TypeOf((*MockupgradeMgrHelperAPI)(nil).isLabelUpgradeRequiredOnNode), ctx, deviceConfig, node)
+}
+
+// isNodeInFailedUpgradeStates mocks base method.
+func (m *MockupgradeMgrHelperAPI) isNodeInFailedUpgradeStates(state v1alpha1.UpgradeState) bool {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "isNodeInFailedUpgradeStates", state)
+	ret0, _ := ret[0].(bool)
+	return ret0
+}
+
+// isNodeInFailedUpgradeStates indicates an expected call of isNodeInFailedUpgradeStates.
+func (mr *MockupgradeMgrHelperAPIMockRecorder) isNodeInFailedUpgradeStates(state any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "isNodeInFailedUpgradeStates", reflect.TypeOf((*MockupgradeMgrHelperAPI)(nil).isNodeInFailedUpgradeStates), state)
 }
 
 // isNodeNew mocks base method.
@@ -520,6 +562,34 @@ func (m *MockupgradeMgrHelperAPI) isUpgradePolicyViolated(upgradeInProgress, upg
 func (mr *MockupgradeMgrHelperAPIMockRecorder) isUpgradePolicyViolated(upgradeInProgress, upgradeFailedState, totalNodes, deviceConfig any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "isUpgradePolicyViolated", reflect.TypeOf((*MockupgradeMgrHelperAPI)(nil).isUpgradePolicyViolated), upgradeInProgress, upgradeFailedState, totalNodes, deviceConfig)
+}
+
+// removeLabelUpgradeRequiredOnNode mocks base method.
+func (m *MockupgradeMgrHelperAPI) removeLabelUpgradeRequiredOnNode(ctx context.Context, node *v1.Node) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "removeLabelUpgradeRequiredOnNode", ctx, node)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// removeLabelUpgradeRequiredOnNode indicates an expected call of removeLabelUpgradeRequiredOnNode.
+func (mr *MockupgradeMgrHelperAPIMockRecorder) removeLabelUpgradeRequiredOnNode(ctx, node any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "removeLabelUpgradeRequiredOnNode", reflect.TypeOf((*MockupgradeMgrHelperAPI)(nil).removeLabelUpgradeRequiredOnNode), ctx, node)
+}
+
+// resetModuleVersionOnNode mocks base method.
+func (m *MockupgradeMgrHelperAPI) resetModuleVersionOnNode(ctx context.Context, deviceConfig *v1alpha1.DeviceConfig, node *v1.Node) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "resetModuleVersionOnNode", ctx, deviceConfig, node)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// resetModuleVersionOnNode indicates an expected call of resetModuleVersionOnNode.
+func (mr *MockupgradeMgrHelperAPIMockRecorder) resetModuleVersionOnNode(ctx, deviceConfig, node any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "resetModuleVersionOnNode", reflect.TypeOf((*MockupgradeMgrHelperAPI)(nil).resetModuleVersionOnNode), ctx, deviceConfig, node)
 }
 
 // setBootID mocks base method.
