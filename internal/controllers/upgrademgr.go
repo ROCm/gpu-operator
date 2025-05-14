@@ -47,6 +47,7 @@ import (
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/fields"
+	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/client-go/kubernetes"
@@ -60,8 +61,10 @@ import (
 )
 
 const (
-	defaultUtilsImage = "docker.io/rocm/gpu-operator-utils:latest"
-	defaultSAName     = "amd-gpu-operator-utils-container"
+	defaultUtilsImage          = "docker.io/rocm/gpu-operator-utils:latest"
+	defaultSAName              = "amd-gpu-operator-utils-container"
+	driverUpgradeStateLabelKey = "operator.amd.com/gpu-driver-upgrade-state"
+	upgradeRequiredLabelValue  = "upgrade-required"
 )
 
 var (
@@ -170,24 +173,15 @@ func (n *upgradeMgr) HandleUpgrade(ctx context.Context, deviceConfig *amdv1alpha
 	}
 
 	if n.helper.specChanged(deviceConfig) {
-		/* Reset internal states for nodes not in failed state or if in failed state but uncordoned */
-		for i := 0; i < len(nodeList.Items); i++ {
-			if n.helper.isNodeStateUpgradeFailed(ctx, &nodeList.Items[i], deviceConfig) {
-				if !nodeList.Items[i].Spec.Unschedulable {
-					n.helper.setNodeStatus(ctx, nodeList.Items[i].Name, amdv1alpha1.UpgradeStateEmpty)
-				}
-				continue
-			} else {
-				n.helper.setNodeStatus(ctx, nodeList.Items[i].Name, amdv1alpha1.UpgradeStateEmpty)
-			}
-		}
+		/* Reset internal states */
+		n.helper.clearNodeStatus()
 	}
 	n.helper.setcurrentSpec(deviceConfig)
 
 	for i := 0; i < len(nodeList.Items); i++ {
 
 		// 1. Set init status for unprocessed nodes
-		n.helper.handleInitStatus(ctx, &nodeList.Items[i])
+		n.helper.handleInitStatus(ctx, &nodeList.Items[i], deviceConfig)
 
 		// 2. Handle failed nodes
 		if n.helper.isNodeStateUpgradeFailed(ctx, &nodeList.Items[i], deviceConfig) {
@@ -241,7 +235,7 @@ func (n *upgradeMgr) HandleUpgrade(ctx context.Context, deviceConfig *amdv1alpha
 		candidateNodes = append(candidateNodes, nodeList.Items[i])
 	}
 
-	if len(candidateNodes) == 0 && (upgradeInProgress > 0) {
+	if len(candidateNodes) == 0 && ((upgradeInProgress > 0) || (upgradeFailedState > 0)) {
 		return ctrl.Result{Requeue: true, RequeueAfter: time.Second * 20}, nil
 	}
 	// All nodes have correct drivers installed
@@ -303,7 +297,7 @@ func (n *upgradeMgr) GetNodeBootId(nodeName string) string {
 //go:generate mockgen -source=upgrademgr.go -package=controllers -destination=mock_upgrademgr.go upgradeMgrHelperAPI
 type upgradeMgrHelperAPI interface {
 	// Initialize node status
-	handleInitStatus(ctx context.Context, node *v1.Node)
+	handleInitStatus(ctx context.Context, node *v1.Node, deviceConfig *amdv1alpha1.DeviceConfig)
 
 	// Handle node state transitions
 	isNodeReady(ctx context.Context, node *v1.Node, deviceConfig *amdv1alpha1.DeviceConfig) bool
@@ -314,6 +308,7 @@ type upgradeMgrHelperAPI interface {
 	isNodeStateUpgradeInProgress(ctx context.Context, node *v1.Node, deviceConfig *amdv1alpha1.DeviceConfig) bool
 	isNodeReadyForUpgrade(ctx context.Context, node *v1.Node) bool
 	isNodeStateUpgradeFailed(ctx context.Context, node *v1.Node, deviceConfig *amdv1alpha1.DeviceConfig) bool
+	isNodeInFailedUpgradeStates(state amdv1alpha1.UpgradeState) bool
 	isUpgradePolicyViolated(upgradeInProgress int, upgradeFailedState int, totalNodes int, deviceConfig *amdv1alpha1.DeviceConfig) (int, bool)
 
 	// Helper APIs for upgrade-in-progress nodes
@@ -323,6 +318,10 @@ type upgradeMgrHelperAPI interface {
 	getPodsToDrainOrDelete(ctx context.Context, deviceConfig *amdv1alpha1.DeviceConfig, node *v1.Node) (newPods []v1.Pod, err error)
 	deleteOrDrainPods(ctx context.Context, deviceConfig *amdv1alpha1.DeviceConfig, node *v1.Node) error
 	updateModuleVersionOnNode(ctx context.Context, deviceConfig *amdv1alpha1.DeviceConfig, node *v1.Node) error
+	resetModuleVersionOnNode(ctx context.Context, deviceConfig *amdv1alpha1.DeviceConfig, node *v1.Node) error
+	cleanupDanglingKMMPods(ctx context.Context, node *v1.Node, deviceConfig *amdv1alpha1.DeviceConfig) error
+	isLabelUpgradeRequiredOnNode(ctx context.Context, deviceConfig *amdv1alpha1.DeviceConfig, node *v1.Node) bool
+	removeLabelUpgradeRequiredOnNode(ctx context.Context, node *v1.Node) error
 	handleNodeReboot(ctx context.Context, node *v1.Node, dc amdv1alpha1.DeviceConfig)
 	deleteRebootPod(ctx context.Context, nodeName string, dc amdv1alpha1.DeviceConfig, force bool)
 	getRebootPod(nodeName string, dc *amdv1alpha1.DeviceConfig) *v1.Pod
@@ -381,12 +380,78 @@ func (h *upgradeMgrHelper) isInit() (status bool) {
 }
 
 // Handle the init state for every node.
-func (h *upgradeMgrHelper) handleInitStatus(ctx context.Context, node *v1.Node) {
+func (h *upgradeMgrHelper) handleInitStatus(ctx context.Context, node *v1.Node, deviceConfig *amdv1alpha1.DeviceConfig) {
 
 	if h.getNodeStatus(node.Name) == amdv1alpha1.UpgradeStateEmpty {
 		log.FromContext(ctx).Info("Setting upgrade state to UpgradeNotStarted")
 		h.setNodeStatus(ctx, node.Name, amdv1alpha1.UpgradeStateNotStarted)
 	}
+	nodeStatus := h.getNodeStatus(node.Name)
+	if h.isNodeInFailedUpgradeStates(nodeStatus) {
+		// User will be adding this label on the node to requeue failed node for upgrade
+		if h.isLabelUpgradeRequiredOnNode(ctx, deviceConfig, node) {
+			// Remove label ready for upgrade on the node
+			if err := h.removeLabelUpgradeRequiredOnNode(ctx, node); err == nil {
+				log.FromContext(ctx).Info(fmt.Sprintf("Node: %v is labeled as ready for upgrade retry", node.Name))
+			} else {
+				log.FromContext(ctx).Error(err, fmt.Sprintf("Node: %v. Failed to remove label upgrade-required with error: %v", node.Name, err))
+				return
+			}
+			// Reset kmm label to current loaded version from nmc status so that upgrade flow takes care of re-adding it and triggering KMM once again.
+			// In most cases, this label will require no action as it will already match the version in nmc status
+			if err := h.resetModuleVersionOnNode(ctx, deviceConfig, node); err == nil {
+				log.FromContext(ctx).Info(fmt.Sprintf("Node: %v: Ready to requeue node for upgrade", node.Name))
+			} else {
+				log.FromContext(ctx).Error(err, fmt.Sprintf("Node: %v. Failed to reset kmm label with error: %v", node.Name, err))
+				return
+			}
+			// Cleanup any dangling KMM build or worker pods from the failed node
+			if err := h.cleanupDanglingKMMPods(ctx, node, deviceConfig); err != nil {
+				return
+			}
+			// Restart Upgrade flow on the node
+			log.FromContext(ctx).Info(fmt.Sprintf("Node: %v: Setting upgrade state to UpgradeNotStarted", node.Name))
+			h.setNodeStatus(ctx, node.Name, amdv1alpha1.UpgradeStateNotStarted)
+		} else {
+			log.FromContext(ctx).Info(fmt.Sprintf("Node: %v is not labeled with upgrade-required yet", node.Name))
+		}
+	}
+}
+
+func (h *upgradeMgrHelper) cleanupDanglingKMMPods(ctx context.Context, node *v1.Node, deviceConfig *amdv1alpha1.DeviceConfig) error {
+	// Get Worker Pods
+	workerLabelSelector := labels.SelectorFromSet(map[string]string{
+		"app.kubernetes.io/component":        "worker",
+		"app.kubernetes.io/part-of":          "kmm",
+		"kmm.node.kubernetes.io/module.name": deviceConfig.Name,
+	})
+	workerPods := &v1.PodList{}
+	_ = h.client.List(ctx, workerPods, &client.ListOptions{
+		LabelSelector: workerLabelSelector,
+		FieldSelector: fields.OneTermEqualSelector("spec.nodeName", node.Name),
+	})
+
+	// Get Build Pods
+	buildLabelSelector := labels.SelectorFromSet(map[string]string{
+		"app.kubernetes.io/component":        "build",
+		"app.kubernetes.io/part-of":          "kmm",
+		"kmm.node.kubernetes.io/module.name": deviceConfig.Name,
+	})
+	buildPods := &v1.PodList{}
+	_ = h.client.List(ctx, buildPods, &client.ListOptions{
+		LabelSelector: buildLabelSelector,
+	})
+
+	allPods := append(workerPods.Items, buildPods.Items...)
+
+	for _, pod := range allPods {
+		if err := h.client.Delete(ctx, &pod); err != nil {
+			log.FromContext(ctx).Error(err, fmt.Sprintf("Node: %v. Failed to delete pod %v/%v during cleanup", node.Name, pod.Namespace, pod.Name))
+		} else {
+			log.FromContext(ctx).Info(fmt.Sprintf("Node: %v. Deleted dangling pod %v/%v", node.Name, pod.Namespace, pod.Name))
+		}
+	}
+	return nil
 }
 
 // Handle New nodes. New nodes are not subjected to upgrade policy
@@ -518,6 +583,13 @@ func (h *upgradeMgrHelper) isNodeStateUpgradeInProgress(ctx context.Context, nod
 	return h.getNodeStatus(node.Name) == amdv1alpha1.UpgradeStateInProgress
 }
 
+func (h *upgradeMgrHelper) isNodeInFailedUpgradeStates(state amdv1alpha1.UpgradeState) bool {
+	return state == amdv1alpha1.UpgradeStateFailed ||
+		state == amdv1alpha1.UpgradeStateCordonFailed ||
+		state == amdv1alpha1.UpgradeStateUncordonFailed ||
+		state == amdv1alpha1.UpgradeStateDrainFailed
+}
+
 // Check the Failure status for nodes that are being upgraded.
 func (h *upgradeMgrHelper) isNodeStateUpgradeFailed(ctx context.Context, node *v1.Node, deviceConfig *amdv1alpha1.DeviceConfig) bool {
 
@@ -529,10 +601,7 @@ func (h *upgradeMgrHelper) isNodeStateUpgradeFailed(ctx context.Context, node *v
 		h.setNodeStatus(ctx, node.Name, amdv1alpha1.UpgradeStateFailed)
 		return true
 	}
-	return (nodeStatus == amdv1alpha1.UpgradeStateFailed ||
-		nodeStatus == amdv1alpha1.UpgradeStateCordonFailed ||
-		nodeStatus == amdv1alpha1.UpgradeStateUncordonFailed ||
-		nodeStatus == amdv1alpha1.UpgradeStateDrainFailed)
+	return h.isNodeInFailedUpgradeStates(nodeStatus)
 
 }
 
@@ -954,6 +1023,103 @@ func (h *upgradeMgrHelper) updateModuleVersionOnNode(ctx context.Context, device
 		return retryErr
 
 	}
+	return nil
+}
+
+func (h *upgradeMgrHelper) resetModuleVersionOnNode(ctx context.Context, deviceConfig *amdv1alpha1.DeviceConfig, node *v1.Node) error {
+	logger := log.FromContext(ctx)
+
+	labelKey := fmt.Sprintf("kmm.node.kubernetes.io/version-module.%s.%s", deviceConfig.Namespace, deviceConfig.Name)
+
+	nodeObj := &v1.Node{}
+	if err := h.client.Get(ctx, client.ObjectKey{Name: node.Name}, nodeObj); err != nil {
+		logger.Error(err, fmt.Sprintf("Failed to fetch node %s for label update", node.Name))
+		return err
+	}
+
+	// Only proceed if the label already exists
+	if currentLabelVal, exists := nodeObj.Labels[labelKey]; exists {
+		// Fetch NMC object
+		nmc := &kmmv1beta1.NodeModulesConfig{}
+		if err := h.client.Get(ctx, client.ObjectKey{Name: node.Name}, nmc); err != nil {
+			logger.Error(err, fmt.Sprintf("Failed to fetch NMC for node %s", node.Name))
+			return err
+		}
+
+		if len(nmc.Status.Modules) > 0 {
+			var matchedModule *kmmv1beta1.NodeModuleStatus
+			for _, module := range nmc.Status.Modules {
+				if module.Name == deviceConfig.Name && module.Namespace == deviceConfig.Namespace {
+					matchedModule = &module
+					break
+				}
+			}
+			if matchedModule != nil && matchedModule.Config.ContainerImage != "" {
+				// Extract version from image tag
+				image := matchedModule.Config.ContainerImage
+				imageParts := strings.Split(image, "-")
+				var version string
+				if len(imageParts) > 0 {
+					version = imageParts[len(imageParts)-1]
+				}
+
+				// If label does not match the version from NMC image, update the label
+				if currentLabelVal != version {
+					original := nodeObj.DeepCopy()
+					nodeObj.Labels[labelKey] = version
+
+					if err := h.client.Patch(ctx, nodeObj, client.MergeFrom(original)); err != nil {
+						logger.Error(err, fmt.Sprintf("Failed to update label %q on node %s using Patch", labelKey, node.Name))
+						return err
+					}
+					logger.Info(fmt.Sprintf("Updated KMM label %q on node %s to match NMC status image version %q", labelKey, node.Name, version))
+				} else {
+					logger.Info(fmt.Sprintf("Label %q on node %s already matches NMC status image version %q", labelKey, node.Name, version))
+				}
+			} else {
+				logger.Info(fmt.Sprintf("NMC status container image not set for node %s; skipping label update", node.Name))
+			}
+		} else {
+			logger.Info(fmt.Sprintf("NMC status container image not set for node %s; skipping label update", node.Name))
+		}
+	}
+
+	return nil
+}
+
+func (h *upgradeMgrHelper) isLabelUpgradeRequiredOnNode(ctx context.Context, deviceConfig *amdv1alpha1.DeviceConfig, node *v1.Node) bool {
+
+	if labelValue, exists := node.Labels[driverUpgradeStateLabelKey]; exists {
+		if labelValue == upgradeRequiredLabelValue {
+			return true
+		}
+	}
+
+	return false
+}
+
+func (h *upgradeMgrHelper) removeLabelUpgradeRequiredOnNode(ctx context.Context, node *v1.Node) error {
+	logger := log.FromContext(ctx)
+
+	nodeObj := &v1.Node{}
+	if err := h.client.Get(ctx, client.ObjectKey{Name: node.Name}, nodeObj); err != nil {
+		logger.Error(err, fmt.Sprintf("Failed to fetch node %s for label removal", node.Name))
+		return err
+	}
+
+	if labelValue, exists := nodeObj.Labels[driverUpgradeStateLabelKey]; exists {
+		if labelValue == upgradeRequiredLabelValue {
+			original := nodeObj.DeepCopy()
+			delete(nodeObj.Labels, driverUpgradeStateLabelKey)
+
+			if err := h.client.Patch(ctx, nodeObj, client.MergeFrom(original)); err != nil {
+				logger.Error(err, fmt.Sprintf("Failed to remove label %q from node %s using Patch", driverUpgradeStateLabelKey, node.Name))
+				return err
+			}
+			logger.Info(fmt.Sprintf("Successfully removed label %q from node %s", driverUpgradeStateLabelKey, node.Name))
+		}
+	}
+
 	return nil
 }
 
