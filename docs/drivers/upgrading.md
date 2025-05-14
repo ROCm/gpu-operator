@@ -133,7 +133,13 @@ The following are considered during the automatic upgrade process
 
 1. Selection of a node should satisfy both `maxUnavailableNodes` and `maxParallelUpgrades` criteria
 2. All nodes in failed state is considered while calculating `maxUnavailableNodes`
-3. When a driver upgrade on a node fails, the node will be in cordoned state. User has to fix the issue and uncordon the node manually. Such nodes will be automatically picked up for automatic driver upgrade operation.
+
+### 3. Recovery From Upgrade Failure
+
+If it is observed that the upgrade status is in failed state for a specific node, the user can debug the node, fix it and then add this label to the node to restart upgrade on it. The upgrade state will be reset and it can be tracked as it was before
+
+  - Command:   `kubectl label node <nodename> operator.amd.com/gpu-driver-upgrade-state=upgrade-required`
+  - Label:     `operator.amd.com/gpu-driver-upgrade-state: upgrade-required`
 
 ## 2. Manual Upgrade Process
 
