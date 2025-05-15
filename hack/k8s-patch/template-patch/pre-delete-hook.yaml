@@ -31,6 +31,7 @@ rules:
     verbs:
       - get
       - list
+      - delete
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
@@ -55,7 +56,7 @@ subjects:
 apiVersion: batch/v1
 kind: Job
 metadata:
-  name: check-leftover-deviceconfigs
+  name: delete-leftover-deviceconfigs
   namespace: {{ .Release.Namespace }}
   labels:
     {{- include "helm-charts-k8s.labels" . | nindent 4 }}
@@ -73,19 +74,18 @@ spec:
     spec:
       serviceAccountName: {{ include "helm-charts-k8s.fullname" . }}-pre-delete
       containers:
-        - name: check-leftover-deviceconfigs
+        - name: delete-leftover-deviceconfigs
           image: {{ .Values.controllerManager.manager.image.repository }}:{{ .Values.controllerManager.manager.image.tag }}
           command:
             - /bin/sh
             - -c
             - |
-              if kubectl get deviceconfigs -n {{ .Release.Namespace }} --no-headers | grep -q .; then
-                echo "DeviceConfigs resources exist. Stop uninstallation."
-                exit 1
-              else
-                echo "No DeviceConfigs resources found. Proceeding with uninstallation."
+              installed=$(kubectl api-resources -owide | grep -i amd.com | grep -i deviceconfig)
+              if [ -z ${installed} ] ; then
                 exit 0
               fi
+              # Delete all existing DeviceConfig custom resources
+              kubectl delete deviceconfigs.amd.com --all -A
       {{- if .Values.controllerManager.manager.imagePullSecrets }}
       imagePullSecrets:
       - name: {{ .Values.controllerManager.manager.imagePullSecrets }}

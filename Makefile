@@ -40,11 +40,11 @@ OPENSHIFT_CLUSTER_NFD_CRD_YAML_FILES=nodefeature-crd.yaml nodefeaturediscovery-c
 
 ifdef OPENSHIFT
 $(info selected openshift)
-GPU_OPERATOR_CHART ?= ./helm-charts-openshift/gpu-operator-helm-openshift-$(PROJECT_VERSION).tgz
+GPU_OPERATOR_CHART ?= $(shell pwd)/helm-charts-openshift/gpu-operator-helm-openshift-$(PROJECT_VERSION).tgz
 KUBECTL_CMD=oc
 HELM_OC_CMD=--set platform=openshift
 else
-GPU_OPERATOR_CHART ?= ./helm-charts-k8s/gpu-operator-helm-k8s-$(PROJECT_VERSION).tgz
+GPU_OPERATOR_CHART ?= $(shell pwd)/helm-charts-k8s/gpu-operator-helm-k8s-$(PROJECT_VERSION).tgz
 $(info selected k8s)
 KUBECTL_CMD=kubectl
 endif
@@ -63,6 +63,10 @@ endif
 
 ifdef SIM_ENABLE
 	SIM_ENABLE_CMD=--set controllerManager.env.simEnable=true
+endif
+
+ifdef SKIP_INSTALL_DEFAULT_CR
+	SKIP_INSTALL_DEFAULT_CR_CMD=--set crds.defaultCR.install=false
 endif
 
 #################################
@@ -225,17 +229,22 @@ unit-test: vet ## Run the unit tests.
 .PHONY: e2e
 e2e: ## Run the e2e tests. Make sure you have ~/.kube/config configured for your test cluster.
 	$(info deploying ${GPU_OPERATOR_CHART})
-	${MAKE} helm-install
+	SKIP_INSTALL_DEFAULT_CR=1 ${MAKE} helm-install
 	export OPENSHIFT
 	export SIM_ENABLE
 	${MAKE} -C tests/e2e/nodeapp
 	${MAKE} -C tests/e2e
 	${MAKE} helm-uninstall
+	${MAKE} helm-e2e
+
+.PHONY: helm-e2e
+helm-e2e: ## Run the helm chart e2e tests.
+	GPU_OPERATOR_CHART=${GPU_OPERATOR_CHART} ${MAKE} -C tests/helm-e2e
 
 .PHONY: dcm_e2e
 dcm_e2e:
 	$(info deploying ${GPU_OPERATOR_CHART})
-	${MAKE} helm-install
+	SKIP_INSTALL_DEFAULT_CR=1 ${MAKE} helm-install
 	export OPENSHIFT
 	export SIM_ENABLE
 	${MAKE} -C tests/e2e/nodeapp
@@ -523,7 +532,7 @@ helm-uninstall-openshift:
 	helm uninstall amd-gpu-operator -n kube-amd-gpu
 
 helm-install-k8s:
-	helm install -f helm-charts-k8s/values.yaml amd-gpu-operator ${GPU_OPERATOR_CHART} -n kube-amd-gpu --create-namespace ${SKIP_NFD_CMD} ${SKIP_KMM_CMD} ${HELM_OC_CMD} ${SIM_ENABLE_CMD}
+	helm install -f helm-charts-k8s/values.yaml amd-gpu-operator ${GPU_OPERATOR_CHART} -n kube-amd-gpu --create-namespace ${SKIP_NFD_CMD} ${SKIP_KMM_CMD} ${HELM_OC_CMD} ${SIM_ENABLE_CMD} ${SKIP_INSTALL_DEFAULT_CR_CMD}
 
 helm-uninstall-k8s:
 	echo "Deleting all device configs before uninstalling operator..."
