@@ -48,6 +48,7 @@ import (
 	"github.com/rh-ecosystem-edge/kernel-module-management/pkg/labels"
 
 	amdv1alpha1 "github.com/ROCm/gpu-operator/api/v1alpha1"
+	utils "github.com/ROCm/gpu-operator/internal"
 	"github.com/ROCm/gpu-operator/internal/conditions"
 	"github.com/ROCm/gpu-operator/internal/kmmmodule"
 	"github.com/ROCm/gpu-operator/internal/nodelabeller"

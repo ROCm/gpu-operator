@@ -1712,7 +1712,7 @@ func CreateMinioService(ctx context.Context, cl *kubernetes.Clientset, ns, hostN
 			Containers: []v1.Container{
 				{
 					Name:    "minio",
-					Image:   "registry.test.pensando.io:5000/minio/minio:latest",
+					Image:   "docker.io/minio/minio:latest",
 					Command: []string{"/bin/bash", "-c"},
 					Args:    []string{"minio server /data --console-address :9090"},
 					VolumeMounts: []v1.VolumeMount{

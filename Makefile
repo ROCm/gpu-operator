@@ -36,7 +36,7 @@ YAML_FILES=bundle/manifests/amd-gpu-operator-node-metrics_rbac.authorization.k8s
 CRD_YAML_FILES = deviceconfig-crd.yaml
 K8S_KMM_CRD_YAML_FILES=module-crd.yaml nodemodulesconfig-crd.yaml
 OPENSHIFT_KMM_CRD_YAML_FILES=module-crd.yaml nodemodulesconfig-crd.yaml
-OPENSHIFT_CLUSTER_NFD_CRD_YAML_FILES=nodefeature-crd.yaml nodefeaturediscovery-crd.yaml nodefeaturerule-crd.yaml noderesourcetopology-crd.yaml
+OPENSHIFT_CLUSTER_NFD_CRD_YAML_FILES=nodefeature-crd.yaml nodefeaturediscovery-crd.yaml nodefeaturerule-crd.yaml
 
 ifdef OPENSHIFT
 $(info selected openshift)
@@ -110,10 +110,10 @@ DOCKER_GID := $(shell stat -c '%g' /var/run/docker.sock)
 USER_UID := $(shell id -u)
 USER_GID := $(shell id -g)
 DOCKER_BUILDER_TAG := v1.1
-DOCKER_BUILDER_IMAGE := registry.test.pensando.io:5000/gpu-operator-build:$(DOCKER_BUILDER_TAG)
+DOCKER_BUILDER_IMAGE := $(DOCKER_REGISTRY)/gpu-operator-build:$(DOCKER_BUILDER_TAG)
 CONTAINER_WORKDIR := /gpu-operator
-BUILD_BASE_IMG ?= registry.test.pensando.io:5000/ubuntu:22.04
-GOLANG_BASE_IMG ?= registry.test.pensando.io:5000/golang:1.23
+BUILD_BASE_IMG ?= ubuntu:22.04
+GOLANG_BASE_IMG ?= golang:1.23
 
 .PHONY: default
 default: docker-build-env
@@ -348,12 +348,12 @@ undeploy: helm-uninstall ## Undeploy Helm Charts.
 CONTROLLER_GEN = $(shell pwd)/bin/controller-gen
 .PHONY: controller-gen
 controller-gen:
-	$(call go-get-tool,$(CONTROLLER_GEN),sigs.k8s.io/controller-tools/cmd/controller-gen@v0.12.0)
+	$(call go-get-tool,$(CONTROLLER_GEN),sigs.k8s.io/controller-tools/cmd/controller-gen@v0.15.0)
 
 GOLANGCI_LINT = $(shell pwd)/bin/golangci-lint
 .PHONY: golangci-lint
 golangci-lint:
-	$(call go-get-tool,$(GOLANGCI_LINT),github.com/golangci/golangci-lint/cmd/golangci-lint@v1.53.1)
+	$(call go-get-tool,$(GOLANGCI_LINT),github.com/golangci/golangci-lint/cmd/golangci-lint@v1.63.4)
 
 HELMDOCS = $(shell pwd)/bin/helm-docs
 .PHONY: helm-docs
