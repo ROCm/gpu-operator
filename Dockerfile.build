@@ -45,11 +45,6 @@ RUN curl -sSL https://github.com/arttor/helmify/releases/download/v0.4.13/helmif
 RUN curl -o /usr/local/bin/kubectl -LO 'https://dl.k8s.io/release/v1.30.4/bin/linux/amd64/kubectl' && \
     chmod +x /usr/local/bin/kubectl
 
-RUN mkdir -p /etc/docker && \
-    echo '{ \
-      "insecure-registries": ["registry.test.pensando.io:5000"] \
-    }' > /etc/docker/daemon.json
-
 # Copy entrypoint script
 COPY entrypoint_build.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh

@@ -57,7 +57,6 @@ COPY --from=builder /opt/app-root/src/helm-charts-openshift/crds/deviceconfig-cr
     /opt/app-root/src/helm-charts-openshift/charts/nfd/crds/nodefeature-crd.yaml \
     /opt/app-root/src/helm-charts-openshift/charts/nfd/crds/nodefeaturediscovery-crd.yaml \
     /opt/app-root/src/helm-charts-openshift/charts/nfd/crds/nodefeaturerule-crd.yaml \
-    /opt/app-root/src/helm-charts-openshift/charts/nfd/crds/noderesourcetopology-crd.yaml \
     /opt/app-root/src/helm-charts-openshift/charts/kmm/crds/module-crd.yaml \
     /opt/app-root/src/helm-charts-openshift/charts/kmm/crds/nodemodulesconfig-crd.yaml \
     /opt/helm-charts-crds-openshift/

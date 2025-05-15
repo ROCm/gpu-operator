@@ -703,14 +703,14 @@ func (s *E2ESuite) TestTestRunnerLogsExport(c *C) {
 	enableTestRunner := true
 	enableExporter := true
 	devCfg.Spec.TestRunner.Enable = &enableTestRunner
-	devCfg.Spec.TestRunner.Image = "registry.test.pensando.io:5000/test-runner/test-runner:udayb"
+	devCfg.Spec.TestRunner.Image = testRunnerImage
 	devCfg.Spec.TestRunner.ImagePullPolicy = "Always"
 	minioSecret := &v1.LocalObjectReference{
 		Name: "minio-secret",
 	}
 	devCfg.Spec.TestRunner.LogsLocation.LogsExportSecrets = []*v1.LocalObjectReference{minioSecret}
 	devCfg.Spec.MetricsExporter.Enable = &enableExporter
-	devCfg.Spec.MetricsExporter.Image = "registry.test.pensando.io:5000/device-metrics-exporter/exporter:v1.2.0"
+	devCfg.Spec.MetricsExporter.Image = exporterImage
 	devCfg.Spec.Driver.Version = "6.3.2"
 	s.createDeviceConfig(devCfg, c)
 	s.verifyDevicePluginStatus(s.ns, c, devCfg)
