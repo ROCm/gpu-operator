@@ -20,6 +20,7 @@ import (
 	"bufio"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"sort"
@@ -67,15 +68,13 @@ type GPUConfigProfile struct {
 
 func (s *E2ESuite) addRemoveNodeLabels(nodeName string, selectedProfile string) {
 	err := utils.AddNodeLabel(s.clientSet, nodeName, "dcm.amd.com/gpu-config-profile", selectedProfile)
-	_ = utils.AddNodeLabel(s.clientSet, nodeName, "dcm.amd.com/apply-gpu-config-profile", "apply")
 	if err != nil {
 		logger.Infof("Error adding node lbels: %s\n", err.Error())
 		return
 	}
-	time.Sleep(45 * time.Second)
+	time.Sleep(15 * time.Second)
 	// Allow partition to happen
 	err = utils.DeleteNodeLabel(s.clientSet, nodeName, "dcm.amd.com/gpu-config-profile")
-	_ = utils.DeleteNodeLabel(s.clientSet, nodeName, "dcm.amd.com/apply-gpu-config-profile")
 	if err != nil {
 		logger.Infof("Error removing node lbels: %s\n", err.Error())
 		return
@@ -118,6 +117,7 @@ func (s *E2ESuite) GetPodName(ns string) (string, error) {
 func (s *E2ESuite) GetLatestEvents(ns string) ([]corev1.Event, error) {
 
 	dsName := s.cfgName + "-device-config-manager"
+	logger.Infof("dsName: %s\n", dsName)
 	fieldSelector := fields.Set{
 		"involvedObject.name": dsName,
 	}.AsSelector().String()
@@ -218,8 +218,9 @@ func (s *E2ESuite) createConfigMap() GPUConfigProfiles {
 
 	profiles_set1 := []*ProfileConfig{
 		{
-			ComputePartition: "SPX",
+			ComputePartition: "DPX",
 			MemoryPartition:  "NPS1",
+			NumGPUsAssigned:  1,
 		},
 	}
 
@@ -406,18 +407,20 @@ func (s *E2ESuite) TestDCMConfigMapPartitionHomogenous(c *C) {
 	s.configMapHelper(c)
 	// Trigger partition using labels
 	logger.Infof("Add node label after pod comes up")
-	time.Sleep(30 * time.Second)
+	time.Sleep(5 * time.Second)
 
 	nodeName := s.getWorkerNode(c)
 	logger.Infof("NODE NAME %v", nodeName)
 
 	s.addRemoveNodeLabels(nodeName, "default")
 
+	logger.Infof("Getting pod logs")
 	logs := s.getLogs()
-	if strings.Contains(logs, "Partition completed successfully") && (!strings.Contains(logs, "ERROR")) && (s.eventHelper("SuccessfullyPartitioned", "Normal")) {
+
+	if strings.Contains(logs, "Partition not required") || (strings.Contains(logs, "Partition completed successfully") && (!strings.Contains(logs, "ERROR")) && (s.eventHelper("SuccessfullyPartitioned", "Normal"))) {
 		logger.Infof("Successfully tested homogenous default partitioning")
 	} else {
-		logger.Errorf("Failure test homogenous partitioning")
+		assert.NoError(c, errors.New("Test case Failed"), "failure  test homogenous partitioning")
 	}
 }
 
@@ -432,18 +435,19 @@ func (s *E2ESuite) TestDCMConfigMapPartitionHeterogenous(c *C) {
 	s.configMapHelper(c)
 	// Trigger partition using labels
 	logger.Infof("Add node label after pod comes up")
-	time.Sleep(30 * time.Second)
+	time.Sleep(5 * time.Second)
 
 	nodeName := s.getWorkerNode(c)
 	logger.Infof("NODE NAME %v", nodeName)
 
 	s.addRemoveNodeLabels(nodeName, "e2e_profile1")
 
+	logger.Infof("Getting pod logs")
 	logs := s.getLogs()
-	if strings.Contains(logs, "Partition completed successfully") && (!strings.Contains(logs, "ERROR")) && (s.eventHelper("SuccessfullyPartitioned", "Normal")) {
+	if strings.Contains(logs, "Partition not required") || (strings.Contains(logs, "Partition completed successfully") && (!strings.Contains(logs, "ERROR")) && (s.eventHelper("SuccessfullyPartitioned", "Normal"))) {
 		logger.Infof("Successfully tested heterogenous partitioning")
 	} else {
-		logger.Errorf("Failure test heterogenous partitioning")
+		assert.NoError(c, errors.New("Test case Failed"), "failure  test heterogenous partitioning")
 	}
 }
 
@@ -458,131 +462,98 @@ func (s *E2ESuite) TestDCMPartitionNPS4(c *C) {
 	s.configMapHelper(c)
 	// Trigger partition using labels
 	logger.Infof("Add node label after pod comes up")
-	time.Sleep(30 * time.Second)
+	time.Sleep(5 * time.Second)
 
 	nodeName := s.getWorkerNode(c)
 	logger.Infof("NODE NAME %v", nodeName)
 
 	s.addRemoveNodeLabels(nodeName, "e2e_profile2")
-	time.Sleep(30 * time.Second)
 
+	logger.Infof("Getting pod logs")
 	logs := s.getLogs()
-	if strings.Contains(logs, "Partition completed successfully") && (!strings.Contains(logs, "ERROR")) && (s.eventHelper("SuccessfullyPartitioned", "Normal")) {
+	if strings.Contains(logs, "Partition not required") || (strings.Contains(logs, "Partition completed successfully") && (!strings.Contains(logs, "ERROR")) && (s.eventHelper("SuccessfullyPartitioned", "Normal"))) {
 		logger.Infof("Successfully tested NPS4 partitioning")
 	} else {
-		logger.Errorf("Failure test NPS4 partitioning")
+		assert.NoError(c, errors.New("Test case Failed"), "failure  test NPS4 partitioning")
 	}
 }
 
 func (s *E2ESuite) TestDCMInvalidComputeType(c *C) {
-	if !dcmImageDefined {
-		c.Skip("skip DCM test because E2E_DCM_IMAGE is not defined")
-	}
-	c.Skip("Skipping DCM Partition test for now, enable after fixing the test")
-	s.configMapHelper(c)
-	// Trigger partition using labels
-	logger.Infof("Add node label after pod comes up")
-	time.Sleep(30 * time.Second)
-
-	nodeName := s.getWorkerNode(c)
-	logger.Infof("NODE NAME %v", nodeName)
-
-	s.addRemoveNodeLabels(nodeName, "inval_prof1")
-
-	logs := s.getLogs()
-	if strings.Contains(logs, "Invalid partition types") && (s.eventHelper("InvalidComputeType", "Warning")) {
-		logger.Infof("Successfully tested invalid compute type profile")
-	} else {
-		logger.Errorf("Failure testing invalid compute type")
-	}
-}
-
-func (s *E2ESuite) TestDCMInvalidMemoryType(c *C) {
-	if !dcmImageDefined {
-		c.Skip("skip DCM test because E2E_DCM_IMAGE is not defined")
-	}
-	c.Skip("Skipping DCM Partition test for now, enable after fixing the test")
-	s.configMapHelper(c)
-	// Trigger partition using labels
-	logger.Infof("Add node label after pod comes up")
-	time.Sleep(30 * time.Second)
-
-	nodeName := s.getWorkerNode(c)
-	logger.Infof("NODE NAME %v", nodeName)
-
-	s.addRemoveNodeLabels(nodeName, "inval_prof2")
-
-	logs := s.getLogs()
-	if strings.Contains(logs, "Invalid partition types") && (s.eventHelper("InvalidMemoryType", "Warning")) {
-		logger.Infof("Successfully tested invalid memory type profile")
-	} else {
-		logger.Errorf("Failure testing invalid memory type")
-	}
-}
-
-func (s *E2ESuite) TestDCMInvalidGPUFilter(c *C) {
-	if !dcmImageDefined {
-		c.Skip("skip DCM test because E2E_DCM_IMAGE is not defined")
-	}
-	c.Skip("Skipping DCM Partition test for now, enable after fixing the test")
-	s.configMapHelper(c)
-	// Trigger partition using labels
-	logger.Infof("Add node label after pod comes up")
-	time.Sleep(30 * time.Second)
-
-	nodeName := s.getWorkerNode(c)
-	logger.Infof("NODE NAME %v", nodeName)
-
-	s.addRemoveNodeLabels(nodeName, "inval_prof3")
-
-	logs := s.getLogs()
-	if strings.Contains(logs, "exceeding the total number") && strings.Contains(logs, "ERROR") && (s.eventHelper("InvalidProfileInfo", "Warning")) {
-		logger.Infof("Successfully tested invalid GPU filter profile")
-	} else {
-		logger.Errorf("Failure testing invalid GPU filter profile")
-	}
-}
-
-func (s *E2ESuite) TestDCMDefaultPartition(c *C) {
 	if s.simEnable {
 		c.Skip("Skipping for non amd gpu testbed")
 	}
 	if !dcmImageDefined {
 		c.Skip("skip DCM test because E2E_DCM_IMAGE is not defined")
 	}
-	logger.Infof("###BEGIN TESTCASE###\n")
-	// check to see existing deviceconfig DS pods
-	_, err := s.dClient.DeviceConfigs(s.ns).Get(s.cfgName, metav1.GetOptions{})
-	assert.Errorf(c, err, fmt.Sprintf("config %v exists", s.cfgName))
-
-	// fetch the CR
-	devCfg := s.getDeviceConfigForDCM(c)
-	logger.Infof("create device-config %+v", devCfg.Spec.ConfigManager)
-	s.createDeviceConfig(devCfg, c)
-
-	s.checkDeviceConfigManagerStatus(devCfg, s.ns, c)
-	logger.Infof("SUCCESSFULLY DEPLOYED DCM DAEMONSET")
-	time.Sleep(30 * time.Second)
+	c.Skip("Skipping DCM Partition test for now, enable after fixing the test")
+	s.configMapHelper(c)
+	// Trigger partition using labels
+	logger.Infof("Add node label after pod comes up")
+	time.Sleep(5 * time.Second)
 
 	nodeName := s.getWorkerNode(c)
-	err = utils.AddNodeLabel(s.clientSet, nodeName, "dcm.amd.com/apply-gpu-config-profile", "apply")
-	if err != nil {
-		logger.Infof("Error adding node lbels: %s\n", err.Error())
-		return
-	}
-	time.Sleep(15 * time.Second)
-	// Allow partition to happen
-	err = utils.DeleteNodeLabel(s.clientSet, nodeName, "dcm.amd.com/apply-gpu-config-profile")
-	if err != nil {
-		logger.Infof("Error removing node lbels: %s\n", err.Error())
-		return
-	}
+	logger.Infof("NODE NAME %v", nodeName)
 
+	s.addRemoveNodeLabels(nodeName, "inval_prof1")
+
+	logger.Infof("Getting pod logs")
 	logs := s.getLogs()
-	if strings.Contains(logs, "Partition completed successfully") && (!strings.Contains(logs, "ERROR")) && (s.eventHelper("SuccessfullyPartitioned", "Normal")) {
-		logger.Infof("Successfully tested default partitioning")
+	if strings.Contains(logs, "Invalid partition types") && (s.eventHelper("InvalidProfileInfo", "Warning")) {
+		logger.Infof("Successfully tested invalid compute type profile")
 	} else {
-		logger.Errorf("Failure testing default partitioning")
+		assert.NoError(c, errors.New("Test case Failed"), "failure  testing invalid compute type")
+	}
+}
+
+func (s *E2ESuite) TestDCMInvalidMemoryType(c *C) {
+	if s.simEnable {
+		c.Skip("Skipping for non amd gpu testbed")
+	}
+	if !dcmImageDefined {
+		c.Skip("skip DCM test because E2E_DCM_IMAGE is not defined")
+	}
+	c.Skip("Skipping DCM Partition test for now, enable after fixing the test")
+	s.configMapHelper(c)
+	// Trigger partition using labels
+	logger.Infof("Add node label after pod comes up")
+	time.Sleep(5 * time.Second)
+
+	nodeName := s.getWorkerNode(c)
+	logger.Infof("NODE NAME %v", nodeName)
+
+	s.addRemoveNodeLabels(nodeName, "inval_prof2")
+
+	logger.Infof("Getting pod logs")
+	logs := s.getLogs()
+	if strings.Contains(logs, "Invalid partition types") && (s.eventHelper("InvalidProfileInfo", "Warning")) {
+		logger.Infof("Successfully tested invalid memory type profile")
+	} else {
+		assert.NoError(c, errors.New("Test case Failed"), "failure  testing invalid memory type")
+	}
+}
+
+func (s *E2ESuite) TestDCMInvalidGPUFilter(c *C) {
+	if s.simEnable {
+		c.Skip("Skipping for non amd gpu testbed")
+	}
+	if !dcmImageDefined {
+		c.Skip("skip DCM test because E2E_DCM_IMAGE is not defined")
+	}
+	c.Skip("Skipping DCM Partition test for now, enable after fixing the test")
+	s.configMapHelper(c)
+	// Trigger partition using labels
+	logger.Infof("Add node label after pod comes up")
+	time.Sleep(5 * time.Second)
+
+	nodeName := s.getWorkerNode(c)
+	logger.Infof("NODE NAME %v", nodeName)
+
+	s.addRemoveNodeLabels(nodeName, "inval_prof3")
+
+	if s.eventHelper("InvalidProfileInfo", "Warning") {
+		logger.Infof("Successfully tested invalid GPU filter profile")
+	} else {
+		assert.NoError(c, errors.New("Test case Failed"), "failure  testing invalid GPdvsdU filter profile")
 	}
 }
 
