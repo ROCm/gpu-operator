@@ -24,6 +24,207 @@ installdefaultNFDRule: true
 # -- CRD will be patched as pre-upgrade/pre-rollback hook when doing helm upgrade/rollback to current helm chart
 upgradeCRD: true
 
+crds:
+  defaultCR:
+    # -- Deploy default DeviceConfig during helm chart installation
+    install: true
+    # -- Deploy / Patch default DeviceConfig during helm chart upgrade. Be careful about this option: 1. Your customized change on default DeviceConfig may be overwritten 2. Your existing DeviceConfig may conflict with upgraded default DeviceConfig 
+    upgrade: false
+
+deviceConfig:
+  spec:
+    # -- Set node selector for the default DeviceConfig
+    selector:
+      feature.node.kubernetes.io/amd-gpu: "true"
+    driver:
+      # -- enable/disable out-of-tree driver management, set to false to use inbox driver
+      enable: false
+      # -- enable/disable putting a blacklist amdgpu entry in modprobe config, which requires node labeller to run
+      blacklist: false
+      # -- image repository to store out-of-tree driver image, DO NOT put image tag since operator automatically manage it for users
+      image: "docker.io/myUserName/driverImage"
+      # -- image pull secret for pull/push access of the driver image repository, input secret name like {"name": "mysecret"}
+      imageRegistrySecret: {}
+      imageRegistryTLS:
+        # -- set to true to use plain HTTP for driver image repository
+        insecure: false
+        # -- set to true to skip TLS validation for driver image repository
+        insecureSkipTLSVerify: false
+      # -- specify an out-of-tree driver version to install
+      version: "6.4"
+      # -- specify the secrets to sign the out-of-tree kernel module inside driver image for secure boot, e.g. input private / public key secret {"keySecret":{"name":"privateKeySecret"},"certSecret":{"name":"publicKeySecret"}}
+      imageSign: {}
+      upgradePolicy:
+        # -- enable/disable automatic driver upgrade feature 
+        enable: true
+        # -- how many nodes can be upgraded in parallel
+        maxParallelUpgrades: 3
+        # -- maximum number of nodes that can be in a failed upgrade state beyond which upgrades will stop to keep cluster at a minimal healthy state
+        maxUnavailableNodes: 25%
+        # -- whether reboot each worker node or not during the driver upgrade
+        rebootRequired: true
+        nodeDrainPolicy:
+          # -- whether force draining is allowed or not
+          force: true
+          # -- the length of time in seconds to wait before giving up drain, zero means infinite
+          timeoutSeconds: 300
+          # -- the time kubernetes waits for a pod to shut down gracefully after receiving a termination signal, zero means immediate, minus value means follow pod defined grace period
+          gracePeriodSeconds: -1
+        podDeletionPolicy:
+          # -- whether force deletion is allowed or not
+          force: true
+          # -- the length of time in seconds to wait before giving up on pod deletion, zero means infinite
+          timeoutSeconds: 300
+          # -- the time kubernetes waits for a pod to shut down gracefully after receiving a termination signal, zero means immediate, minus value means follow pod defined grace period
+          gracePeriodSeconds: -1
+    commonConfig:
+      # -- init container image
+      initContainerImage: busybox:1.36
+      utilsContainer:
+        # -- gpu operator utility container image
+        image: docker.io/rocm/gpu-operator-utils:v1.2.1
+        # -- utility container image pull policy
+        imagePullPolicy: IfNotPresent
+        # -- utility container image pull secret, e.g. {"name": "mySecretName"}
+        imageRegistrySecret: {}
+    devicePlugin:
+      # -- device plugin image
+      devicePluginImage: rocm/k8s-device-plugin:latest
+      # -- device plugin image pull policy
+      devicePluginImagePullPolicy: IfNotPresent
+      # -- device plugin tolerations
+      devicePluginTolerations: []
+      # -- pass supported flags and their values while starting device plugin daemonset, e.g. {"resource_naming_strategy": "single"} or {"resource_naming_strategy": "mixed"}
+      devicePluginArguments: {}
+      # -- enable / disable node labeller
+      enableNodeLabeller: true
+      # -- node labeller image
+      nodeLabellerImage: rocm/k8s-device-plugin:labeller-latest
+      # -- node labeller image pull policy
+      nodeLabellerImagePullPolicy: IfNotPresent
+      # -- node labeller tolerations
+      nodeLabellerTolerations: []
+      # -- pass supported labels while starting node labeller daemonset, default ["vram", "cu-count", "simd-count", "device-id", "family", "product-name", "driver-version"], also support ["compute-memory-partition", "compute-partitioning-supported", "memory-partitioning-supported"]
+      nodeLabellerArguments: []
+      # -- image pull secret for device plugin and node labeller, e.g. {"name": "mySecretName"}
+      imageRegistrySecret: {}
+      upgradePolicy:
+        # -- the type of daemonset upgrade, RollingUpdate or OnDelete
+        upgradeStrategy: RollingUpdate
+        # -- the maximum number of Pods that can be unavailable during the update process
+        maxUnavailable: 1
+    metricsExporter:
+      # -- enable / disable device metrics exporter
+      enable: true
+      # -- type of service for exposing metrics endpoint, ClusterIP or NodePort
+      serviceType: ClusterIP
+      # -- internal port used for in-cluster and node access to pull metrics from the metrics-exporter (default 5000).
+      port: 5000
+      # -- external port for pulling metrics from outside the cluster for NodePort service, in the range 30000-32767 (assigned automatically by default)
+      nodePort: 32500
+      # -- metrics exporter image
+      image: rocm/device-metrics-exporter:v1.3.0
+      # -- metrics exporter image pull policy
+      imagePullPolicy: "IfNotPresent"
+      # -- name of the metrics exporter config map, e.g. {"name": "metricConfigMapName"}
+      config: {}
+      # -- metrics exporter tolerations
+      tolerations: []
+      # -- metrics exporter image pull secret, e.g. {"name": "pullSecretName"}
+      imageRegistrySecret: {}
+      # -- metrics exporter node selector, if not specified it will reuse spec.selector
+      selector: {}
+      upgradePolicy:
+        # -- the type of daemonset upgrade, RollingUpdate or OnDelete
+        upgradeStrategy: RollingUpdate
+        # -- the maximum number of Pods that can be unavailable during the update process
+        maxUnavailable: 1
+      rbacConfig:
+        # -- enable/disable kube rbac proxy
+        enable: false
+        # -- kube rbac proxy side car container image
+        image: quay.io/brancz/kube-rbac-proxy:v0.18.1
+        # -- disable https protecting the proxy endpoint
+        disableHttps: false
+        # -- certificate secret to mount in kube-rbac container for TLS, self signed certificates will be generated by default, e.g. {"name": "secretName"}
+        secret: {}
+        # -- reference to a configmap containing the client CA (key: ca.crt) for mTLS client validation, e.g. {"name": "configMapName"}
+        clientCAConfigMap: {}
+        staticAuthorization:
+          # -- enables static authorization using client certificate CN
+          enable: false
+          # -- expected CN (Common Name) from client cert (e.g., Prometheus SA identity)
+          clientName: ""
+      prometheus:
+        serviceMonitor:
+          # -- enable or disable ServiceMonitor creation
+          enable: false
+          # -- frequency to scrape metrics. Accepts values with time unit suffix: "30s", "1m", "2h", "500ms"
+          interval: 30s
+          # -- define if Prometheus should attach node metadata to the target, e.g. {"node": "true"}
+          attachMetadata: {}
+          # -- choose the metric's labels on collisions with target labels
+          honorLabels: true
+          # -- control whether the scrape endpoints honor timestamps
+          honorTimestamps: false
+          # -- additional labels to add to the ServiceMonitor
+          labels: {}
+          # -- relabelConfigs to apply to samples before ingestion
+          relabelings: []
+          # -- relabeling rules applied to individual scraped metrics
+          metricRelabelings: []
+          # -- optional Prometheus authorization configuration for accessing the endpoint
+          authorization: {}
+          # -- TLS settings used by Prometheus to connect to the metrics endpoint
+          tlsConfig: {}
+    testRunner:
+      # -- enable / disable test runner
+      enable: false
+      # -- test runner image
+      image: docker.io/rocm/test-runner:v1.3.0
+      # -- test runner image pull policy
+      imagePullPolicy: "IfNotPresent" 
+      # -- test runner config map, e.g. {"name": "myConfigMap"}
+      config: {}
+      logsLocation:
+        # -- test runner internal mounted directory to save test run logs
+        mountPath: "/var/log/amd-test-runner" 
+        # -- host directory to save test run logs
+        hostPath: "/var/log/amd-test-runner"
+        # -- a list of secrets that contain connectivity info to multiple cloud providers
+        logsExportSecrets: []
+      upgradePolicy:
+        # -- the type of daemonset upgrade, RollingUpdate or OnDelete
+        upgradeStrategy: RollingUpdate
+        # -- the maximum number of Pods that can be unavailable during the update process
+        maxUnavailable: 1
+      # -- test runner tolerations
+      tolerations: []
+      # -- test runner image pull secret
+      imageRegistrySecret: {}
+      # -- test runner node selector, if not specified it will reuse spec.selector
+      selector: {}
+    configManager:
+      # -- enable/disable the config manager 
+      enable: false
+      # -- config manager image
+      image: rocm/device-config-manager:v1.3.0
+      # -- image pull policy for config manager image
+      imagePullPolicy: IfNotPresent
+      # -- image pull secret for config manager image, e.g. {"name": "myPullSecret"}
+      imageRegistrySecret: {}
+      # -- config map for config manager, e.g. {"name": "myConfigMap"}
+      config: {}
+      # -- node selector for config manager, if not specified it will reuse spec.selector
+      selector: {}
+      upgradePolicy:
+        # -- the type of daemonset upgrade, RollingUpdate or OnDelete
+        upgradeStrategy: RollingUpdate
+        # -- the maximum number of Pods that can be unavailable during the update process
+        maxUnavailable: 1
+      # -- config manager tolerations
+      configManagerTolerations: []
+
 # AMD GPU operator controller related configs
 controllerManager:
   manager:
