@@ -33,10 +33,11 @@ All pods should be in the `Running` state. Resolve any issues such as restarts o
 
 #### Pre-Upgrade Hook
 
-The AMD GPU Operator includes a **pre-upgrade** hook that prevents upgrades if any **driver upgrades** are active. This ensures stability by blocking the upgrade when the operator is actively managing driver installations.
+* ```pre-upgrade-check```: The AMD GPU Operator includes a **pre-upgrade** hook that prevents upgrades if any **driver upgrades** are active. This ensures stability by blocking the upgrade when the operator is actively managing driver installations.
+* ```upgrade-crd```: This hook helps users to patch the new version Custom Resource Definition (CRD) to the helm deployment. Helm by default doesn't support automatic upgrade of CRD so we implemented this hook for auto-upgrade the CRDs.
 
 - **Manual Driver Upgrades in KMM:** Manual driver upgrades initiated by users through KMM are allowed but not recommended during an operator upgrade.
-- **Skipping the Hook:** If necessary, you can bypass the pre-upgrade hook (not recommended) by adding ```--no-hooks```
+- **Skipping the Hook:** If necessary, you can bypass the pre-upgrade hook (not recommended) by adding ```--no-hooks```, you would have to manually use new version's CRD to upgrade then in cluster.
 
 #### Error Scenario
 
@@ -62,27 +63,29 @@ To resolve:
 Upgrade the operator using the following command:
 
 ```bash
-helm upgrade amd-gpu-operator helm-charts-k8s/gpu-operator-helm-k8s-v1.0.0.tgz \
-  --namespace kube-amd-gpu --set fullnameOverride=amd-gpu-operator-gpu-operator-charts \
-  --set nameOverride=gpu-operator-charts
+# Fetch latest info from helm repo
+helm repo update
+# Perform helm upgrade
+helm upgrade amd-gpu-operator rocm/gpu-operator-charts \
+  -n kube-amd-gpu \
+  --version=v1.3.0 \
+  --debug
 ```
 
-- The ```fullnameOverride``` and ```nameOverride``` parameters are used to ensure consistent naming between the previous and new chart deployments, avoiding conflicts caused by name mismatches during the upgrade process. The ```fullnameOverride``` explicitly sets the fully qualified name of the resources created by the chart, such as service accounts and deployments. The ```nameOverride``` adjusts the base name of the chart without affecting resource-specific names.
-- By default, the default ```values.yaml``` from the new helm charts will be applied
-- (Optional) You can prepare a new ```values.yaml``` with customized values and apply it along with ```helm upgrade``` command. The node feature discovery and kmm controller images can be changed before running the helm-upgrade. This will upgrade the nfd and kmm operators respectively when helm upgrade is run. For example:
-
-```bash
-helm upgrade amd-gpu-operator helm-charts-k8s/gpu-operator-helm-k8s-v1.0.0.tgz \
-  --namespace kube-amd-gpu \
-  -f new_values.yaml
+```{note}
+Upgrade Options:
+* **Error Scenario**: In case there is chart name or release name mismatch happened, you can use `--set fullnameOverride=amd-gpu-operator-gpu-operator-charts --set nameOverride=gpu-operator-charts` to resolve the conflict. The ```fullnameOverride``` and ```nameOverride``` parameters are used to ensure consistent naming between the previous and new chart deployments, avoiding conflicts caused by name mismatches during the upgrade process. The ```fullnameOverride``` explicitly sets the fully qualified name of the resources created by the chart, such as service accounts and deployments. The ```nameOverride``` adjusts the base name of the chart without affecting resource-specific names.
+* By default, the default ```values.yaml``` from the new helm charts will be applied. If you have customized values.yaml applied to your older version helm chart, you need to apply it along with ```helm upgrade``` command by using ```-f values.yaml``` option. The node feature discovery and kmm controller images can be changed before running the helm-upgrade. This will upgrade the nfd and kmm operators respectively when helm upgrade is run. 
+* If you encounter the pre-upgrade hook failure and wish to bypass it, please use `--no-hooks` option, then you need to manually patch to upgrade the CRDs in the cluster.
 ```
 
-If you encounter the pre-upgrade hook failure and wish to bypass it, please use ```--no-hooks``` option:
+```{warning}
+Default DeviceConfig Upgrade:
+* If you are using default `DeviceConfig` from `helm install`, by default the default `DeviceConfig` resource and any customized change happened on it will persist through `helm upgrade`.
+* If you want to auto upgrade the default `DeviceConfig` to new version's recommended value, you can use option ```--set crds.defaultCR.upgrade=true``` with `helm upgrade`. This option will create or patch existing default `DeviceConfig`. However, please carefully evaluate the risk before using this functionality. By using ```--set crds.defaultCR.upgrade=true``` you may:
 
-```bash
-helm upgrade amd-gpu-operator helm-charts-k8s/gpu-operator-helm-k8s-v1.0.0.tgz \
-  --namespace kube-amd-gpu \
-  --no-hooks
+  * Lose the customized change ever made on default `DeviceConfig`. 
+  * Conflict with other existing `DeviceConfig`.
 ```
 
 ### 4. Verify Post-Upgrade State

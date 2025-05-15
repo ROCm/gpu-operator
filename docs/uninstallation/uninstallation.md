@@ -29,10 +29,10 @@ or refer to [Troubleshooting](../troubleshooting) document to find the solution.
 ## Uninstall Helm Charts
 
 ```bash
-helm uninstall amd-gpu-operator -n kube-amd-gpu
+helm uninstall amd-gpu-operator -n kube-amd-gpu --debug
 ```
 
-By default the helm uninstall command will call a pre-delete hook to check if there is any `DeviceConfig` custom resources existing in the cluster. If you forget to remove all the `DeviceConfig` custom resources, the pre-delete hook will stop the helm uninstall process. In that situation, please delete all existing `DeviceConfig`.
+By default the helm uninstall command will call a pre-delete hook to delete all the existing `DeviceConfig` in the cluster for all namespaces.
 
 ```{note}
 The pre-delete hook is using the operator controller image to run kubectl for checking existing `DeviceConfig`, if you want to skip the pre-delete hook, you can run helm uninstall command with ```--no-hooks``` option, in that way the Helm Charts will be immediately uninstalled but may have risk that some `DeviceConfig` resources still remain in the cluster.
@@ -40,7 +40,7 @@ The pre-delete hook is using the operator controller image to run kubectl for ch
 
 ## Uninstall Custom Resource Definition
 
-By default Helm Charts won't uninstall the CRDs for users, so you may need to manually clean up CRDs after uninstalling the Helm Charts. To list all existing CRDs, run this command:
+By default Helm Charts are using a post-delete hook to uninstall the CRDs for users. If the Helm Charts uninstallation was running with ```--no-hooks``` you may need to manually clean up CRDs after uninstalling the Helm Charts. To list all existing CRDs, run this command:
 
 ```bash
 $ kubectl get crds
