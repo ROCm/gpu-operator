@@ -79,7 +79,7 @@ spec:
             - -c
             - |
               # Ignore the lack of CRDs, probably haven't actually been installed yet
-              # this provides idempotentcy when "things" don't userstand the difference between
+              # this provides idempotentcy when "things" don't understand the difference between
               # install and upgrade. E.g. Argo turns pre-upgrade hook into its PreSync hook
               installed=$(kubectl api-resources -owide | grep -i amd.com | grep -i deviceconfig)
               if [ -z ${installed} ] ; then
