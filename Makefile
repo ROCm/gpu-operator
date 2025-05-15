@@ -12,7 +12,6 @@ PROJECT_VERSION ?= v1.2.1
 # Note: when using images from DockerHub, please make sure to input the full DockerHub registry URL (docker.io) into DOCKER_REGISTRY
 # user's container runtime may not set DockerHub as default registry and auto-search on DockerHub
 GOFLAGS := "-mod=mod"
-GOLANG_BASE_IMG ?= golang:1.20
 GIT_COMMIT ?= $(shell git rev-parse --short HEAD)
 DOCKER_REGISTRY ?= docker.io/rocm
 IMAGE_NAME ?= gpu-operator
@@ -118,7 +117,7 @@ GOLANG_BASE_IMG ?= golang:1.23
 
 ##@ QuickStart
 .PHONY: default
-default: docker-build-env ## Quick start to build everything from docker shell container.
+default: docker-build-env ## Quick start to build everything from docker shell container
 	@echo "Starting a shell in the Docker build container..."
 	@docker run --rm -it --privileged \
 		--name gpu-operator-build \
@@ -131,7 +130,7 @@ default: docker-build-env ## Quick start to build everything from docker shell c
 		-v /var/run/docker.sock:/var/run/docker.sock \
 		-w $(CONTAINER_WORKDIR) \
 		$(DOCKER_BUILDER_IMAGE) \
-		bash -c "source ~/.bashrc && cd /gpu-operator && git config --global --add safe.directory /gpu-operator && make all && GOFLAGS=-mod=mod go run tools/build/copyright/main.go && make fmt"
+		cd /gpu-operator && git config --global --add safe.directory /gpu-operator && make all && GOFLAGS=-mod=mod go run tools/build/copyright/main.go && make fmt
 
 .PHONY: docker-build-env
 docker-build-env:
