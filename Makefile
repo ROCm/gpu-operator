@@ -5,7 +5,7 @@ endif
 
 # PROJECT_VERSION defines the project version.
 # Update this value when you upgrade the version of your project.
-PROJECT_VERSION ?= v1.2.1
+PROJECT_VERSION ?= v1.2.2
 
 ####################################
 # GPU Operator Image Build variables
