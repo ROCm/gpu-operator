@@ -65,7 +65,7 @@ Basic installation:
 helm install amd-gpu-operator rocm/gpu-operator-charts \
   --namespace kube-amd-gpu \
   --create-namespace \
-  --version=v1.2.1
+  --version=v1.2.2
 ```
 
 ```{note}
@@ -93,7 +93,7 @@ Following dashboards are provided for visualizing GPU metrics collected from dev
 
 ## Contributing
 
-Please refer to our [Developer Guide](https://instinct.docs.amd.com/projects/gpu-operator/en/release-v1.2.1/contributing/developer-guide.html).
+Please refer to our [Developer Guide](https://instinct.docs.amd.com/projects/gpu-operator/en/release-v1.2.2/contributing/developer-guide.html).
 
 ## Support
 

@@ -34,12 +34,12 @@ Getting up and running with the AMD GPU Operator and Device Metrics Exporter on 
       --namespace kube-amd-gpu --create-namespace
     ```
 
-    Optionally, you can use the Helm `--version` parameter to install a specific version of the GPU Operator (v1.2.1 in this case) as follows:
+    Optionally, you can use the Helm `--version` parameter to install a specific version of the GPU Operator (v1.2.2 in this case) as follows:
 
     ```bash
     helm install amd-gpu-operator rocm/gpu-operator-charts \
       --namespace kube-amd-gpu --create-namespace \
-      --version=v1.2.1
+      --version=v1.2.2
     ```
 
     </br>
