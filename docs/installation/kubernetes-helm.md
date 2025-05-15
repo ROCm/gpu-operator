@@ -128,7 +128,7 @@ If you would instead like to install a previous version of the GPU Operator you 
 helm install amd-gpu-operator amd/gpu-operator-helm \
   --namespace kube-amd-gpu \
   --create-namespace \
-  --version=v1.1.0
+  --version=v1.2.1
 ```
 ````
 
