@@ -132,10 +132,12 @@ helm install amd-gpu-operator amd/gpu-operator-helm \
 ```
 ````
 
-You can also specify the following installation Options to disable NFD or KMM, although this is not recommended unless you know what you are doing:
-
-- Skip NFD installation: `--set node-feature-discovery.enabled=false`
-- Skip KMM installation: `--set kmm.enabled=false`
+```{note}
+Installation Options
+  - Skip NFD installation: `--set node-feature-discovery.enabled=false`
+  - Skip KMM installation: `--set kmm.enabled=false`
+  - Disable default DeviceConfig installation: `--set crds.defaultCR.install=false`
+```
 
 ```{warning}
   It is strongly recommended to use AMD-optimized KMM images included in the operator release.
@@ -293,6 +295,7 @@ You can apply resource changes by updating your values.yaml file and upgrading t
 
 ```bash
 helm upgrade amd-gpu-operator amd/gpu-operator-helm \
+  --debug \
   --namespace kube-amd-gpu \
   --version=v1.0.0 \
   -f values.yaml
@@ -300,7 +303,10 @@ helm upgrade amd-gpu-operator amd/gpu-operator-helm \
 
 ## Install Custom Resource
 
-After the installation of AMD GPU Operator, you need to create the `DeviceConfig` custom resource in order to trigger the operator start to work. By preparing the `DeviceConfig` in the YAML file, you can create the resouce by running ```kubectl apply -f deviceconfigs.yaml```. For custom resource definition and more detailed information, please refer to [Custom Resource Installation Guide](../drivers/installation). Here are some examples for common deployment scenarios.
+After the installation of AMD GPU Operator:
+  * If you are using default `DeviceConfig`, you can modify the default `DeviceConfig` to adjust the config for your own use case. `kubectl edit deviceconfigs -n kube-amd-gpu default`
+  * If you installed without default `DeviceConfig` (either by using `--set crds.defaultCR.install=false` or installing a chart prior to v1.3.0), you need to create the `DeviceConfig` custom resource in order to trigger the operator start to work. By preparing the `DeviceConfig` in the YAML file, you can create the resouce by running ```kubectl apply -f deviceconfigs.yaml```.
+  * For custom resource definition and more detailed information, please refer to [Custom Resource Installation Guide](../drivers/installation). Here are some examples for common deployment scenarios.
 
 ### Inbox or Pre-Installed AMD GPU Drivers
 

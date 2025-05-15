@@ -11,7 +11,7 @@ external_projects = ["amd-gpu-operator"]
 external_projects_current_project = "amd-gpu-operator"
 
 project = "AMD GPU Operator"
-version = "1.2.1"
+version = "1.3.0"
 release = version
 html_title = f"{project} {version}"
 author = "Advanced Micro Devices, Inc."
