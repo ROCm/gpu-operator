@@ -31,29 +31,58 @@ Getting up and running with the AMD GPU Operator and Device Metrics Exporter on 
 
     # Install the GPU Operator
     helm install amd-gpu-operator rocm/gpu-operator-charts \
-      --namespace kube-amd-gpu --create-namespace
+      --namespace kube-amd-gpu --create-namespace --version=v1.3.0
     ```
 
-    Optionally, you can use the Helm `--version` parameter to install a specific version of the GPU Operator (v1.2.0 in this case) as follows:
-
-    ```bash
-    helm install amd-gpu-operator rocm/gpu-operator-charts \
-      --namespace kube-amd-gpu --create-namespace \
-      --version=1.2.0
+    ```{note}
+    You can use `--set crds.defaultCR.install=false` to skip the installation of default `DeviceConfig` and create your own customized `DeviceConfig` for managing the cluster.
     ```
 
-    </br>
+3. You should now see the GPU Operator component pods starting up in the namespace you specified above, `kube-amd-gpu`. There will be a default `DeviceConfig` deployed as well with the installation. Here is an example of one control plane node and one GPU worker node:
 
-3. You should now see the GPU Operator component pods starting up in the namespace you specified above, `kube-amd-gpu`. You will also notice that the `gpu-operator-charts-controller-manager`, `kmm-controller` and `kmm-webhook-server` pods are in a pending state. This is because you need to label a node in your cluster as the control-plane node for those pods to run on:
+  ```bash
+  $ kubectl get deviceconfigs -n kube-amd-gpu
+  NAME      AGE
+  default   10m
 
-    ```bash
-    # Label the control-plane node
-    kubectl label nodes <node-name> node-role.kubernetes.io/control-plane=
+  $ kubectl get pods -n kube-amd-gpu
+  NAME                                                              READY   STATUS     AGE
+  amd-gpu-operator-gpu-operator-charts-controller-manager-74nm5wt   1/1     Running    10m
+  amd-gpu-operator-kmm-controller-5c895cd594-h65nm                  1/1     Running    10m
+  amd-gpu-operator-kmm-webhook-server-76d6765d5b-g5g74              1/1     Running    10m
+  amd-gpu-operator-node-feature-discovery-gc-64c9b7dcd9-gz4g4       1/1     Running    10m
+  amd-gpu-operator-node-feature-discovery-master-7d69c9b6f9-hcrxm   1/1     Running    10m
+  amd-gpu-operator-node-feature-discovery-worker-jlzbs              1/1     Running    10m
+  default-device-plugin-9r9bh                                       1/1     Running    10m
+  default-metrics-exporter-6c7z5                                    1/1     Running    10m
+  default-node-labeller-xtwbm                                       1/1     Running    10m
+  ```
+
+  * Controller components: `gpu-operator-charts-controller-manager`, `kmm-controller` and `kmm-webhook-server`
+    
+    ```{note}
+    In case you found they are in a pending state, check the description of the pod for specific reason.
+
+      `kubectl describe pod -n kube-amd-gpu <pod name>`
+    ```
+    ```{tip}
+      We suggest you label some nodes in your cluster as the control-plane nodes for those controller and webhook pods to run on:
+
+      `kubectl label nodes <node-name> node-role.kubernetes.io/control-plane=`
     ```
 
-    </br>
+  * Operands: `default-device-plugin`, `default-node-labeller` and `default-metrics-exporter`
 
-4. To deploy the Device Plugin, Node Labeller and Metrics exporter to your cluster you need to create a new DeviceConfig custom resource. For a full list of configurable options refer to the [Full Reference Config](https://instinct.docs.amd.com/projects/gpu-operator/en/latest/fulldeviceconfig.html) documenattion. An [example DeviceConfig](https://github.com/ROCm/gpu-operator/blob/release-v1.1.0/example/deviceconfig_example.yaml) is supplied in the ROCm/gpu-operator repository which can be used to get going:
+    ```{note}
+    Potential Failures with default `DeviceConfig`: 
+    1. Operand pods are stuck in ```Init:0/1``` state: It means your GPU worker doesn't have inbox GPU driver loaded. We suggest check the [Driver Installation Guide](./drivers/installation.md) then modify the default `DeviceConfig` to ask Operator to install the out-of-tree GPU driver for your worker nodes.
+    `kubectl edit deviceconfigs -n kube-amd-gpu default`
+    2. No operand pods showed up: It is possible that default `DeviceConfig` selector `feature.node.kubernetes.io/amd-gpu: "true"` cannot find any matched node.
+      * Check node label `kubectl get node -oyaml | grep -e "amd-gpu:" -e "amd-vgpu:"`
+      * If you are using GPU in the VM, you may need to change the default `DeviceConfig` selector to `feature.node.kubernetes.io/amd-vgpu: "true"`
+      * You can always customize the node selector of the `DeviceConfig`.
+    ```
+4. For a full list of configurable options refer to the [Full Reference Config](https://instinct.docs.amd.com/projects/gpu-operator/en/latest/fulldeviceconfig.html) documenattion. An [example DeviceConfig](https://github.com/ROCm/gpu-operator/blob/release-v1.1.0/example/deviceconfig_example.yaml) is supplied in the ROCm/gpu-operator repository which can be used to get going:
 
     ```bash
     # Apply the example DeviceConfig to enable the Device Plugin, Node Labeller and Metrics Exporter plugins
