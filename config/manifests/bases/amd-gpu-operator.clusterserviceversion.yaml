@@ -5,7 +5,7 @@ metadata:
     alm-examples: '[]'
     capabilities: Seamless Upgrades
     categories: AI/Machine Learning,Monitoring
-    containerImage: docker.io/rocm/gpu-operator:v1.2.1
+    containerImage: docker.io/rocm/gpu-operator:v1.2.2
     description: |-
       Operator responsible for deploying AMD GPU kernel drivers, device plugin, device test runner and device metrics exporter
       For more information, visit [documentation](https://instinct.docs.amd.com/projects/gpu-operator/en/latest/)

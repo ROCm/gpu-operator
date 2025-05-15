@@ -31,7 +31,7 @@ controllerManager:
       # -- AMD GPU operator controller manager image repository
       repository: docker.io/rocm/gpu-operator
       # -- AMD GPU operator controller manager image tag
-      tag: v1.2.1
+      tag: v1.2.2
     # -- Image pull policy for AMD GPU operator controller manager pod
     imagePullPolicy: Always
     # -- Image pull secret name for pulling AMD GPU operator controller manager image if registry needs credential to pull image
