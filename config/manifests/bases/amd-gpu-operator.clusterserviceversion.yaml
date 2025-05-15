@@ -17,7 +17,7 @@ metadata:
     features.operators.openshift.io/token-auth-aws: "false"
     features.operators.openshift.io/token-auth-azure: "false"
     features.operators.openshift.io/token-auth-gcp: "false"
-    metricsExporterImage: docker.io/rocm/device-metrics-exporter:v1.2.0
+    metricsExporterImage: docker.io/rocm/device-metrics-exporter:v1.2.1
     nodelabellerImage: docker.io/rocm/k8s-device-plugin:labeller-rhubi-latest
     operatorframework.io/cluster-monitoring: "true"
     operatorframework.io/suggested-namespace: openshift-amd-gpu

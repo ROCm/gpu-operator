@@ -131,10 +131,4 @@
    - *Root Cause*: OpenShift's MachineConfigOperator (MCO) fully manages the CoreOS system’s configuration. Users should use MCO to configure blacklists.
    - *Resolution*: OpenShift users should apply blacklist configurations through MCO. The GPU Operator will no longer delete files created by MCO.
 
-        ```bash
-        oc edit nmc <nmc name>
-        ```
-
-    3. Remove from NMC status for all the data related to your module and save. That should allow the module to be finally deleted.
-
 </br>
