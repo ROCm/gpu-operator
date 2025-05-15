@@ -5,6 +5,8 @@ FROM ${GOLANG_BASE_IMG} AS builder
 
 USER root
 
+WORKDIR /opt/app-root/src
+
 # Copy the Go Modules manifests
 COPY go.mod go.mod
 COPY go.sum go.sum
@@ -22,6 +24,7 @@ COPY Makefile Makefile
 
 # Copy the .git directory which is needed to store the build info
 COPY .git .git
+
 
 # Copy the License
 COPY LICENSE LICENSE
