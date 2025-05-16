@@ -107,6 +107,18 @@ oc get pods -n openshift-image-registry
 
 Create an NFD rule to detect AMD GPU hardware, please create the ```NodeFeatureDiscovery``` under the namespace where NFD operator is running:
 
+```{note}
+
+When you are using OpenShift 4.16 or 4.17 you need to specify the NFD operand image in the following `NodeFeatureDiscovery` custom resource. Starting from OpenShift 4.18 you don't have to specify the operand image since the NFD operator will automatically select corresponding operand image.
+
+    spec:
+      operand:
+        image: quay.io/openshift/origin-node-feature-discovery:latest
+        imagePullPolicy: IfNotPresent
+        servicePort: 12000
+```
+
+
 ```yaml
 apiVersion: nfd.openshift.io/v1
 kind: NodeFeatureDiscovery
@@ -114,10 +126,6 @@ metadata:
   name: amd-gpu-operator-nfd-instance
   namespace: openshift-nfd
 spec:
-  operand:
-    image: quay.io/openshift/origin-node-feature-discovery:4.16
-    imagePullPolicy: IfNotPresent
-    servicePort: 12000
   workerConfig:
     configData: |
       core:
