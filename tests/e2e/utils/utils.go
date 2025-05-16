@@ -40,6 +40,9 @@ import (
 	batchv1 "k8s.io/api/batch/v1"
 	v1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
+	apiextv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
+	apiextClient "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
@@ -922,15 +925,35 @@ func SplitYAML(data []byte) [][]byte {
 	return result
 }
 
-func DeployResourcesFromFile(fileName string, cl *kubernetes.Clientset, create bool) error {
-	fileName = "./yamls/config/" + fileName
-	data, err := os.ReadFile(fileName)
-	if err != nil {
-		return fmt.Errorf("failed to read file: %s", fileName)
+func DeployResourcesFromFile(pathOrURL string, cl *kubernetes.Clientset, apiCl *apiextClient.Clientset, create bool) error {
+	var data []byte
+	var err error
+	var fileName string
+	if strings.HasPrefix(pathOrURL, "http") || strings.HasPrefix(pathOrURL, "https") {
+		resp, err := http.Get(pathOrURL)
+		if err != nil || resp.StatusCode != http.StatusOK {
+			return fmt.Errorf("failed to get file from URL: %s", pathOrURL)
+		}
+		defer resp.Body.Close()
+		data, err = io.ReadAll(resp.Body)
+		if err != nil {
+			return fmt.Errorf("failed to read response body: %s", pathOrURL)
+		}
+	} else {
+		fileName = pathOrURL
+		if !strings.HasPrefix(fileName, "/") {
+			fileName = "./yamls/config/" + fileName
+		}
+		data, err = os.ReadFile(fileName)
+		if err != nil {
+			return fmt.Errorf("failed to read file: %s", fileName)
+		}
 	}
 
+	// Decode the YAML data
 	decoder := serializer.NewCodecFactory(scheme.Scheme).UniversalDeserializer()
 
+	// Split the YAML data into separate documents
 	documents := SplitYAML(data)
 	for _, doc := range documents {
 		obj, _, err := decoder.Decode(doc, nil, nil)
@@ -942,12 +965,12 @@ func DeployResourcesFromFile(fileName string, cl *kubernetes.Clientset, create b
 		case *v1.Namespace:
 			if create {
 				_, err = cl.CoreV1().Namespaces().Create(context.TODO(), resource, metav1.CreateOptions{})
-				if err != nil {
+				if err != nil && !apierrors.IsAlreadyExists(err) {
 					return fmt.Errorf("failed to create namespace %+v: %+v", resource, err)
 				}
 			} else {
 				err = cl.CoreV1().Namespaces().Delete(context.TODO(), resource.Name, metav1.DeleteOptions{})
-				if err != nil {
+				if err != nil && !apierrors.IsNotFound(err) {
 					return fmt.Errorf("failed to delete namespace %+v: %+v", resource, err)
 				}
 			}
@@ -955,12 +978,12 @@ func DeployResourcesFromFile(fileName string, cl *kubernetes.Clientset, create b
 		case *rbacv1.ClusterRole:
 			if create {
 				_, err = cl.RbacV1().ClusterRoles().Create(context.TODO(), resource, metav1.CreateOptions{})
-				if err != nil {
+				if err != nil && !apierrors.IsAlreadyExists(err) {
 					return fmt.Errorf("failed to create clusterrole %+v: %+v", resource, err)
 				}
 			} else {
 				err = cl.RbacV1().ClusterRoles().Delete(context.TODO(), resource.Name, metav1.DeleteOptions{})
-				if err != nil {
+				if err != nil && !apierrors.IsNotFound(err) {
 					return fmt.Errorf("failed to delete clusterrole %+v: %+v", resource, err)
 				}
 			}
@@ -968,12 +991,12 @@ func DeployResourcesFromFile(fileName string, cl *kubernetes.Clientset, create b
 		case *rbacv1.ClusterRoleBinding:
 			if create {
 				_, err = cl.RbacV1().ClusterRoleBindings().Create(context.TODO(), resource, metav1.CreateOptions{})
-				if err != nil {
+				if err != nil && !apierrors.IsAlreadyExists(err) {
 					return fmt.Errorf("failed to create clusterrole binding %+v: %+v", resource, err)
 				}
 			} else {
 				err = cl.RbacV1().ClusterRoleBindings().Delete(context.TODO(), resource.Name, metav1.DeleteOptions{})
-				if err != nil {
+				if err != nil && !apierrors.IsNotFound(err) {
 					return fmt.Errorf("failed to delete clusterrole binding %+v: %+v", resource, err)
 				}
 			}
@@ -988,6 +1011,19 @@ func DeployResourcesFromFile(fileName string, cl *kubernetes.Clientset, create b
 				err = cl.BatchV1().Jobs(resource.Namespace).Delete(context.TODO(), resource.Name, metav1.DeleteOptions{})
 				if err != nil {
 					return fmt.Errorf("failed to delete batch job %+v: %+v", resource, err)
+				}
+			}
+
+		case *apiextv1.CustomResourceDefinition:
+			if create {
+				_, err = apiCl.ApiextensionsV1().CustomResourceDefinitions().Create(context.TODO(), resource, metav1.CreateOptions{})
+				if err != nil && !apierrors.IsAlreadyExists(err) {
+					return fmt.Errorf("failed to create CRD %+v: %+v", resource, err)
+				}
+			} else {
+				err = apiCl.ApiextensionsV1().CustomResourceDefinitions().Delete(context.TODO(), resource.Name, metav1.DeleteOptions{})
+				if err != nil && !apierrors.IsNotFound(err) {
+					return fmt.Errorf("failed to delete CRD %+v: %+v", resource, err)
 				}
 			}
 
@@ -1234,25 +1270,52 @@ func DeleteTempFile(file *os.File) error {
 	return os.Remove(file.Name())
 }
 
-func CurlMetrics(endpointIPs []string, token string, port int, secure bool, caCert string) error {
-	protocol := "https"
+func CurlMetrics(
+	endpointIPs []string,
+	token string,
+	port int,
+	secure bool,
+	caCertPath string,
+	clientCertPath string,
+	clientKeyPath string,
+) error {
+	// choose scheme
+	proto := "https"
 	if !secure {
-		protocol = "http"
+		proto = "http"
 	}
-	caCertStr := ""
-	if len(caCert) > 0 {
-		caCertStr = fmt.Sprintf("--cacert %s", caCert)
-	} else {
-		caCertStr = "-k"
+
+	// CA bundle or insecure skip
+	caArg := "-k"
+	if caCertPath != "" {
+		caArg = fmt.Sprintf("--cacert %s", caCertPath)
 	}
+
+	// client cert & key for mTLS (both must be provided)
+	certArg := ""
+	if clientCertPath != "" && clientKeyPath != "" {
+		certArg = fmt.Sprintf("--cert %s --key %s", clientCertPath, clientKeyPath)
+	}
+
+	// bearer token header, if given
+	authArg := ""
+	if token != "" {
+		authArg = fmt.Sprintf("-H \"Authorization: Bearer %s\"", token)
+	}
+
 	for _, ip := range endpointIPs {
-		cmd := fmt.Sprintf("curl -v -s %s -H \"Authorization: Bearer %s\" %s://%s:%d/metrics", caCertStr, token, protocol, ip, port)
-		output, err := exec.Command("sh", "-c", cmd).Output()
+		cmd := fmt.Sprintf(
+			"curl -v -s %s %s %s %s://%s:%d/metrics",
+			caArg, certArg, authArg, proto, ip, port,
+		)
+		output, err := exec.Command("sh", "-c", cmd).CombinedOutput()
 		if err != nil {
-			return fmt.Errorf("failed to curl endpoint %s: %v", ip, err)
+			return fmt.Errorf("curl failed on %s: %v\ncmd: %s\noutput: %s",
+				ip, err, cmd, strings.TrimSpace(string(output)))
 		}
 		if !strings.Contains(string(output), "gpu_id") {
-			return fmt.Errorf("failed to fetch metrics, log: %s curl command: %s", string(output), cmd)
+			return fmt.Errorf("unexpected response on %s\ncmd: %s\nlog: %s",
+				ip, cmd, strings.TrimSpace(string(output)))
 		}
 	}
 	return nil
