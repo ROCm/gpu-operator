@@ -1,5 +1,51 @@
 # Release Notes
 
+## GPU Operator v1.2.2 Release Notes
+
+The AMD GPU Operator v1.2.2 release introduces new features to support Device Metrics Exporter's integration with [Prometheus Operator](https://github.com/prometheus-operator/prometheus-operator) from ServiceMonitor custom resource and also introduces several bug fixes.
+
+### Release Highlights
+
+- **Enhanced Metrics Integration with Prometheus Operator**
+  
+  This release introduces a streamlined method for integrating the metrics endpoint of the metrics exporter with the Prometheus Operator.
+
+  Users can now leverage the `DeviceConfig` custom resource to specify the necessary configuration for metrics collection. The GPU Operator will automatically read the relevant `DeviceConfig` and manage the creation and lifecycle of a corresponding ServiceMonitor custom resource.
+
+  This automation simplifies the process of exposing metrics to the Prometheus Operator, allowing for easier scraping and monitoring of GPU-related metrics within your Kubernetes environment.
+
+### Documentation Updates
+
+- Updated [Release notes](https://instinct.docs.amd.com/projects/gpu-operator/en/latest/releasenotes.html) detailing new features in v1.2.2.
+
+### Known Limitations
+
+> **Note:** All current and historical limitations for the GPU Operator, including their latest statuses and any associated workarounds or fixes, are tracked in the following documentation page: [Known Issues and Limitations](https://instinct.docs.amd.com/projects/gpu-operator/en/latest/knownlimitations.html).  
+   Please refer to this page regularly for the most up-to-date information.
+
+### Fixes
+
+1. **Node labeller failed to report node labels when users are using `DeviceConfig` with `spec.driver.enable=false` and customized node selector in `spec.selector`** [[#183]](https://github.com/ROCm/gpu-operator/issues/183)
+   - *Issue*: When users are using inbox driver, they will set `spec.driver.enable=false` within the `DeviceConfig` spec. If they are also using customized node selector in `spec.selector`, once node labeller was brought up its GPU properties labels are not showing up among Node resource labels.
+   - *Root Cause*: When users are using `spec.driver.enable=false` and customized non-default selector `spec.selector`, the operator controller manager is using the wrong selector to clean up node labeller's labels on non-GPU nodes.
+   - *Resolution*: This issue has been fixed in v1.2.2. Users can upgrade to v1.2.2 and GPU properties node labels will show up once node labeller was brought up again.
+
+2. **Users self-defined node labels under domain `amd.com` are unexpectly removed** [[#151]](https://github.com/ROCm/gpu-operator/issues/151)
+   - *Issue*: When users created some node labels under amd.com domain (e.g. amd.com/gpu: "true") for their own usage, it is unexpectly getting removed during bootstrapping.
+   - *Root Cause*:
+     - When node labeller pod launched it will remove all node labels within `amd.com` and `beta.amd.com` from current node then post the labels managed by itself.
+     - When operator is executing the reconcile function, the removal of `DevicePlugin` or will remove all node labels under `amd.com` or `beta.amd.com` domain even if they are not managed by node labeller.
+   - *Resolution*: This issue has been fixed in v1.2.2 for both operator and node labeller side. Users can upgrade to v1.2.2 operator helm chart and use latest node labeller image then only node labeller managed labels will be auto removed. Other users defined labels under `amd.com` or `beta.amd.com` won't be auto removed by operator or node labeller. 
+
+3. **During automatic driver upgrade nodes can get stuck in reboot-in-progress**
+   - *Issue*: When users upgrade the driver version by using `DeviceConfig` automatic upgrade feature with `spec.driver.upgradePolicy.enable=true` and `spec.driver.upgradePolicy.rebootRequired=true`, some nodes may get stuck at reboot-in-progress state.
+   - *Root Cause*:
+     - Upgrademgr was checking the generationID of `DeviceConfig` to make sure any spec change during upgrade won't interfere existing upgrade. But if CR changes even for other parts of the device config spec which are unrelated to upgrade, this check will be a problem as new driver upgrade will not start for unrelated CR changes.
+     - During the driver upgrade when node reboot happened, the controller manager pod could also get affected and rescheduled to another node. When it comes back, in the init phase, it checks for reboot-in-progress and attempts to delete reboot pod. But it is possible that reboot pod has terminated by then already.
+   - *Resolution*: The controller manager's upgrade manager module implementation has been patched to fix this issue in release v1.2.2, by upgrading to new controller manager image this issue should have been fixed.
+
+</br></br>
+
 ## GPU Operator v1.2.1 Release Notes
 
 The AMD GPU Operator v1.2.1 release introduces expanded platform support and new features to enhance GPU workload management. Notably, this release adds support for OpenShift and Microsoft Azure Kubernetes Service (AKS), and introduces two new **beta features**:
