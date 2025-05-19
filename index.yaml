@@ -2,8 +2,44 @@ apiVersion: v1
 entries:
   gpu-operator-charts:
   - apiVersion: v2
+    appVersion: v1.3.0
+    created: "2025-05-19T23:35:18.725252111Z"
+    dependencies:
+    - condition: node-feature-discovery.enabled
+      name: node-feature-discovery
+      repository: https://kubernetes-sigs.github.io/node-feature-discovery/charts
+      version: v0.16.1
+    - condition: kmm.enabled
+      name: kmm
+      repository: file://./charts/kmm
+      version: v1.0.0
+    description: AMD GPU Operator simplifies the deployment and management of AMD
+      Instinct GPU accelerators within Kubernetes clusters.
+    digest: 449d137fa345155674c732cce06af8bea68af369ae8adc93594d7edabda0d8c9
+    home: https://github.com/ROCm/gpu-operator
+    icon: https://raw.githubusercontent.com/ROCm/k8s-device-plugin/master/helm/logo.png
+    keywords:
+    - kubernetes
+    - cluster
+    - hardware
+    - amd
+    - gpu
+    - ai
+    - deep learning
+    - monitoring
+    kubeVersion: '>= 1.29.0-0'
+    maintainers:
+    - name: Yan Sun <Yan.Sun3@amd.com>
+    name: gpu-operator-charts
+    sources:
+    - https://github.com/ROCm/gpu-operator
+    type: application
+    urls:
+    - https://rocm.github.io/gpu-operator/charts/gpu-operator-charts-v1.3.0.tgz
+    version: v1.3.0
+  - apiVersion: v2
     appVersion: v1.2.2
-    created: "2025-05-08T17:22:32.759417629Z"
+    created: "2025-05-19T23:35:18.718431237Z"
     dependencies:
     - condition: node-feature-discovery.enabled
       name: node-feature-discovery
@@ -39,7 +75,7 @@ entries:
     version: v1.2.2
   - apiVersion: v2
     appVersion: v1.2.1
-    created: "2025-05-08T17:22:32.748741642Z"
+    created: "2025-05-19T23:35:18.707794553Z"
     dependencies:
     - condition: node-feature-discovery.enabled
       name: node-feature-discovery
@@ -75,7 +111,7 @@ entries:
     version: v1.2.1
   - apiVersion: v2
     appVersion: v1.2.0
-    created: "2025-05-08T17:22:32.74222774Z"
+    created: "2025-05-19T23:35:18.693831346Z"
     dependencies:
     - condition: node-feature-discovery.enabled
       name: node-feature-discovery
@@ -111,7 +147,7 @@ entries:
     version: v1.2.0
   - apiVersion: v2
     appVersion: v1.1.0
-    created: "2025-05-08T17:22:32.731456249Z"
+    created: "2025-05-19T23:35:18.68804177Z"
     dependencies:
     - condition: node-feature-discovery.enabled
       name: node-feature-discovery
@@ -147,7 +183,7 @@ entries:
     version: v1.1.0
   - apiVersion: v2
     appVersion: v1.0.0
-    created: "2025-05-08T17:22:32.720565952Z"
+    created: "2025-05-19T23:35:18.678432193Z"
     dependencies:
     - condition: node-feature-discovery.enabled
       name: node-feature-discovery
@@ -181,4 +217,4 @@ entries:
     urls:
     - https://rocm.github.io/gpu-operator/charts/gpu-operator-charts-v1.0.0.tgz
     version: v1.0.0
-generated: "2025-05-08T17:22:32.7082133Z"
+generated: "2025-05-19T23:35:18.665223287Z"
