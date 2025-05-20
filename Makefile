@@ -148,6 +148,7 @@ docker/shell: docker-build-env ## Bring up and attach to a container that has de
 		-v $(CURDIR):/gpu-operator \
 		-v $(CURDIR):/home/$(shell whoami)/go/src/github.com/ROCm/gpu-operator \
 		-v $(HOME)/.ssh:/home/$(shell whoami)/.ssh \
+		-v /var/run/docker.sock:/var/run/docker.sock \
 		-w $(CONTAINER_WORKDIR) \
 		$(DOCKER_BUILDER_IMAGE) \
 		bash -c "cd /gpu-operator && git config --global --add safe.directory /gpu-operator && bash"
