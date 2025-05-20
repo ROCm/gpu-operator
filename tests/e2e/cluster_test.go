@@ -1857,7 +1857,7 @@ func (s *E2ESuite) TestKubeRbacProxyNodePortMTLS(c *C) {
 	assert.NoError(c, err)
 	defer func() {
 		if errDel := utils.DeployResourcesFromFile("clusterrole_mtls.yaml", s.clientSet, s.apiClientSet, false); errDel != nil {
-			log.Errorf("failed to delete resources from clusterrole_mtls.yaml: %+v", errDel)
+			logger.Errorf("failed to delete resources from clusterrole_mtls.yaml: %+v", errDel)
 		}
 	}()
 
@@ -1871,7 +1871,7 @@ func (s *E2ESuite) TestKubeRbacProxyNodePortMTLS(c *C) {
 	assert.NoError(c, err)
 	defer func() {
 		if errDel := utils.DeleteTLSSecret(context.TODO(), s.clientSet, secretName, s.ns); errDel != nil {
-			log.Errorf("failed to delete TLS secret %s: %+v", secretName, errDel)
+			logger.Errorf("failed to delete TLS secret %s: %+v", secretName, errDel)
 		}
 	}()
 
@@ -1885,7 +1885,7 @@ func (s *E2ESuite) TestKubeRbacProxyNodePortMTLS(c *C) {
 	assert.NoError(c, err)
 	defer func() {
 		if errDel := s.clientSet.CoreV1().ConfigMaps(s.ns).Delete(context.TODO(), cmName, metav1.DeleteOptions{}); errDel != nil {
-			log.Errorf("failed to delete ConfigMap %s: %+v", cmName, errDel)
+			logger.Errorf("failed to delete ConfigMap %s: %+v", cmName, errDel)
 		}
 	}()
 
@@ -1895,7 +1895,7 @@ func (s *E2ESuite) TestKubeRbacProxyNodePortMTLS(c *C) {
 	defer func(file *os.File) {
 		if file != nil {
 			if errDel := utils.DeleteTempFile(file); errDel != nil {
-				log.Errorf("failed to delete temp file %s: %+v", file.Name(), errDel)
+				logger.Errorf("failed to delete temp file %s: %+v", file.Name(), errDel)
 			}
 		}
 	}(caFile)
@@ -1904,7 +1904,7 @@ func (s *E2ESuite) TestKubeRbacProxyNodePortMTLS(c *C) {
 	defer func(file *os.File) {
 		if file != nil {
 			if errDel := utils.DeleteTempFile(file); errDel != nil {
-				log.Errorf("failed to delete temp file %s: %+v", file.Name(), errDel)
+				logger.Errorf("failed to delete temp file %s: %+v", file.Name(), errDel)
 			}
 		}
 	}(certFile)
@@ -1913,7 +1913,7 @@ func (s *E2ESuite) TestKubeRbacProxyNodePortMTLS(c *C) {
 	defer func(file *os.File) {
 		if file != nil {
 			if errDel := utils.DeleteTempFile(file); errDel != nil {
-				log.Errorf("failed to delete temp file %s: %+v", file.Name(), errDel)
+				logger.Errorf("failed to delete temp file %s: %+v", file.Name(), errDel)
 			}
 		}
 	}(keyFile)
@@ -1922,7 +1922,7 @@ func (s *E2ESuite) TestKubeRbacProxyNodePortMTLS(c *C) {
 	defer func(file *os.File) {
 		if file != nil {
 			if errDel := utils.DeleteTempFile(file); errDel != nil {
-				log.Errorf("failed to delete temp file %s: %+v", file.Name(), errDel)
+				logger.Errorf("failed to delete temp file %s: %+v", file.Name(), errDel)
 			}
 		}
 	}(serverCertFile)
@@ -1931,14 +1931,52 @@ func (s *E2ESuite) TestKubeRbacProxyNodePortMTLS(c *C) {
 	defer func(file *os.File) {
 		if file != nil {
 			if errDel := utils.DeleteTempFile(file); errDel != nil {
-				log.Errorf("failed to delete temp file %s: %+v", file.Name(), errDel)
+				logger.Errorf("failed to delete temp file %s: %+v", file.Name(), errDel)
 			}
 		}
 	}(serverKeyFile)
 
 	// DeviceConfig
-	devCfg := s.getDeviceConfigFromFile(c, "devcfg_kuberbac_nodeport.yaml")
-	devCfg.Spec.MetricsExporter.RbacConfig.Enable = ptr.To(true)
+	enableDriver := false
+	enableExporter := true
+	enableKubeRbacProxy := true
+	disableHTTPs := false
+	devCfg := &v1alpha1.DeviceConfig{
+		TypeMeta: metav1.TypeMeta{
+			APIVersion: "amd.com/v1alpha1",
+			Kind:       "DeviceConfig",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "devcfg-kuberbac-nodeport",
+			Namespace: "kube-amd-gpu",
+		},
+		Spec: v1alpha1.DeviceConfigSpec{
+			Driver: v1alpha1.DriverSpec{
+				Enable: &enableDriver,
+			},
+			DevicePlugin: v1alpha1.DevicePluginSpec{
+				DevicePluginImage: devicePluginImage,
+				NodeLabellerImage: nodeLabellerImage,
+			},
+			MetricsExporter: v1alpha1.MetricsExporterSpec{
+				Enable:   &enableExporter,
+				SvcType:  "NodePort",
+				Port:     5000,
+				NodePort: 31000,
+				Image:    exporterImage,
+				RbacConfig: v1alpha1.KubeRbacConfig{
+					Enable:       &enableKubeRbacProxy,
+					DisableHttps: &disableHTTPs,
+				},
+			},
+			CommonConfig: v1alpha1.CommonConfigSpec{
+				InitContainerImage: initContainerImage,
+			},
+			Selector: map[string]string{
+				"feature.node.kubernetes.io/amd-gpu": "true",
+			},
+		},
+	}
 	devCfg.Spec.MetricsExporter.RbacConfig.Secret = &v1.LocalObjectReference{Name: secretName}
 	devCfg.Spec.MetricsExporter.RbacConfig.ClientCAConfigMap = &v1.LocalObjectReference{Name: cmName}
 	s.createDeviceConfig(devCfg, c)
@@ -1950,7 +1988,7 @@ func (s *E2ESuite) TestKubeRbacProxyNodePortMTLS(c *C) {
 	assert.Eventually(c, func() bool {
 		err = utils.CurlMetrics(nodeIPs, "", int(devCfg.Spec.MetricsExporter.NodePort), true, caFile.Name(), certFile.Name(), keyFile.Name())
 		if err != nil {
-			log.Errorf("Error: %v", err.Error())
+			logger.Errorf("Error: %v", err.Error())
 			return false
 		}
 
@@ -1971,7 +2009,7 @@ func (s *E2ESuite) TestKubeRbacProxyNodePortMTLSWithStaticAuth(c *C) {
 	assert.NoError(c, err)
 	defer func() {
 		if errDel := utils.DeleteTLSSecret(context.TODO(), s.clientSet, secretName, s.ns); errDel != nil {
-			log.Errorf("failed to delete TLS secret %s: %+v", secretName, errDel)
+			logger.Errorf("failed to delete TLS secret %s: %+v", secretName, errDel)
 		}
 	}()
 
@@ -1981,7 +2019,7 @@ func (s *E2ESuite) TestKubeRbacProxyNodePortMTLSWithStaticAuth(c *C) {
 	assert.NoError(c, err)
 	defer func() {
 		if errDel := s.clientSet.CoreV1().ConfigMaps(s.ns).Delete(context.TODO(), cmName, metav1.DeleteOptions{}); errDel != nil {
-			log.Errorf("failed to delete ConfigMap %s: %+v", cmName, errDel)
+			logger.Errorf("failed to delete ConfigMap %s: %+v", cmName, errDel)
 		}
 	}()
 
@@ -1991,7 +2029,7 @@ func (s *E2ESuite) TestKubeRbacProxyNodePortMTLSWithStaticAuth(c *C) {
 	defer func(file *os.File) {
 		if file != nil {
 			if errDel := utils.DeleteTempFile(file); errDel != nil {
-				log.Errorf("failed to delete temp file %s: %+v", file.Name(), errDel)
+				logger.Errorf("failed to delete temp file %s: %+v", file.Name(), errDel)
 			}
 		}
 	}(caFile)
@@ -2000,7 +2038,7 @@ func (s *E2ESuite) TestKubeRbacProxyNodePortMTLSWithStaticAuth(c *C) {
 	defer func(file *os.File) {
 		if file != nil {
 			if errDel := utils.DeleteTempFile(file); errDel != nil {
-				log.Errorf("failed to delete temp file %s: %+v", file.Name(), errDel)
+				logger.Errorf("failed to delete temp file %s: %+v", file.Name(), errDel)
 			}
 		}
 	}(certFile)
@@ -2009,14 +2047,52 @@ func (s *E2ESuite) TestKubeRbacProxyNodePortMTLSWithStaticAuth(c *C) {
 	defer func(file *os.File) {
 		if file != nil {
 			if errDel := utils.DeleteTempFile(file); errDel != nil {
-				log.Errorf("failed to delete temp file %s: %+v", file.Name(), errDel)
+				logger.Errorf("failed to delete temp file %s: %+v", file.Name(), errDel)
 			}
 		}
 	}(keyFile)
 
 	// DeviceConfig w/static-auth
-	devCfg := s.getDeviceConfigFromFile(c, "devcfg_kuberbac_nodeport.yaml")
-	devCfg.Spec.MetricsExporter.RbacConfig.Enable = ptr.To(true)
+	enableDriver := false
+	enableExporter := true
+	enableKubeRbacProxy := true
+	disableHTTPs := false
+	devCfg := &v1alpha1.DeviceConfig{
+		TypeMeta: metav1.TypeMeta{
+			APIVersion: "amd.com/v1alpha1",
+			Kind:       "DeviceConfig",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "devcfg-kuberbac-nodeport",
+			Namespace: "kube-amd-gpu",
+		},
+		Spec: v1alpha1.DeviceConfigSpec{
+			Driver: v1alpha1.DriverSpec{
+				Enable: &enableDriver,
+			},
+			DevicePlugin: v1alpha1.DevicePluginSpec{
+				DevicePluginImage: devicePluginImage,
+				NodeLabellerImage: nodeLabellerImage,
+			},
+			MetricsExporter: v1alpha1.MetricsExporterSpec{
+				Enable:   &enableExporter,
+				SvcType:  "NodePort",
+				Port:     5000,
+				NodePort: 31000,
+				Image:    exporterImage,
+				RbacConfig: v1alpha1.KubeRbacConfig{
+					Enable:       &enableKubeRbacProxy,
+					DisableHttps: &disableHTTPs,
+				},
+			},
+			CommonConfig: v1alpha1.CommonConfigSpec{
+				InitContainerImage: initContainerImage,
+			},
+			Selector: map[string]string{
+				"feature.node.kubernetes.io/amd-gpu": "true",
+			},
+		},
+	}
 	devCfg.Spec.MetricsExporter.RbacConfig.Secret = &v1.LocalObjectReference{Name: secretName}
 	devCfg.Spec.MetricsExporter.RbacConfig.ClientCAConfigMap = &v1.LocalObjectReference{Name: cmName}
 	devCfg.Spec.MetricsExporter.RbacConfig.StaticAuthorization = &v1alpha1.StaticAuthConfig{Enable: true, ClientName: "metrics-reader"}
@@ -2029,7 +2105,7 @@ func (s *E2ESuite) TestKubeRbacProxyNodePortMTLSWithStaticAuth(c *C) {
 	assert.Eventually(c, func() bool {
 		err = utils.CurlMetrics(nodeIPs, "", int(devCfg.Spec.MetricsExporter.NodePort), true, caFile.Name(), certFile.Name(), keyFile.Name())
 		if err != nil {
-			log.Errorf("Error: %v", err.Error())
+			logger.Errorf("Error: %v", err.Error())
 			return false
 		}
 
@@ -2044,19 +2120,59 @@ func (s *E2ESuite) TestServiceMonitorCreation(c *C) {
 	assert.NoError(c, err)
 	defer func() {
 		if errDel := utils.DeployResourcesFromFile(serviceMonitorCRDURL, s.clientSet, s.apiClientSet, false); errDel != nil {
-			log.Errorf("failed to delete resources from %s: %+v", serviceMonitorCRDURL, errDel)
+			logger.Errorf("failed to delete resources from %s: %+v", serviceMonitorCRDURL, errDel)
 		}
 	}()
 
 	// Build DeviceConfig with ServiceMonitor enabled
-	dc := s.getDeviceConfigFromFile(c, "devcfg_kuberbac_nodeport.yaml")
-	dc.Spec.MetricsExporter.Prometheus = &v1alpha1.PrometheusConfig{
-		ServiceMonitor: &v1alpha1.ServiceMonitorConfig{
-			Enable:   ptr.To(true),
-			Interval: "30s",
-			Labels:   map[string]string{"custom": "label"},
+	enableDriver := false
+	enableExporter := true
+	enableKubeRbacProxy := true
+	disableHTTPs := false
+	dc := &v1alpha1.DeviceConfig{
+		TypeMeta: metav1.TypeMeta{
+			APIVersion: "amd.com/v1alpha1",
+			Kind:       "DeviceConfig",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "devcfg-kuberbac-nodeport",
+			Namespace: "kube-amd-gpu",
+		},
+		Spec: v1alpha1.DeviceConfigSpec{
+			Driver: v1alpha1.DriverSpec{
+				Enable: &enableDriver,
+			},
+			DevicePlugin: v1alpha1.DevicePluginSpec{
+				DevicePluginImage: devicePluginImage,
+				NodeLabellerImage: nodeLabellerImage,
+			},
+			MetricsExporter: v1alpha1.MetricsExporterSpec{
+				Enable:   &enableExporter,
+				SvcType:  "NodePort",
+				Port:     5000,
+				NodePort: 31000,
+				Image:    exporterImage,
+				RbacConfig: v1alpha1.KubeRbacConfig{
+					Enable:       &enableKubeRbacProxy,
+					DisableHttps: &disableHTTPs,
+				},
+				Prometheus: &v1alpha1.PrometheusConfig{
+					ServiceMonitor: &v1alpha1.ServiceMonitorConfig{
+						Enable:   ptr.To(true),
+						Interval: "30s",
+						Labels:   map[string]string{"custom": "label"},
+					},
+				},
+			},
+			CommonConfig: v1alpha1.CommonConfigSpec{
+				InitContainerImage: initContainerImage,
+			},
+			Selector: map[string]string{
+				"feature.node.kubernetes.io/amd-gpu": "true",
+			},
 		},
 	}
+
 	// Create and wait
 	s.createDeviceConfig(dc, c)
 
@@ -2090,9 +2206,48 @@ func (s *E2ESuite) TestServiceMonitorCRDFlow(c *C) {
 	assert.NoError(c, err)
 
 	// Build DeviceConfig
-	dc := s.getDeviceConfigFromFile(c, "devcfg_kuberbac_nodeport.yaml")
-	dc.Spec.MetricsExporter.Prometheus = &v1alpha1.PrometheusConfig{
-		ServiceMonitor: &v1alpha1.ServiceMonitorConfig{Enable: ptr.To(true)},
+	enableDriver := false
+	enableExporter := true
+	enableKubeRbacProxy := true
+	disableHTTPs := false
+	dc := &v1alpha1.DeviceConfig{
+		TypeMeta: metav1.TypeMeta{
+			APIVersion: "amd.com/v1alpha1",
+			Kind:       "DeviceConfig",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "devcfg-kuberbac-nodeport",
+			Namespace: "kube-amd-gpu",
+		},
+		Spec: v1alpha1.DeviceConfigSpec{
+			Driver: v1alpha1.DriverSpec{
+				Enable: &enableDriver,
+			},
+			DevicePlugin: v1alpha1.DevicePluginSpec{
+				DevicePluginImage: devicePluginImage,
+				NodeLabellerImage: nodeLabellerImage,
+			},
+			MetricsExporter: v1alpha1.MetricsExporterSpec{
+				Enable:   &enableExporter,
+				SvcType:  "NodePort",
+				Port:     5000,
+				NodePort: 31000,
+				Image:    exporterImage,
+				RbacConfig: v1alpha1.KubeRbacConfig{
+					Enable:       &enableKubeRbacProxy,
+					DisableHttps: &disableHTTPs,
+				},
+				Prometheus: &v1alpha1.PrometheusConfig{
+					ServiceMonitor: &v1alpha1.ServiceMonitorConfig{Enable: ptr.To(true)},
+				},
+			},
+			CommonConfig: v1alpha1.CommonConfigSpec{
+				InitContainerImage: initContainerImage,
+			},
+			Selector: map[string]string{
+				"feature.node.kubernetes.io/amd-gpu": "true",
+			},
+		},
 	}
 
 	// Create and expect validation error
@@ -2118,7 +2273,7 @@ func (s *E2ESuite) TestServiceMonitorCRDFlow(c *C) {
 	defer func() {
 		errDel := utils.DeployResourcesFromFile(serviceMonitorCRDURL, s.clientSet, s.apiClientSet, false)
 		if errDel != nil {
-			log.Errorf("failed to delete resources from %s: %+v", serviceMonitorCRDURL, errDel)
+			logger.Errorf("failed to delete resources from %s: %+v", serviceMonitorCRDURL, errDel)
 		}
 	}()
 
