@@ -199,8 +199,14 @@ func (w *workerMgr) getPodName(devConfig *amdv1alpha1.DeviceConfig, nodeName str
 func (w *workerMgr) getVFIOCommand(cmd string, devConfig *v1alpha1.DeviceConfig) string {
 	switch devConfig.Spec.Driver.DriverType {
 	case utils.DriverTypeVFPassthrough:
+		if len(devConfig.Spec.Driver.VFIOConfig.DeviceIDs) > 0 {
+			return strings.ReplaceAll(cmd, pciDeviceIDTemplate, strings.Join(devConfig.Spec.Driver.VFIOConfig.DeviceIDs, " "))
+		}
 		return strings.ReplaceAll(cmd, pciDeviceIDTemplate, strings.Join(utils.DefaultVFDeviceIDs, " "))
 	case utils.DriverTypePFPassthrough:
+		if len(devConfig.Spec.Driver.VFIOConfig.DeviceIDs) > 0 {
+			return strings.ReplaceAll(cmd, pciDeviceIDTemplate, strings.Join(devConfig.Spec.Driver.VFIOConfig.DeviceIDs, " "))
+		}
 		return strings.ReplaceAll(cmd, pciDeviceIDTemplate, strings.Join(utils.DefaultPFDeviceIDs, " "))
 	default:
 		// unlikely happen

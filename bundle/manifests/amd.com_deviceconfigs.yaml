@@ -628,6 +628,19 @@ spec:
                       version of the drivers source code, can be used as part of image of dockerfile source image
                       default value for different OS is: ubuntu: 6.1.3, coreOS: 6.2.2
                     type: string
+                  vfioConfig:
+                    description: |-
+                      vfio config
+                      specify the specific configs for binding PCI devices to vfio-pci kernel module, applies for driver type vf-passthrough and pf-passthrough
+                    properties:
+                      deviceIDs:
+                        description: list of PCI device IDs to load into vfio-pci
+                          driver. default is the list of AMD GPU PF/VF PCI device
+                          IDs based on driver type vf-passthrough/pf-passthrough.
+                        items:
+                          type: string
+                        type: array
+                    type: object
                 type: object
               metricsExporter:
                 description: metrics exporter
