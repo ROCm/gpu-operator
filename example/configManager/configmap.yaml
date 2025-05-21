@@ -17,7 +17,7 @@ data:
                   {
                       "computePartition": "SPX", 
                       "memoryPartition": "NPS1",
-                      "numGPUsAssigned": 1
+                      "numGPUsAssigned": 8
                   }
               ]
           },
@@ -30,7 +30,7 @@ data:
                   {
                       "computePartition": "CPX",
                       "memoryPartition": "NPS1",
-                      "numGPUsAssigned": 8
+                      "numGPUsAssigned": 5
                   }          
               ]
           },
@@ -43,6 +43,7 @@ data:
                   {
                       "computePartition": "CPX",
                       "memoryPartition": "NPS4",
+                      "numGPUsAssigned": 8
                   }          
               ]
           }
