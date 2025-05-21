@@ -481,6 +481,21 @@ rm -f $(1); \
 fi
 endef
 
+# remove-wrong-version-tool will use $1 $2 to check binary version
+# any binary with mismatched version compared to $3 will be removed
+# 1 - Path to the binary
+# 2 - Version argument (e.g., --version)
+# 3 - Expected version string (e.g., v0.17.0)
+define remove-wrong-version-tool
+@if [ -f $(1) ]; then \
+version_output=`$(1) $(2) 2>/dev/null || echo "not found"`; \
+echo "$$version_output" | grep -q $(3) || { \
+echo "Incorrect version ($$version_output), removing $(1)"; \
+rm -f $(1); \
+}; \
+fi
+endef
+
 OPERATOR_SDK = $(shell pwd)/bin/operator-sdk
 OPERATOR_SDK_VERSION=v1.32.0
 .PHONY: operator-sdk
