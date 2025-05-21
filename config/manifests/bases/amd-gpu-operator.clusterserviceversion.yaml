@@ -406,6 +406,12 @@ spec:
         path: driver.version
         x-descriptors:
         - urn:alm:descriptor:com.amd.deviceconfigs:version
+      - description: vfio config specify the specific configs for binding PCI devices
+          to vfio-pci kernel module, applies for driver type vf-passthrough and pf-passthrough
+        displayName: VFIOConfig
+        path: driver.vfioConfig
+        x-descriptors:
+        - urn:alm:descriptor:com.amd.deviceconfigs:vfioConfig
       - description: metrics exporter
         displayName: MetricsExporter
         path: metricsExporter

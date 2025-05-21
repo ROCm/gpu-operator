@@ -88,6 +88,11 @@ type RegistryTLS struct {
 	InsecureSkipTLSVerify *bool `json:"insecureSkipTLSVerify,omitempty"`
 }
 
+type VFIOConfigSpec struct {
+	// list of PCI device IDs to load into vfio-pci driver. default is the list of AMD GPU PF/VF PCI device IDs based on driver type vf-passthrough/pf-passthrough.
+	DeviceIDs []string `json:"deviceIDs,omitempty"`
+}
+
 type DriverSpec struct {
 	// enable driver install. default value is true.
 	// disable is for skipping driver install/uninstall for dryrun or using in-tree amdgpu kernel module
@@ -103,6 +108,12 @@ type DriverSpec struct {
 	// +kubebuilder:validation:Enum=container;vf-passthrough;pf-passthrough
 	// +kubebuilder:default=container
 	DriverType string `json:"driverType,omitempty"`
+
+	// vfio config
+	// specify the specific configs for binding PCI devices to vfio-pci kernel module, applies for driver type vf-passthrough and pf-passthrough
+	//+operator-sdk:csv:customresourcedefinitions:type=spec,displayName="VFIOConfig",xDescriptors={"urn:alm:descriptor:com.amd.deviceconfigs:vfioConfig"}
+	// +optional
+	VFIOConfig VFIOConfigSpec `json:"vfioConfig,omitempty"`
 
 	// advanced arguments, parameters and more configs to manage tne driver
 	//+operator-sdk:csv:customresourcedefinitions:type=spec,displayName="KernelModuleConfig",xDescriptors={"urn:alm:descriptor:com.amd.deviceconfigs:kernelModuleConfig"}
