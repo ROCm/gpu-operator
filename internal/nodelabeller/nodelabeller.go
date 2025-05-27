@@ -266,6 +266,8 @@ func getNodeLabellerInitContainerCommand(devConfig *amdv1alpha1.DeviceConfig, bl
 		switch devConfig.Spec.Driver.DriverType {
 		case utils.DriverTypeVFPassthrough:
 			initContainerCommand = []string{"sh", "-c", fmt.Sprintf("echo \"# added by gpu operator \nblacklist amdgpu\" > /host-etc/modprobe.d/%v; while [ ! -d /host-sys/module/gim/drivers/ ]; do echo \"gim driver is not loaded \"; sleep 2 ;done", blackListFileName)}
+		case utils.DriverTypePFPassthrough:
+			initContainerCommand = []string{"sh", "-c", "true"}
 		}
 		return initContainerCommand
 	} else {
@@ -275,6 +277,8 @@ func getNodeLabellerInitContainerCommand(devConfig *amdv1alpha1.DeviceConfig, bl
 		switch devConfig.Spec.Driver.DriverType {
 		case utils.DriverTypeVFPassthrough:
 			initContainerCommand = []string{"sh", "-c", fmt.Sprintf("rm -f /host-etc/modprobe.d/%v; while [ ! -d /host-sys/module/gim/drivers/ ]; do echo \"gim driver is not loaded \"; sleep 2 ;done", blackListFileName)}
+		case utils.DriverTypePFPassthrough:
+			initContainerCommand = []string{"sh", "-c", "true"}
 		}
 		return initContainerCommand
 	}

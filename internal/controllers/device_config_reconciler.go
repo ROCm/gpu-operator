@@ -122,7 +122,7 @@ func (r *DeviceConfigReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		// just reconcile the spec change or deletion
 		For(&amdv1alpha1.DeviceConfig{}, builder.WithPredicates(watchers.SpecChangedOrDeletionPredicate{})).
 		Owns(&v1.Service{}, builder.WithPredicates(watchers.SpecChangedOrDeletionPredicate{})).
-		Owns(&kmmv1beta1.Module{}, builder.WithPredicates(watchers.SpecChangedOrDeletionPredicate{})).
+		Owns(&kmmv1beta1.Module{}).
 		Watches( // watch for owned daemonset, only update status
 			&appsv1.DaemonSet{},
 			r.daemonsetEventHandler,
@@ -462,7 +462,7 @@ func (dcrh *deviceConfigReconcilerHelper) hasSecretReference(secretName string, 
 func (dcrh *deviceConfigReconcilerHelper) buildDeviceConfigStatus(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig, nodes *v1.NodeList) error {
 	// fetch DeviceConfig-owned custom resource
 	// then retrieve its status and put it to DeviceConfig's status fields
-	if devConfig.Spec.Driver.Enable != nil && *devConfig.Spec.Driver.Enable {
+	if utils.ShouldUseKMM(devConfig) {
 		kmmModuleObj, err := dcrh.getDeviceConfigOwnedKMMModule(ctx, devConfig)
 		if err != nil {
 			return fmt.Errorf("failed to fetch owned kmm module for DeviceConfig %+v: %+v",
@@ -795,6 +795,9 @@ func (dcrh *deviceConfigReconcilerHelper) finalizeDeviceConfig(ctx context.Conte
 	}
 
 	// finalize KMM CR of managing out-of-tree kernel module
+	if err := utils.UpdateDriverTypeNodeLabel(ctx, dcrh.client, devConfig, nodes, true); err != nil {
+		return fmt.Errorf("failed to remove driver type node label: %+v", err)
+	}
 	mod := kmmv1beta1.Module{}
 	namespacedName = types.NamespacedName{
 		Namespace: devConfig.Namespace,
@@ -803,14 +806,24 @@ func (dcrh *deviceConfigReconcilerHelper) finalizeDeviceConfig(ctx context.Conte
 	if err := dcrh.client.Get(ctx, namespacedName, &mod); err != nil {
 		if k8serrors.IsNotFound(err) {
 			// if KMM module CR is not found
-			if devConfig.Spec.Driver.Enable != nil && *devConfig.Spec.Driver.Enable {
+			if utils.ShouldUseKMM(devConfig) {
+				// when KMM was trigger
 				switch devConfig.Spec.Driver.DriverType {
 				case utils.DriverTypeVFPassthrough:
-					if !dcrh.checkPostProcessFinalizeCondition(ctx, devConfig, nodes) {
+					// for vf-passthrough, revert the vfio related work
+					if !dcrh.checkPostProcessFinalizeCondition(ctx, devConfig, nodes, true) {
 						return errors.New("waiting for post-process finalize condition")
 					}
 				default:
 					logger.Info("module already deleted, removing finalizer", "module", namespacedName)
+				}
+			} else if devConfig.Spec.Driver.Enable != nil &&
+				*devConfig.Spec.Driver.Enable &&
+				devConfig.Spec.Driver.DriverType == utils.DriverTypePFPassthrough {
+				// for pf-passthrough, unbind devices from vfio
+				// so that they can be used by other driver
+				if !dcrh.checkPostProcessFinalizeCondition(ctx, devConfig, nodes, false) {
+					return errors.New("waiting for post-process finalize condition")
 				}
 			} else {
 				// driver disabled mode won't have KMM CR created
@@ -842,32 +855,40 @@ func (dcrh *deviceConfigReconcilerHelper) finalizeDeviceConfig(ctx context.Conte
 	return nil
 }
 
-func (dcrh *deviceConfigReconcilerHelper) checkPostProcessFinalizeCondition(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig, nodes *v1.NodeList) bool {
+func (dcrh *deviceConfigReconcilerHelper) checkPostProcessFinalizeCondition(ctx context.Context,
+	devConfig *amdv1alpha1.DeviceConfig, nodes *v1.NodeList, forceCleanup bool) bool {
+	// forceCleanup:
+	// when finalizing vf-passthrough, vf devices will disappear when gim driver was unloaded no need to unbind them
 	logger := log.FromContext(ctx)
 	for _, node := range nodes.Items {
-		pod, err := dcrh.kmmPostProcessor.GetWorkerPod(ctx, devConfig, &node)
-		if err == nil {
-			logger.Info(fmt.Sprintf("post-process worker pod %+v still exist on node %+v", pod.Name, node.Name))
-			if err := dcrh.client.Delete(ctx, pod, &client.DeleteOptions{GracePeriodSeconds: &workermgr.WorkerPodGracePeriod}); err != nil && !k8serrors.IsNotFound(err) {
-				logger.Error(err, "failed to delete existing worker pod")
-			}
-			return false
-		}
-		if !k8serrors.IsNotFound(err) {
-			logger.Error(err, fmt.Sprintf("failed to get post-process worker pod on node %+v", node.Name))
-			return false
-		}
 		vfioReadyLabel := dcrh.kmmPostProcessor.GetWorkReadyLabel(types.NamespacedName{
 			Namespace: devConfig.Namespace,
 			Name:      devConfig.Name,
 		})
 		if _, ok := node.Labels[vfioReadyLabel]; ok {
 			logger.Info(fmt.Sprintf("post-process label still exist on node %+v", node.Name))
-			nodeCopy := node.DeepCopy()
-			delete(node.Labels, vfioReadyLabel)
-			if err := dcrh.client.Patch(ctx, &node, client.MergeFrom(nodeCopy)); err != nil && !k8serrors.IsNotFound(err) {
-				logger.Error(err, "failed to remove vfio ready label from node", "node", node.Name)
+			if forceCleanup {
+				nodeCopy := node.DeepCopy()
+				delete(node.Labels, vfioReadyLabel)
+				if err := dcrh.client.Patch(ctx, &node, client.MergeFrom(nodeCopy)); err != nil && !k8serrors.IsNotFound(err) {
+					logger.Error(err, "failed to remove vfio ready label from node", "node", node.Name)
+				}
 			}
+			return false
+		}
+
+		pod, err := dcrh.kmmPostProcessor.GetWorkerPod(ctx, devConfig, &node)
+		if err == nil {
+			logger.Info(fmt.Sprintf("post-process worker pod %+v still exist on node %+v", pod.Name, node.Name))
+			if forceCleanup {
+				if err := dcrh.client.Delete(ctx, pod, &client.DeleteOptions{GracePeriodSeconds: &workermgr.WorkerPodGracePeriod}); err != nil && !k8serrors.IsNotFound(err) {
+					logger.Error(err, "failed to delete existing worker pod")
+				}
+			}
+			return false
+		}
+		if !k8serrors.IsNotFound(err) {
+			logger.Error(err, fmt.Sprintf("failed to get post-process worker pod on node %+v", node.Name))
 			return false
 		}
 	}
@@ -912,7 +933,7 @@ func (drch *deviceConfigReconcilerHelper) findDeviceConfigsForNMC(ctx context.Co
 
 func (dcrh *deviceConfigReconcilerHelper) handleBuildConfigMap(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig, nodes *v1.NodeList) error {
 	logger := log.FromContext(ctx)
-	if devConfig.Spec.Driver.Enable == nil || !*devConfig.Spec.Driver.Enable {
+	if !utils.ShouldUseKMM(devConfig) {
 		logger.Info("skip handling build config map as KMM driver mode is disabled")
 		return nil
 	}
@@ -961,16 +982,21 @@ func (dcrh *deviceConfigReconcilerHelper) handleBuildConfigMap(ctx context.Conte
 }
 
 func (dcrh *deviceConfigReconcilerHelper) handleKMMModule(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig, nodes *v1.NodeList) error {
-	// the newly created KMM Module will always has the same namespace and name as its parent DeviceConfig
-	kmmMod := &kmmv1beta1.Module{
-		ObjectMeta: metav1.ObjectMeta{
-			Namespace: devConfig.Namespace,
-			Name:      devConfig.Name,
-		},
-	}
 	logger := log.FromContext(ctx)
 
-	if devConfig.Spec.Driver.Enable != nil && *devConfig.Spec.Driver.Enable {
+	// add driver type node label if it is necessary
+	if err := utils.UpdateDriverTypeNodeLabel(ctx, dcrh.client, devConfig, nodes, false); err != nil {
+		return err
+	}
+
+	if utils.ShouldUseKMM(devConfig) {
+		// the newly created KMM Module will always has the same namespace and name as its parent DeviceConfig
+		kmmMod := &kmmv1beta1.Module{
+			ObjectMeta: metav1.ObjectMeta{
+				Namespace: devConfig.Namespace,
+				Name:      devConfig.Name,
+			},
+		}
 		opRes, err := controllerutil.CreateOrPatch(ctx, dcrh.client, kmmMod, func() error {
 			return dcrh.kmmHandler.SetKMMModuleAsDesired(ctx, kmmMod, devConfig, nodes)
 		})
@@ -1007,7 +1033,7 @@ func (dcrh *deviceConfigReconcilerHelper) handleDevicePlugin(ctx context.Context
 func (dcrh *deviceConfigReconcilerHelper) handleKMMVersionLabel(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig, nodes *v1.NodeList) error {
 	// label corresponding node with given kmod version
 	// so that KMM could manage the upgrade by watching the node's version label change
-	if devConfig.Spec.Driver.Enable != nil && *devConfig.Spec.Driver.Enable {
+	if utils.ShouldUseKMM(devConfig) {
 		err := dcrh.kmmHandler.SetNodeVersionLabelAsDesired(ctx, devConfig, nodes)
 		if err != nil {
 			return fmt.Errorf("failed to update node version label for DeviceConfig %s/%s: %v", devConfig.Namespace, devConfig.Name, err)
