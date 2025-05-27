@@ -511,6 +511,7 @@ var _ = Describe("handleKMMModule", func() {
 			},
 		}
 		gomock.InOrder(
+			kubeClient.EXPECT().Patch(ctx, gomock.Any(), gomock.Any()).Return(nil),
 			kubeClient.EXPECT().Get(ctx, gomock.Any(), gomock.Any()).Return(k8serrors.NewNotFound(schema.GroupResource{}, "whatever")),
 			kmmHelper.EXPECT().SetKMMModuleAsDesired(ctx, newMod, devConfig, testNodeList).Return(nil),
 
@@ -529,6 +530,7 @@ var _ = Describe("handleKMMModule", func() {
 			},
 		}
 		gomock.InOrder(
+			kubeClient.EXPECT().Patch(ctx, gomock.Any(), gomock.Any()).Return(nil),
 			kubeClient.EXPECT().Get(ctx, gomock.Any(), gomock.Any()).Do(
 				func(_ interface{}, _ interface{}, mod *kmmv1beta1.Module, _ ...client.GetOption) {
 					mod.Name = devConfig.Name

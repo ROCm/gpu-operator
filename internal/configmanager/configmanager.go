@@ -36,7 +36,6 @@ import (
 	"fmt"
 	"os"
 
-	amdv1alpha1 "github.com/ROCm/gpu-operator/api/v1alpha1"
 	"github.com/rh-ecosystem-edge/kernel-module-management/pkg/labels"
 	appsv1 "k8s.io/api/apps/v1"
 	v1 "k8s.io/api/core/v1"
@@ -45,6 +44,9 @@ import (
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
+
+	amdv1alpha1 "github.com/ROCm/gpu-operator/api/v1alpha1"
+	utils "github.com/ROCm/gpu-operator/internal"
 )
 
 const (
@@ -166,7 +168,7 @@ func (nl *configManager) SetConfigManagerAsDesired(ds *appsv1.DaemonSet, devConf
 
 	// only use module ready label as node selector when KMM driver is enabled
 	useKMMDriver := false
-	if devConfig.Spec.Driver.Enable != nil && *devConfig.Spec.Driver.Enable {
+	if utils.ShouldUseKMM(devConfig) {
 		nodeSelector[labels.GetKernelModuleReadyNodeLabel(devConfig.Namespace, devConfig.Name)] = ""
 		useKMMDriver = true
 	}
@@ -226,6 +228,13 @@ func (nl *configManager) SetConfigManagerAsDesired(ds *appsv1.DaemonSet, devConf
 
 	serviceaccount := defaultSAName
 	gracePeriod := int64(1)
+	initContainerCommand := "if [ \"$SIM_ENABLE\" = \"true\" ]; then exit 0; fi; while [ ! -d /host-sys/class/kfd ] || [ ! -d /host-sys/module/amdgpu/drivers/ ]; do echo \"amdgpu driver is not loaded \"; sleep 2 ;done"
+	switch devConfig.Spec.Driver.DriverType {
+	case utils.DriverTypeVFPassthrough:
+		initContainerCommand = "if [ \"$SIM_ENABLE\" = \"true\" ]; then exit 0; fi; while [ ! -d /host-sys/module/gim/drivers/ ]; do echo \"gim driver is not loaded \"; sleep 2 ;done"
+	case utils.DriverTypePFPassthrough:
+		initContainerCommand = "true"
+	}
 	ds.Spec = appsv1.DaemonSetSpec{
 		Selector: &metav1.LabelSelector{MatchLabels: matchLabels},
 		Template: v1.PodTemplateSpec{
@@ -238,7 +247,7 @@ func (nl *configManager) SetConfigManagerAsDesired(ds *appsv1.DaemonSet, devConf
 					{
 						Name:            "driver-init",
 						Image:           "busybox:1.36",
-						Command:         []string{"sh", "-c", "if [ \"$SIM_ENABLE\" = \"true\" ]; then exit 0; fi; while [ ! -d /host-sys/class/kfd ] || [ ! -d /host-sys/module/amdgpu/drivers/ ]; do echo \"amdgpu driver is not loaded \"; sleep 2 ;done"},
+						Command:         []string{"sh", "-c", initContainerCommand},
 						SecurityContext: &v1.SecurityContext{Privileged: ptr.To(true)},
 						VolumeMounts: []v1.VolumeMount{
 							{
