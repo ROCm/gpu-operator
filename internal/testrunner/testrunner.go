@@ -205,7 +205,7 @@ func (nl *testRunner) SetTestRunnerAsDesired(ds *appsv1.DaemonSet, devConfig *am
 	}
 
 	// only use module ready label as node selector when KMM driver is enabled
-	if devConfig.Spec.Driver.Enable != nil && *devConfig.Spec.Driver.Enable {
+	if utils.ShouldUseKMM(devConfig) {
 		nodeSelector[labels.GetKernelModuleReadyNodeLabel(devConfig.Namespace, devConfig.Name)] = ""
 	}
 
@@ -277,6 +277,8 @@ func (nl *testRunner) SetTestRunnerAsDesired(ds *appsv1.DaemonSet, devConfig *am
 	switch devConfig.Spec.Driver.DriverType {
 	case utils.DriverTypeVFPassthrough:
 		initContainerCommand = "if [ \"$SIM_ENABLE\" = \"true\" ]; then exit 0; fi; while [ ! -d /host-sys/module/gim/drivers/ ]; do echo \"gim driver is not loaded \"; sleep 2 ;done"
+	case utils.DriverTypePFPassthrough:
+		initContainerCommand = "true"
 	}
 
 	ds.Spec = appsv1.DaemonSetSpec{

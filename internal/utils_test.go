@@ -21,6 +21,8 @@ import (
 	"reflect"
 	"testing"
 
+	"github.com/ROCm/gpu-operator/api/v1alpha1"
+	"github.com/stretchr/testify/assert"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
@@ -177,7 +179,7 @@ func TestHasNodeLabelTemplateMatch(t *testing.T) {
 		},
 	}
 
-	templates := []string{VFIOMountReadyLabelTemplate, KMMModuleReadyLabelTemplate}
+	templates := []string{VFIOMountReadyLabelTemplate, KMMModuleReadyLabelTemplate, DriverTypeNodeLabelTemplate}
 
 	for _, tc := range testCases {
 		for _, template := range templates {
@@ -193,5 +195,85 @@ func TestHasNodeLabelTemplateMatch(t *testing.T) {
 			}
 			t.Logf("Matched label key: %s, namespace: %s, name: %s", key, namespace, name)
 		}
+	}
+}
+
+func TestShouldUseKMM(t *testing.T) {
+	boolTrue := true
+	boolFalse := false
+	testCases := []struct {
+		Description string
+		DevConfig   *v1alpha1.DeviceConfig
+		Expect      bool
+	}{
+		{
+			Description: "nil DeviceConfig",
+			DevConfig:   nil,
+			Expect:      false,
+		},
+		{
+			Description: "nil spec.driver.enable",
+			DevConfig: &v1alpha1.DeviceConfig{
+				Spec: v1alpha1.DeviceConfigSpec{
+					Driver: v1alpha1.DriverSpec{
+						Enable:     nil,
+						DriverType: DriverTypeContainer,
+					},
+				},
+			},
+			Expect: false,
+		},
+		{
+			Description: "disable driver management",
+			DevConfig: &v1alpha1.DeviceConfig{
+				Spec: v1alpha1.DeviceConfigSpec{
+					Driver: v1alpha1.DriverSpec{
+						Enable:     &boolFalse,
+						DriverType: DriverTypeContainer,
+					},
+				},
+			},
+			Expect: false,
+		},
+		{
+			Description: "enbale driver management with container driver type",
+			DevConfig: &v1alpha1.DeviceConfig{
+				Spec: v1alpha1.DeviceConfigSpec{
+					Driver: v1alpha1.DriverSpec{
+						Enable:     &boolTrue,
+						DriverType: DriverTypeContainer,
+					},
+				},
+			},
+			Expect: true,
+		},
+		{
+			Description: "enbale driver management with vf-passthrough driver type",
+			DevConfig: &v1alpha1.DeviceConfig{
+				Spec: v1alpha1.DeviceConfigSpec{
+					Driver: v1alpha1.DriverSpec{
+						Enable:     &boolTrue,
+						DriverType: DriverTypeVFPassthrough,
+					},
+				},
+			},
+			Expect: true,
+		},
+		{
+			Description: "enbale driver management with pf-passthrough driver type",
+			DevConfig: &v1alpha1.DeviceConfig{
+				Spec: v1alpha1.DeviceConfigSpec{
+					Driver: v1alpha1.DriverSpec{
+						Enable:     &boolTrue,
+						DriverType: DriverTypePFPassthrough,
+					},
+				},
+			},
+			Expect: false, // pf-passthrough doesn't need to trigger KMM
+		},
+	}
+
+	for _, tc := range testCases {
+		assert.Equal(t, ShouldUseKMM(tc.DevConfig), tc.Expect, fmt.Sprintf("test case %+v expect ShouldUseKMM() return %+v but got %+v", tc.Description, tc.Expect, ShouldUseKMM(tc.DevConfig)))
 	}
 }

@@ -103,3 +103,35 @@ func (s *E2ESuite) TestVFPassthroughDeployment(c *C) {
 	s.deleteDeviceConfig(devCfg, c)
 	s.verifyVFIOReadyLabel(devCfg, false, c)
 }
+
+func (s *E2ESuite) TestPFPassthroughDeployment(c *C) {
+	// only run this test case when all the worker node has AMD GPU model supported by GIM driver for VF Passthrough
+	if s.simEnable {
+		c.Skip("Skipping for non amd gpu testbed")
+	}
+	_, err := s.dClient.DeviceConfigs(s.ns).Get(s.cfgName, metav1.GetOptions{})
+	assert.Errorf(c, err, fmt.Sprintf("config %v exists", s.cfgName))
+
+	logger.Infof("create %v", s.cfgName)
+	devCfg := s.getDeviceConfig(c)
+
+	enableDriver := true
+	enableNodeLabeller := true
+	devCfg.Spec.Driver.Enable = &enableDriver
+	devCfg.Spec.Driver.DriverType = utils.DriverTypePFPassthrough
+	devCfg.Spec.DevicePlugin.EnableNodeLabeller = &enableNodeLabeller
+	devCfg.Spec.DevicePlugin.DevicePluginImage = kubeVirtHostDevicePluginImage
+	devCfg.Spec.DevicePlugin.NodeLabellerImage = kubeVirtHostNodeLabellerImage
+
+	s.createDeviceConfig(devCfg, c)
+	s.checkNFDWorkerStatus(s.ns, c, "")
+	s.checkNodeLabellerStatus(s.ns, c, devCfg)
+	s.checkMetricsExporterStatus(devCfg, s.ns, v1.ServiceTypeClusterIP, c)
+	s.verifyDeviceConfigStatus(devCfg, c)
+	s.verifyNodeGPULabel(devCfg, c)
+	s.verifyVFIOReadyLabel(devCfg, true, c)
+
+	// delete
+	s.deleteDeviceConfig(devCfg, c)
+	s.verifyVFIOReadyLabel(devCfg, false, c)
+}

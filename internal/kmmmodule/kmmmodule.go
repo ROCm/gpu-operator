@@ -285,7 +285,7 @@ func (km *kmmModule) SetDevicePluginAsDesired(ds *appsv1.DaemonSet, devConfig *a
 	for key, val := range devConfig.Spec.Selector {
 		nodeSelector[key] = val
 	}
-	if devConfig.Spec.Driver.Enable != nil && *devConfig.Spec.Driver.Enable {
+	if utils.ShouldUseKMM(devConfig) {
 		nodeSelector[kmmLabels.GetKernelModuleReadyNodeLabel(devConfig.Namespace, devConfig.Name)] = ""
 	}
 	imagePullSecrets := []v1.LocalObjectReference{}
@@ -303,6 +303,8 @@ func (km *kmmModule) SetDevicePluginAsDesired(ds *appsv1.DaemonSet, devConfig *a
 	switch devConfig.Spec.Driver.DriverType {
 	case utils.DriverTypeVFPassthrough:
 		initContainerCommand = "while [ ! -d /sys/module/gim/drivers/ ]; do echo \"gim driver is not loaded \"; sleep 2 ;done"
+	case utils.DriverTypePFPassthrough:
+		initContainerCommand = "true"
 	}
 
 	ds.Spec = appsv1.DaemonSetSpec{
