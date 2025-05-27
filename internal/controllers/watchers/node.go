@@ -164,15 +164,12 @@ func (h *NodeEventHandler) reconcileAllDeviceConfigs(ctx context.Context, q work
 		logger.Error(err, "failed to list deviceconfigs")
 	}
 	for _, dcfg := range devConfigList.Items {
-		if dcfg.Spec.Driver.Enable != nil &&
-			*dcfg.Spec.Driver.Enable {
-			q.Add(reconcile.Request{
-				NamespacedName: types.NamespacedName{
-					Namespace: dcfg.Namespace,
-					Name:      dcfg.Name,
-				},
-			})
-		}
+		q.Add(reconcile.Request{
+			NamespacedName: types.NamespacedName{
+				Namespace: dcfg.Namespace,
+				Name:      dcfg.Name,
+			},
+		})
 	}
 }
 
@@ -208,14 +205,18 @@ func (h *NodeEventHandler) reconcileRelatedDeviceConfig(ctx context.Context, obj
 }
 
 func (h *NodeEventHandler) handlePostProcess(ctx context.Context, logger logr.Logger, oldNode, node *v1.Node) {
+	// detect whether vfio bind status
 	hasVFIOReadyLabel, vfioLabel, vfioDevConfigNamespace, vfioDevConfigName := utils.HasNodeLabelTemplateMatch(node.Labels, utils.VFIOMountReadyLabelTemplate)
-	hasModuleReadyLabel, moduleLabel, moduleDevConfigNamespace, moduleDevConfigName := utils.HasNodeLabelTemplateMatch(node.Labels, utils.KMMModuleReadyLabelTemplate)
-	if hasModuleReadyLabel && !hasVFIOReadyLabel {
-		// trigger VFIO worker pod
+	// detect desired driver type
+	hasDriverTypeLabel, driverTypeLabel, driverDevConfigNamespace, driverDevConfigName := utils.HasNodeLabelTemplateMatch(node.Labels, utils.DriverTypeNodeLabelTemplate)
+
+	if hasDriverTypeLabel && !hasVFIOReadyLabel {
+		// if driver type is specified but vfio bind is not ready
+		// start the vfio bind work for vf-passthrough and pf-passthrough driver
 		devConfig := &amdv1alpha1.DeviceConfig{}
 		err := h.client.Get(ctx, types.NamespacedName{
-			Namespace: moduleDevConfigNamespace,
-			Name:      moduleDevConfigName,
+			Namespace: driverDevConfigNamespace,
+			Name:      driverDevConfigName,
 		}, devConfig)
 		if err != nil {
 			if !k8serrors.IsNotFound(err) {
@@ -223,16 +224,19 @@ func (h *NodeEventHandler) handlePostProcess(ctx context.Context, logger logr.Lo
 			}
 			return
 		}
-		if devConfig.Spec.Driver.DriverType == utils.DriverTypeVFPassthrough {
-			logger.Info(fmt.Sprintf("node %v with configured VFPassthrough driver only has KMM module label %v %v %v, launching VFIO worker pod",
-				node.Name, moduleLabel, moduleDevConfigNamespace, moduleDevConfigName))
+		// only trigger post installation process for specific driver types
+		switch devConfig.Spec.Driver.DriverType {
+		case utils.DriverTypeVFPassthrough,
+			utils.DriverTypePFPassthrough:
+			logger.Info(fmt.Sprintf("node %v with configured PFPassthrough driver %v doesn't have VFIO binding ready, launching VFIO worker pod",
+				node.Name, driverTypeLabel))
 			if err := h.workerMgr.Work(ctx, devConfig, node); err != nil {
 				logger.Error(err, "failed to create worker pod")
 			}
 		}
-	} else if !hasModuleReadyLabel && hasVFIOReadyLabel {
-		logger.Info(fmt.Sprintf("node %v with configured VFPassthrough driver only has VFIO label %v %v %v, launching VFIO cleanup worker pod",
-			node.Name, vfioLabel, vfioDevConfigNamespace, vfioDevConfigName))
+	} else if !hasDriverTypeLabel && hasVFIOReadyLabel {
+		logger.Info(fmt.Sprintf("node %v with configured driver %v only has VFIO label %v %v %v, launching VFIO cleanup worker pod",
+			node.Name, driverTypeLabel, vfioLabel, vfioDevConfigNamespace, vfioDevConfigName))
 		// trigger VFIO cleanup worker pod
 		devConfig := &amdv1alpha1.DeviceConfig{}
 		err := h.client.Get(ctx, types.NamespacedName{
@@ -248,12 +252,10 @@ func (h *NodeEventHandler) handlePostProcess(ctx context.Context, logger logr.Lo
 		if err := h.workerMgr.Cleanup(ctx, devConfig, node); err != nil {
 			logger.Error(err, "failed to create cleanup worker pod")
 		}
-	} else if hasModuleReadyLabel && hasVFIOReadyLabel &&
-		oldNode.Status.NodeInfo.BootID != node.Status.NodeInfo.BootID {
-		// if the node was rebooted
-		// don't wait for KMM to remove the module ready label then wait for workermgr to trigger a unload worker
+	} else if oldNode.Status.NodeInfo.BootID != node.Status.NodeInfo.BootID {
+		// if the node was rebooted, most of time devices need rebinding to vfio-pci
 		// directly remove the VFIO ready label
-		// so that the event handler will bring up a new worker pod to load device into VFIO
+		// so that the event handler will bring up a new vfio worker pod to load devices into VFIO
 		h.workerMgr.RemoveWorkReadyLabel(ctx, logger, types.NamespacedName{
 			Namespace: vfioDevConfigNamespace,
 			Name:      vfioDevConfigName,
