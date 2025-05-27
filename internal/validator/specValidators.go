@@ -27,9 +27,22 @@ import (
 
 // DriverSpec validation
 func ValidateDriverSpec(ctx context.Context, client client.Client, devConfig *amdv1alpha1.DeviceConfig) error {
+	if devConfig.Spec.Driver.DriverType == "" {
+		devConfig.Spec.Driver.DriverType = utils.DriverTypeContainer
+	}
 	dSpec := devConfig.Spec.Driver
 
-	if dSpec.Enable == nil || !*dSpec.Enable {
+	switch dSpec.DriverType {
+	case utils.DriverTypeContainer,
+		utils.DriverTypeVFPassthrough,
+		utils.DriverTypePFPassthrough:
+		// valid
+	default:
+		return fmt.Errorf("invalid driver type %v", dSpec.DriverType)
+	}
+
+	// if KMM is not triggered, no need to verify the rest of the config
+	if !utils.ShouldUseKMM(devConfig) {
 		return nil
 	}
 
