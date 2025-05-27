@@ -95,9 +95,12 @@ type DriverSpec struct {
 	// +kubebuilder:default=true
 	Enable *bool `json:"enable,omitempty"`
 
-	// specify the type of driver (container/vf-passthrough) to install on the worker node. default value is gpu.
+	// specify the type of driver (container/vf-passthrough/pf-passthrough) to install on the worker node. default value is container.
+	// container: normal amdgpu-dkms driver for Bare Metal GPU nodes or guest VM.
+	// vf-passthrough: MxGPU GIM driver on the host machine to generate VF, then mount VF to vfio-pci
+	// pf-passthrough: directly mount PF device to vfio-pci
 	//+operator-sdk:csv:customresourcedefinitions:type=spec,displayName="DriverType",xDescriptors={"urn:alm:descriptor:com.amd.deviceconfigs:driverType"}
-	// +kubebuilder:validation:Enum=container;vf-passthrough
+	// +kubebuilder:validation:Enum=container;vf-passthrough;pf-passthrough
 	// +kubebuilder:default=container
 	DriverType string `json:"driverType,omitempty"`
 
