@@ -21,6 +21,7 @@ import (
 	_ "embed"
 	"encoding/json"
 	"fmt"
+	"strings"
 
 	"github.com/go-logr/logr"
 	v1 "k8s.io/api/core/v1"
@@ -32,6 +33,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
+	"github.com/ROCm/gpu-operator/api/v1alpha1"
 	amdv1alpha1 "github.com/ROCm/gpu-operator/api/v1alpha1"
 	utils "github.com/ROCm/gpu-operator/internal"
 )
@@ -39,6 +41,7 @@ import (
 const (
 	workerContainerName = "worker"
 	initContainerName   = "pci-device-detector"
+	pciDeviceIDTemplate = "$$PCI_DEVICE_ID_LIST"
 )
 
 var (
@@ -83,6 +86,14 @@ func NewWorkerMgr(client client.Client, scheme *runtime.Scheme) WorkerMgrAPI {
 // Work executes the work on given node
 func (w *workerMgr) Work(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig, node *v1.Node) error {
 	logger := log.FromContext(ctx)
+	switch devConfig.Spec.Driver.DriverType {
+	case utils.DriverTypeVFPassthrough,
+		utils.DriverTypePFPassthrough:
+		// only post vfio related work for vf-passthrough or pf-passthrough
+	default:
+		logger.Info(fmt.Sprintf("no work is required for driver type %v", devConfig.Spec.Driver.DriverType))
+		return nil
+	}
 	loadWorker := w.getPodDef(devConfig, node.Name, utils.LoadVFIOAction)
 	opRes, err := controllerutil.CreateOrPatch(ctx, w.client, loadWorker, func() error {
 		return controllerutil.SetControllerReference(devConfig, loadWorker, w.scheme)
@@ -97,6 +108,14 @@ func (w *workerMgr) Work(ctx context.Context, devConfig *amdv1alpha1.DeviceConfi
 // Cleanup cleanup the work on given node
 func (w *workerMgr) Cleanup(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig, node *v1.Node) error {
 	logger := log.FromContext(ctx)
+	switch devConfig.Spec.Driver.DriverType {
+	case utils.DriverTypeVFPassthrough,
+		utils.DriverTypePFPassthrough:
+		// only post vfio related work for vf-passthrough or pf-passthrough
+	default:
+		logger.Info(fmt.Sprintf("no work is required for driver type %v", devConfig.Spec.Driver.DriverType))
+		return nil
+	}
 	unloadWorker := w.getPodDef(devConfig, node.Name, utils.UnloadVFIOAction)
 	opRes, err := controllerutil.CreateOrPatch(ctx, w.client, unloadWorker, func() error {
 		return controllerutil.SetControllerReference(devConfig, unloadWorker, w.scheme)
@@ -177,6 +196,20 @@ func (w *workerMgr) getPodName(devConfig *amdv1alpha1.DeviceConfig, nodeName str
 	return fmt.Sprintf("worker-%v-%v", devConfig.Name, nodeName)
 }
 
+func (w *workerMgr) getVFIOCommand(cmd string, devConfig *v1alpha1.DeviceConfig) string {
+	switch devConfig.Spec.Driver.DriverType {
+	case utils.DriverTypeVFPassthrough:
+		return strings.ReplaceAll(cmd, pciDeviceIDTemplate, strings.Join(utils.DefaultVFDeviceIDs, " "))
+	case utils.DriverTypePFPassthrough:
+		return strings.ReplaceAll(cmd, pciDeviceIDTemplate, strings.Join(utils.DefaultPFDeviceIDs, " "))
+	default:
+		// unlikely happen
+		// previously Work() and Cleanup() function has verified that driver type is vf-passthrough or pf-passthrough
+		// if somehow happened, do nothing for unknown driver type
+		return "true"
+	}
+}
+
 // getPodSpec generate the pod definition for worker
 func (w *workerMgr) getPodDef(devConfig *amdv1alpha1.DeviceConfig, nodeName, action string) *v1.Pod {
 	// pod name
@@ -190,9 +223,9 @@ func (w *workerMgr) getPodDef(devConfig *amdv1alpha1.DeviceConfig, nodeName, act
 	var command []string
 	switch action {
 	case utils.LoadVFIOAction:
-		command = []string{"/bin/bash", "-c", vfioBindScript}
+		command = []string{"/bin/bash", "-c", w.getVFIOCommand(vfioBindScript, devConfig)}
 	case utils.UnloadVFIOAction:
-		command = []string{"/bin/bash", "-c", vfioUnbindScript}
+		command = []string{"/bin/bash", "-c", w.getVFIOCommand(vfioUnbindScript, devConfig)}
 	}
 
 	// mount necessary folders
@@ -245,23 +278,37 @@ func (w *workerMgr) getPodDef(devConfig *amdv1alpha1.DeviceConfig, nodeName, act
 	initContainers := []v1.Container{}
 	switch action {
 	case utils.LoadVFIOAction:
-		// for loading device to VFIO driver
-		// need to use init container to make sure the device exists
-		initContainers = []v1.Container{
-			{
-				Name:    initContainerName,
-				Image:   utilsContainerImage,
-				Command: []string{"sh", "-c", "while ! lspci -nn | grep -q -e 7410 -e 74b5 -e 74b9; do echo \"PCI device not found\"; sleep 2; done"},
-				SecurityContext: &v1.SecurityContext{
-					RunAsUser:  ptr.To(int64(0)),
-					Privileged: ptr.To(true),
+		switch devConfig.Spec.Driver.DriverType {
+		case utils.DriverTypeVFPassthrough:
+			// for loading VF to VFIO driver
+			// need to use init container to make sure the VF exists
+			// then start binding VF
+			// otherwise there could be fake completion, the pod completed without binding anything
+			getDetectVFCommand := func() string {
+				grepArgs := []string{}
+				for _, deviceID := range utils.DefaultVFDeviceIDs {
+					grepArgs = append(grepArgs, "-e "+deviceID)
+				}
+				return fmt.Sprintf("while ! lspci -nn | grep -q %v; do echo \"PCI device not found\"; sleep 2; done", strings.Join(grepArgs, " "))
+			}
+			initContainers = []v1.Container{
+				{
+					Name:    initContainerName,
+					Image:   utilsContainerImage,
+					Command: []string{"sh", "-c", getDetectVFCommand()},
+					SecurityContext: &v1.SecurityContext{
+						RunAsUser:  ptr.To(int64(0)),
+						Privileged: ptr.To(true),
+					},
+					VolumeMounts: volumeMounts,
 				},
-				VolumeMounts: volumeMounts,
-			},
+			}
 		}
+	case utils.UnloadVFIOAction:
 		// for unloading device from VFIO
-		// VF devices are already removed due to the removal of GIM driver
-		// no need to use an init container to detect them
+		// 1. VF devices are already removed due to the removal of GIM driver
+		//    no need to use an init container to detect them
+		// 2. PF devices are already existing, no need to detect them then
 	}
 
 	worker := &v1.Pod{
