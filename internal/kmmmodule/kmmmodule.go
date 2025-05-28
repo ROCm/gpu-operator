@@ -458,7 +458,7 @@ func setKMMModuleLoader(ctx context.Context, mod *kmmv1beta1.Module, devConfig *
 		Modprobe: kmmv1beta1.ModprobeSpec{
 			ModuleName:          moduleName,
 			FirmwarePath:        firmwarePath,
-			Args:                &kmmv1beta1.ModprobeArgs{},
+			Args:                getModprobeArgs(devConfig),
 			Parameters:          getModprobeParametersFromNodeInfo(nodes, devConfig),
 			ModulesLoadingOrder: modLoadingOrder,
 		},
@@ -715,6 +715,17 @@ func GetVersionLabelKV(devConfig *amdv1alpha1.DeviceConfig) (string, string) {
 	return fmt.Sprintf(kmmNodeVersionLabelTemplate, devConfig.Namespace, devConfig.Name), devConfig.Spec.Driver.Version
 }
 
+func getModprobeArgs(devCfg *amdv1alpha1.DeviceConfig) *kmmv1beta1.ModprobeArgs {
+	args := &kmmv1beta1.ModprobeArgs{}
+	if len(devCfg.Spec.Driver.KernelModuleConfig.LoadArgs) > 0 {
+		args.Load = devCfg.Spec.Driver.KernelModuleConfig.LoadArgs
+	}
+	if len(devCfg.Spec.Driver.KernelModuleConfig.UnloadArgs) > 0 {
+		args.Unload = devCfg.Spec.Driver.KernelModuleConfig.UnloadArgs
+	}
+	return args
+}
+
 func setKMMDevicePlugin(mod *kmmv1beta1.Module, devConfig *amdv1alpha1.DeviceConfig) {
 	devicePluginImage := devConfig.Spec.DevicePlugin.DevicePluginImage
 	if devicePluginImage == "" {
@@ -760,6 +771,11 @@ func getNodeSelector(devConfig *amdv1alpha1.DeviceConfig) map[string]string {
 }
 
 func getModprobeParametersFromNodeInfo(nodes *v1.NodeList, devConfig *amdv1alpha1.DeviceConfig) []string {
+	// if users specified any modprobe parameters, use user provided parameters
+	if len(devConfig.Spec.Driver.KernelModuleConfig.Parameters) > 0 {
+		return devConfig.Spec.Driver.KernelModuleConfig.Parameters
+	}
+
 	switch devConfig.Spec.Driver.DriverType {
 	case utils.DriverTypeContainer:
 		// if selected nodes have VF device and the driver type is container, we need to pass specific argument to modprobe command
