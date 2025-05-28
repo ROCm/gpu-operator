@@ -359,6 +359,30 @@ spec:
         path: driver.tolerations
         x-descriptors:
         - urn:alm:descriptor:com.amd.deviceconfigs:tolerations
+      - description: advanced arguments, parameters and more configs to manage tne
+          driver
+        displayName: KernelModuleConfig
+        path: driver.kernelModuleConfig
+        x-descriptors:
+        - urn:alm:descriptor:com.amd.deviceconfigs:kernelModuleConfig
+      - description: LoadArg are the arguments when modprobe is executed to load the
+          kernel module. The command will be `modprobe ${Args} module_name`.
+        displayName: LoadArg
+        path: driver.kernelModuleConfig.loadArgs
+        x-descriptors:
+        - urn:alm:descriptor:com.amd.deviceconfigs:loadArg
+      - description: Parameters is being used for modprobe commands. The command will
+          be `modprobe ${Args} module_name ${Parameters}`.
+        displayName: Parameters
+        path: driver.kernelModuleConfig.parameters
+        x-descriptors:
+        - urn:alm:descriptor:com.amd.deviceconfigs:parameters
+      - description: UnloadArg are the arguments when modprobe is executed to unload
+          the kernel module. The command will be `modprobe -r ${Args} module_name`.
+        displayName: UnloadArg
+        path: driver.kernelModuleConfig.unloadArgs
+        x-descriptors:
+        - urn:alm:descriptor:com.amd.deviceconfigs:unloadArg
       - description: policy to upgrade the drivers
         displayName: UpgradePolicy
         path: driver.upgradePolicy

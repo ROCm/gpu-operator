@@ -526,6 +526,31 @@ spec:
                           type: string
                       type: object
                     type: array
+                  kernelModuleConfig:
+                    description: advanced arguments, parameters and more configs to
+                      manage tne driver
+                    properties:
+                      loadArgs:
+                        description: LoadArg are the arguments when modprobe is executed
+                          to load the kernel module. The command will be `modprobe ${Args}
+                          module_name`.
+                        items:
+                          type: string
+                        type: array
+                      parameters:
+                        description: Parameters is being used for modprobe commands.
+                          The command will be `modprobe ${Args} module_name ${Parameters}`.
+                        items:
+                          type: string
+                        type: array
+                      unloadArgs:
+                        description: UnloadArg are the arguments when modprobe is executed
+                          to unload the kernel module. The command will be `modprobe
+                          -r ${Args} module_name`.
+                        items:
+                          type: string
+                        type: array
+                    type: object
                   upgradePolicy:
                     description: policy to upgrade the drivers
                     properties:
