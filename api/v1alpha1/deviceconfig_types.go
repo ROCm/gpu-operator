@@ -104,6 +104,11 @@ type DriverSpec struct {
 	// +kubebuilder:default=container
 	DriverType string `json:"driverType,omitempty"`
 
+	// advanced arguments, parameters and more configs to manage tne driver
+	//+operator-sdk:csv:customresourcedefinitions:type=spec,displayName="KernelModuleConfig",xDescriptors={"urn:alm:descriptor:com.amd.deviceconfigs:kernelModuleConfig"}
+	// +optional
+	KernelModuleConfig KernelModuleConfigSpec `json:"kernelModuleConfig,omitempty"`
+
 	// blacklist amdgpu drivers on the host. Node reboot is required to apply the baclklist on the worker nodes.
 	// Not working for OpenShift cluster. OpenShift users please use the Machine Config Operator (MCO) resource to configure amdgpu blacklist.
 	// Example MCO resource is available at https://instinct.docs.amd.com/projects/gpu-operator/en/latest/installation/openshift-olm.html#create-blacklist-for-installing-out-of-tree-kernel-module
@@ -163,6 +168,22 @@ type DriverSpec struct {
 	//+operator-sdk:csv:customresourcedefinitions:type=spec,displayName="Tolerations",xDescriptors={"urn:alm:descriptor:com.amd.deviceconfigs:tolerations"}
 	// +optional
 	Tolerations []v1.Toleration `json:"tolerations,omitempty"`
+}
+
+// KernelModuleConfigSpec contains the advanced configs to manage the driver kernel module
+type KernelModuleConfigSpec struct {
+	// LoadArg are the arguments when modprobe is executed to load the kernel module. The command will be `modprobe ${Args} module_name`.
+	//+operator-sdk:csv:customresourcedefinitions:type=spec,displayName="LoadArg",xDescriptors={"urn:alm:descriptor:com.amd.deviceconfigs:loadArg"}
+	// +optional
+	LoadArgs []string `json:"loadArgs,omitempty"`
+	// UnloadArg are the arguments when modprobe is executed to unload the kernel module. The command will be `modprobe -r ${Args} module_name`.
+	//+operator-sdk:csv:customresourcedefinitions:type=spec,displayName="UnloadArg",xDescriptors={"urn:alm:descriptor:com.amd.deviceconfigs:unloadArg"}
+	// +optional
+	UnloadArgs []string `json:"unloadArgs,omitempty"`
+	// Parameters is being used for modprobe commands. The command will be `modprobe ${Args} module_name ${Parameters}`.
+	//+operator-sdk:csv:customresourcedefinitions:type=spec,displayName="Parameters",xDescriptors={"urn:alm:descriptor:com.amd.deviceconfigs:parameters"}
+	// +optional
+	Parameters []string `json:"parameters,omitempty"`
 }
 
 // UpgradeState captures the state of the upgrade process on a node
