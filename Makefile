@@ -142,8 +142,7 @@ default: docker-build-env ## Quick start to build everything from docker shell c
 		-v /var/run/docker.sock:/var/run/docker.sock \
 		-w $(CONTAINER_WORKDIR) \
 		$(DOCKER_BUILDER_IMAGE) \
-		bash -c "source ~/.bashrc && cd /gpu-operator && git config --global --add safe.directory /gpu-operator && make all && GOFLAGS=-mod=mod go run tools/build/copyright/main.go && make fmt"
-
+		"source ~/.bashrc && cd /gpu-operator && git config --global --add safe.directory /gpu-operator && make all && GOFLAGS=-mod=mod go run tools/build/copyright/main.go && make fmt"
 .PHONY: docker/shell
 docker/shell: docker-build-env ## Bring up and attach to a container that has dev environment configured.
 	@echo "Starting a shell in the Docker build container..."
@@ -158,7 +157,7 @@ docker/shell: docker-build-env ## Bring up and attach to a container that has de
 		-v /var/run/docker.sock:/var/run/docker.sock \
 		-w $(CONTAINER_WORKDIR) \
 		$(DOCKER_BUILDER_IMAGE) \
-		bash -c "cd /gpu-operator && git config --global --add safe.directory /gpu-operator && bash"
+		"cd /gpu-operator && git config --global --add safe.directory /gpu-operator && bash"
 
 .PHONY: all
 all: generate manager manifests helm-k8s helm-openshift bundle-build docker-build
@@ -417,14 +416,18 @@ deploy: helm-install ## Deploy Helm Charts.
 undeploy: helm-uninstall ## Undeploy Helm Charts.
 
 CONTROLLER_GEN = $(shell pwd)/bin/controller-gen
+CONTROLLER_GEN_VERSION=v0.17.0
 .PHONY: controller-gen
 controller-gen:
-	$(call go-get-tool,$(CONTROLLER_GEN),sigs.k8s.io/controller-tools/cmd/controller-gen@v0.17.0)
+	$(call remove-wrong-version-tool,$(CONTROLLER_GEN),--version,${CONTROLLER_GEN_VERSION})
+	$(call go-get-tool,$(CONTROLLER_GEN),sigs.k8s.io/controller-tools/cmd/controller-gen@${CONTROLLER_GEN_VERSION})
 
 GOLANGCI_LINT = $(shell pwd)/bin/golangci-lint
+GOLANGCI_LINT_VERSION=v1.63.4
 .PHONY: golangci-lint
 golangci-lint:
-	$(call go-get-tool,$(GOLANGCI_LINT),github.com/golangci/golangci-lint/cmd/golangci-lint@v1.63.4)
+	$(call remove-wrong-version-tool,$(GOLANGCI_LINT),--version,${GOLANGCI_LINT_VERSION})
+	$(call go-get-tool,$(GOLANGCI_LINT),github.com/golangci/golangci-lint/cmd/golangci-lint@${GOLANGCI_LINT_VERSION})
 
 HELMDOCS = $(shell pwd)/bin/helm-docs
 .PHONY: helm-docs
@@ -462,14 +465,31 @@ define go-get-tool
     }
 endef
 
+# remove-wrong-version-tool will use $1 $2 to check binary version
+# any binary with mismatched version compared to $3 will be removed
+# 1 - Path to the binary
+# 2 - Version argument (e.g., --version)
+# 3 - Expected version string (e.g., v0.17.0)
+define remove-wrong-version-tool
+@if [ -f $(1) ]; then \
+version_output=`$(1) $(2) 2>/dev/null || echo "not found"`; \
+echo "$$version_output" | grep -q $(3) || { \
+echo "Incorrect version ($$version_output), removing $(1)"; \
+rm -f $(1); \
+}; \
+fi
+endef
+
 OPERATOR_SDK = $(shell pwd)/bin/operator-sdk
+OPERATOR_SDK_VERSION=v1.32.0
 .PHONY: operator-sdk
 operator-sdk:
+	$(call remove-wrong-version-tool,$(OPERATOR_SDK),version,${OPERATOR_SDK_VERSION})
 	@if [ ! -f ${OPERATOR_SDK} ]; then \
 		set -e ;\
-		echo "Downloading ${OPERATOR_SDK}"; \
+		echo "Downloading ${OPERATOR_SDK} ${OPERATOR_SDK_VERSION}"; \
 		mkdir -p $(dir ${OPERATOR_SDK}) ;\
-		curl -Lo ${OPERATOR_SDK} 'https://github.com/operator-framework/operator-sdk/releases/download/v1.32.0/operator-sdk_linux_amd64'; \
+		curl -Lo ${OPERATOR_SDK} 'https://github.com/operator-framework/operator-sdk/releases/download/${OPERATOR_SDK_VERSION}/operator-sdk_linux_amd64'; \
 		chmod +x ${OPERATOR_SDK}; \
 	fi
 
