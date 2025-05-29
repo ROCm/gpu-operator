@@ -122,8 +122,6 @@ helm install amd-gpu-operator rocm/gpu-operator-charts \
   --version=v1.3.0
 ```
 
-````{note}
-
 ```{note}
 Installation Options
   - Skip NFD installation: `--set node-feature-discovery.enabled=false`
