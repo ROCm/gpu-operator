@@ -72,6 +72,21 @@ helm upgrade amd-gpu-operator rocm/gpu-operator-charts \
   --debug
 ```
 
+* When upgrading a Helm chart, customized operator controller image URLs set in the older version's values.yaml (via `--set` or `-f values.yaml`) will persist due to default Helm behavior.
+* To ensure a successful upgrade, you must use the target version's operator image in the helm upgrade command. This is because upgrade hooks rely on the target version's images for CRD updates. For example, to upgrade to v1.3.0 when you already customized operator image URL in old version helm chart, use `--set` to ask helm for using correct version image for executing helm upgrade hooks:
+
+```bash
+# Fetch latest info from helm repo
+helm repo update
+# Perform helm upgrade
+helm upgrade amd-gpu-operator rocm/gpu-operator-charts \
+  -n kube-amd-gpu \
+  --version=v1.3.0 \
+  --debug \
+  --set controllerManager.manager.image.repository=docker.io/rocm/gpu-operator \
+  --set controllerManager.manager.image.tag=v1.3.0 
+```
+
 ```{note}
 Upgrade Options:
 * **Error Scenario**: In case there is chart name or release name mismatch happened, you can use `--set fullnameOverride=amd-gpu-operator-gpu-operator-charts --set nameOverride=gpu-operator-charts` to resolve the conflict. The ```fullnameOverride``` and ```nameOverride``` parameters are used to ensure consistent naming between the previous and new chart deployments, avoiding conflicts caused by name mismatches during the upgrade process. The ```fullnameOverride``` explicitly sets the fully qualified name of the resources created by the chart, such as service accounts and deployments. The ```nameOverride``` adjusts the base name of the chart without affecting resource-specific names.

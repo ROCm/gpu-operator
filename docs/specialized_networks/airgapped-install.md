@@ -4,7 +4,7 @@ This guide explains how to install the AMD GPU Operator in an air-gapped environ
 
 ## Prerequisites
 
-- Kubernetes v1.29.0+
+- Kubernetes v1.29.0+ or OpenShift 4.16+
 - Helm v3.2.0+
 - Access to an internal container registry
 
@@ -27,11 +27,28 @@ quay.io/jetstack/cert-manager-controller:<version>
 quay.io/jetstack/cert-manager-webhook:<version>
 quay.io/jetstack/cert-manager-cainjector:<version>
 
-### Required DEB Packages
-# For driver compilation, ensure these packages are available in 
-# your internal package repository:
+# For OpenShift Only
+registry.redhat.io/openshift4/ose-node-feature-discovery:<version>
+registry.redhat.io/openshift4/kernel-module-management:<version>
+```
+
+### Required RPM/DEB Packages
+
+For driver compilation, ensure these packages are available in your internal package repository:
+
+#### RHEL/CentOS
+
+```bash
+kernel-devel
+kernel-headers
+gcc
+make
+elfutils-libelf-devel
+```
 
 #### Ubuntu
+
+```bash
 linux-headers-$(uname -r)
 build-essential
 ```
@@ -69,6 +86,9 @@ docker push internal-registry.example.com/rocm/k8s-device-plugin:<version>
 3. Verify package availability:
 
 ```bash
+# RHEL/CentOS
+yum list kernel-devel kernel-headers gcc make elfutils-libelf-devel
+
 # Ubuntu
 apt list linux-headers-$(uname -r) build-essential
 ```
@@ -120,7 +140,7 @@ buildArgs:
 - Install the operator:
 
 ```bash
-helm install amd-gpu-operator rocm/gpu-operator-charts \
+helm install amd-gpu-operator rocm/gpu-operator-helm \
   --namespace kube-amd-gpu \
   --create-namespace \
   -f operator-values.yaml

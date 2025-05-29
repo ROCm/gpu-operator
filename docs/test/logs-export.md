@@ -17,6 +17,12 @@ Following section describes the steps to enable the functionality.
 
 Credentials required to access the external storage must be provided as a Kubernetes [Secret](https://kubernetes.io/docs/concepts/configuration/secret). This captured connectivity information as Kubernetes Secret must be within the same namespace as the AMD GPU Operator/Test Runner. This Secret should be mounted as a volume in the Test Runner container. The required information/keys captured vary depending on the storage provider.
 
+> Note: The values in the secret yaml file must be base64 encoded.
+
+Alternatively secrets can be created using kubectl CLI command without base64 encoding:
+
+`kubectl create secret generic aws-secret --from-literal=aws_access_key_id='your access key id' --from-literal=aws_secret_access_key='your secret access key' --from-literal=aws_region='aws region'`
+
 ### a. AWS S3 Secret
 
 For AWS S3, the secret captures user [access key](https://aws.amazon.com/blogs/security/wheres-my-secret-access-key) information and AWS region of bucket.
@@ -185,7 +191,9 @@ Example:
       - name: aws-secret
 ```
 
-> Note: Ensure that the `logsExportSecrets` list includes all the secrets corresponding to the external storage services you intend to use.
+```{note}
+Note: Ensure that the `logsExportSecrets` list includes all the secrets corresponding to the external storage services you intend to use.
+```
 
 ### Additional Notes
 
