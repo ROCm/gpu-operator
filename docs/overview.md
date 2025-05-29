@@ -21,6 +21,10 @@ The [Node Feature Discovery (NFD)](https://github.com/kubernetes-sigs/node-featu
 - Automatic node labeling with `feature.node.kubernetes.io/amd-gpu: "true"`
 - Hardware capability discovery and reporting
 
+```{note}
+OpenShift clusters use a [specialized NFD Operator](https://github.com/openshift/cluster-nfd-operator) that includes Red Hat optimizations for OpenShift environments.
+```
+
 ### Kernel Module Management (KMM)
 
 The [Kernel Module Management (KMM) Operator](https://github.com/kubernetes-sigs/kernel-module-management) handles the lifecycle of GPU driver kernel modules. Its responsibilities include:
@@ -31,6 +35,7 @@ The [Kernel Module Management (KMM) Operator](https://github.com/kubernetes-sigs
 
 ```{note}
 - **Kubernetes:** Use the AMD-optimized KMM Operator provided by the GPU Operator Helm chart
+- **OpenShift:** Uses the [Red Hat KMM Operator](https://github.com/rh-ecosystem-edge/kernel-module-management) with OpenShift-specific optimizations
 ```
 
 ### Component Interaction

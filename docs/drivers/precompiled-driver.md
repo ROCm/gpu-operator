@@ -22,6 +22,7 @@ KMM looks for images with tags in these formats:
 | OS | Tag Format | Example |
 |----|------------|---------|
 | Ubuntu | `ubuntu-<OS version>-<kernel>-<driver version>` | `ubuntu-22.04-6.8.0-40-generic-6.1.3` |
+| RHEL CoreOS | `coreos-<OS version>-<kernel>-<driver version>` | `coreos-416.94-5.14.0-427.28.1.el9_4.x86_64-6.2.2` |
 
 When a DeviceConfig is created, KMM will:
 

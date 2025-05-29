@@ -29,11 +29,11 @@
    - ***Affected Configurations:*** All configurations
    - ***Workaround:*** Manually mark the node as unschedulable, preventing new pods from being scheduled on it, by cordoning it off:
 
-   ```bash
-   kubectl cordon <node-name>
-   ```
+    ```bash
+    kubectl cordon <node-name>
+    ```
 
-   </br></br>
+</br></br>
 
 6. **Due to issue with KMM 2.2 deletion of DeviceConfig Custom Resource gets stuck in Red Hat OpenShift**
    - ***Impact:*** Not able to delete the DeviceConfig Custom Resource if the node reboots during uninstall.
@@ -97,6 +97,19 @@
     - **Impact:** Not able to perform driver install/upgrade
     - **Affected Configurations:** All configurations
     - **Recommendation:** Please retrigger driver install/upgrade and ensure to not reboot node manually when rebootRequired is false
+
+15. **The Device Config Manager requires running a docker container if you wish to run it in standalone mode (without Kubernetes).**
+
+    - *Impact:* Users wishing to use a standalone version of the Device Config Manager will need to run a standalone docker image and configure the partitions using config.json file.
+    - *Root Cause:* DCM does not currently support standalone installation via a Debian package like other standalone components of the GPU Operator. We will be adding a Debian package to support standalone bare metal installations in the next release of DCM.
+    - *Recommendation:* Those wishing to use GPU partitioning in a bare metal environment should instead use the standalone docker image for DCM. Alternatively users can use amd-smi to change partitioning modes. See [amdgpu-docs documentation](https://instinct.docs.amd.com/projects/amdgpu-docs/en/latest/gpu-partitioning/mi300x/quick-start-guide.html) for how to do this.
+
+16. **The GPU Operator will report an error when ROCm driver install version doesn't match the version string in the [Radeon Repo](https://repo.radeon.com/rocm/apt/).**
+
+    - *Impact:* The DeviceConfig will report an error if you specify `"6.4.0"` or `"6.3.0"` for the `spec.driver.version`.
+    - *Root Cause:* The version specified in the CR would still have to match the version string on Radeon repo.
+    - *Recommendation:* Although this will be fixed in a future version of the GPU Operator, for the time being you will instead need to specific `"6.4"` or `"6.3"` when installing those versions of the ROCm amdgpu driver.
+
 </br></br>
 
 ## Fixed Issues
@@ -123,11 +136,8 @@
         ```bash
         kubectl label node [node-to-exclude] amd.com/device-metrics-exporter-
         ```
-</br></br>
 
 2. **Failure to Blacklist In-Tree Driver When Creating MachineConfig Manually <span style="color:red">(Fixed in v1.2.1)</span>** [[#93]](https://github.com/ROCm/gpu-operator/issues/93)
    - ***Issue***: When creating a MachineConfig manually, the GPU Operator failed to blacklist the in-tree driver, as it kept deleting the `/etc/modprobe.d/blacklist-amdgpu.conf` file.
    - ***Root Cause***: OpenShift's MachineConfigOperator (MCO) fully manages the CoreOS system’s configuration. Users should use MCO to configure blacklists.
    - ***Resolution***: OpenShift users should apply blacklist configurations through MCO. The GPU Operator will no longer delete files created by MCO.
-
-</br></br>

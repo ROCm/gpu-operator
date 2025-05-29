@@ -119,18 +119,10 @@ To install the latest version of the GPU Operator run the following Helm install
 helm install amd-gpu-operator rocm/gpu-operator-charts \
   --namespace kube-amd-gpu \
   --create-namespace
+  --version=v1.3.0
 ```
 
 ````{note}
-If you would instead like to install a previous version of the GPU Operator you can specify the version number, v1.1.0 for example, as follows:
-
-```bash
-helm install amd-gpu-operator amd/gpu-operator-helm \
-  --namespace kube-amd-gpu \
-  --create-namespace \
-  --version=v1.1.0
-```
-````
 
 ```{note}
 Installation Options
@@ -147,12 +139,13 @@ Installation Options
 
 Installation with custom options:
 
-- Prepare your custom configuration in a YAML file (e.g. ``values.yaml``), then use it with ``helm install`` command to deploy your helm charts. An example values.yaml file can be found here for you to edit and use: [here](https://github.com/ROCm/gpu-operator/blob/master/example/helm_charts_k8s_values_example.yaml)
+- Prepare your custom configuration in a YAML file (e.g. ```values.yaml```), then use it with ```helm install``` command to deploy your helm charts. An example values.yaml file can be found [here](https://github.com/ROCm/gpu-operator/blob/master/example/helm_charts_k8s_values_example.yaml) for you to edit and use:
 
 ```bash
 helm install amd-gpu-operator rocm/gpu-operator-charts \
   --namespace kube-amd-gpu \
   --create-namespace \
+  --version=v1.3.0 \
   -f values.yaml
 ```
 
@@ -169,8 +162,9 @@ The following parameters are able to be configued when using the Helm Chart. In 
 | controllerManager.manager.resources.limits.memory | string | `"1Gi"` | Memory limits for the controller manager. Consider increasing if experiencing OOM issues |
 | controllerManager.manager.resources.requests.cpu | string | `"100m"` | CPU requests for the controller manager. Adjust based on observed CPU usage |
 | controllerManager.manager.resources.requests.memory | string | `"256Mi"` | Memory requests for the controller manager. Adjust based on observed memory usage |
+| controllerManager.nodeAffinity.nodeSelectorTerms | list | `[{"key":"node-role.kubernetes.io/control-plane","operator":"Exists"},{"key":"node-role.kubernetes.io/master","operator":"Exists"}]` | Node affinity selector terms config for the AMD GPU operator controller manager, set it to [] if you want to make affinity config empty |
 | controllerManager.nodeSelector | object | `{}` | Node selector for AMD GPU operator controller manager deployment |
-| installdefaultNFDRule | bool | `true` | Default NFD rule will detect amd gpu based on pci vendor ID |
+| installdefaultNFDRule | bool | `true` | Set to true to install default NFD rule for detecting AMD GPU hardware based on pci vendor ID and device ID |
 | kmm.enabled | bool | `true` | Set to true/false to enable/disable the installation of kernel module management (KMM) operator |
 | node-feature-discovery.enabled | bool | `true` | Set to true/false to enable/disable the installation of node feature discovery (NFD) operator |
 | upgradeCRD | bool | `true` | CRD will be patched as pre-upgrade/pre-rollback hook when doing helm upgrade/rollback to current helm chart |
@@ -199,6 +193,7 @@ The following parameters are able to be configued when using the Helm Chart. In 
 | kmm.controller.manager.tolerations[1].key | string | `"node-role.kubernetes.io/control-plane"` |  |
 | kmm.controller.manager.tolerations[1].operator | string | `"Equal"` |  |
 | kmm.controller.manager.tolerations[1].value | string | `""` |  |
+| kmm.controller.nodeAffinity.nodeSelectorTerms | list | `[{"key":"node-role.kubernetes.io/control-plane","operator":"Exists"},{"key":"node-role.kubernetes.io/master","operator":"Exists"}]` | Node affinity selector terms config for the KMM controller manager deployment, set it to [] if you want to make affinity config empty |
 | kmm.controller.nodeSelector | object | `{}` | Node selector for the KMM controller manager deployment |
 | kmm.controller.replicas | int | `1` |  |
 | kmm.controller.serviceAccount.annotations | object | `{}` |  |
@@ -210,6 +205,8 @@ The following parameters are able to be configued when using the Helm Chart. In 
 | kmm.kubernetesClusterDomain | string | `"cluster.local"` |  |
 | kmm.managerConfig.controllerConfigYaml | string | `"healthProbeBindAddress: :8081\nwebhookPort: 9443\nleaderElection:\n  enabled: true\n  resourceID: kmm.sigs.x-k8s.io\nmetrics:\n  enableAuthnAuthz: true\n  bindAddress: 0.0.0.0:8443\n  secureServing: true\nworker:\n  runAsUser: 0\n  seLinuxType: spc_t\n  firmwareHostPath: /var/lib/firmware"` |  |
 | kmm.webhookServer.affinity | object | `{"nodeAffinity":{"preferredDuringSchedulingIgnoredDuringExecution":[{"preference":{"matchExpressions":[{"key":"node-role.kubernetes.io/control-plane","operator":"Exists"}]},"weight":1}]}}` | KMM webhook's deployment affinity configs |
+| kmm.enabled | bool | `true` | Set to true/false to enable/disable the installation of kernel module management (KMM) operator |
+| kmm.webhookServer.nodeAffinity.nodeSelectorTerms | list | `[{"key":"node-role.kubernetes.io/control-plane","operator":"Exists"},{"key":"node-role.kubernetes.io/master","operator":"Exists"}]` | Node affinity selector terms config for the KMM webhook deployment, set it to [] if you want to make affinity config empty |
 | kmm.webhookServer.nodeSelector | object | `{}` | KMM webhook's deployment node selector |
 | kmm.webhookServer.replicas | int | `1` |  |
 | kmm.webhookServer.webhookServer.args[0] | string | `"--config=controller_config.yaml"` |  |
@@ -237,6 +234,7 @@ The following parameters are able to be configued when using the Helm Chart. In 
 | kmm.webhookService.ports[0].protocol | string | `"TCP"` |  |
 | kmm.webhookService.ports[0].targetPort | int | `9443` |  |
 | kmm.webhookService.type | string | `"ClusterIP"` |  |
+| node-feature-discovery.enabled | bool | `true` | Set to true/false to enable/disable the installation of node feature discovery (NFD) operator |
 
 ### 4. Verify the Operator Installation
 
@@ -364,7 +362,7 @@ spec:
     blacklist: true
     # Specify your repository to host driver image
     # DO NOT include the image tag as AMD GPU Operator will automatically manage the image tag for you
-    image: docker.io/username/repo
+    image: docker.io/username/driverimage
     # (Optional) Specify the credential for your private registry if it requires credential to get pull/push access
     # you can create the docker-registry type secret by running command like:
     # kubectl create secret docker-registry mysecret -n kmm-namespace --docker-username=xxx --docker-password=xxx

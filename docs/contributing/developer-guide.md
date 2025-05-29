@@ -8,6 +8,7 @@ This project is not ready yet to accept the external developers commits.
 
 ## Prerequisites
 
+- Go v1.20 (due to [open issues](https://github.com/golang/go/issues/65637) with Go v1.21 or v1.22)
 - Docker
 - Kubernetes cluster (v1.29.0+) or OpenShift (4.16+)
 - `kubectl` or `oc` CLI tool configured to access your cluster
@@ -23,6 +24,9 @@ chmod 700 get_helm.sh
 ```
 
 For alternative installation methods, refer to the [Helm Official Website](https://helm.sh/docs/intro/install/).
+
+- Install Helmify:
+  - Download the released binary from the [Helmify GitHub release page](https://github.com/arttor/helmify/releases/tag/v0.4.13), unpack it, and move it to your `PATH`.
 
 - Clone the repository:
 
