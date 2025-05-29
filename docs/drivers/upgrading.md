@@ -92,22 +92,22 @@ The `status.nodeModuleStatus.<worker-node>.status` captures the status of the up
 status:
   nodeModuleStatus:
     worker-10-11-71-66:
-      containerImage: registry.test.io:5000/driver-image:ubuntu-22.04-5.15.0-124-generic-6.3.2
+      containerImage: test.registry.io:5000/drivers:ubuntu-22.04-5.15.0-124-generic-6.3.2
       kernelVersion: 5.15.0-124-generic
       lastTransitionTime: 2024-12-05 05:35:04 +0000 UTC
       status: Upgrade-Complete
     worker-10-11-71-67:
-      containerImage: registry.test.io:1234/driver-image:ubuntu-22.04-5.15.0-124-generic-6.3.2
+      containerImage: test.registry.io:5000/drivers:ubuntu-22.04-5.15.0-124-generic-6.3.2
       kernelVersion: 5.15.0-124-generic
       lastTransitionTime: 2024-12-05 05:35:04 +0000 UTC
       status: Upgrade-Complete
     worker-10-11-71-69:
-      containerImage: registry.test.io:1234/driver-image:ubuntu-22.04-5.15.0-124-generic-6.3.2
+      containerImage: test.registry.io:5000/drivers:ubuntu-22.04-5.15.0-124-generic-6.3.2
       kernelVersion: 5.15.0-124-generic
       lastTransitionTime: 2024-12-05 05:34:53 +0000 UTC
       status: Upgrade-Complete
     worker-10-11-77-194:
-      containerImage: registry.test.io:1234/driver-image:ubuntu-22.04-5.15.0-119-generic-6.3.2
+      containerImage: test.registry.io:5000/drivers:ubuntu-22.04-5.15.0-119-generic-6.3.2
       kernelVersion: 5.15.0-119-generic
       lastTransitionTime: 2024-12-05 05:37:14 +0000 UTC
       status: Upgrade-Complete
@@ -192,6 +192,7 @@ The operator uses specific tag formats based on the OS:
 | OS | Tag Format | Example |
 |----|------------|---------|
 | Ubuntu | `ubuntu-<version>-<kernel>-<driver>` | `ubuntu-22.04-6.8.0-40-generic-6.1.3` |
+| RHEL CoreOS | `coreos-<version>-<kernel>-<driver>` | `coreos-416.94-5.14.0-427.28.1.el9_4.x86_64-6.2.2` |
 
 > **Warning**: If a node's ready status changes during upgrade (Ready → NotReady → Ready) before its driver version label is updated, the old driver won't be reinstalled. Complete the upgrade steps for these nodes to install the new driver.
 

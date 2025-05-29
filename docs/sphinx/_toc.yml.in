@@ -18,8 +18,7 @@ subtrees:
   - caption: Installation
     entries:
       - file: installation/kubernetes-helm
-      - file: installation/openshift-olm
-      - file: installation/openshift-helm   
+      - file: installation/openshift-olm    
       - file: uninstallation/uninstallation
   - caption: Upgrades 
     entries:
@@ -36,11 +35,13 @@ subtrees:
     entries:
       - file: metrics/exporter
       - file: metrics/kube-rbac-proxy
-      - file: metrics/prometheus
       - file: metrics/health
         title: Health Checks
+      - file: metrics/ecc-error-injection
+        title: ECC Error Injection Testing
   - caption: Test Runner
     entries:
+      - file: test/test-runner-overview
       - file: test/auto-unhealthy-device-test
       - file: test/manual-test
       - file: test/pre-start-job-test
@@ -49,13 +50,19 @@ subtrees:
   - caption: Device Plugin
     entries:
       - file: device_plugin/device-plugin
+      - file: device_plugin/resource-allocation
+  - caption: Device Config Manager
+    entries:
+      - file: dcm/device-config-manager
+      - file: dcm/device-config-manager-configmap
+      - file: dcm/applying-partition-profiles
   - caption: Specialized Networks
     entries:
       - file: specialized_networks/airgapped-install
       - file: specialized_networks/http-proxy
   - caption: Contributing
     entries:
+      - file: contributing/developer-guide
       - file: contributing/documentation-build-guide
       - file: contributing/documentation-standards
-      - file: contributing/developer-guide
 
