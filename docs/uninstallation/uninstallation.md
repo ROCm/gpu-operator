@@ -38,6 +38,21 @@ By default the helm uninstall command will call a pre-delete hook to delete all 
 The pre-delete hook is using the operator controller image to run kubectl for checking existing `DeviceConfig`, if you want to skip the pre-delete hook, you can run helm uninstall command with ```--no-hooks``` option, in that way the Helm Charts will be immediately uninstalled but may have risk that some `DeviceConfig` resources still remain in the cluster.
 ```
 
+## Uninstall OLM Bundle
+
+* Web Console:
+
+If you installed AMD GPU operator by the OperatorHub webconsole, you can go back to the webconsole and use the console to uninstall the OLM bundle
+
+* OpenShift CLI:
+
+Please use CLI to delete the subscription and CSV resource for AMD GPU operator. The example commands are:
+
+```bash
+oc delete subscription amd-gpu-operator -n openshift-operators
+oc delete clusterserviceversion amd-gpu-operator.v1.0.0 -n openshift-operators
+```
+
 ## Uninstall Custom Resource Definition
 
 By default Helm Charts are using a post-delete hook to uninstall the CRDs for users. If the Helm Charts uninstallation was running with ```--no-hooks``` you may need to manually clean up CRDs after uninstalling the Helm Charts. To list all existing CRDs, run this command:

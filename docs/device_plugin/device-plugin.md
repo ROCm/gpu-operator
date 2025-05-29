@@ -17,7 +17,7 @@ To start the Device Plugin along with the GPU Operator configure fields under th
     # Specify the node labeller image
     # default value is rocm/k8s-device-plugin:labeller-latest
     nodeLabellerImage: rocm/k8s-device-plugin:labeller-latest
-
+  
     # The node labeller arguments is used to pass supported flags while starting node labeller daemonset
     nodeLabellerArguments:
      - compute-partitioning-supported
@@ -50,6 +50,7 @@ test-deviceconfig-node-labeller-bxk7x                             1/1     Runnin
 </div></br>
 
 ## Device Plugin DeviceConfig
+
 | Field Name                       | Details                                      |
 |----------------------------------|----------------------------------------------|
 | **DevicePluginImage**            | Device plugin image                          |
@@ -66,14 +67,13 @@ test-deviceconfig-node-labeller-bxk7x                             1/1     Runnin
 2. `DevicePluginArguments` is of type `map[string]string`. Currently supported key value pairs to set under `DevicePluginArguments` are:
    -> "resource_naming_strategy": {"single", "mixed"}
 
-
 3. `NodeLabellerArguments` is of type `[]string`. Currently supported flags to set under `NodeLabellerArguments` are:
    - {"compute-memory-partition", "compute-partitioning-supported", "memory-partitioning-supported"}
    - For the above new partition labels, the labels being set under this field will be applied by nodelabeller on the node
- 
-    The below labels are enabled by nodelabeller by default internally :
+
+   The below labels are enabled by nodelabeller by default internally :
    - {"vram", "cu-count", "simd-count", "device-id", "family", "product-name", "driver-version"}
- 
+
 ## How to choose Resource Naming Strategy
 
 To customize the way device plugin reports gpu resources to kubernetes as allocatable k8s resources, use the `single` or `mixed` resource naming strategy in **DeviceConfig** CR
@@ -81,7 +81,7 @@ Before understanding each strategy, please note the definition of homogeneous an
 
 Homogeneous node: A node whose gpu's follow the same compute-memory partition style 
     -> Example: A node of 8 GPU's where all 8 GPU's are following CPX-NPS4 partition style
-    
+
 Heterogeneous node: A node whose gpu's follow different compute-memory partition styles
     -> Example: A node of 8 GPU's where 5 GPU's are following SPX-NPS1 and 3 GPU's are following CPX-NPS1
 

@@ -4,7 +4,7 @@ The AMD GPU Operator supports kernel upgrades on cluster nodes running AMD GPUs.
 
 ## Prerequisites
 
-- Operational Kubernetes cluster with AMD GPU Operator installed
+- Operational Kubernetes/OpenShift cluster with AMD GPU Operator installed
 - Administrative access to cluster nodes
 - Access to perform node draining operations
 - Access to perform kernel upgrades on nodes
@@ -17,7 +17,8 @@ Before performing the kernel upgrade, you can validate whether the AMD GPU drive
 
 For validation steps:
 
-- Kubernetes users: See [KMM Pre-flight Validation Documentation](https://kmm.sigs.k8s.io/documentation/preflight_validation/)
+- Kubernetes users: See [KMM PreFlight Validation Documentation](https://kmm.sigs.k8s.io/documentation/preflight_validation/)
+- OpenShift users: See [OpenShift KMM PreFlight Validation Documentation](https://openshift-kmm.netlify.app/documentation/preflight_validation/)
 
 ## Upgrade Process
 
@@ -38,6 +39,12 @@ This command:
 ### 2. Upgrade the Kernel
 
 After draining the node, proceed with the kernel upgrade process specific to your Linux distribution:
+
+For RHEL/CentOS:
+
+```bash
+sudo yum update kernel
+```
 
 For Ubuntu:
 

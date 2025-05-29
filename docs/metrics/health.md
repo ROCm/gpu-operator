@@ -7,8 +7,7 @@ through grpc socket for the clients for consumption. K8 Device plugin
 will make use the health socket to make AMD GPU available for the k8s
 scheduling if the health is good else make it unavailable if health is bad.
 
-GPU Operator has the necessary changes to bring up the k8s
-cluster with health check feature if configured to include both device plugin and metrics exporter as part of the device configuration.
+GPU Operator has the necessary changes to bring up the k8s cluster with health check feature if configured to include both device plugin and metrics exporter as part of the device configuration.
 
 ## Requirements
 
@@ -58,19 +57,11 @@ information.
    ```
 
 ### GPU Health Status : Unhealthy
+The GPU health status if reported as "Unhealthy" on any node, makes the GPU unavailable for k8s jobs, any job requesting AMD GPU will not be scheduled in unhealthy GPU, but if any job is already scheduled will not be evicted when the GPU transitions from Healthy -> Unhealthy. If there are no job assciated with the GPU and a new request for GPU on unhealthy is created on K8s, the Job will be pending state and will not be allowed to run on an unhealthy GPU.
 
-The GPU health status if reported as "Unhealthy" on any node, makes the GPU
-unavailable for k8s jobs, any job requesting AMD GPU will not be scheduled in
-unhealthy GPU, but if any job is already scheduled will not be evicted when
-the GPU transitions from Healthy -> Unhealthy. If there are no job assciated
-with the GPU and a new request for GPU on unhealthy is created on K8s, the Job
-will be pending state and will not be allowed to run on an unhealthy GPU.
+This will reduce the number of Allocatable entries on the node by the total number of unhealthy GPU reported on that node.
 
-This will reduce the number of Allocatable entries on the node by the total
-number of unhealthy GPU reported on that node.
-
-The command output `kubectl describe node <node_name>` will have the following
-information.
+The command output `kubectl describe node <node_name>` will have the following information.
 
 1. Label field will have the list of all GPU health status with index as below
 
