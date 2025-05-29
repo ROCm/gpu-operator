@@ -32,6 +32,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/intstr"
 
 	"github.com/ROCm/gpu-operator/api/v1alpha1"
+	utils "github.com/ROCm/gpu-operator/internal"
 )
 
 const (
@@ -90,12 +91,12 @@ func (s *E2ESuite) upgradeHelmChart(c *C, expectErr bool, extraArgs []string) {
 	}
 }
 
-func (s *E2ESuite) verifyDefaultDeviceConfig(c *C, expect bool,
+func (s *E2ESuite) verifyDefaultDeviceConfig(c *C, testName string, expect bool,
 	expectSpec *v1alpha1.DeviceConfigSpec,
 	verifyFunc func(expect, actual *v1alpha1.DeviceConfigSpec) bool) {
 	devCfgList, err := s.dClient.DeviceConfigs(s.ns).List(v1.ListOptions{})
 	if err != nil && !k8serrors.IsNotFound(err) {
-		assert.NoError(c, err, "error listing DeviceConfig")
+		assert.NoError(c, err, fmt.Sprintf("test %v error listing DeviceConfig", testName))
 	}
 	if !expect && err != nil {
 		// default CR was removed and even CRD was removed
@@ -108,24 +109,24 @@ func (s *E2ESuite) verifyDefaultDeviceConfig(c *C, expect bool,
 	if expect && err == nil && devCfgList != nil {
 		// make sure only one default CR exists
 		assert.True(c, len(devCfgList.Items) == 1,
-			"expect only one default DeviceConfig but got %+v %+v",
-			len(devCfgList.Items), devCfgList.Items)
+			"test %v expect only one default DeviceConfig but got %+v %+v",
+			testName, len(devCfgList.Items), devCfgList.Items)
 		// verify metadata
 		assert.True(c, devCfgList.Items[0].Name == defaultDeviceConfigName,
-			"expect default DeviceConfig name to be %v but got %v",
-			defaultDeviceConfigName, devCfgList.Items[0].Name)
+			"test %v expect default DeviceConfig name to be %v but got %v",
+			testName, defaultDeviceConfigName, devCfgList.Items[0].Name)
 		assert.True(c, devCfgList.Items[0].Namespace == s.ns,
-			"expect default DeviceConfig namespace to be %v but got %v",
-			s.ns, devCfgList.Items[0].Namespace)
+			"test %v expect default DeviceConfig namespace to be %v but got %v",
+			testName, s.ns, devCfgList.Items[0].Namespace)
 		// verify spec
 		if expectSpec != nil && verifyFunc != nil {
 			assert.True(c, verifyFunc(expectSpec, &devCfgList.Items[0].Spec),
-				fmt.Sprintf("expect %+v got %+v", expectSpec, &devCfgList.Items[0].Spec))
+				fmt.Sprintf("test %v expect %+v got %+v", testName, expectSpec, &devCfgList.Items[0].Spec))
 		}
 		return
 	}
-	c.Fatalf("unexpected default CR, expect %+v list error %+v devCfgList %+v",
-		expect, err, devCfgList)
+	c.Fatalf("test %v unexpected default CR, expect %+v list error %+v devCfgList %+v",
+		testName, expect, err, devCfgList)
 }
 
 func (s *E2ESuite) verifySelector(expect, actual *v1alpha1.DeviceConfigSpec) bool {
@@ -164,6 +165,7 @@ func (s *E2ESuite) verifyDevicePlugin(expect, actual *v1alpha1.DeviceConfigSpec)
 }
 
 func (s *E2ESuite) writeYAMLToFile(yamlContent string) error {
+	os.Remove(tmpValuesYamlPath)
 	file, err := os.Create(tmpValuesYamlPath)
 	if err != nil {
 		return err
@@ -180,32 +182,32 @@ func (s *E2ESuite) TestHelmInstallDefaultCR(c *C) {
 	// uninstall + verify default CR was removed
 	s.installHelmChart(c, false, nil)
 	// verify default CR was created
-	s.verifyDefaultDeviceConfig(c, true, nil, nil)
+	s.verifyDefaultDeviceConfig(c, "TestHelmInstallDefaultCR - initial install", true, nil, nil)
 	s.uninstallHelmChart(c, false, nil)
 	// verify default CR was removed
-	s.verifyDefaultDeviceConfig(c, false, nil, nil)
+	s.verifyDefaultDeviceConfig(c, "TestHelmInstallDefaultCR - uninstall", false, nil, nil)
 }
 
 func (s *E2ESuite) TestHelmUpgradeDefaultCR(c *C) {
 	s.installHelmChart(c, false, []string{"--set", "crds.defaultCR.install=false"})
 	// verify default CR was not created when disabled by --set
-	s.verifyDefaultDeviceConfig(c, false, nil, nil)
+	s.verifyDefaultDeviceConfig(c, "TestHelmUpgradeDefaultCR - initial install", false, nil, nil)
 	s.upgradeHelmChart(c, false, nil)
 	// verify that by default helm upgrade won't deploy default CR
-	s.verifyDefaultDeviceConfig(c, false, nil, nil)
+	s.verifyDefaultDeviceConfig(c, "TestHelmUpgradeDefaultCR - initial upgrade", false, nil, nil)
 	s.upgradeHelmChart(c, false, []string{"--set", "crds.defaultCR.upgrade=true"})
 	// helm upgrade with --set to turn on crds.defaultCR.upgrade will deploy default CR
-	s.verifyDefaultDeviceConfig(c, true, nil, nil)
+	s.verifyDefaultDeviceConfig(c, "TestHelmUpgradeDefaultCR - upgrade to deploy default CR", true, nil, nil)
 	s.uninstallHelmChart(c, false, nil)
-	s.verifyDefaultDeviceConfig(c, false, nil, nil)
+	s.verifyDefaultDeviceConfig(c, "TestHelmUpgradeDefaultCR - 1st uninstall", false, nil, nil)
 
 	s.installHelmChart(c, false, nil)
-	s.verifyDefaultDeviceConfig(c, true, nil, nil)
+	s.verifyDefaultDeviceConfig(c, "TestHelmUpgradeDefaultCR - 2nd install", true, nil, nil)
 	s.upgradeHelmChart(c, false, nil)
 	// verify that default ugprade won't affect the existing default CR
-	s.verifyDefaultDeviceConfig(c, true, nil, nil)
+	s.verifyDefaultDeviceConfig(c, "TestHelmUpgradeDefaultCR - 2nd upgrade", true, nil, nil)
 	s.uninstallHelmChart(c, false, nil)
-	s.verifyDefaultDeviceConfig(c, false, nil, nil)
+	s.verifyDefaultDeviceConfig(c, "TestHelmUpgradeDefaultCR - initial uninstall", false, nil, nil)
 }
 
 func (s *E2ESuite) TestHelmRenderDefaultCR(c *C) {
@@ -314,9 +316,10 @@ deviceConfig:
 			expectDefaultCR:      true,
 			expectSpec: &v1alpha1.DeviceConfigSpec{
 				Driver: v1alpha1.DriverSpec{
-					Enable:    &boolTrue,
-					Blacklist: &boolTrue,
-					Image:     "test.io/username/repo",
+					Enable:     &boolTrue,
+					DriverType: utils.DriverTypeContainer,
+					Blacklist:  &boolTrue,
+					Image:      "test.io/username/repo",
 					ImageRegistrySecret: &corev1.LocalObjectReference{
 						Name: "pull-secret",
 					},
@@ -878,6 +881,6 @@ deviceConfig:
 		if tc.expectHelmCommandErr {
 			continue
 		}
-		s.verifyDefaultDeviceConfig(c, tc.expectDefaultCR, tc.expectSpec, tc.verifyFunc)
+		s.verifyDefaultDeviceConfig(c, tc.description, tc.expectDefaultCR, tc.expectSpec, tc.verifyFunc)
 	}
 }
