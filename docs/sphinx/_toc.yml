@@ -35,6 +35,7 @@ subtrees:
     entries:
       - file: metrics/exporter
       - file: metrics/kube-rbac-proxy
+      - file: metrics/prometheus
       - file: metrics/health
         title: Health Checks
       - file: metrics/ecc-error-injection
