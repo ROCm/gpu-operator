@@ -17,7 +17,7 @@ spec:
     blacklist: false
         
     # Specify the out-of-tree driver version
-    version: "6.2.2"
+    version: "6.4"
 
     # Specify driver image here
     # DO NOT include the image tag as AMD GPU Operator will automatically manage the image tag for you
@@ -77,7 +77,7 @@ spec:
     nodePort: 32500
 
     # exporter image
-    image: docker.io/rocm/device-metrics-exporter:v1.2.0
+    image: docker.io/rocm/device-metrics-exporter:v1.3.0-beta.2
 
     # image pull secrets for fetching metrics exporter image
     #imageRegistrySecret:
@@ -94,11 +94,11 @@ spec:
     enable: True
 
     # testrunner image
-    image: docker.io/rocm/test-runner:v1.2.0-beta.0
+    image: docker.io/rocm/test-runner:v1.3.0
 
     # image pull policy for the testrunner
     # default value is IfNotPresent for valid tags, Always for no tag or "latest" tag
-    imagePullPolicy: "Always"
+    imagePullPolicy: "IfNotPresent"
 
     # specify the mount for test logs
     logsLocation:
@@ -109,9 +109,19 @@ spec:
       hostPath: "/var/log/amd-test-runner"
 
       # list of secrets that contain connectivity info to cloud providers
-      logsExportSecrets:
-      - name: azure-secret
-      - name: aws-secret
+      #logsExportSecrets:
+      #- name: azure-secret
+      #- name: aws-secret
+
+  configManager:
+    # To enable/disable the device config manager for GPU partition
+    enable: true
+    # device config manager image
+    image: docker.io/rocm/device-config-manager:v1.3.0
+    imagePullPolicy: "IfNotPresent"
+    # config map for device config manager
+    #config:
+    #  name: dcm-config
 
   # Specifythe node to be managed by this DeviceConfig Custom Resource
   selector:
