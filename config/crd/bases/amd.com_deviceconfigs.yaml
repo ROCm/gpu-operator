@@ -364,6 +364,18 @@ spec:
                       Not working for OpenShift cluster. OpenShift users please use the Machine Config Operator (MCO) resource to configure amdgpu blacklist.
                       Example MCO resource is available at https://instinct.docs.amd.com/projects/gpu-operator/en/latest/installation/openshift-olm.html#create-blacklist-for-installing-out-of-tree-kernel-module
                     type: boolean
+                  driverType:
+                    default: container
+                    description: |-
+                      specify the type of driver (container/vf-passthrough/pf-passthrough) to install on the worker node. default value is container.
+                      container: normal amdgpu-dkms driver for Bare Metal GPU nodes or guest VM.
+                      vf-passthrough: MxGPU GIM driver on the host machine to generate VF, then mount VF to vfio-pci
+                      pf-passthrough: directly mount PF device to vfio-pci
+                    enum:
+                    - container
+                    - vf-passthrough
+                    - pf-passthrough
+                    type: string
                   enable:
                     default: true
                     description: |-
@@ -445,6 +457,31 @@ spec:
                         type: object
                         x-kubernetes-map-type: atomic
                     type: object
+                  kernelModuleConfig:
+                    description: advanced arguments, parameters and more configs to
+                      manage tne driver
+                    properties:
+                      loadArgs:
+                        description: LoadArg are the arguments when modprobe is executed
+                          to load the kernel module. The command will be `modprobe
+                          ${Args} module_name`.
+                        items:
+                          type: string
+                        type: array
+                      parameters:
+                        description: Parameters is being used for modprobe commands.
+                          The command will be `modprobe ${Args} module_name ${Parameters}`.
+                        items:
+                          type: string
+                        type: array
+                      unloadArgs:
+                        description: UnloadArg are the arguments when modprobe is
+                          executed to unload the kernel module. The command will be
+                          `modprobe -r ${Args} module_name`.
+                        items:
+                          type: string
+                        type: array
+                    type: object
                   upgradePolicy:
                     description: policy to upgrade the drivers
                     properties:
@@ -525,6 +562,19 @@ spec:
                       version of the drivers source code, can be used as part of image of dockerfile source image
                       default value for different OS is: ubuntu: 6.1.3, coreOS: 6.2.2
                     type: string
+                  vfioConfig:
+                    description: |-
+                      vfio config
+                      specify the specific configs for binding PCI devices to vfio-pci kernel module, applies for driver type vf-passthrough and pf-passthrough
+                    properties:
+                      deviceIDs:
+                        description: list of PCI device IDs to load into vfio-pci
+                          driver. default is the list of AMD GPU PF/VF PCI device
+                          IDs based on driver type vf-passthrough/pf-passthrough.
+                        items:
+                          type: string
+                        type: array
+                    type: object
                 type: object
               metricsExporter:
                 description: metrics exporter

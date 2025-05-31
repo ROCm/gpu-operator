@@ -43,31 +43,31 @@ import (
 	"strings"
 
 	"github.com/go-logr/logr"
-	"github.com/rh-ecosystem-edge/kernel-module-management/pkg/labels"
-	appsv1 "k8s.io/api/apps/v1"
-	"k8s.io/utils/ptr"
-
-	amdv1alpha1 "github.com/ROCm/gpu-operator/api/v1alpha1"
-	utils "github.com/ROCm/gpu-operator/internal"
 	kmmv1beta1 "github.com/rh-ecosystem-edge/kernel-module-management/api/v1beta1"
+	kmmLabels "github.com/rh-ecosystem-edge/kernel-module-management/pkg/labels"
 	"golang.org/x/exp/maps"
+	appsv1 "k8s.io/api/apps/v1"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/intstr"
-	"k8s.io/client-go/kubernetes"
-	"k8s.io/client-go/rest"
+	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/log"
+
+	amdv1alpha1 "github.com/ROCm/gpu-operator/api/v1alpha1"
+	utils "github.com/ROCm/gpu-operator/internal"
 )
 
 const (
 	kubeletDevicePluginsVolumeName = "kubelet-device-plugins"
 	kubeletDevicePluginsPath       = "/var/lib/kubelet/device-plugins"
 	nodeVarLibFirmwarePath         = "/var/lib/firmware"
-	gpuDriverModuleName            = "amdgpu"
+	ContainerDriverModuleName      = "amdgpu"
+	VFPassthroughDriverModuleName  = "gim"
 	ttmModuleName                  = "amdttm"
 	kclModuleName                  = "amdkcl"
 	imageFirmwarePath              = "firmwareDir/updates"
@@ -90,6 +90,8 @@ var (
 	buildOcDockerfile string
 	//go:embed devdockerfiles/devdockerfile.txt
 	dockerfileDevTemplateUbuntu string
+	//go:embed dockerfiles/vGPUHostGIM.ubuntu
+	dockerfileTemplateUbuntuVGPUHost string
 )
 
 //go:generate mockgen -source=kmmmodule.go -package=kmmmodule -destination=mock_kmmmodule.go KMMModuleAPI
@@ -177,13 +179,17 @@ var driverLabels = map[string]string{
 }
 
 func resolveDockerfile(cmName string, devConfig *amdv1alpha1.DeviceConfig) (string, error) {
-	splits := strings.SplitN(cmName, "-", 4)
+	splits := strings.SplitN(cmName, "-", -1)
 	osDistro := splits[0]
 	version := splits[1]
 	var dockerfileTemplate string
 	switch osDistro {
 	case "ubuntu":
 		dockerfileTemplate = dockerfileTemplateUbuntu
+		switch devConfig.Spec.Driver.DriverType {
+		case utils.DriverTypeVFPassthrough:
+			dockerfileTemplate = dockerfileTemplateUbuntuVGPUHost
+		}
 		driverLabel, present := driverLabels[version]
 		if !present {
 			return "", fmt.Errorf("invalid ubuntu version, expected to be one of %v", maps.Keys(driverLabels))
@@ -270,8 +276,8 @@ func (km *kmmModule) SetDevicePluginAsDesired(ds *appsv1.DaemonSet, devConfig *a
 	for key, val := range devConfig.Spec.Selector {
 		nodeSelector[key] = val
 	}
-	if devConfig.Spec.Driver.Enable != nil && *devConfig.Spec.Driver.Enable {
-		nodeSelector[labels.GetKernelModuleReadyNodeLabel(devConfig.Namespace, devConfig.Name)] = ""
+	if utils.ShouldUseKMM(devConfig) {
+		nodeSelector[kmmLabels.GetKernelModuleReadyNodeLabel(devConfig.Namespace, devConfig.Name)] = ""
 	}
 	imagePullSecrets := []v1.LocalObjectReference{}
 	if devConfig.Spec.DevicePlugin.ImageRegistrySecret != nil {
@@ -283,6 +289,15 @@ func (km *kmmModule) SetDevicePluginAsDesired(ds *appsv1.DaemonSet, devConfig *a
 	if devConfig.Spec.CommonConfig.InitContainerImage != "" {
 		initContainerImage = devConfig.Spec.CommonConfig.InitContainerImage
 	}
+
+	initContainerCommand := "while [ ! -d /sys/class/kfd ] || [ ! -d /sys/module/amdgpu/drivers/ ]; do echo \"amdgpu driver is not loaded \"; sleep 2 ;done"
+	switch devConfig.Spec.Driver.DriverType {
+	case utils.DriverTypeVFPassthrough:
+		initContainerCommand = "while [ ! -d /sys/module/gim/drivers/ ]; do echo \"gim driver is not loaded \"; sleep 2 ;done"
+	case utils.DriverTypePFPassthrough:
+		initContainerCommand = "true"
+	}
+
 	ds.Spec = appsv1.DaemonSetSpec{
 		Selector: &metav1.LabelSelector{MatchLabels: matchLabels},
 		Template: v1.PodTemplateSpec{
@@ -294,7 +309,7 @@ func (km *kmmModule) SetDevicePluginAsDesired(ds *appsv1.DaemonSet, devConfig *a
 					{
 						Name:            "driver-init",
 						Image:           initContainerImage,
-						Command:         []string{"sh", "-c", "while [ ! -d /sys/class/kfd ] || [ ! -d /sys/module/amdgpu/drivers/ ]; do echo \"amdgpu driver is not loaded \"; sleep 2 ;done"},
+						Command:         []string{"sh", "-c", initContainerCommand},
 						SecurityContext: &v1.SecurityContext{Privileged: ptr.To(true)},
 						VolumeMounts: []v1.VolumeMount{
 							{
@@ -410,24 +425,32 @@ func setKMMModuleLoader(ctx context.Context, mod *kmmv1beta1.Module, devConfig *
 	}
 
 	var modLoadingOrder []string
-	var moduleName = gpuDriverModuleName
+	var moduleName = ContainerDriverModuleName
 	if !isOpenshift {
 		// specify this order fror k8s in order to make sure amdttm and amdkcl was properly cleaned up after deletion of CR
 		// module will be loaded in this order: amdkcl, amdttm, amdgpu
 		// module will be unloaded in this order: amdgpu, amdttm, amdkcl
 		modLoadingOrder = []string{
-			gpuDriverModuleName,
+			ContainerDriverModuleName,
 			ttmModuleName,
 			kclModuleName,
 		}
 	}
 
+	firmwarePath := imageFirmwarePath
+	switch devConfig.Spec.Driver.DriverType {
+	case utils.DriverTypeVFPassthrough:
+		moduleName = VFPassthroughDriverModuleName
+		modLoadingOrder = []string{}
+		firmwarePath = ""
+	}
+
 	mod.Spec.ModuleLoader.Container = kmmv1beta1.ModuleLoaderContainerSpec{
 		Modprobe: kmmv1beta1.ModprobeSpec{
 			ModuleName:          moduleName,
-			FirmwarePath:        imageFirmwarePath,
-			Args:                &kmmv1beta1.ModprobeArgs{},
-			Parameters:          getModprobeParametersFromNodeInfo(nodes),
+			FirmwarePath:        firmwarePath,
+			Args:                getModprobeArgs(devConfig),
+			Parameters:          getModprobeParametersFromNodeInfo(nodes, devConfig),
 			ModulesLoadingOrder: modLoadingOrder,
 		},
 		Version:        devConfig.Spec.Driver.Version,
@@ -495,7 +518,7 @@ func getKM(devConfig *amdv1alpha1.DeviceConfig, node v1.Node, inTreeModuleToRemo
 		if driversImage == "" {
 			driversImage = defaultOcDriversImageTemplate
 		}
-		driversImage = addNodeInfoSuffixToImageTag(driversImage, osName, driversVersion)
+		driversImage = addNodeInfoSuffixToImageTag(driversImage, osName, driversVersion, devConfig)
 	} else {
 		if driversVersion == "" {
 			driversVersion, err = utils.GetDefaultDriversVersion(node)
@@ -506,7 +529,7 @@ func getKM(devConfig *amdv1alpha1.DeviceConfig, node v1.Node, inTreeModuleToRemo
 		if driversImage == "" {
 			driversImage = defaultDriversImageTemplate
 		}
-		driversImage = addNodeInfoSuffixToImageTag(driversImage, osName, driversVersion)
+		driversImage = addNodeInfoSuffixToImageTag(driversImage, osName, driversVersion, devConfig)
 	}
 
 	repoURL := defaultInstallerRepoURL
@@ -556,7 +579,7 @@ func getKM(devConfig *amdv1alpha1.DeviceConfig, node v1.Node, inTreeModuleToRemo
 	}
 
 	_, isCIEnvSet := os.LookupEnv("CI_ENV")
-	if isCIEnvSet {
+	if isCIEnvSet || devConfig.Spec.Driver.DriverType == utils.DriverTypeVFPassthrough {
 		kmmBuild.BaseImageRegistryTLS.Insecure = true
 		kmmBuild.BaseImageRegistryTLS.InsecureSkipTLSVerify = true
 	}
@@ -571,9 +594,12 @@ func getKM(devConfig *amdv1alpha1.DeviceConfig, node v1.Node, inTreeModuleToRemo
 	}, driversVersion, nil
 }
 
-func addNodeInfoSuffixToImageTag(imgStr string, osName, driversVersion string) string {
+func addNodeInfoSuffixToImageTag(imgStr, osName, driversVersion string, devCfg *amdv1alpha1.DeviceConfig) string {
+	// if driver is vGPU host, different GPU model's driver image would be different
+	// need to add a suffix to distinguish them
+	driverTypeInfo := utils.GetDriverTypeTag(devCfg)
 	// KMM will render and fulfill the value of ${KERNEL_FULL_VERSION}
-	tag := osName + "-${KERNEL_FULL_VERSION}-" + driversVersion
+	tag := osName + "-${KERNEL_FULL_VERSION}" + driverTypeInfo + "-" + driversVersion
 	// tag cannot be more than 128 chars
 	if len(tag) > 128 {
 		tag = tag[len(tag)-128:]
@@ -644,20 +670,16 @@ func ubuntuCMNameMapper(osImageStr string) string {
 	return fmt.Sprintf("%s-%s", os, trimmedVersion)
 }
 
-func GetK8SNodes(ls string) (*v1.NodeList, error) {
-	config, err := rest.InClusterConfig()
+func GetK8SNodes(ctx context.Context, cli client.Client, labelSelector labels.Selector) (*v1.NodeList, error) {
+	options := &client.ListOptions{
+		LabelSelector: labelSelector,
+	}
+	nodeList := &v1.NodeList{}
+	err := cli.List(ctx, nodeList, options)
 	if err != nil {
 		return nil, err
 	}
-	// creates the clientset
-	clientset, err := kubernetes.NewForConfig(config)
-	if err != nil {
-		return nil, err
-	}
-	options := metav1.ListOptions{
-		LabelSelector: ls,
-	}
-	return clientset.CoreV1().Nodes().List(context.TODO(), options)
+	return nodeList, nil
 }
 
 func MapToLabelSelector(selector map[string]string) string {
@@ -670,6 +692,17 @@ func MapToLabelSelector(selector map[string]string) string {
 
 func GetVersionLabelKV(devConfig *amdv1alpha1.DeviceConfig) (string, string) {
 	return fmt.Sprintf(kmmNodeVersionLabelTemplate, devConfig.Namespace, devConfig.Name), devConfig.Spec.Driver.Version
+}
+
+func getModprobeArgs(devCfg *amdv1alpha1.DeviceConfig) *kmmv1beta1.ModprobeArgs {
+	args := &kmmv1beta1.ModprobeArgs{}
+	if len(devCfg.Spec.Driver.KernelModuleConfig.LoadArgs) > 0 {
+		args.Load = devCfg.Spec.Driver.KernelModuleConfig.LoadArgs
+	}
+	if len(devCfg.Spec.Driver.KernelModuleConfig.UnloadArgs) > 0 {
+		args.Unload = devCfg.Spec.Driver.KernelModuleConfig.UnloadArgs
+	}
+	return args
 }
 
 func setKMMDevicePlugin(mod *kmmv1beta1.Module, devConfig *amdv1alpha1.DeviceConfig) {
@@ -716,12 +749,20 @@ func getNodeSelector(devConfig *amdv1alpha1.DeviceConfig) map[string]string {
 	return ns
 }
 
-func getModprobeParametersFromNodeInfo(nodes *v1.NodeList) []string {
-	// if selected nodes have VF device, we need to pass specific argument to modprobe command
-	// in order to make sure the amdgpu was loaded successfully into guest VM
-	for _, node := range nodes.Items {
-		if utils.HasNodeLabelKey(node, utils.NodeFeatureLabelAmdVGpu) {
-			return []string{"ip_block_mask=0x7f"}
+func getModprobeParametersFromNodeInfo(nodes *v1.NodeList, devConfig *amdv1alpha1.DeviceConfig) []string {
+	// if users specified any modprobe parameters, use user provided parameters
+	if len(devConfig.Spec.Driver.KernelModuleConfig.Parameters) > 0 {
+		return devConfig.Spec.Driver.KernelModuleConfig.Parameters
+	}
+
+	switch devConfig.Spec.Driver.DriverType {
+	case utils.DriverTypeContainer:
+		// if selected nodes have VF device and the driver type is container, we need to pass specific argument to modprobe command
+		// in order to make sure the amdgpu was loaded successfully into guest VM
+		for _, node := range nodes.Items {
+			if utils.HasNodeLabelKey(node, utils.NodeFeatureLabelAmdVGpu) {
+				return []string{"ip_block_mask=0x7f"}
+			}
 		}
 	}
 	return nil
