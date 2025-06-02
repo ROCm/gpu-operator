@@ -57,6 +57,9 @@ subtrees:
       - file: dcm/device-config-manager
       - file: dcm/device-config-manager-configmap
       - file: dcm/applying-partition-profiles
+  - caption: KubeVirt
+    entries:
+      - file: kubevirt/kubevirt
   - caption: Specialized Networks
     entries:
       - file: specialized_networks/airgapped-install
