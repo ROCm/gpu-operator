@@ -204,7 +204,7 @@ func (s *E2ESuite) TestHelmUpgradeDefaultCR(c *C) {
 	s.installHelmChart(c, false, nil)
 	s.verifyDefaultDeviceConfig(c, "TestHelmUpgradeDefaultCR - 2nd install", true, nil, nil)
 	s.upgradeHelmChart(c, false, nil)
-	// verify that default ugprade won't affect the existing default CR
+	// verify that default upgrade won't affect the existing default CR
 	s.verifyDefaultDeviceConfig(c, "TestHelmUpgradeDefaultCR - 2nd upgrade", true, nil, nil)
 	s.uninstallHelmChart(c, false, nil)
 	s.verifyDefaultDeviceConfig(c, "TestHelmUpgradeDefaultCR - initial uninstall", false, nil, nil)
@@ -262,6 +262,22 @@ deviceConfig:
     driver:
       enable: true
       blacklist: true
+      driverType: container
+      vfioConfig:
+        deviceIDs:
+          - 74a1
+          - 740f
+      kernelModuleConfig:
+        loadArgs:
+          - arg1=val1
+          - arg2=val2
+        unloadArgs:
+          - unloadArg1=unloadVal1
+          - unloadArg2=unloadVal2
+        parameters:
+          - parameter1=val1
+          - parameter2=val2
+          - parameter3=val3
       image: "test.io/username/repo"
       imageRegistrySecret:
         name: pull-secret
@@ -318,8 +334,26 @@ deviceConfig:
 				Driver: v1alpha1.DriverSpec{
 					Enable:     &boolTrue,
 					DriverType: utils.DriverTypeContainer,
-					Blacklist:  &boolTrue,
-					Image:      "test.io/username/repo",
+					VFIOConfig: v1alpha1.VFIOConfigSpec{
+						DeviceIDs: []string{"74a1", "740f"},
+					},
+					KernelModuleConfig: v1alpha1.KernelModuleConfigSpec{
+						LoadArgs: []string{
+							"arg1=val1",
+							"arg2=val2",
+						},
+						UnloadArgs: []string{
+							"unloadArg1=unloadVal1",
+							"unloadArg2=unloadVal2",
+						},
+						Parameters: []string{
+							"parameter1=val1",
+							"parameter2=val2",
+							"parameter3=val3",
+						},
+					},
+					Blacklist: &boolTrue,
+					Image:     "test.io/username/repo",
 					ImageRegistrySecret: &corev1.LocalObjectReference{
 						Name: "pull-secret",
 					},
