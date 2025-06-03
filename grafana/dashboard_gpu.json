@@ -49,6 +49,12 @@
     },
     {
       "type": "panel",
+      "id": "table",
+      "name": "Table",
+      "version": ""
+    },
+    {
+      "type": "panel",
       "id": "text",
       "name": "Text",
       "version": ""
@@ -902,76 +908,24 @@
       "type": "stat"
     },
     {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "${DS_PROMETHEUS}"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "thresholds"
-          },
-          "mappings": [],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              }
-            ]
-          }
-        },
-        "overrides": []
-      },
       "gridPos": {
-        "h": 2,
+        "h": 4,
         "w": 3,
         "x": 3,
         "y": 6
       },
-      "id": 42,
+      "id": 25,
       "options": {
-        "colorMode": "none",
-        "graphMode": "area",
-        "justifyMode": "auto",
-        "orientation": "auto",
-        "percentChangeColorMode": "standard",
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": "/^vbios_version$/",
-          "values": false
+        "code": {
+          "language": "plaintext",
+          "showLineNumbers": false,
+          "showMiniMap": false
         },
-        "showPercentChange": false,
-        "textMode": "auto",
-        "wideLayout": true
+        "content": "#### VBIOS\n${g_gpu_vbios}\n\n#### DRIVER\n${g_driver}",
+        "mode": "markdown"
       },
       "pluginVersion": "11.2.2",
-      "targets": [
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${DS_PROMETHEUS}"
-          },
-          "editorMode": "code",
-          "exemplar": false,
-          "expr": "group by (vbios_version) ({\"${g_metrics_prefix}gpu_health\", gpu_uuid=\"$g_gpu_uuid\"})",
-          "instant": true,
-          "legendFormat": "__auto",
-          "range": false,
-          "refId": "A"
-        }
-      ],
-      "title": "VBIOS VERSION",
-      "transformations": [
-        {
-          "id": "labelsToFields",
-          "options": {}
-        }
-      ],
-      "type": "stat"
+      "type": "text"
     },
     {
       "datasource": {
@@ -1133,78 +1087,6 @@
         }
       ],
       "title": "Total Uncorrectable ECC",
-      "type": "stat"
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "${DS_PROMETHEUS}"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "thresholds"
-          },
-          "mappings": [],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              }
-            ]
-          }
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 2,
-        "w": 3,
-        "x": 3,
-        "y": 8
-      },
-      "id": 43,
-      "options": {
-        "colorMode": "none",
-        "graphMode": "area",
-        "justifyMode": "auto",
-        "orientation": "auto",
-        "percentChangeColorMode": "standard",
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": "/^driver_version$/",
-          "values": false
-        },
-        "showPercentChange": false,
-        "textMode": "auto",
-        "wideLayout": true
-      },
-      "pluginVersion": "11.2.2",
-      "targets": [
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${DS_PROMETHEUS}"
-          },
-          "editorMode": "code",
-          "exemplar": false,
-          "expr": "group by (driver_version) ({\"${g_metrics_prefix}gpu_health\", gpu_uuid=\"$g_gpu_uuid\"})",
-          "instant": true,
-          "legendFormat": "__auto",
-          "range": false,
-          "refId": "A"
-        }
-      ],
-      "title": "DRIVER VERSION",
-      "transformations": [
-        {
-          "id": "labelsToFields",
-          "options": {}
-        }
-      ],
       "type": "stat"
     },
     {
@@ -1930,6 +1812,181 @@
         "type": "prometheus",
         "uid": "${DS_PROMETHEUS}"
       },
+      "description": "Error Name column values are the names of the metric queries themselves",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "filterable": true,
+            "inspect": false
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "__name__"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 300
+              },
+              {
+                "id": "filterable"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Value"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 100
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 9,
+        "w": 6,
+        "x": 0,
+        "y": 24
+      },
+      "id": 43,
+      "options": {
+        "cellHeight": "sm",
+        "footer": {
+          "countRows": false,
+          "fields": "",
+          "reducer": [
+            "sum"
+          ],
+          "show": false
+        },
+        "frameIndex": 0,
+        "showHeader": true,
+        "sortBy": []
+      },
+      "pluginVersion": "11.2.2",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "disableTextWrap": false,
+          "editorMode": "code",
+          "exemplar": false,
+          "expr": "{__name__=~\".*ecc.*\", gpu_uuid=\"$g_gpu_uuid\", hostname=\"$g_hostname\"}",
+          "format": "table",
+          "fullMetaSearch": false,
+          "includeNullMetadata": true,
+          "instant": true,
+          "legendFormat": "__auto",
+          "range": false,
+          "refId": "A",
+          "useBackend": false
+        }
+      ],
+      "title": "GPU Errors",
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true,
+              "card_model": true,
+              "card_series": true,
+              "card_vendor": true,
+              "cluster_name": true,
+              "container": true,
+              "driver_version": true,
+              "endpoint": true,
+              "gpu_compute_partition_type": true,
+              "gpu_id": true,
+              "gpu_memory_partition_type": true,
+              "gpu_partition_id": true,
+              "gpu_uuid": true,
+              "hostname": true,
+              "instance": true,
+              "job": true,
+              "namespace": true,
+              "pod": true,
+              "serial_number": true,
+              "service": true,
+              "short_instance": true,
+              "vbios_version": true
+            },
+            "includeByName": {},
+            "indexByName": {
+              "Time": 0,
+              "Value": 2,
+              "__name__": 1,
+              "card_model": 20,
+              "card_series": 5,
+              "card_vendor": 19,
+              "cluster_name": 11,
+              "container": 17,
+              "driver_version": 4,
+              "endpoint": 12,
+              "gpu_compute_partition_type": 7,
+              "gpu_id": 6,
+              "gpu_memory_partition_type": 8,
+              "gpu_partition_id": 9,
+              "gpu_uuid": 10,
+              "hostname": 3,
+              "instance": 13,
+              "job": 15,
+              "namespace": 14,
+              "pod": 16,
+              "serial_number": 21,
+              "service": 18,
+              "vbios_version": 22
+            },
+            "renameByName": {
+              "Value": "Count",
+              "__name__": "Error Name",
+              "card_series": "Card Series",
+              "cluster_name": "",
+              "driver_version": "Driver",
+              "gpu_compute_partition_type": "Compute Partition",
+              "gpu_id": "GPU ID",
+              "gpu_memory_partition_type": "Memory Partition",
+              "gpu_partition_id": "Partition ID",
+              "gpu_uuid": "",
+              "hostname": "Host"
+            }
+          }
+        }
+      ],
+      "type": "table"
+    },
+    {
       "gridPos": {
         "h": 2,
         "w": 2,
@@ -1958,7 +2015,6 @@
     "list": [
       {
         "current": {
-          "selected": false,
           "text": "",
           "value": ""
         },
