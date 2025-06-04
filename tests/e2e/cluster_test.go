@@ -412,7 +412,7 @@ func (s *E2ESuite) isUpgradeInProgress(devCfg *v1alpha1.DeviceConfig) bool {
 	return false
 }
 
-func (s *E2ESuite) verifyUpgradeComplete(devCfg *v1alpha1.DeviceConfig, c *C) {
+func (s *E2ESuite) verifyNodeModuleStatus(devCfg *v1alpha1.DeviceConfig, expectedNodeStatus v1alpha1.UpgradeState, c *C) {
 	assert.Eventually(c, func() bool {
 		devCfg, err := s.dClient.DeviceConfigs(s.ns).Get(devCfg.Name, metav1.GetOptions{})
 		if err != nil {
@@ -422,13 +422,18 @@ func (s *E2ESuite) verifyUpgradeComplete(devCfg *v1alpha1.DeviceConfig, c *C) {
 
 		// Check if all NodeModuleStatus entries are in UpgradeStateComplete
 		for nodeName, moduleStatus := range devCfg.Status.NodeModuleStatus {
-			if moduleStatus.Status != v1alpha1.UpgradeStateComplete {
+			if moduleStatus.Status != expectedNodeStatus {
 				logger.Infof("Upgrade not complete for node %s with state %s", nodeName, moduleStatus.Status)
+				return false
+			}
+			if !strings.HasSuffix(moduleStatus.ContainerImage, devCfg.Spec.Driver.Version) {
+				logger.Infof("Upgrade not complete for node %s with state container image %s while DeviceConfig specified version %s",
+					nodeName, moduleStatus.ContainerImage, devCfg.Spec.Driver.Version)
 				return false
 			}
 		}
 
-		logger.Infof("All nodes are in UpgradeComplete state.")
+		logger.Infof("All nodes are in expected state %s", expectedNodeStatus)
 		return true
 
 	}, 30*time.Minute, 5*time.Second)
@@ -2405,6 +2410,7 @@ func (s *E2ESuite) TestMaxParallelUpgradePolicyDefaults(c *C) {
 	s.checkNFDWorkerStatus(s.ns, c, "")
 	s.checkNodeLabellerStatus(s.ns, c, devCfg)
 	s.verifyDeviceConfigStatus(devCfg, c)
+	s.verifyNodeModuleStatus(devCfg, v1alpha1.UpgradeStateInstallComplete, c)
 
 	// upgrade
 	// update the CR's driver version config
@@ -2415,7 +2421,7 @@ func (s *E2ESuite) TestMaxParallelUpgradePolicyDefaults(c *C) {
 	}
 	nodes := utils.GetAMDGpuWorker(s.clientSet, s.openshift)
 	s.patchDriversVersion(devCfg, c)
-	s.verifyUpgradeComplete(devCfg, c)
+	s.verifyNodeModuleStatus(devCfg, v1alpha1.UpgradeStateComplete, c)
 	s.verifyDeviceConfigStatus(devCfg, c)
 
 	if !s.simEnable {
@@ -2461,6 +2467,7 @@ func (s *E2ESuite) TestMaxParallelUpgradeTwoNodes(c *C) {
 	s.checkNFDWorkerStatus(s.ns, c, "")
 	s.checkNodeLabellerStatus(s.ns, c, devCfg)
 	s.verifyDeviceConfigStatus(devCfg, c)
+	s.verifyNodeModuleStatus(devCfg, v1alpha1.UpgradeStateInstallComplete, c)
 
 	// upgrade
 	// update the CR's driver version config
@@ -2471,7 +2478,7 @@ func (s *E2ESuite) TestMaxParallelUpgradeTwoNodes(c *C) {
 	}
 	nodes := utils.GetAMDGpuWorker(s.clientSet, s.openshift)
 	s.patchDriversVersion(devCfg, c)
-	s.verifyUpgradeComplete(devCfg, c)
+	s.verifyNodeModuleStatus(devCfg, v1alpha1.UpgradeStateComplete, c)
 	s.verifyDeviceConfigStatus(devCfg, c)
 
 	// Verify rocm pod deployment only for real amd gpu setup
@@ -2525,6 +2532,7 @@ func (s *E2ESuite) TestMaxParallelUpgradeWithDrainPolicy(c *C) {
 	s.checkNFDWorkerStatus(s.ns, c, "")
 	s.checkNodeLabellerStatus(s.ns, c, devCfg)
 	s.verifyDeviceConfigStatus(devCfg, c)
+	s.verifyNodeModuleStatus(devCfg, v1alpha1.UpgradeStateInstallComplete, c)
 
 	// upgrade
 	// update the CR's driver version config
@@ -2535,7 +2543,7 @@ func (s *E2ESuite) TestMaxParallelUpgradeWithDrainPolicy(c *C) {
 	}
 	nodes := utils.GetAMDGpuWorker(s.clientSet, s.openshift)
 	s.patchDriversVersion(devCfg, c)
-	s.verifyUpgradeComplete(devCfg, c)
+	s.verifyNodeModuleStatus(devCfg, v1alpha1.UpgradeStateComplete, c)
 	s.verifyDeviceConfigStatus(devCfg, c)
 
 	// Verify rocm pod deployment only for real amd gpu setup
@@ -2589,6 +2597,7 @@ func (s *E2ESuite) TestMaxParallelUpgradeWithPodDeletionPolicy(c *C) {
 	s.checkNFDWorkerStatus(s.ns, c, "")
 	s.checkNodeLabellerStatus(s.ns, c, devCfg)
 	s.verifyDeviceConfigStatus(devCfg, c)
+	s.verifyNodeModuleStatus(devCfg, v1alpha1.UpgradeStateInstallComplete, c)
 
 	// upgrade
 	// update the CR's driver version config
@@ -2599,7 +2608,7 @@ func (s *E2ESuite) TestMaxParallelUpgradeWithPodDeletionPolicy(c *C) {
 	}
 	nodes := utils.GetAMDGpuWorker(s.clientSet, s.openshift)
 	s.patchDriversVersion(devCfg, c)
-	s.verifyUpgradeComplete(devCfg, c)
+	s.verifyNodeModuleStatus(devCfg, v1alpha1.UpgradeStateComplete, c)
 	s.verifyDeviceConfigStatus(devCfg, c)
 
 	// Verify rocm pod deployment only for real amd gpu setup
@@ -2648,13 +2657,14 @@ func (s *E2ESuite) TestMaxParallelUpgradeBackToDefaultVersion(c *C) {
 	s.checkNFDWorkerStatus(s.ns, c, "")
 	s.checkNodeLabellerStatus(s.ns, c, devCfg)
 	s.verifyDeviceConfigStatus(devCfg, c)
+	s.verifyNodeModuleStatus(devCfg, v1alpha1.UpgradeStateInstallComplete, c)
 
 	// upgrade
 	// update the CR's driver version config
 	devCfg.Spec.Driver.Version = ""
 	nodes := utils.GetAMDGpuWorker(s.clientSet, s.openshift)
 	s.patchDriversVersion(devCfg, c)
-	s.verifyUpgradeComplete(devCfg, c)
+	s.verifyNodeModuleStatus(devCfg, v1alpha1.UpgradeStateComplete, c)
 	s.verifyDeviceConfigStatus(devCfg, c)
 
 	// Verify rocm pod deployment only for real amd gpu setup
@@ -2703,13 +2713,14 @@ func (s *E2ESuite) TestMaxParallelUpgradeFromDefaultVersion(c *C) {
 	s.checkNFDWorkerStatus(s.ns, c, "")
 	s.checkNodeLabellerStatus(s.ns, c, devCfg)
 	s.verifyDeviceConfigStatus(devCfg, c)
+	s.verifyNodeModuleStatus(devCfg, v1alpha1.UpgradeStateInstallComplete, c)
 
 	// upgrade
 	// update the CR's driver version config
 	devCfg.Spec.Driver.Version = "6.2.2"
 	nodes := utils.GetAMDGpuWorker(s.clientSet, s.openshift)
 	s.patchDriversVersion(devCfg, c)
-	s.verifyUpgradeComplete(devCfg, c)
+	s.verifyNodeModuleStatus(devCfg, v1alpha1.UpgradeStateComplete, c)
 	s.verifyDeviceConfigStatus(devCfg, c)
 
 	// Verify rocm pod deployment only for real amd gpu setup
@@ -2758,6 +2769,7 @@ func (s *E2ESuite) TestMaxParallelChangeDuringUpgrade(c *C) {
 	s.checkNFDWorkerStatus(s.ns, c, "")
 	s.checkNodeLabellerStatus(s.ns, c, devCfg)
 	s.verifyDeviceConfigStatus(devCfg, c)
+	s.verifyNodeModuleStatus(devCfg, v1alpha1.UpgradeStateInstallComplete, c)
 
 	// update
 	// update the CR's driver version config
@@ -2776,7 +2788,7 @@ func (s *E2ESuite) TestMaxParallelChangeDuringUpgrade(c *C) {
 	s.checkNFDWorkerStatus(s.ns, c, "")
 	s.verifyDevicePluginStatus(s.ns, c, devCfg)
 	s.checkNodeLabellerStatus(s.ns, c, devCfg)
-	s.verifyUpgradeComplete(devCfg, c)
+	s.verifyNodeModuleStatus(devCfg, v1alpha1.UpgradeStateComplete, c)
 	s.verifyDeviceConfigStatus(devCfg, c)
 
 	if !s.simEnable {
@@ -2817,6 +2829,7 @@ func (s *E2ESuite) TestMaxUnavailableChangeDuringUpgrade(c *C) {
 	s.checkNFDWorkerStatus(s.ns, c, "")
 	s.checkNodeLabellerStatus(s.ns, c, devCfg)
 	s.verifyDeviceConfigStatus(devCfg, c)
+	s.verifyNodeModuleStatus(devCfg, v1alpha1.UpgradeStateInstallComplete, c)
 
 	// update
 	// update the CR's driver version config
@@ -2836,7 +2849,7 @@ func (s *E2ESuite) TestMaxUnavailableChangeDuringUpgrade(c *C) {
 	s.checkNFDWorkerStatus(s.ns, c, "")
 	s.verifyDevicePluginStatus(s.ns, c, devCfg)
 	s.checkNodeLabellerStatus(s.ns, c, devCfg)
-	s.verifyUpgradeComplete(devCfg, c)
+	s.verifyNodeModuleStatus(devCfg, v1alpha1.UpgradeStateComplete, c)
 	s.verifyDeviceConfigStatus(devCfg, c)
 
 	if !s.simEnable {
@@ -2899,7 +2912,7 @@ func (s *E2ESuite) TestRebootRequiredChangeDuringUpgrade(c *C) {
 	s.checkNFDWorkerStatus(s.ns, c, "")
 	s.verifyDevicePluginStatus(s.ns, c, devCfg)
 	s.checkNodeLabellerStatus(s.ns, c, devCfg)
-	s.verifyUpgradeComplete(devCfg, c)
+	s.verifyNodeModuleStatus(devCfg, v1alpha1.UpgradeStateComplete, c)
 	s.verifyDeviceConfigStatus(devCfg, c)
 
 	err = utils.HandleNodesReboot(context.TODO(), s.clientSet, nodes)
