@@ -159,48 +159,28 @@ func (h *DaemonsetEventHandler) patchDeviceConfigNodeStatus(ctx context.Context,
 		err := h.client.Get(ctx, types.NamespacedName{Name: devConfigName, Namespace: ds.Namespace}, devConfig)
 		if err != nil && !k8serrors.IsNotFound(err) {
 			logger.Error(err, "cannot get DeviceConfig for handling daemonset event",
-				"namesace", ds.Namespace, "name", ds.Name)
+				"namespace", ds.Namespace, "name", ds.Name)
 			return err
 		}
-
-		latestDS := &v1.DaemonSet{}
-		err = h.client.Get(ctx, types.NamespacedName{Name: ds.Name, Namespace: ds.Namespace}, latestDS)
-		if err != nil && !k8serrors.IsNotFound(err) {
-			logger.Error(err, "cannot fetch daemonset for handling daemonset event",
-				"namesace", ds.Namespace, "name", ds.Name)
-			return err
-		}
-		// if err == nil the latest status counter will be pushed to DeviceConfig
-		// OR if err == NotFound, zero counter values will be pushed to DeviceConfig
 
 		devConfigCopy := devConfig.DeepCopy()
-		update := false
 		switch {
-		case strings.HasSuffix(latestDS.Name, utils.MetricsExporterNameSuffix):
-			update = h.handleMetricsExporterStatus(latestDS, devConfig)
-		case strings.HasSuffix(latestDS.Name, utils.DevicePluginNameSuffix):
-			update = h.handleDevicePluginStatus(latestDS, devConfig)
+		case strings.HasSuffix(ds.Name, utils.MetricsExporterNameSuffix):
+			h.handleMetricsExporterStatus(ds, devConfig)
+		case strings.HasSuffix(ds.Name, utils.DevicePluginNameSuffix):
+			h.handleDevicePluginStatus(ds, devConfig)
 		}
-		if update {
-			err = h.client.Status().Patch(ctx, devConfig, client.MergeFrom(devConfigCopy))
-			if err != nil && !k8serrors.IsNotFound(err) {
-				logger.Error(err, "cannot patch DeviceConfig status")
-			}
-			return err
+		err = h.client.Status().Patch(ctx, devConfig, client.MergeFrom(devConfigCopy))
+		if err != nil && !k8serrors.IsNotFound(err) {
+			logger.Error(err, "cannot patch DeviceConfig status")
 		}
-		return nil
+		return err
 	}); err != nil {
 		logger.Error(err, fmt.Sprintf("failed to patch device config status for daemonset %+v", ds.Name))
 	}
 }
 
 func (h *DaemonsetEventHandler) handleMetricsExporterStatus(ds *v1.DaemonSet, devConfig *v1alpha1.DeviceConfig) bool {
-	if devConfig.Status.MetricsExporter.AvailableNumber == ds.Status.NumberAvailable &&
-		devConfig.Status.MetricsExporter.NodesMatchingSelectorNumber == ds.Status.NumberAvailable &&
-		devConfig.Status.MetricsExporter.DesiredNumber == ds.Status.DesiredNumberScheduled {
-		// if there is nothing to update, skip the patch operation
-		return false
-	}
 	devConfig.Status.MetricsExporter.AvailableNumber = ds.Status.NumberAvailable
 	devConfig.Status.MetricsExporter.NodesMatchingSelectorNumber = ds.Status.NumberAvailable
 	devConfig.Status.MetricsExporter.DesiredNumber = ds.Status.DesiredNumberScheduled
@@ -208,12 +188,6 @@ func (h *DaemonsetEventHandler) handleMetricsExporterStatus(ds *v1.DaemonSet, de
 }
 
 func (h *DaemonsetEventHandler) handleDevicePluginStatus(ds *v1.DaemonSet, devConfig *v1alpha1.DeviceConfig) bool {
-	if devConfig.Status.DevicePlugin.AvailableNumber == ds.Status.NumberAvailable &&
-		devConfig.Status.DevicePlugin.NodesMatchingSelectorNumber == ds.Status.NumberAvailable &&
-		devConfig.Status.DevicePlugin.DesiredNumber == ds.Status.DesiredNumberScheduled {
-		// if there is nothing to update, skip the patch operation
-		return false
-	}
 	devConfig.Status.DevicePlugin.AvailableNumber = ds.Status.NumberAvailable
 	devConfig.Status.DevicePlugin.NodesMatchingSelectorNumber = ds.Status.NumberAvailable
 	devConfig.Status.DevicePlugin.DesiredNumber = ds.Status.DesiredNumberScheduled
