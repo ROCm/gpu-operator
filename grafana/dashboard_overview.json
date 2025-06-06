@@ -1818,8 +1818,8 @@
             "uid": "${DS_PROMETHEUS}"
           },
           "disableTextWrap": false,
-          "editorMode": "builder",
-          "expr": "sum(${g_metrics_prefix}gpu_total_vram{cluster_name=\"$g_cluster_name\"})",
+          "editorMode": "code",
+          "expr": "sum(${g_metrics_prefix}gpu_total_vram{cluster_name=\"$g_cluster_name\", job_id!=\"\"}) or sum(${g_metrics_prefix}gpu_total_vram{cluster_name=\"$g_cluster_name\", pod!=\"\"}) or vector(0)",
           "fullMetaSearch": false,
           "hide": true,
           "includeNullMetadata": true,
