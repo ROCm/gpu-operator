@@ -446,6 +446,11 @@ func setKMMModuleLoader(ctx context.Context, mod *kmmv1beta1.Module, devConfig *
 			Operator: v1.TolerationOpEqual,
 			Effect:   v1.TaintEffectNoSchedule,
 		},
+		{
+			Key:      "amd-dcm",
+			Value:    "up",
+			Operator: v1.TolerationOpEqual,
+		},
 	}
 	return nil
 }
