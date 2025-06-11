@@ -105,11 +105,15 @@ oc get pods -n openshift-image-registry
 
 ### 1. Create Node Feature Discovery Rule
 
-Create an NFD rule to detect AMD GPU hardware, please create the ```NodeFeatureDiscovery``` under the namespace where NFD operator is running:
+Create an NFD custom resource to detect AMD GPU hardware, based on different deployment scenarios you need to choose creating `NodeFeatureDiscovery` or `NodeFeatureRule`.
+
+* If your OpenShift cluster doesn't have `NodeFeatureDiscovery` deployed
+
+Please create the ```NodeFeatureDiscovery``` under the namespace where NFD operator is running:
 
 ```{note}
 
-When you are using OpenShift 4.16 or 4.17 you need to specify the NFD operand image in the following `NodeFeatureDiscovery` custom resource. Starting from OpenShift 4.18 you don't have to specify the operand image since the NFD operator will automatically select corresponding operand image.
+When you are using OpenShift 4.16 you need to specify the NFD operand image in the following `NodeFeatureDiscovery` custom resource. Starting from OpenShift 4.17 you don't have to specify the operand image since the NFD operator will automatically select corresponding operand image.
 
     spec:
       operand:
@@ -117,7 +121,6 @@ When you are using OpenShift 4.16 or 4.17 you need to specify the NFD operand im
         imagePullPolicy: IfNotPresent
         servicePort: 12000
 ```
-
 
 ```yaml
 apiVersion: nfd.openshift.io/v1
@@ -149,8 +152,11 @@ spec:
                   matchExpressions:
                     vendor: {op: In, value: ["1002"]}
                     device: {op: In, value: [
+                      "74a5", # MI325X
                       "74a0", # MI300A
                       "74a1", # MI300X
+                      "74a9", # MI300X-HF
+                      "74bd", # MI300X-HF
                       "740f", # MI210
                       "7408", # MI250X
                       "740c", # MI250/MI250X
@@ -159,7 +165,41 @@ spec:
                     ]}
 ```
 
-Verify the NFD label is applied:
+* If your OpenShift cluster already has `NodeFeatureDiscovery` deployed
+
+You can alternatively create a namespaced `NodeFeatureRule` custom resource to avoid modifying `NodeFeatureDiscovery` which could possibly interrupt the existing node label.
+
+```yaml
+apiVersion: nfd.openshift.io/v1alpha1
+kind: NodeFeatureRule
+metadata:
+  name: amd-gpu-operator-nfdrule
+  namespace: openshift-amd-gpu
+spec:
+  rules:
+    - name: amd-gpu
+      labels:
+        feature.node.kubernetes.io/amd-gpu: "true"
+      matchAny:
+        - matchFeatures:
+            - feature: pci.device
+              matchExpressions:
+                vendor: {op: In, value: ["1002"]}
+                device: {op: In, value: [
+                  "74a5", # MI325X
+                  "74a0", # MI300A
+                  "74a1", # MI300X
+                  "74a9", # MI300X-HF
+                  "74bd", # MI300X-HF
+                  "740f", # MI210
+                  "7408", # MI250X
+                  "740c", # MI250/MI250X
+                  "738c", # MI100
+                  "738e" # MI100
+                ]}
+```
+
+Finally please verify the NFD label is applied:
 
 ```bash
 oc get node -o yaml | grep "amd-gpu"
