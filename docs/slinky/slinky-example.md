@@ -11,6 +11,14 @@ cd example/slinky
 
 ## Installing Slinky Prerequisites
 
+Install AMD GPU Operator, configure the `DeviceConfig` and make sure that the device plugin is advertising the AMD GPU devices as allocatable resources
+
+```bash
+$ kubectl get node -oyaml | grep -i allocatable -A 10 | grep amd.com
+
+amd.com/gpu: "8"
+```
+
 The following steps for installing pre-requisites and installing Slinky have been taking from the SlinkProject/slinky-operator repo [quick-start guide](https://github.com/SlinkyProject/slurm-operator/blob/main/docs/quickstart.md)
 
 ```bash

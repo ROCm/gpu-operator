@@ -118,19 +118,21 @@ To install the latest version of the GPU Operator run the following Helm install
 ```bash
 helm install amd-gpu-operator rocm/gpu-operator-charts \
   --namespace kube-amd-gpu \
-  --create-namespace
+  --create-namespace \
   --version=v1.3.0
 ```
 
 ```{note}
 Installation Options
   - Skip NFD installation: `--set node-feature-discovery.enabled=false`
-  - Skip KMM installation: `--set kmm.enabled=false`
+  - Skip KMM installation: `--set kmm.enabled=false`. <br> Although KMM is a [Kubernetes-SIGs](https://github.com/kubernetes-sigs) maintained project, it is strongly recommended to use AMD optimized and published KMM images included in each operator release.
   - Disable default DeviceConfig installation: `--set crds.defaultCR.install=false`
 ```
 
-```{warning}
-  It is strongly recommended to use AMD-optimized KMM images included in the operator release.
+```{tip}
+1. Before v1.3.0 the gpu operator helm chart won't provide a default ```DeviceConfig```, you need to take extra step to create a ```DeviceConfig```.
+
+2. Starting from v1.3.0 the ```helm install``` command would support one-step installation + configuration, which would create a default ```DeviceConfig``` with default values, which may not work for all the users with different the deployment scenarios, please refer to {ref}`typical-deployment-scenarios` for more information and get corresponding ```helm install``` commands. 
 ```
 
 ### 3. Helm Chart Customization Parameters
@@ -471,7 +473,7 @@ kubectl get modules -n kube-amd-gpu
 - Check NFD status:
 
 ```bash
-kubectl get nodefeatures -n kube-amd-gpu
+kubectl get nodefeaturerules -n kube-amd-gpu
 ```
 
 For more detailed troubleshooting steps, see our [Troubleshooting Guide](../troubleshooting).
