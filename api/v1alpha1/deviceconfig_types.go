@@ -88,12 +88,37 @@ type RegistryTLS struct {
 	InsecureSkipTLSVerify *bool `json:"insecureSkipTLSVerify,omitempty"`
 }
 
+type VFIOConfigSpec struct {
+	// list of PCI device IDs to load into vfio-pci driver. default is the list of AMD GPU PF/VF PCI device IDs based on driver type vf-passthrough/pf-passthrough.
+	DeviceIDs []string `json:"deviceIDs,omitempty"`
+}
+
 type DriverSpec struct {
 	// enable driver install. default value is true.
 	// disable is for skipping driver install/uninstall for dryrun or using in-tree amdgpu kernel module
 	//+operator-sdk:csv:customresourcedefinitions:type=spec,displayName="Enable",xDescriptors={"urn:alm:descriptor:com.amd.deviceconfigs:enable"}
 	// +kubebuilder:default=true
 	Enable *bool `json:"enable,omitempty"`
+
+	// specify the type of driver (container/vf-passthrough/pf-passthrough) to install on the worker node. default value is container.
+	// container: normal amdgpu-dkms driver for Bare Metal GPU nodes or guest VM.
+	// vf-passthrough: MxGPU GIM driver on the host machine to generate VF, then mount VF to vfio-pci
+	// pf-passthrough: directly mount PF device to vfio-pci
+	//+operator-sdk:csv:customresourcedefinitions:type=spec,displayName="DriverType",xDescriptors={"urn:alm:descriptor:com.amd.deviceconfigs:driverType"}
+	// +kubebuilder:validation:Enum=container;vf-passthrough;pf-passthrough
+	// +kubebuilder:default=container
+	DriverType string `json:"driverType,omitempty"`
+
+	// vfio config
+	// specify the specific configs for binding PCI devices to vfio-pci kernel module, applies for driver type vf-passthrough and pf-passthrough
+	//+operator-sdk:csv:customresourcedefinitions:type=spec,displayName="VFIOConfig",xDescriptors={"urn:alm:descriptor:com.amd.deviceconfigs:vfioConfig"}
+	// +optional
+	VFIOConfig VFIOConfigSpec `json:"vfioConfig,omitempty"`
+
+	// advanced arguments, parameters and more configs to manage tne driver
+	//+operator-sdk:csv:customresourcedefinitions:type=spec,displayName="KernelModuleConfig",xDescriptors={"urn:alm:descriptor:com.amd.deviceconfigs:kernelModuleConfig"}
+	// +optional
+	KernelModuleConfig KernelModuleConfigSpec `json:"kernelModuleConfig,omitempty"`
 
 	// blacklist amdgpu drivers on the host. Node reboot is required to apply the baclklist on the worker nodes.
 	// Not working for OpenShift cluster. OpenShift users please use the Machine Config Operator (MCO) resource to configure amdgpu blacklist.
@@ -144,6 +169,22 @@ type DriverSpec struct {
 	//+operator-sdk:csv:customresourcedefinitions:type=spec,displayName="UpgradePolicy",xDescriptors={"urn:alm:descriptor:com.amd.deviceconfigs:upgradePolicy"}
 	// +optional
 	UpgradePolicy *DriverUpgradePolicySpec `json:"upgradePolicy,omitempty"`
+}
+
+// KernelModuleConfigSpec contains the advanced configs to manage the driver kernel module
+type KernelModuleConfigSpec struct {
+	// LoadArg are the arguments when modprobe is executed to load the kernel module. The command will be `modprobe ${Args} module_name`.
+	//+operator-sdk:csv:customresourcedefinitions:type=spec,displayName="LoadArg",xDescriptors={"urn:alm:descriptor:com.amd.deviceconfigs:loadArg"}
+	// +optional
+	LoadArgs []string `json:"loadArgs,omitempty"`
+	// UnloadArg are the arguments when modprobe is executed to unload the kernel module. The command will be `modprobe -r ${Args} module_name`.
+	//+operator-sdk:csv:customresourcedefinitions:type=spec,displayName="UnloadArg",xDescriptors={"urn:alm:descriptor:com.amd.deviceconfigs:unloadArg"}
+	// +optional
+	UnloadArgs []string `json:"unloadArgs,omitempty"`
+	// Parameters is being used for modprobe commands. The command will be `modprobe ${Args} module_name ${Parameters}`.
+	//+operator-sdk:csv:customresourcedefinitions:type=spec,displayName="Parameters",xDescriptors={"urn:alm:descriptor:com.amd.deviceconfigs:parameters"}
+	// +optional
+	Parameters []string `json:"parameters,omitempty"`
 }
 
 // UpgradeState captures the state of the upgrade process on a node
@@ -736,7 +777,7 @@ type DeviceConfigStatus struct {
 //+kubebuilder:subresource:status
 
 // DeviceConfig describes how to enable AMD GPU device
-// +operator-sdk:csv:customresourcedefinitions:displayName="DeviceConfig",resources={{Module,v1beta1,modules.kmm.sigs.x-k8s.io},{Daemonset,v1,apps}, {services,v1,core}}
+// +operator-sdk:csv:customresourcedefinitions:displayName="DeviceConfig",resources={{Module,v1beta1,modules.kmm.sigs.x-k8s.io},{Daemonset,v1,apps},{services,v1,core},{Pod,v1,core}}
 type DeviceConfig struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`

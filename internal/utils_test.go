@@ -17,9 +17,12 @@ limitations under the License.
 package utils
 
 import (
+	"fmt"
 	"reflect"
 	"testing"
 
+	"github.com/ROCm/gpu-operator/api/v1alpha1"
+	"github.com/stretchr/testify/assert"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
@@ -142,5 +145,135 @@ func TestRemoveOldNodeLabels(t *testing.T) {
 		if updated != tc.expectUpdated {
 			t.Errorf("failed to get expected node labels updated flag, got %+v, expect %+v", updated, tc.expectUpdated)
 		}
+	}
+}
+
+func TestHasNodeLabelTemplateMatch(t *testing.T) {
+	testCases := []struct {
+		Namespace string
+		Name      string
+	}{
+		{
+			Namespace: "kube-amd-gpu",
+			Name:      "test-config",
+		},
+		{
+			Namespace: "openshift-amd-gpu",
+			Name:      "test-config",
+		},
+		{
+			Namespace: "amd-gpu",
+			Name:      "test-config123",
+		},
+		{
+			Namespace: "amd-gpu",
+			Name:      "test-config.123",
+		},
+		{
+			Namespace: "test-amd-gpu",
+			Name:      "testconfig.123",
+		},
+		{
+			Namespace: "ns",
+			Name:      "test-config.1.2.3",
+		},
+	}
+
+	templates := []string{VFIOMountReadyLabelTemplate, KMMModuleReadyLabelTemplate, DriverTypeNodeLabelTemplate}
+
+	for _, tc := range testCases {
+		for _, template := range templates {
+			nodeLabels := map[string]string{fmt.Sprintf(template, tc.Namespace, tc.Name): ""}
+			found, key, namespace, name := HasNodeLabelTemplateMatch(nodeLabels, template)
+
+			if !found {
+				t.Errorf("Expected matched label key, but got mismatch for %+v", nodeLabels)
+			}
+
+			if namespace != tc.Namespace || name != tc.Name {
+				t.Errorf("Expected namespace %v and name %v, but got namespace %v and name %v", tc.Namespace, tc.Name, namespace, name)
+			}
+			t.Logf("Matched label key: %s, namespace: %s, name: %s", key, namespace, name)
+		}
+	}
+}
+
+func TestShouldUseKMM(t *testing.T) {
+	boolTrue := true
+	boolFalse := false
+	testCases := []struct {
+		Description string
+		DevConfig   *v1alpha1.DeviceConfig
+		Expect      bool
+	}{
+		{
+			Description: "nil DeviceConfig",
+			DevConfig:   nil,
+			Expect:      false,
+		},
+		{
+			Description: "nil spec.driver.enable",
+			DevConfig: &v1alpha1.DeviceConfig{
+				Spec: v1alpha1.DeviceConfigSpec{
+					Driver: v1alpha1.DriverSpec{
+						Enable:     nil,
+						DriverType: DriverTypeContainer,
+					},
+				},
+			},
+			Expect: false,
+		},
+		{
+			Description: "disable driver management",
+			DevConfig: &v1alpha1.DeviceConfig{
+				Spec: v1alpha1.DeviceConfigSpec{
+					Driver: v1alpha1.DriverSpec{
+						Enable:     &boolFalse,
+						DriverType: DriverTypeContainer,
+					},
+				},
+			},
+			Expect: false,
+		},
+		{
+			Description: "enbale driver management with container driver type",
+			DevConfig: &v1alpha1.DeviceConfig{
+				Spec: v1alpha1.DeviceConfigSpec{
+					Driver: v1alpha1.DriverSpec{
+						Enable:     &boolTrue,
+						DriverType: DriverTypeContainer,
+					},
+				},
+			},
+			Expect: true,
+		},
+		{
+			Description: "enbale driver management with vf-passthrough driver type",
+			DevConfig: &v1alpha1.DeviceConfig{
+				Spec: v1alpha1.DeviceConfigSpec{
+					Driver: v1alpha1.DriverSpec{
+						Enable:     &boolTrue,
+						DriverType: DriverTypeVFPassthrough,
+					},
+				},
+			},
+			Expect: true,
+		},
+		{
+			Description: "enbale driver management with pf-passthrough driver type",
+			DevConfig: &v1alpha1.DeviceConfig{
+				Spec: v1alpha1.DeviceConfigSpec{
+					Driver: v1alpha1.DriverSpec{
+						Enable:     &boolTrue,
+						DriverType: DriverTypePFPassthrough,
+					},
+				},
+			},
+			Expect: false, // pf-passthrough doesn't need to trigger KMM
+		},
+	}
+
+	for _, tc := range testCases {
+		assert.Equal(t, ShouldUseKMM(tc.DevConfig), tc.Expect, fmt.Sprintf("test case %+v expect ShouldUseKMM() return %+v but got %+v", tc.Description, tc.Expect, ShouldUseKMM(tc.DevConfig)))
 	}
 }
