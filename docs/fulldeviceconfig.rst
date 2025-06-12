@@ -43,6 +43,7 @@ Below is an example of a full DeviceConfig CR that can be used to install the AM
         # Not working for OpenShift cluster. OpenShift users please use the Machine Config Operator (MCO) resource to configure amdgpu blacklist.
         # Example MCO resource is available at https://instinct.docs.amd.com/projects/gpu-operator/en/latest/installation/openshift-olm.html#create-blacklist-for-installing-out-of-tree-kernel-module
         blacklist: false
+        version: "6.4" # Specify the driver version you would like to be installed that coincides with a ROCm version number
         # Specify your repository to host driver image
         # Note:
         # 1. DO NOT include the image tag as AMD GPU Operator will automatically manage the image tag for you
@@ -53,14 +54,36 @@ Below is an example of a full DeviceConfig CR that can be used to install the AM
         # kubectl create secret docker-registry mysecret -n kmm-namespace --docker-username=xxx --docker-password=xxx
         # Make sure you created the secret within the namespace that KMM operator is running
         imageRegistrySecret:
-          name: mysecret
-        imageRegistryTLS:
-          insecure: false # If true, check for the container image using plain HTTP
-          insecureSkipTLSVerify: false # If true, skip any TLS server certificate validation (useful for self-signed certificates)
-      version: "6.3" # Specify the driver version you would like to be installed that coincides with a ROCm version number
-      upgradePolicy:
-        enable: true
-        maxParallelUpgrades: 3 # (Optional) Number of nodes that will be upgraded in parallel. Default is 1
+          name: my-image-secret
+        imageRegistryTLS: 
+          insecure: False # If True, check for the container image using plain HTTP
+          insecureSkipTLSVerify: False # If True, skip any TLS server certificate validation (useful for self-signed certificates)
+        upgradePolicy:
+          enable: true # (Optional) set to true to enable auto driver upgrade, set to false to manage driver upgrade manually
+          maxParallelUpgrades: 3 # (Optional) Number of nodes that will be upgraded in parallel. Default is 1
+        # (Optional) specify the secret that saves the private and public keys used to sign the built driver
+        # secure boot enabled node requires image signing to load the kernel module
+        # you need to register the public key in the system's Machine Owner Key (MOK) database
+        imageSign:
+          keySecret:
+            name: image-sign-private-key-secret
+          certSecret:
+            name: image-sign-public-key-secret
+        # (Optional) configure the driver image build within the cluster
+        imageBuild:
+          # configure the registry to search for base image for building driver
+          # e.g. if you are using worker node with ubuntu 22.04 and baseImageRegistry is docker.io
+          # image builder will use docker.io/ubuntu:22.04 as base image
+          baseImageRegistry: docker.io
+          baseImageRegistryTLS:
+            insecure: False # If True, check for the container image using plain HTTP
+            insecureSkipTLSVerify: False # If True, skip any TLS server certificate validation (useful for self-signed certificates)
+        # (Optional) specify driver toleration so operator can manage out-of-tree drivers on tainted nodes
+        tolerations:
+          - key: "example-key"
+            operator: "Equal"
+            value: "example-value"
+            effect: "NoSchedule"
       ## AMD K8s Device Plugin Configuration ##
       commonConfig:
         # (Optional) Specify common values used by all components. 
