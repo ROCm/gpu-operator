@@ -48,6 +48,16 @@ spec:
       {{- toYaml . | nindent 6 }}
     {{- end }}
 
+    {{- with .imageBuild }}
+    imageBuild:
+      {{- toYaml . | nindent 6 }}
+    {{- end }}
+
+    {{- with .tolerations }}
+    tolerations:
+      {{- toYaml . | nindent 6 }}
+    {{- end }}
+
     {{- with .upgradePolicy }}
     upgradePolicy:
       {{- toYaml . | nindent 6 }}

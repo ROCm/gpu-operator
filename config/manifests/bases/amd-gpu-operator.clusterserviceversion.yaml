@@ -256,6 +256,22 @@ spec:
         path: driver.image
         x-descriptors:
         - urn:alm:descriptor:com.amd.deviceconfigs:image
+      - description: image build configs
+        displayName: ImageBuild
+        path: driver.imageBuild
+        x-descriptors:
+        - urn:alm:descriptor:com.amd.deviceconfigs:imageBuild
+      - description: If true, check if the container image already exists using plain
+          HTTP.
+        displayName: Insecure
+        path: driver.imageBuild.baseImageRegistryTLS.insecure
+        x-descriptors:
+        - urn:alm:descriptor:com.amd.deviceconfigs:insecure
+      - description: If true, skip any TLS server certificate validation
+        displayName: InsecureSkipTLSVerify
+        path: driver.imageBuild.baseImageRegistryTLS.insecureSkipTLSVerify
+        x-descriptors:
+        - urn:alm:descriptor:com.amd.deviceconfigs:insecureSkipTLSVerify
       - description: secrets used for pull/push images from/to private registry specified
           in driversImage
         displayName: ImageRegistrySecret

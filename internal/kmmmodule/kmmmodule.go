@@ -81,6 +81,7 @@ const (
 	defaultOcDriversVersion     = "6.2.2"
 	defaultInstallerRepoURL     = "https://repo.radeon.com"
 	defaultInitContainerImage   = "busybox:1.36"
+	defaultBaseImageRegistry    = "docker.io"
 )
 
 var (
@@ -203,12 +204,13 @@ func resolveDockerfile(cmName string, devConfig *amdv1alpha1.DeviceConfig) (stri
 			dockerfileTemplate = strings.Replace(dockerfileTemplate, "$$AMDGPU_BUILD", devBuildinfo[2], -1)
 			dockerfileTemplate = strings.Replace(dockerfileTemplate, "$$ROCM_BUILD", devBuildinfo[3], -1)
 		}
+
 		// use an environment variable to ask CI infra to pull image from internal repository
-		// in order to avoid docekrhub pull rate limit issue
+		// in order to avoid DockerHub pull rate limit issue
 		_, isCIEnvSet := os.LookupEnv("CI_ENV")
 		internalUbuntuBaseImage, internalUbuntuBaseSet := os.LookupEnv("INTERNAL_UBUNTU_BASE")
 		if isCIEnvSet && internalUbuntuBaseSet {
-			dockerfileTemplate = strings.Replace(dockerfileTemplate, "ubuntu:$$VERSION", fmt.Sprintf("%v:$$VERSION", internalUbuntuBaseImage), -1)
+			dockerfileTemplate = strings.Replace(dockerfileTemplate, "$$BASEIMG_REGISTRY/ubuntu:$$VERSION", fmt.Sprintf("%v:$$VERSION", internalUbuntuBaseImage), -1)
 		}
 	case "coreos":
 		dockerfileTemplate = buildOcDockerfile
@@ -227,6 +229,13 @@ func resolveDockerfile(cmName string, devConfig *amdv1alpha1.DeviceConfig) (stri
 	default:
 		return "", fmt.Errorf("not supported OS: %s", osDistro)
 	}
+	// render base image registry
+	baseImageRegistry := defaultBaseImageRegistry
+	if devConfig.Spec.Driver.ImageBuild.BaseImageRegistry != "" {
+		baseImageRegistry = devConfig.Spec.Driver.ImageBuild.BaseImageRegistry
+	}
+	dockerfileTemplate = strings.Replace(dockerfileTemplate, "$$BASEIMG_REGISTRY", baseImageRegistry, -1)
+	// render driver version
 	resolvedDockerfile := strings.Replace(dockerfileTemplate, "$$VERSION", version, -1)
 	return resolvedDockerfile, nil
 }
@@ -560,6 +569,13 @@ func getKM(devConfig *amdv1alpha1.DeviceConfig, node v1.Node, inTreeModuleToRemo
 		},
 	}
 
+	// setup base image registry's TLS config
+	if devConfig.Spec.Driver.ImageBuild.BaseImageRegistryTLS.Insecure != nil {
+		kmmBuild.BaseImageRegistryTLS.Insecure = *devConfig.Spec.Driver.ImageBuild.BaseImageRegistryTLS.Insecure
+	}
+	if devConfig.Spec.Driver.ImageBuild.BaseImageRegistryTLS.InsecureSkipTLSVerify != nil {
+		kmmBuild.BaseImageRegistryTLS.InsecureSkipTLSVerify = *devConfig.Spec.Driver.ImageBuild.BaseImageRegistryTLS.InsecureSkipTLSVerify
+	}
 	_, isCIEnvSet := os.LookupEnv("CI_ENV")
 	if isCIEnvSet {
 		kmmBuild.BaseImageRegistryTLS.Insecure = true

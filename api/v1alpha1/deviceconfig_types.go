@@ -140,6 +140,11 @@ type DriverSpec struct {
 	// +optional
 	ImageSign ImageSignSpec `json:"imageSign,omitempty"`
 
+	// image build configs
+	//+operator-sdk:csv:customresourcedefinitions:type=spec,displayName="ImageBuild",xDescriptors={"urn:alm:descriptor:com.amd.deviceconfigs:imageBuild"}
+	// +optional
+	ImageBuild ImageBuildSpec `json:"imageBuild,omitempty"`
+
 	// policy to upgrade the drivers
 	//+operator-sdk:csv:customresourcedefinitions:type=spec,displayName="UpgradePolicy",xDescriptors={"urn:alm:descriptor:com.amd.deviceconfigs:upgradePolicy"}
 	// +optional
@@ -335,6 +340,17 @@ type ImageSignSpec struct {
 	//+operator-sdk:csv:customresourcedefinitions:type=spec,displayName="ImageSignCertSecret",xDescriptors={"urn:alm:descriptor:com.amd.deviceconfigs:imageSignCertSecret"}
 	// +optional
 	CertSecret *v1.LocalObjectReference `json:"certSecret,omitempty"`
+}
+
+type ImageBuildSpec struct {
+	// image registry to fetch base image for building driver image, default value is docker.io, the builder will search for corresponding OS base image from given registry
+	// e.g. if your worker node is using Ubuntu 22.04, by default the base image would be docker.io/ubuntu:22.04
+	// NOTE: this field won't apply for OpenShift since OpenShift is using its own DriverToolKit image to build driver image
+	// +kubebuilder:default=docker.io
+	BaseImageRegistry string `json:"baseImageRegistry,omitempty"`
+
+	// TLS settings for fetching base image
+	BaseImageRegistryTLS RegistryTLS `json:"baseImageRegistryTLS,omitempty"`
 }
 
 // ServiceType string describes ingress methods for a service

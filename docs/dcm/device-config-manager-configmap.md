@@ -4,7 +4,7 @@ The Device Config Manager (DCM) job is to monitor for and apply different config
 
 ## ConfigMap
 
-As mentioned, the `config.json` data specifies different GPU partitioning profiles that can be set on the GPU nodes in your cluster. Below is an example Device Config Manager ConfigMap. This example ConfigMap is also available in the GPU Operator repo here: [_example/configmap.yaml_](https://github.com/pensando/gpu-operator/blob/main/example/configManager/configmap.yaml)
+As mentioned, the `config.json` data specifies different GPU partitioning profiles that can be set on the GPU nodes in your cluster. Below is an example Device Config Manager ConfigMap. This example ConfigMap is also available in the GPU Operator repo here: [_example/configmap.yaml_](https://github.com/ROCm/gpu-operator/blob/main/example/configManager/configmap.yaml)
 
 ```yaml  
 apiVersion: v1

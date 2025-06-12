@@ -1,4 +1,4 @@
-FROM redhat/ubi$$MAJOR_VERSION as builder
+FROM $$BASEIMG_REGISTRY/redhat/ubi$$MAJOR_VERSION as builder
 
 ARG KERNEL_FULL_VERSION
 
