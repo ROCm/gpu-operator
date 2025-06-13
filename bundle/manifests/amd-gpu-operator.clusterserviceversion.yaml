@@ -32,7 +32,7 @@ metadata:
     capabilities: Seamless Upgrades
     categories: AI/Machine Learning,Monitoring
     containerImage: docker.io/rocm/gpu-operator:v1.2.0
-    createdAt: "2025-06-11T22:50:16Z"
+    createdAt: "2025-06-12T00:51:00Z"
     description: |-
       Operator responsible for deploying AMD GPU kernel drivers, device plugin, device test runner and device metrics exporter
       For more information, visit [documentation](https://instinct.docs.amd.com/projects/gpu-operator/en/latest/)
@@ -285,6 +285,22 @@ spec:
         path: driver.image
         x-descriptors:
         - urn:alm:descriptor:com.amd.deviceconfigs:image
+      - description: image build configs
+        displayName: ImageBuild
+        path: driver.imageBuild
+        x-descriptors:
+        - urn:alm:descriptor:com.amd.deviceconfigs:imageBuild
+      - description: If true, check if the container image already exists using plain
+          HTTP.
+        displayName: Insecure
+        path: driver.imageBuild.baseImageRegistryTLS.insecure
+        x-descriptors:
+        - urn:alm:descriptor:com.amd.deviceconfigs:insecure
+      - description: If true, skip any TLS server certificate validation
+        displayName: InsecureSkipTLSVerify
+        path: driver.imageBuild.baseImageRegistryTLS.insecureSkipTLSVerify
+        x-descriptors:
+        - urn:alm:descriptor:com.amd.deviceconfigs:insecureSkipTLSVerify
       - description: secrets used for pull/push images from/to private registry specified
           in driversImage
         displayName: ImageRegistrySecret

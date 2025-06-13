@@ -1,4 +1,4 @@
-FROM ubuntu:$$VERSION as builder
+FROM $$BASEIMG_REGISTRY/ubuntu:$$VERSION as builder
 
 ARG KERNEL_FULL_VERSION
 
