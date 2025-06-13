@@ -61,6 +61,9 @@ subtrees:
     entries:
       - file: specialized_networks/airgapped-install
       - file: specialized_networks/http-proxy
+  - caption: Slurm on Kubernetes
+    entries:
+      - file: slinky/slinky-example
   - caption: Contributing
     entries:
       - file: contributing/developer-guide
