@@ -2521,7 +2521,6 @@
           "value": ""
         },
         "description": "string to prefix names of metrics queries (e.g. gpu_gfx_activity -> amd_gpu_gfx_activity)",
-        "hide": 2,
         "label": "Metrics Prefix",
         "name": "g_metrics_prefix",
         "options": [
