@@ -11,6 +11,7 @@ PROJECT_VERSION ?= v1.2.0
 # GPU Operator Image Build variables
 # Note: when using images from DockerHub, please make sure to input the full DockerHub registry URL (docker.io) into DOCKER_REGISTRY
 # user's container runtime may not set DockerHub as default registry and auto-search on DockerHub
+TOP_DIR = $(PWD)
 GOFLAGS := "-mod=mod"
 GIT_COMMIT ?= $(shell git rev-parse --short HEAD)
 DOCKER_REGISTRY ?= docker.io/rocm
@@ -115,6 +116,12 @@ DOCKER_BUILDER_IMAGE := $(DOCKER_REGISTRY)/gpu-operator-build:$(DOCKER_BUILDER_T
 CONTAINER_WORKDIR := /gpu-operator
 BUILD_BASE_IMG ?= ubuntu:22.04
 GOLANG_BASE_IMG ?= golang:1.23
+
+##################
+# Documentation website build variables
+DOCS_DIR := ${TOP_DIR}/docs
+BUILD_DIR := $(DOCS_DIR)/_build
+HTML_DIR := $(BUILD_DIR)/html
 
 ##################
 # Makefile targets
@@ -371,6 +378,19 @@ bundle-build: operator-sdk manifests kustomize ## OpenShift Build OLM bundle.
 		     KUBECTL_CMD=${KUBECTL_CMD} ./hack/generate-bundle
 	${OPERATOR_SDK} bundle validate ./bundle
 	docker build -f bundle.Dockerfile -t $(BUNDLE_IMG) .
+
+.PHONY: dep-docs
+dep-docs:
+	pip install -r $(DOCS_DIR)/sphinx/requirements.txt
+
+.PHONY: docs
+docs: dep-docs ## Build documentation website
+	sphinx-build -b html $(DOCS_DIR) $(HTML_DIR)
+	@echo "Docs built at $(HTML_DIR)/index.html"
+
+.PHONY: clean-docs
+clean-docs: ## Clean up documentation website build cache
+	rm -rf $(BUILD_DIR)
 
 ##@ Deployment
 

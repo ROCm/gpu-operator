@@ -17,6 +17,10 @@ RUN apt-get update -y && \
     curl \
     gosu \
     gpg \
+    make \
+    python3-sphinx \
+    python3-pip \
+    libsqlite3-dev \
     protobuf-compiler \
     locales \
     ca-certificates \
