@@ -86,8 +86,12 @@ var (
 		"74b9", // MI325X VF
 		"7461", // Radeon Pro V710 MxGPU
 		"73ae", // Radeon Pro V620 MxGPU
+		"75b0", // MI350X
+		"75b3", // MI355X
 	}
 	DefaultPFDeviceIDs = []string{
+		"75a3", // MI355X
+		"75a0", // MI350X
 		"74a5", // MI325X
 		"74a2", // MI308X
 		"74b6", // MI308X
