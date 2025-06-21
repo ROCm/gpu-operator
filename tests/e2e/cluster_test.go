@@ -54,7 +54,11 @@ import (
 )
 
 const (
-	serviceMonitorCRDURL = "https://raw.githubusercontent.com/prometheus-operator/prometheus-operator/v0.81.0/example/prometheus-operator-crd/monitoring.coreos.com_servicemonitors.yaml"
+	serviceMonitorCRDURL   = "https://raw.githubusercontent.com/prometheus-operator/prometheus-operator/v0.81.0/example/prometheus-operator-crd/monitoring.coreos.com_servicemonitors.yaml"
+	amdGpuResourceLabel    = "amd.com/gpu"
+	resourceNamingStrategy = "resource_naming_strategy"
+	namingStrategySingle   = "single"
+	namingStrategyMixed    = "mixed"
 )
 
 func (s *E2ESuite) getDeviceConfigForDCM(c *C) *v1alpha1.DeviceConfig {
@@ -461,7 +465,7 @@ func (s *E2ESuite) verifyDeviceConfigStatus(devCfg *v1alpha1.DeviceConfig, c *C)
 	}, 20*time.Minute, 5*time.Second)
 }
 
-func (s *E2ESuite) verifyNodeGPULabel(devCfg *v1alpha1.DeviceConfig, c *C) {
+func (s *E2ESuite) verifyNodeGPULabel(devCfg *v1alpha1.DeviceConfig, label string, c *C) {
 	assert.Eventually(c, func() bool {
 		nodes, err := s.clientSet.CoreV1().Nodes().List(context.TODO(), metav1.ListOptions{
 			LabelSelector: func() string {
@@ -478,13 +482,13 @@ func (s *E2ESuite) verifyNodeGPULabel(devCfg *v1alpha1.DeviceConfig, c *C) {
 		}
 
 		for _, node := range nodes.Items {
-			if !utils.CheckGpuLabel(node.Status.Capacity) {
+			if !utils.CheckGpuLabel(node.Status.Capacity, label) {
 				logger.Infof("gpu not found in %v, %v ", node.Name, node.Status.Capacity)
 				return false
 			}
 		}
 		for _, node := range nodes.Items {
-			if !utils.CheckGpuLabel(node.Status.Allocatable) {
+			if !utils.CheckGpuLabel(node.Status.Allocatable, label) {
 				logger.Infof("allocatable gpu not found in %v, %v ", node.Name, node.Status.Allocatable)
 				return false
 			}
@@ -696,7 +700,7 @@ func (s *E2ESuite) TestDeployment(c *C) {
 	s.checkMetricsExporterStatus(devCfg, s.ns, v1.ServiceTypeClusterIP, c)
 	s.verifyDeviceConfigStatus(devCfg, c)
 	if !s.simEnable {
-		s.verifyNodeGPULabel(devCfg, c)
+		s.verifyNodeGPULabel(devCfg, amdGpuResourceLabel, c)
 	}
 
 	if !s.simEnable {
@@ -737,7 +741,7 @@ func (s *E2ESuite) TestDriverUpgradeByUpdatingCR(c *C) {
 	s.checkNodeLabellerStatus(s.ns, c, devCfg)
 	s.verifyDeviceConfigStatus(devCfg, c)
 	if !s.simEnable {
-		s.verifyNodeGPULabel(devCfg, c)
+		s.verifyNodeGPULabel(devCfg, amdGpuResourceLabel, c)
 	}
 	s.verifyNodeDriverVersionLabel(devCfg, c)
 	if !s.simEnable {
@@ -795,7 +799,7 @@ func (s *E2ESuite) TestDriverUpgradeByPushingNewCR(c *C) {
 	s.checkNodeLabellerStatus(s.ns, c, devCfg)
 	s.verifyDeviceConfigStatus(devCfg, c)
 	if !s.simEnable {
-		s.verifyNodeGPULabel(devCfg, c)
+		s.verifyNodeGPULabel(devCfg, amdGpuResourceLabel, c)
 		s.verifyNodeDriverVersionLabel(devCfg, c)
 	}
 
@@ -820,7 +824,7 @@ func (s *E2ESuite) TestDriverUpgradeByPushingNewCR(c *C) {
 	s.checkNodeLabellerStatus(s.ns, c, devCfg)
 	s.verifyDeviceConfigStatus(devCfg, c)
 	if !s.simEnable {
-		s.verifyNodeGPULabel(devCfg, c)
+		s.verifyNodeGPULabel(devCfg, amdGpuResourceLabel, c)
 		s.verifyNodeDriverVersionLabel(devCfg, c)
 		err = utils.DeployRocmPods(context.TODO(), s.clientSet, nil)
 		assert.NoError(c, err, "failed to deploy pods")
@@ -1268,7 +1272,7 @@ func (s *E2ESuite) TestWorkloadRequestedGPUs(c *C) {
 	s.checkNFDWorkerStatus(s.ns, c, "")
 	s.checkNodeLabellerStatus(s.ns, c, devCfg)
 	s.verifyDeviceConfigStatus(devCfg, c)
-	s.verifyNodeGPULabel(devCfg, c)
+	s.verifyNodeGPULabel(devCfg, amdGpuResourceLabel, c)
 
 	ret, err := utils.GetAMDGPUCount(ctx, s.clientSet, "gpu")
 	if err != nil {
@@ -1287,10 +1291,10 @@ func (s *E2ESuite) TestWorkloadRequestedGPUs(c *C) {
 
 	res := &v1.ResourceRequirements{
 		Limits: v1.ResourceList{
-			"amd.com/gpu": resource.MustParse(fmt.Sprintf("%d", gpuLimitCount)),
+			amdGpuResourceLabel: resource.MustParse(fmt.Sprintf("%d", gpuLimitCount)),
 		},
 		Requests: v1.ResourceList{
-			"amd.com/gpu": resource.MustParse(fmt.Sprintf("%d", gpuReqCount)),
+			amdGpuResourceLabel: resource.MustParse(fmt.Sprintf("%d", gpuReqCount)),
 		},
 	}
 
@@ -1353,7 +1357,7 @@ func (s *E2ESuite) TestWorkloadRequestedGPUsHomogeneousSingle(c *C) {
 	s.checkNFDWorkerStatus(s.ns, c, "")
 	s.checkNodeLabellerStatus(s.ns, c, devCfg)
 	s.verifyDeviceConfigStatus(devCfg, c)
-	s.verifyNodeGPULabel(devCfg, c)
+	s.verifyNodeGPULabel(devCfg, amdGpuResourceLabel, c)
 
 	ret, err := utils.GetAMDGPUCount(ctx, s.clientSet, "gpu")
 	if err != nil {
@@ -1372,10 +1376,10 @@ func (s *E2ESuite) TestWorkloadRequestedGPUsHomogeneousSingle(c *C) {
 
 	res := &v1.ResourceRequirements{
 		Limits: v1.ResourceList{
-			"amd.com/gpu": resource.MustParse(fmt.Sprintf("%d", gpuLimitCount)),
+			amdGpuResourceLabel: resource.MustParse(fmt.Sprintf("%d", gpuLimitCount)),
 		},
 		Requests: v1.ResourceList{
-			"amd.com/gpu": resource.MustParse(fmt.Sprintf("%d", gpuReqCount)),
+			amdGpuResourceLabel: resource.MustParse(fmt.Sprintf("%d", gpuReqCount)),
 		},
 	}
 
@@ -1427,7 +1431,7 @@ func (s *E2ESuite) TestWorkloadRequestedGPUsHomogeneousMixed(c *C) {
 	devCfg := s.getDeviceConfig(c)
 	driverEnable := false
 	devCfg.Spec.Driver.Enable = &driverEnable
-	devCfg.Spec.DevicePlugin.DevicePluginArguments = map[string]string{"resource_naming_strategy": "mixed"}
+	devCfg.Spec.DevicePlugin.DevicePluginArguments = map[string]string{resourceNamingStrategy: namingStrategyMixed}
 	s.createDeviceConfig(devCfg, c)
 	s.checkNFDWorkerStatus(s.ns, c, "")
 	s.checkNodeLabellerStatus(s.ns, c, devCfg)
@@ -1507,7 +1511,7 @@ func (s *E2ESuite) TestWorkloadRequestedGPUsHeterogeneousMixed(c *C) {
 	devCfg := s.getDeviceConfig(c)
 	driverEnable := false
 	devCfg.Spec.Driver.Enable = &driverEnable
-	devCfg.Spec.DevicePlugin.DevicePluginArguments = map[string]string{"resource_naming_strategy": "mixed"}
+	devCfg.Spec.DevicePlugin.DevicePluginArguments = map[string]string{resourceNamingStrategy: namingStrategyMixed}
 	s.createDeviceConfig(devCfg, c)
 	s.checkNFDWorkerStatus(s.ns, c, "")
 	s.checkNodeLabellerStatus(s.ns, c, devCfg)
@@ -2329,7 +2333,7 @@ func (s *E2ESuite) TestDeployDefaultDriver(c *C) {
 	s.checkNFDWorkerStatus(s.ns, c, "")
 	s.checkNodeLabellerStatus(s.ns, c, devCfg)
 	s.verifyDeviceConfigStatus(devCfg, c)
-	s.verifyNodeGPULabel(devCfg, c)
+	s.verifyNodeGPULabel(devCfg, amdGpuResourceLabel, c)
 
 	err = utils.DeployRocmPods(context.TODO(), s.clientSet, nil)
 	assert.NoError(c, err, "failed to deploy pods")

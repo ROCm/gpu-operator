@@ -78,8 +78,8 @@ func init() {
 	log.SetReportCaller(true)
 }
 
-func CheckGpuLabel(rl v1.ResourceList) bool {
-	s, ok := rl["amd.com/gpu"]
+func CheckGpuLabel(rl v1.ResourceList, label string) bool {
+	s, ok := rl[v1.ResourceName(label)]
 	if !ok {
 		return false
 	}
