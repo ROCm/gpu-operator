@@ -343,7 +343,7 @@ func (s *E2ESuite) TestHealthCheckFeature(c *C) {
 	logger.Infof("Verifying exporter status and metrics")
 	s.checkMetricsExporterStatus(updConfig, s.ns, corev1.ServiceTypeNodePort, c)
 	s.verifyNodePortMetrics(c, devCfg, cmFields, cmLabels)
-	s.verifyNodeGPULabel(devCfg, c)
+	s.verifyNodeGPULabel(devCfg, amdGpuResourceLabel, c)
 
 	labelMap := make(map[string]string)
 	logger.Infof("Marking GPU unhealthy")
