@@ -116,7 +116,7 @@ func (n *upgradeMgr) HandleUpgrade(ctx context.Context, deviceConfig *amdv1alpha
 	res := ctrl.Result{}
 
 	var candidateNodes []v1.Node
-	var upgradeDone, upgradeInProgress, upgradeFailedState int
+	var upgradeDone, upgradeInProgress, upgradeFailedState, installInProgress int
 
 	if deviceConfig.Spec.Driver.UpgradePolicy == nil ||
 		(deviceConfig.Spec.Driver.UpgradePolicy.Enable != nil &&
@@ -212,11 +212,13 @@ func (n *upgradeMgr) HandleUpgrade(ctx context.Context, deviceConfig *amdv1alpha
 		// 5. Handle New nodes
 		if n.helper.isNodeNew(ctx, &nodeList.Items[i], deviceConfig) {
 			// Driver will be unconditionally installed on new node
+			installInProgress++
 			continue
 		}
 
 		// 6. Handle Driver Install In Progres nodes
 		if n.helper.isNodeStateInstallInProgress(ctx, &nodeList.Items[i], deviceConfig) {
+			installInProgress++
 			continue
 		}
 
@@ -235,7 +237,7 @@ func (n *upgradeMgr) HandleUpgrade(ctx context.Context, deviceConfig *amdv1alpha
 		candidateNodes = append(candidateNodes, nodeList.Items[i])
 	}
 
-	if len(candidateNodes) == 0 && ((upgradeInProgress > 0) || (upgradeFailedState > 0)) {
+	if len(candidateNodes) == 0 && ((upgradeInProgress > 0) || (upgradeFailedState > 0) || (installInProgress > 0)) {
 		return ctrl.Result{Requeue: true, RequeueAfter: time.Second * 20}, nil
 	}
 	// All nodes have correct drivers installed
