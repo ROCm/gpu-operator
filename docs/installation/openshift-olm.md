@@ -202,7 +202,7 @@ apiVersion: amd.com/v1alpha1
 kind: DeviceConfig
 metadata:
   name: test-cr
-  namespace: default
+  namespace: openshift-amd-gpu
 spec:
   driver:
     enable: true
