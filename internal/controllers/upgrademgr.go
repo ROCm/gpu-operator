@@ -183,46 +183,49 @@ func (n *upgradeMgr) HandleUpgrade(ctx context.Context, deviceConfig *amdv1alpha
 		// 1. Set init status for unprocessed nodes
 		n.helper.handleInitStatus(ctx, &nodeList.Items[i], deviceConfig)
 
-		// 2. Handle failed nodes
-		if n.helper.isNodeStateUpgradeFailed(ctx, &nodeList.Items[i], deviceConfig) {
+		// 2. Handle an upgrade going on for very long
+		n.helper.handleUpgradeTimedOut(ctx, &nodeList.Items[i], deviceConfig)
+
+		// 3. Handle failed nodes
+		if n.helper.isNodeStateUpgradeFailed(ctx, &nodeList.Items[i]) {
 			n.helper.clearUpgradeStartTime(nodeList.Items[i].Name)
 			upgradeFailedState++
 			continue
 		}
 
-		// Untaint to let upgrade continue in case of KMM bug after node reboot
+		// 4. Untaint to let upgrade continue in case of KMM bug after node reboot
 		if n.helper.isNodeNmcStatusMissing(ctx, &nodeList.Items[i], deviceConfig) {
 			upgradeInProgress++
 			continue
 		}
 
-		// 3. Handle Started Nodes
+		// 5. Handle Started Nodes
 		if n.helper.isNodeStateUpgradeStarted(&nodeList.Items[i]) {
 			upgradeInProgress++
 			continue
 		}
 
-		// 4. Handle Completed nodes
+		// 6. Handle Completed nodes
 		if n.helper.isNodeReady(ctx, &nodeList.Items[i], deviceConfig) {
 			n.helper.clearUpgradeStartTime(nodeList.Items[i].Name)
 			upgradeDone++
 			continue
 		}
 
-		// 5. Handle New nodes
+		// 7. Handle New nodes
 		if n.helper.isNodeNew(ctx, &nodeList.Items[i], deviceConfig) {
 			// Driver will be unconditionally installed on new node
 			installInProgress++
 			continue
 		}
 
-		// 6. Handle Driver Install In Progres nodes
+		// 8. Handle Driver Install In Progres nodes
 		if n.helper.isNodeStateInstallInProgress(ctx, &nodeList.Items[i], deviceConfig) {
 			installInProgress++
 			continue
 		}
 
-		// 7. Handle Driver Upgrade InProgress nodes
+		// 9. Handle Driver Upgrade InProgress nodes
 		if n.helper.isNodeStateUpgradeInProgress(ctx, &nodeList.Items[i], deviceConfig) {
 			upgradeInProgress++
 			continue
@@ -309,7 +312,7 @@ type upgradeMgrHelperAPI interface {
 	isNodeStateInstallInProgress(ctx context.Context, node *v1.Node, deviceConfig *amdv1alpha1.DeviceConfig) bool
 	isNodeStateUpgradeInProgress(ctx context.Context, node *v1.Node, deviceConfig *amdv1alpha1.DeviceConfig) bool
 	isNodeReadyForUpgrade(ctx context.Context, node *v1.Node) bool
-	isNodeStateUpgradeFailed(ctx context.Context, node *v1.Node, deviceConfig *amdv1alpha1.DeviceConfig) bool
+	isNodeStateUpgradeFailed(ctx context.Context, node *v1.Node) bool
 	isNodeInFailedUpgradeStates(state amdv1alpha1.UpgradeState) bool
 	isUpgradePolicyViolated(upgradeInProgress int, upgradeFailedState int, totalNodes int, deviceConfig *amdv1alpha1.DeviceConfig) (int, bool)
 
@@ -327,6 +330,8 @@ type upgradeMgrHelperAPI interface {
 	handleNodeReboot(ctx context.Context, node *v1.Node, dc amdv1alpha1.DeviceConfig)
 	deleteRebootPod(ctx context.Context, nodeName string, dc amdv1alpha1.DeviceConfig, force bool)
 	getRebootPod(nodeName string, dc *amdv1alpha1.DeviceConfig) *v1.Pod
+	hasUpgradeTimeExceeded(ctx context.Context, nodeName string, deviceConfig *amdv1alpha1.DeviceConfig) bool
+	handleUpgradeTimedOut(ctx context.Context, node *v1.Node, deviceConfig *amdv1alpha1.DeviceConfig)
 
 	// getters and setters
 	specChanged(deviceConfig *amdv1alpha1.DeviceConfig) bool
@@ -338,7 +343,6 @@ type upgradeMgrHelperAPI interface {
 	getUpgradeStartTime(nodeName string) string
 	setUpgradeStartTime(nodeName string)
 	clearUpgradeStartTime(nodeName string)
-	checkUpgradeTimeExceeded(ctx context.Context, nodeName string, deviceConfig *amdv1alpha1.DeviceConfig) bool
 	getBootID(nodeName string) string
 	setBootID(nodeName string, bootID string)
 	clearNodeStatus()
@@ -589,22 +593,15 @@ func (h *upgradeMgrHelper) isNodeInFailedUpgradeStates(state amdv1alpha1.Upgrade
 	return state == amdv1alpha1.UpgradeStateFailed ||
 		state == amdv1alpha1.UpgradeStateCordonFailed ||
 		state == amdv1alpha1.UpgradeStateUncordonFailed ||
-		state == amdv1alpha1.UpgradeStateDrainFailed
+		state == amdv1alpha1.UpgradeStateDrainFailed ||
+		state == amdv1alpha1.UpgradeStateTimedOut
 }
 
 // Check the Failure status for nodes that are being upgraded.
-func (h *upgradeMgrHelper) isNodeStateUpgradeFailed(ctx context.Context, node *v1.Node, deviceConfig *amdv1alpha1.DeviceConfig) bool {
+func (h *upgradeMgrHelper) isNodeStateUpgradeFailed(ctx context.Context, node *v1.Node) bool {
 
-	var nodeUpgradeTimeout bool
 	nodeStatus := h.getNodeStatus(node.Name)
-	nodeUpgradeTimeout = h.checkUpgradeTimeExceeded(ctx, node.Name, deviceConfig)
-	if nodeUpgradeTimeout {
-		log.FromContext(ctx).Info(fmt.Sprintf("Node: %v, Upgrade Timeout exceeded", node.Name))
-		h.setNodeStatus(ctx, node.Name, amdv1alpha1.UpgradeStateFailed)
-		return true
-	}
 	return h.isNodeInFailedUpgradeStates(nodeStatus)
-
 }
 
 // Check if node is ready to be upgraded
@@ -666,7 +663,7 @@ func (h *upgradeMgrHelper) clearUpgradeStartTime(nodeName string) {
 	h.nodeUpgradeStartTime.Store(nodeName, "")
 }
 
-func (h *upgradeMgrHelper) checkUpgradeTimeExceeded(ctx context.Context, nodeName string, deviceConfig *amdv1alpha1.DeviceConfig) bool {
+func (h *upgradeMgrHelper) hasUpgradeTimeExceeded(ctx context.Context, nodeName string, deviceConfig *amdv1alpha1.DeviceConfig) bool {
 	// Fetch upgrade time started from node module status to ensure handling timeouts across operator restarts
 	for name, moduleStatus := range deviceConfig.Status.NodeModuleStatus {
 		if name == nodeName {
@@ -692,6 +689,17 @@ func (h *upgradeMgrHelper) checkUpgradeTimeExceeded(ctx context.Context, nodeNam
 		}
 	}
 	return false
+}
+
+func (h *upgradeMgrHelper) handleUpgradeTimedOut(ctx context.Context, node *v1.Node, deviceConfig *amdv1alpha1.DeviceConfig) {
+
+	nodeStatus := h.getNodeStatus(node.Name)
+	if nodeStatus == amdv1alpha1.UpgradeStateStarted || nodeStatus == amdv1alpha1.UpgradeStateInProgress || nodeStatus == amdv1alpha1.UpgradeStateRebootInProgress {
+		if h.hasUpgradeTimeExceeded(ctx, node.Name, deviceConfig) {
+			log.FromContext(ctx).Info(fmt.Sprintf("Node: %v, Upgrade Timeout exceeded", node.Name))
+			h.setNodeStatus(ctx, node.Name, amdv1alpha1.UpgradeStateTimedOut)
+		}
+	}
 }
 
 func (h *upgradeMgrHelper) getBootID(nodeName string) string {
