@@ -218,6 +218,8 @@ const (
 	UpgradeStateComplete UpgradeState = "Upgrade-Complete"
 	// Node upgrade failed
 	UpgradeStateFailed UpgradeState = "Upgrade-Failed"
+	// Node upgrade timed out
+	UpgradeStateTimedOut UpgradeState = "Upgrade-Timed-Out"
 	// Node cordon failed
 	UpgradeStateCordonFailed UpgradeState = "Cordon-Failed"
 	// Node uncordon failed
