@@ -152,20 +152,6 @@ func (m *MockupgradeMgrHelperAPI) EXPECT() *MockupgradeMgrHelperAPIMockRecorder 
 	return m.recorder
 }
 
-// checkUpgradeTimeExceeded mocks base method.
-func (m *MockupgradeMgrHelperAPI) checkUpgradeTimeExceeded(ctx context.Context, nodeName string, deviceConfig *v1alpha1.DeviceConfig) bool {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "checkUpgradeTimeExceeded", ctx, nodeName, deviceConfig)
-	ret0, _ := ret[0].(bool)
-	return ret0
-}
-
-// checkUpgradeTimeExceeded indicates an expected call of checkUpgradeTimeExceeded.
-func (mr *MockupgradeMgrHelperAPIMockRecorder) checkUpgradeTimeExceeded(ctx, nodeName, deviceConfig any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "checkUpgradeTimeExceeded", reflect.TypeOf((*MockupgradeMgrHelperAPI)(nil).checkUpgradeTimeExceeded), ctx, nodeName, deviceConfig)
-}
-
 // cleanupDanglingKMMPods mocks base method.
 func (m *MockupgradeMgrHelperAPI) cleanupDanglingKMMPods(ctx context.Context, node *v1.Node, deviceConfig *v1alpha1.DeviceConfig) error {
 	m.ctrl.T.Helper()
@@ -381,6 +367,32 @@ func (mr *MockupgradeMgrHelperAPIMockRecorder) handleNodeUpgrade(ctx, deviceConf
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "handleNodeUpgrade", reflect.TypeOf((*MockupgradeMgrHelperAPI)(nil).handleNodeUpgrade), ctx, deviceConfig, node)
 }
 
+// handleUpgradeTimedOut mocks base method.
+func (m *MockupgradeMgrHelperAPI) handleUpgradeTimedOut(ctx context.Context, node *v1.Node, deviceConfig *v1alpha1.DeviceConfig) {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "handleUpgradeTimedOut", ctx, node, deviceConfig)
+}
+
+// handleUpgradeTimedOut indicates an expected call of handleUpgradeTimedOut.
+func (mr *MockupgradeMgrHelperAPIMockRecorder) handleUpgradeTimedOut(ctx, node, deviceConfig any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "handleUpgradeTimedOut", reflect.TypeOf((*MockupgradeMgrHelperAPI)(nil).handleUpgradeTimedOut), ctx, node, deviceConfig)
+}
+
+// hasUpgradeTimeExceeded mocks base method.
+func (m *MockupgradeMgrHelperAPI) hasUpgradeTimeExceeded(ctx context.Context, nodeName string, deviceConfig *v1alpha1.DeviceConfig) bool {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "hasUpgradeTimeExceeded", ctx, nodeName, deviceConfig)
+	ret0, _ := ret[0].(bool)
+	return ret0
+}
+
+// hasUpgradeTimeExceeded indicates an expected call of hasUpgradeTimeExceeded.
+func (mr *MockupgradeMgrHelperAPIMockRecorder) hasUpgradeTimeExceeded(ctx, nodeName, deviceConfig any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "hasUpgradeTimeExceeded", reflect.TypeOf((*MockupgradeMgrHelperAPI)(nil).hasUpgradeTimeExceeded), ctx, nodeName, deviceConfig)
+}
+
 // isDeviceConfigValid mocks base method.
 func (m *MockupgradeMgrHelperAPI) isDeviceConfigValid(ctx context.Context, deviceConfig *v1alpha1.DeviceConfig) bool {
 	m.ctrl.T.Helper()
@@ -508,17 +520,17 @@ func (mr *MockupgradeMgrHelperAPIMockRecorder) isNodeStateInstallInProgress(ctx,
 }
 
 // isNodeStateUpgradeFailed mocks base method.
-func (m *MockupgradeMgrHelperAPI) isNodeStateUpgradeFailed(ctx context.Context, node *v1.Node, deviceConfig *v1alpha1.DeviceConfig) bool {
+func (m *MockupgradeMgrHelperAPI) isNodeStateUpgradeFailed(ctx context.Context, node *v1.Node) bool {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "isNodeStateUpgradeFailed", ctx, node, deviceConfig)
+	ret := m.ctrl.Call(m, "isNodeStateUpgradeFailed", ctx, node)
 	ret0, _ := ret[0].(bool)
 	return ret0
 }
 
 // isNodeStateUpgradeFailed indicates an expected call of isNodeStateUpgradeFailed.
-func (mr *MockupgradeMgrHelperAPIMockRecorder) isNodeStateUpgradeFailed(ctx, node, deviceConfig any) *gomock.Call {
+func (mr *MockupgradeMgrHelperAPIMockRecorder) isNodeStateUpgradeFailed(ctx, node any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "isNodeStateUpgradeFailed", reflect.TypeOf((*MockupgradeMgrHelperAPI)(nil).isNodeStateUpgradeFailed), ctx, node, deviceConfig)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "isNodeStateUpgradeFailed", reflect.TypeOf((*MockupgradeMgrHelperAPI)(nil).isNodeStateUpgradeFailed), ctx, node)
 }
 
 // isNodeStateUpgradeInProgress mocks base method.
