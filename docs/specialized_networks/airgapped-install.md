@@ -4,7 +4,7 @@ This guide explains how to install the AMD GPU Operator in an air-gapped environ
 
 ## Prerequisites
 
-- Kubernetes v1.29.0+ or OpenShift 4.16+
+- Kubernetes v1.29.0+
 - Helm v3.2.0+
 - Access to an internal container registry
 
@@ -26,10 +26,6 @@ rocm/k8s-device-plugin-labeller:<version>
 quay.io/jetstack/cert-manager-controller:<version>
 quay.io/jetstack/cert-manager-webhook:<version>
 quay.io/jetstack/cert-manager-cainjector:<version>
-
-# For OpenShift Only
-registry.redhat.io/openshift4/ose-node-feature-discovery:<version>
-registry.redhat.io/openshift4/kernel-module-management:<version>
 ```
 
 ### Required RPM/DEB Packages
