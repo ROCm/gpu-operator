@@ -60,6 +60,7 @@ subtrees:
   - caption: Specialized Networks
     entries:
       - file: specialized_networks/airgapped-install
+      - file: specialized_networks/airgapped-install-openshift
       - file: specialized_networks/http-proxy
   - caption: Slurm on Kubernetes
     entries:
