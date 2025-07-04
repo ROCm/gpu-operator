@@ -313,6 +313,11 @@ spec:
         path: driver.imageSign.keySecret
         x-descriptors:
         - urn:alm:descriptor:com.amd.deviceconfigs:imageSignKeySecret
+      - description: tolerations for kmm module object
+        displayName: Tolerations
+        path: driver.tolerations
+        x-descriptors:
+        - urn:alm:descriptor:com.amd.deviceconfigs:tolerations
       - description: policy to upgrade the drivers
         displayName: UpgradePolicy
         path: driver.upgradePolicy
