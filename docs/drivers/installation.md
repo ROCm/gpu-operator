@@ -167,6 +167,7 @@ To check the full spec of `DeviceConfig` definition run `kubectl get crds device
 | `imageRegistryTLS.insecureSkipTLSVerify` | If true, skip any TLS server certificate validation | `false` |
 | `imageSign.keySecret` | secret name of the private key<br> used to sign kernel modules after image building in cluster<br>see [secure boot](./secure-boot) doc for instructions to create the secret | |
 | `imageSign.certSecret` | secret name of the public key<br> used to sign kernel modules after image building in cluster<br>see [secure boot](./secure-boot) doc for instructions to create the secret | |
+| `tolerations` | List of tolerations that will be set for KMM module object and its components like build pod and worker pod | |
 
 #### `spec.devicePlugin` Parameters
 
