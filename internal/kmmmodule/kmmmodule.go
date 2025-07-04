@@ -448,19 +448,19 @@ func setKMMModuleLoader(ctx context.Context, mod *kmmv1beta1.Module, devConfig *
 	mod.Spec.ModuleLoader.ServiceAccountName = "amd-gpu-operator-kmm-module-loader"
 	mod.Spec.ImageRepoSecret = devConfig.Spec.Driver.ImageRegistrySecret
 	mod.Spec.Selector = getNodeSelector(devConfig)
-	mod.Spec.Tolerations = []v1.Toleration{
-		{
+	mod.Spec.Tolerations = append(devConfig.Spec.Driver.Tolerations,
+		v1.Toleration{
 			Key:      "amd-gpu-driver-upgrade",
 			Value:    "true",
 			Operator: v1.TolerationOpEqual,
 			Effect:   v1.TaintEffectNoSchedule,
 		},
-		{
+		v1.Toleration{
 			Key:      "amd-dcm",
 			Value:    "up",
 			Operator: v1.TolerationOpEqual,
 		},
-	}
+	)
 	return nil
 }
 

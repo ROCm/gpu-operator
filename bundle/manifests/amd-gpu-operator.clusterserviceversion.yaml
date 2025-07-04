@@ -32,7 +32,7 @@ metadata:
     capabilities: Seamless Upgrades
     categories: AI/Machine Learning,Monitoring
     containerImage: docker.io/rocm/gpu-operator:v1.2.0
-    createdAt: "2025-06-12T00:51:00Z"
+    createdAt: "2025-08-06T05:54:02Z"
     description: |-
       Operator responsible for deploying AMD GPU kernel drivers, device plugin, device test runner and device metrics exporter
       For more information, visit [documentation](https://instinct.docs.amd.com/projects/gpu-operator/en/latest/)
@@ -342,6 +342,11 @@ spec:
         path: driver.imageSign.keySecret
         x-descriptors:
         - urn:alm:descriptor:com.amd.deviceconfigs:imageSignKeySecret
+      - description: tolerations for kmm module object
+        displayName: Tolerations
+        path: driver.tolerations
+        x-descriptors:
+        - urn:alm:descriptor:com.amd.deviceconfigs:tolerations
       - description: policy to upgrade the drivers
         displayName: UpgradePolicy
         path: driver.upgradePolicy
@@ -763,14 +768,6 @@ spec:
     spec:
       clusterPermissions:
       - rules:
-        - apiGroups:
-          - kmm.sigs.x-k8s.io
-          resources:
-          - nodemodulesconfigs
-          - nodemodulesconfigs/status
-          verbs:
-          - get
-          - delete
         - apiGroups:
           - ""
           resources:
