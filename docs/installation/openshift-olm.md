@@ -152,6 +152,8 @@ spec:
                   matchExpressions:
                     vendor: {op: In, value: ["1002"]}
                     device: {op: In, value: [
+                      "75a3", # MI355X
+                      "75a0", # MI350X
                       "74a5", # MI325X
                       "74a0", # MI300A
                       "74a1", # MI300X
@@ -162,6 +164,21 @@ spec:
                       "740c", # MI250/MI250X
                       "738c", # MI100
                       "738e"  # MI100
+                    ]}
+        - name: amd-vgpu
+          labels:
+            feature.node.kubernetes.io/amd-vgpu: "true"
+          matchAny:
+            - matchFeatures:
+                - feature: pci.device
+                  matchExpressions:
+                    vendor: {op: In, value: ["1002"]}
+                    device: {op: In, value: [
+                      "75b3", # MI355X VF
+                      "75b0", # MI350X VF
+                      "74b9", # MI325X VF
+                      "74b5", # MI300X VF
+                      "7410", # MI210 VF
                     ]}
 ```
 
@@ -186,6 +203,8 @@ spec:
               matchExpressions:
                 vendor: {op: In, value: ["1002"]}
                 device: {op: In, value: [
+                  "75a3", # MI355X
+                  "75a0", # MI350X
                   "74a5", # MI325X
                   "74a0", # MI300A
                   "74a1", # MI300X
@@ -196,6 +215,21 @@ spec:
                   "740c", # MI250/MI250X
                   "738c", # MI100
                   "738e" # MI100
+                ]}
+    - name: amd-vgpu
+      labels:
+        feature.node.kubernetes.io/amd-vgpu: "true"
+      matchAny:
+        - matchFeatures:
+            - feature: pci.device
+              matchExpressions:
+                vendor: {op: In, value: ["1002"]}
+                device: {op: In, value: [
+                  "75b3", # MI355X VF
+                  "75b0", # MI350X VF
+                  "74b9", # MI325X VF
+                  "74b5", # MI300X VF
+                  "7410", # MI210 VF
                 ]}
 ```
 
@@ -242,7 +276,7 @@ apiVersion: amd.com/v1alpha1
 kind: DeviceConfig
 metadata:
   name: test-cr
-  namespace: default
+  namespace: openshift-amd-gpu
 spec:
   driver:
     enable: true

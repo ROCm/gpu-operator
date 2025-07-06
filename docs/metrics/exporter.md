@@ -1,5 +1,33 @@
 # Metrics Exporter
 
+## Features
+
+- Prometheus-compatible metrics endpoint
+- Rich GPU telemetry data including:
+  - Temperature monitoring
+  - Utilization metrics
+  - Memory usage statistics
+  - Power consumption data
+  - PCIe bandwidth metrics
+  - Performance metrics
+- Kubernetes integration via Helm chart
+- Slurm integration support
+- Configurable service ports
+- Container-based deployment
+
+## Requirements
+
+- Ubuntu 22.04, 24.04
+- Docker (or compatible container runtime)
+
+| Rocm Version | Driver Version | Exporter Image Version | Platform     |
+|--------------|----------------|------------------------|--------------|
+| 6.2.x        | 6.8.5          | v1.0.0                 | MI2xx, MI3xx |
+| 6.3.x        | 6.10.5         | v1.1.0, v1.2.0         | MI2xx, MI3xx |
+| 6.4.x        | 6.12.12        | v1.3.0                 | MI3xx        |
+| 6.4.x        | 6.12.12        | v1.3.0.1               | MI2xx, MI3xx |
+
+
 ## Configure metrics exporter
 
 To start the Device Metrics Exporter along with the GPU Operator configure  the ``` spec/metricsExporter/enable ``` field in deviceconfig Custom Resource(CR) to enable/disable metrics exporter

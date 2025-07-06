@@ -21,13 +21,13 @@ kubectl logs -n kube-amd-gpu <pod-name>
 
 ## Potential Issues with default ``DeviceConfig``
 
-* Please refer to [Typical Deployment Scenarios](../usage.html#typical-deployment-scenarios) for more information and get corresponding ```helm install``` commands and configs that fits your specific use case.
+* Please refer to {ref}`typical-deployment-scenarios` for more information and get corresponding ```helm install``` commands and configs that fits your specific use case.
 
 * If operand pods (e.g. device plugin, metrics exporter) are stuck in ``Init:0/1`` state, it means your GPU worker doesn't have GPU driver loaded or driver was not loaded properly. 
 
     * If you try to use inbox or pre-installed driver please check the node ``dmesg`` to see why the driver was not loaded properly. 
     
-    * If you want to deploy out-of-tree driver, we suggest check the `Driver Installation Guide <./drivers/installation.html>`_ then modify the default ``DeviceConfig`` to ask Operator to install the out-of-tree GPU driver for your worker nodes.
+    * If you want to deploy out-of-tree driver, we suggest check the [Driver Installation Guide](./drivers/installation) then modify the default ``DeviceConfig`` to ask Operator to install the out-of-tree GPU driver for your worker nodes.
 
 ```bash
 kubectl edit deviceconfigs -n kube-amd-gpu default
