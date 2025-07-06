@@ -274,6 +274,16 @@ deviceConfig:
           name: privateKeySecret
         certSecret:
           name: publicKeySecret
+      imageBuild:
+        baseImageRegistry: quay.io
+        baseImageRegistryTLS:
+          insecure: true
+          insecureSkipTLSVerify: false
+      tolerations:
+        - key: "example-key"
+          operator: "Equal"
+          value: "example-value"
+          effect: "NoSchedule"
       upgradePolicy:
         # -- enable/disable automatic driver upgrade feature 
         enable: false
@@ -321,6 +331,21 @@ deviceConfig:
 						},
 						CertSecret: &corev1.LocalObjectReference{
 							Name: "publicKeySecret",
+						},
+					},
+					ImageBuild: v1alpha1.ImageBuildSpec{
+						BaseImageRegistry: "quay.io",
+						BaseImageRegistryTLS: v1alpha1.RegistryTLS{
+							Insecure:              &boolTrue,
+							InsecureSkipTLSVerify: &boolFalse,
+						},
+					},
+					Tolerations: []corev1.Toleration{
+						{
+							Key:      "example-key",
+							Operator: corev1.TolerationOpEqual,
+							Value:    "example-value",
+							Effect:   corev1.TaintEffectNoSchedule,
 						},
 					},
 					UpgradePolicy: &v1alpha1.DriverUpgradePolicySpec{

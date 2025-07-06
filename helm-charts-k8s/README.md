@@ -182,10 +182,12 @@ Kubernetes: `>= 1.29.0-0`
 | deviceConfig.spec.driver.blacklist | bool | `false` | enable/disable putting a blacklist amdgpu entry in modprobe config, which requires node labeller to run |
 | deviceConfig.spec.driver.enable | bool | `false` | enable/disable out-of-tree driver management, set to false to use inbox driver |
 | deviceConfig.spec.driver.image | string | `"docker.io/myUserName/driverImage"` | image repository to store out-of-tree driver image, DO NOT put image tag since operator automatically manage it for users |
+| deviceConfig.spec.driver.imageBuild | object | `{}` | configure the out-of-tree driver image build within the cluster. e.g. {"baseImageRegistry":"docker.io","baseImageRegistryTLS":{"baseImageRegistry":"docker.io","baseImageRegistryTLS":{"insecure":"false","insecureSkipTLSVerify":"false"}}} |
 | deviceConfig.spec.driver.imageRegistrySecret | object | `{}` | image pull secret for pull/push access of the driver image repository, input secret name like {"name": "mysecret"} |
 | deviceConfig.spec.driver.imageRegistryTLS.insecure | bool | `false` | set to true to use plain HTTP for driver image repository |
 | deviceConfig.spec.driver.imageRegistryTLS.insecureSkipTLSVerify | bool | `false` | set to true to skip TLS validation for driver image repository |
 | deviceConfig.spec.driver.imageSign | object | `{}` | specify the secrets to sign the out-of-tree kernel module inside driver image for secure boot, e.g. input private / public key secret {"keySecret":{"name":"privateKeySecret"},"certSecret":{"name":"publicKeySecret"}} |
+| deviceConfig.spec.driver.tolerations | list | `[]` | configure driver tolerations so that operator can manage out-of-tree drivers on tainted nodes |
 | deviceConfig.spec.driver.upgradePolicy.enable | bool | `true` | enable/disable automatic driver upgrade feature  |
 | deviceConfig.spec.driver.upgradePolicy.maxParallelUpgrades | int | `3` | how many nodes can be upgraded in parallel |
 | deviceConfig.spec.driver.upgradePolicy.maxUnavailableNodes | string | `"25%"` | maximum number of nodes that can be in a failed upgrade state beyond which upgrades will stop to keep cluster at a minimal healthy state |

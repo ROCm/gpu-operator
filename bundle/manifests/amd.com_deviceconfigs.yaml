@@ -384,6 +384,29 @@ spec:
                       NOTE: Updating the driver image repository is not supported. Please delete the existing DeviceConfig and create a new one with the updated image repository
                     pattern: ^([a-z0-9]+(?:[._-][a-z0-9]+)*(:[0-9]+)?)(/[$a-zA-Z0-9_]+(?:[._-][$a-zA-Z0-9_]+)*)*(?::[a-z0-9._-]+)?(?:@[a-zA-Z0-9]+:[a-f0-9]+)?$
                     type: string
+                  imageBuild:
+                    description: image build configs
+                    properties:
+                      baseImageRegistry:
+                        default: docker.io
+                        description: |-
+                          image registry to fetch base image for building driver image, default value is docker.io, the builder will search for corresponding OS base image from given registry
+                          e.g. if your worker node is using Ubuntu 22.04, by default the base image would be docker.io/ubuntu:22.04
+                          NOTE: this field won't apply for OpenShift since OpenShift is using its own DriverToolKit image to build driver image
+                        type: string
+                      baseImageRegistryTLS:
+                        description: TLS settings for fetching base image
+                        properties:
+                          insecure:
+                            description: If true, check if the container image already
+                              exists using plain HTTP.
+                            type: boolean
+                          insecureSkipTLSVerify:
+                            description: If true, skip any TLS server certificate
+                              validation
+                            type: boolean
+                        type: object
+                    type: object
                   imageRegistrySecret:
                     description: secrets used for pull/push images from/to private
                       registry specified in driversImage
