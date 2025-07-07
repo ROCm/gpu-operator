@@ -66,3 +66,6 @@ kube-amd-gpu   amd-gpu-operator-node-feature-discovery-worker-kb5tk             
 kube-amd-gpu   gpu-operator-device-config-manager-hn9rb                          1/1     Running       0       3h14m
 kube-amd-gpu   gpu-operator-device-plugin-zft6k                                  1/1     Running       0       3h14m
 ```
+
+After DCM has completed the partitioning and once device plugin is brought up again, the resources (whether single gpus or partitioned gpus) are represented on the k8s node as per this documentation:
+[Device Plugin Resources](../device_plugin/device-plugin.md)
