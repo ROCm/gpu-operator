@@ -142,7 +142,8 @@ default: docker-build-env ## Quick start to build everything from docker shell c
 		-v /var/run/docker.sock:/var/run/docker.sock \
 		-w $(CONTAINER_WORKDIR) \
 		$(DOCKER_BUILDER_IMAGE) \
-		"source ~/.bashrc && cd /gpu-operator && git config --global --add safe.directory /gpu-operator && make all && GOFLAGS=-mod=mod go run tools/build/copyright/main.go && make fmt"
+		'bash -ic "source ~/.bashrc && cd /gpu-operator && git config --global --add safe.directory /gpu-operator && make all && GOFLAGS=-mod=mod go run tools/build/copyright/main.go && make fmt"'
+
 .PHONY: docker/shell
 docker/shell: docker-build-env ## Bring up and attach to a container that has dev environment configured.
 	@echo "Starting a shell in the Docker build container..."
