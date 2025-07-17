@@ -22,6 +22,7 @@ html_theme = "rocm_docs_theme"
 html_theme_options = {
     "flavor": "instinct",
     "link_main_doc": True,
+    "repository_url": "https://github.com/rocm/gpu-operator",
     # Add any additional theme options here
 }
 extensions = ["rocm_docs"]
