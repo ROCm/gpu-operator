@@ -151,6 +151,11 @@ spec:
           - feature: pci.device
             matchExpressions:
               vendor: {op: In, value: ["1002"]}
+              device: {op: In, value: ["7449"]} # W7800 48GB
+      - matchFeatures:
+          - feature: pci.device
+            matchExpressions:
+              vendor: {op: In, value: ["1002"]}
               device: {op: In, value: ["745e"]} # W7800
       - matchFeatures:
           - feature: pci.device
