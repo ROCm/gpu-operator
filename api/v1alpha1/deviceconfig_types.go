@@ -75,6 +75,28 @@ type DeviceConfigSpec struct {
 	//+operator-sdk:csv:customresourcedefinitions:type=spec,displayName="Selector",xDescriptors={"urn:alm:descriptor:com.amd.deviceconfigs:selector"}
 	// +optional
 	Selector map[string]string `json:"selector,omitempty"`
+
+	// remediation workflow
+	//+operator-sdk:csv:customresourcedefinitions:type=spec,displayName="RemediationWorkflow",xDescriptors={"urn:alm:descriptor:com.amd.deviceconfigs:remediationWorkflow"}
+	// +optional
+	RemediationWorkflow RemediationWorkflowSpec `json:"remediationWorkflow,omitempty"`
+}
+
+// RemediationWorkflowSpec defines workflows to run based on node conditions
+type RemediationWorkflowSpec struct {
+	// enable remediation workflows. disabled by default
+	// enable if operator should automatically handle remediation of node incase of gpu issues
+	//+operator-sdk:csv:customresourcedefinitions:type=spec,displayName="Enable",xDescriptors={"urn:alm:descriptor:com.amd.deviceconfigs:enable"}
+	Enable *bool `json:"enable,omitempty"`
+
+	// Name of the ConfigMap that holds condition-to-workflow mappings.
+	//+operator-sdk:csv:customresourcedefinitions:type=spec,displayName="ConditionalWorkflows",xDescriptors={"urn:alm:descriptor:com.amd.deviceconfigs:conditionalWorkflows"}
+	ConditionalWorkflows *v1.LocalObjectReference `json:"conditionalWorkflows,omitempty"`
+
+	// Time to live for argo workflow object and its pods for a failed workflow in hours. By default, it is set to 24 hours
+	//+operator-sdk:csv:customresourcedefinitions:type=spec,displayName="TtlForFailedWorkflows",xDescriptors={"urn:alm:descriptor:com.amd.deviceconfigs:ttlForFailedWorkflows"}
+	// +kubebuilder:default:=24
+	TtlForFailedWorkflows int `json:"ttlForFailedWorkflows,omitempty"`
 }
 
 type RegistryTLS struct {

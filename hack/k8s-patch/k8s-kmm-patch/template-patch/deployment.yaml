@@ -100,6 +100,9 @@ spec:
       terminationGracePeriodSeconds: 10
       {{- with .Values.controller.manager.tolerations }}
       tolerations:
+        - key: "amd-gpu-unhealthy"
+          operator: "Exists"
+          effect: "NoSchedule"
         {{- toYaml . | nindent 8 }}
       {{- end }}
       volumes:
@@ -191,6 +194,9 @@ spec:
       terminationGracePeriodSeconds: 10
       {{- with .Values.webhookServer.webhookServer.tolerations }}
       tolerations:
+        - key: "amd-gpu-unhealthy"
+          operator: "Exists"
+          effect: "NoSchedule"
         {{- toYaml . | nindent 8 }}
       {{- end }}
       volumes:

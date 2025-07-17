@@ -132,6 +132,11 @@ var _ = Describe("setKMMModuleLoader", func() {
 				Value:    "up",
 				Operator: v1.TolerationOpEqual,
 			},
+			{
+				Key:      "amd-gpu-unhealthy",
+				Operator: v1.TolerationOpExists,
+				Effect:   v1.TaintEffectNoSchedule,
+			},
 		}
 
 		err = setKMMModuleLoader(context.TODO(), &mod, &input, false, testNodeList)
@@ -200,6 +205,11 @@ var _ = Describe("setKMMModuleLoader", func() {
 				Key:      "amd-dcm",
 				Value:    "up",
 				Operator: v1.TolerationOpEqual,
+			},
+			{
+				Key:      "amd-gpu-unhealthy",
+				Operator: v1.TolerationOpExists,
+				Effect:   v1.TaintEffectNoSchedule,
 			},
 		}
 
