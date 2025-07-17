@@ -10,12 +10,20 @@ node-feature-discovery:
         operator: "Equal"
         value: "up"
         effect: "NoExecute"
+      - key: "amd-gpu-unhealthy"
+        operator: "Exists"
+        effect: "NoSchedule"
     # -- Set nodeSelector for NFD worker daemonset
     nodeSelector: {}
 
 # KMM related configs
 kmm:
   # -- Set to true/false to enable/disable the installation of kernel module management (KMM) operator
+  enabled: true
+
+# Remediation related configs
+remediation:
+  # -- Set to true/false to enable/disable the installation of remediation workflow controller
   enabled: true
 
 # -- Default NFD rule will detect amd gpu based on pci vendor ID

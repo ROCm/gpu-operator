@@ -75,6 +75,9 @@ spec:
       terminationGracePeriodSeconds: 10
       {{- with .Values.controllerManager.manager.tolerations }}
       tolerations:
+        - key: "amd-gpu-unhealthy"
+          operator: "Exists"
+          effect: "NoSchedule"
         {{- toYaml . | nindent 8 }}
       {{- end }}
       volumes:
