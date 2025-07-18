@@ -25,6 +25,36 @@ spec:
     blacklist: {{ .blacklist }}
     {{- end }}
 
+    {{- with .driverType }}
+    driverType: {{ . }}
+    {{- end }}
+
+    {{- with .vfioConfig }}
+    vfioConfig:
+      {{- with .deviceIDs }}
+      deviceIDs:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+    {{- end }}
+
+    {{- with .kernelModuleConfig }}
+    kernelModuleConfig:
+      {{- with .loadArgs }}
+      loadArgs:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+
+      {{- with .unloadArgs }}
+      unloadArgs:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+
+      {{- with .parameters }}
+      parameters:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+    {{- end }}
+
     {{- with .image }}
     image: {{ . }}
     {{- end }}

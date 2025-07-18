@@ -38,6 +38,9 @@ spec:
       - kind: Daemonset
         name: apps
         version: v1
+      - kind: Pod
+        name: core
+        version: v1
       - kind: services
         name: core
         version: v1
@@ -236,6 +239,15 @@ spec:
         path: driver.blacklist
         x-descriptors:
         - urn:alm:descriptor:com.amd.deviceconfigs:blacklistDrivers
+      - description: 'specify the type of driver (container/vf-passthrough/pf-passthrough)
+          to install on the worker node. default value is container. container: normal
+          amdgpu-dkms driver for Bare Metal GPU nodes or guest VM. vf-passthrough:
+          MxGPU GIM driver on the host machine to generate VF, then mount VF to vfio-pci
+          pf-passthrough: directly mount PF device to vfio-pci'
+        displayName: DriverType
+        path: driver.driverType
+        x-descriptors:
+        - urn:alm:descriptor:com.amd.deviceconfigs:driverType
       - description: enable driver install. default value is true. disable is for
           skipping driver install/uninstall for dryrun or using in-tree amdgpu kernel
           module
@@ -313,6 +325,30 @@ spec:
         path: driver.imageSign.keySecret
         x-descriptors:
         - urn:alm:descriptor:com.amd.deviceconfigs:imageSignKeySecret
+      - description: advanced arguments, parameters and more configs to manage tne
+          driver
+        displayName: KernelModuleConfig
+        path: driver.kernelModuleConfig
+        x-descriptors:
+        - urn:alm:descriptor:com.amd.deviceconfigs:kernelModuleConfig
+      - description: LoadArg are the arguments when modprobe is executed to load the
+          kernel module. The command will be `modprobe ${Args} module_name`.
+        displayName: LoadArg
+        path: driver.kernelModuleConfig.loadArgs
+        x-descriptors:
+        - urn:alm:descriptor:com.amd.deviceconfigs:loadArg
+      - description: Parameters is being used for modprobe commands. The command will
+          be `modprobe ${Args} module_name ${Parameters}`.
+        displayName: Parameters
+        path: driver.kernelModuleConfig.parameters
+        x-descriptors:
+        - urn:alm:descriptor:com.amd.deviceconfigs:parameters
+      - description: UnloadArg are the arguments when modprobe is executed to unload
+          the kernel module. The command will be `modprobe -r ${Args} module_name`.
+        displayName: UnloadArg
+        path: driver.kernelModuleConfig.unloadArgs
+        x-descriptors:
+        - urn:alm:descriptor:com.amd.deviceconfigs:unloadArg
       - description: policy to upgrade the drivers
         displayName: UpgradePolicy
         path: driver.upgradePolicy
@@ -365,6 +401,12 @@ spec:
         path: driver.version
         x-descriptors:
         - urn:alm:descriptor:com.amd.deviceconfigs:version
+      - description: vfio config specify the specific configs for binding PCI devices
+          to vfio-pci kernel module, applies for driver type vf-passthrough and pf-passthrough
+        displayName: VFIOConfig
+        path: driver.vfioConfig
+        x-descriptors:
+        - urn:alm:descriptor:com.amd.deviceconfigs:vfioConfig
       - description: metrics exporter
         displayName: MetricsExporter
         path: metricsExporter

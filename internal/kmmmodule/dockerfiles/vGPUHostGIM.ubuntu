@@ -1,0 +1,31 @@
+FROM ubuntu:$$VERSION AS builder
+
+ARG KERNEL_FULL_VERSION
+
+ARG DRIVERS_VERSION
+
+ARG REPO_URL
+
+RUN apt-get update && \
+    apt-get install -y build-essential \
+    dkms \
+    autoconf \
+    automake \
+    wget \
+    linux-headers-${KERNEL_FULL_VERSION} && \
+    apt-get clean
+
+RUN wget https://github.com/amd/MxGPU-Virtualization/releases/download/mainline%2F${DRIVERS_VERSION}/gim-dkms_${DRIVERS_VERSION}_all.deb && \
+    dpkg -i gim-dkms_${DRIVERS_VERSION}_all.deb && \
+    rm gim-dkms_${DRIVERS_VERSION}_all.deb
+
+RUN depmod ${KERNEL_FULL_VERSION}
+
+FROM ubuntu:$$VERSION
+
+ARG KERNEL_FULL_VERSION
+
+RUN apt-get update && apt-get install -y kmod
+RUN mkdir -p /opt/lib/modules/${KERNEL_FULL_VERSION}/updates/dkms/
+COPY --from=builder /lib/modules/${KERNEL_FULL_VERSION}/updates/dkms/gim* /opt/lib/modules/${KERNEL_FULL_VERSION}/updates/dkms/
+COPY --from=builder /lib/modules/${KERNEL_FULL_VERSION}/modules.* /opt/lib/modules/${KERNEL_FULL_VERSION}/
