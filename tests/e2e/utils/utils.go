@@ -526,7 +526,7 @@ func RunCommand(command string) {
 		log.Infof("    %v", m)
 	}
 	if err := cmd.Wait(); err != nil {
-		log.Errorf("Coammand %v did not complete with error: %v", command, err)
+		log.Errorf("Command %v did not complete with error: %v", command, err)
 	}
 }
 
