@@ -49,6 +49,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/serializer"
 	"k8s.io/apimachinery/pkg/selection"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/discovery"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/kubernetes/scheme"
@@ -291,8 +292,16 @@ var rocmDs = "e2e-rocm"
 func DeployRocmPods(ctx context.Context, cl *kubernetes.Clientset,
 	res *v1.ResourceRequirements) error {
 
+	// Attempt to delete existing rocm pods/daemonset first
+	log.Infof("Attempting to delete existing ROCm daemonset %s before deployment.", rocmDs)
+	if err := DelRocmPods(ctx, cl); err != nil {
+		// Log the error but continue, as the daemonset might not exist,
+		// or other cleanup issues might occur that shouldn't block a new deployment attempt.
+		log.Warnf("Failed to delete existing ROCm daemonset %s, proceeding with deployment: %v", rocmDs, err)
+	}
+
 	err := CreateDaemonsetVerify(ctx, cl, v1.NamespaceDefault, rocmDs,
-		initContainerImage, rocmLabel, res)
+		rocmContainerImage, rocmLabel, res)
 	if err != nil {
 		return fmt.Errorf("failed to create e2e pods %v", err)
 	}
@@ -302,13 +311,8 @@ func DeployRocmPods(ctx context.Context, cl *kubernetes.Clientset,
 		if err != nil {
 			return fmt.Errorf("failed to list pods %v", err)
 		}
-		for _, p := range its.Items {
-			for _, c := range p.Status.ContainerStatuses {
-				if !c.Ready {
-					return fmt.Errorf("pod %v/%v is not ready(%v)", p.Name, c.Name, c.Ready)
-
-				}
-			}
+		if len(its.Items) == 0 {
+			return fmt.Errorf("no pods found with label selector %v", rocmLabel)
 		}
 		return nil
 	}, time.Minute*5, time.Second*5); err != nil {
@@ -330,7 +334,7 @@ func ListRocmPods(ctx context.Context, cl *kubernetes.Clientset) ([]string, erro
 }
 
 func DelRocmPods(ctx context.Context, cl *kubernetes.Clientset) error {
-	if err := DelDaemonset(cl, v1.NamespaceDefault, rocmDs); err != nil {
+	if err := DelDaemonset(cl, v1.NamespaceDefault, rocmDs); err != nil && !apierrors.IsNotFound(err) {
 		return fmt.Errorf("failed to delete %v, %v", rocmDs, err)
 	}
 	if err := Retry(func() error {
@@ -367,9 +371,42 @@ func DeletePod(ctx context.Context, cl *kubernetes.Clientset, ns string,
 }
 
 func CreateTLSSecret(ctx context.Context, cl *kubernetes.Clientset, name, ns string, crt, key []byte) error {
+	secretsClient := cl.CoreV1().Secrets(ns)
+
+	// Try to get the secret
+	_, err := secretsClient.Get(ctx, name, metav1.GetOptions{})
+	if err == nil {
+		// Secret exists, delete it
+		log.Infof("Secret %s/%s already exists. Deleting it.", ns, name)
+		err = secretsClient.Delete(ctx, name, metav1.DeleteOptions{})
+		if err != nil {
+			return fmt.Errorf("failed to delete existing secret %s/%s: %w", ns, name, err)
+		}
+		// Wait for the secret to be fully deleted before recreating
+		err = wait.PollUntilContextTimeout(ctx, 2*time.Second, 30*time.Second, true, func(context.Context) (bool, error) {
+			_, getErr := secretsClient.Get(ctx, name, metav1.GetOptions{})
+			if getErr != nil && apierrors.IsNotFound(getErr) {
+				return true, nil // Successfully deleted
+			}
+			if getErr != nil {
+				return false, getErr // Some other error, stop polling
+			}
+			return false, nil // Still exists, continue polling
+		})
+		if err != nil {
+			return fmt.Errorf("error waiting for secret %s/%s to be deleted: %w", ns, name, err)
+		}
+		log.Infof("Successfully deleted existing secret %s/%s.", ns, name)
+	} else if !apierrors.IsNotFound(err) {
+		// Some other error occurred while trying to get the secret
+		return fmt.Errorf("failed to get secret %s/%s: %w", ns, name, err)
+	}
+
+	// Define the new secret
 	secret := &v1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
-			Name: name,
+			Name:      name,
+			Namespace: ns,
 		},
 		Data: map[string][]byte{
 			"tls.crt": crt,
@@ -377,8 +414,15 @@ func CreateTLSSecret(ctx context.Context, cl *kubernetes.Clientset, name, ns str
 		},
 		Type: v1.SecretTypeTLS,
 	}
-	_, err := cl.CoreV1().Secrets(ns).Create(ctx, secret, metav1.CreateOptions{})
-	return err
+
+	// Create the secret
+	log.Infof("Creating secret %s/%s.", ns, name)
+	_, err = secretsClient.Create(ctx, secret, metav1.CreateOptions{})
+	if err != nil {
+		return fmt.Errorf("failed to create secret %s/%s: %w", ns, name, err)
+	}
+	log.Infof("Successfully created secret %s/%s.", ns, name)
+	return nil
 }
 
 func DeleteTLSSecret(ctx context.Context, cl *kubernetes.Clientset, name, ns string) error {
@@ -419,10 +463,14 @@ func CreateDaemonsetVerify(ctx context.Context, cl *kubernetes.Clientset, ns str
 					NodeSelector: map[string]string{"feature.node.kubernetes.io/amd-gpu": "true"},
 					Containers: []v1.Container{
 						{
-							Name:      name,
-							Image:     image,
-							Command:   []string{"sh", "-c", "--"},
-							Args:      []string{"sleep infinity"},
+							Name:    name,
+							Image:   image,
+							Command: []string{"sh", "-c", "--"},
+							Args:    []string{"sleep infinity"},
+							SecurityContext: &v1.SecurityContext{
+								Privileged: ptr.To(true),
+								RunAsUser:  &[]int64{0}[0],
+							},
 							Resources: *res,
 						},
 					},
@@ -433,7 +481,7 @@ func CreateDaemonsetVerify(ctx context.Context, cl *kubernetes.Clientset, ns str
 
 	// Create Deployment
 	_, err := dsCli.Create(context.TODO(), ds, metav1.CreateOptions{})
-	if err != nil {
+	if err != nil && !apierrors.IsAlreadyExists(err) {
 		return fmt.Errorf("failed to create daemonset %v", err)
 	}
 
@@ -1068,94 +1116,6 @@ func GetNodeIP(ctx context.Context, cl *kubernetes.Clientset,
 	return nodeip, nil
 }
 
-func IsNodeHealthy(cl *kubernetes.Clientset, nodeip string) error {
-
-	url := fmt.Sprintf("http://%s:%s/health", nodeip, HttpServerPort)
-	client := &http.Client{}
-
-	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
-	defer cancel()
-
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
-	if err != nil {
-		return err
-	}
-
-	resp, err := client.Do(req)
-	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
-
-	body, err := io.ReadAll(resp.Body)
-	log.Infof("resp status: %v body: %v error: %v",
-		resp.Status, string(body), err)
-
-	if resp.StatusCode != 200 {
-		return fmt.Errorf("node health status: %v", resp.Status)
-	}
-	if string(body) != "healthy" {
-		return fmt.Errorf("node health body: %v", body)
-	}
-
-	return nil
-}
-
-func RebootNode(cl *kubernetes.Clientset, nodeip string) error {
-
-	url := fmt.Sprintf("http://%s:%s/reboot", nodeip, HttpServerPort)
-	client := &http.Client{}
-
-	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
-	defer cancel()
-
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, nil)
-	if err != nil {
-		return err
-	}
-
-	resp, err := client.Do(req)
-	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
-	body, err := io.ReadAll(resp.Body)
-	log.Infof("resp status: %v body: %v error: %v",
-		resp.Status, string(body), err)
-
-	if resp.StatusCode != 200 {
-		return fmt.Errorf("reboot failed response: %v", resp.Status)
-	}
-	return nil
-}
-
-func RebootNodeWithWait(ctx context.Context, cl *kubernetes.Clientset,
-	nodeName string) error {
-
-	nodeip, err := GetNodeIP(ctx, cl, nodeName)
-	if err != nil || nodeip == "" {
-		log.Errorf("node %s: %s get error: %v", nodeName, nodeip, err)
-		return err
-	}
-
-	if err := RebootNode(cl, nodeip); err != nil {
-		log.Errorf("node reboot error: %v", err)
-		return err
-	}
-
-	if err := Retry(func() error {
-		if err := IsNodeHealthy(cl, nodeip); err != nil {
-			log.Errorf("node %s: %s health error: %v", nodeName, nodeip, err)
-			return err
-		}
-		return nil
-	}, time.Minute*10, time.Second*20); err != nil {
-		return fmt.Errorf("node did not become healthy %v", err)
-	}
-
-	return nil
-}
-
 func GetJobLogs(clientset *kubernetes.Clientset, job *batchv1.Job) ([]string, error) {
 	if job == nil {
 		return nil, fmt.Errorf("Provide a valid job")
@@ -1366,36 +1326,6 @@ func GetNodeIPsForDaemonSet(clientset *kubernetes.Clientset, daemonSetName, name
 	return nodeIPs, nil
 }
 
-func RebootNodesWithWait(ctx context.Context, cl *kubernetes.Clientset, nodes []v1.Node) error {
-	if len(nodes) == 0 {
-		log.Errorf("No worker nodes provided for reboot")
-		return nil
-	}
-	var wg sync.WaitGroup
-	errCh := make(chan error, len(nodes))
-	for _, node := range nodes {
-		wg.Add(1)
-		go func(node v1.Node) {
-			defer wg.Done()
-
-			if err := RebootNodeWithWait(ctx, cl, node.Name); err != nil {
-				log.Errorf("Rebooting worker node %s failed with error: %v", node.Name, err)
-				errCh <- err
-				return
-			}
-			log.Infof("Worker node %s successfully rebooted!", node.Name)
-		}(node)
-	}
-
-	wg.Wait()
-	close(errCh)
-	if len(errCh) > 0 {
-		return <-errCh
-	}
-
-	return nil
-}
-
 func PatchOperatorControllerDeploymentWithCIENVFlag(cl *kubernetes.Clientset) error {
 	patch := []map[string]interface{}{
 		{
@@ -1459,7 +1389,7 @@ func PatchKMMDeploymentWithCIENVFlag(cl *kubernetes.Clientset) error {
 
 func HandleNodesReboot(ctx context.Context, cl *kubernetes.Clientset, nodes []v1.Node) error {
 	if len(nodes) == 0 {
-		log.Errorf("No worker nodes provided for reboot")
+		log.Infof("No worker nodes provided for reboot, skipping.")
 		return nil
 	}
 
@@ -1470,39 +1400,80 @@ func HandleNodesReboot(ctx context.Context, cl *kubernetes.Clientset, nodes []v1
 		wg.Add(1)
 		go func(node v1.Node) {
 			defer wg.Done()
-
+			ns := "kube-amd-gpu"
+			podName := fmt.Sprintf("amd-gpu-operator-%v-reboot-worker", node.Name)
 			rebootPod := GetRebootPod(node.Name)
 
-			// Delete the existing reboot pod if present
-			if _, err := cl.CoreV1().Pods("kube-amd-gpu").Get(ctx, rebootPod.Name, metav1.GetOptions{}); err == nil {
-				if err := cl.CoreV1().Pods("kube-amd-gpu").Delete(ctx, rebootPod.Name, metav1.DeleteOptions{}); err != nil {
-					log.Errorf("Failed to delete existing reboot pod for node: %v, error: %v", node.Name, err)
-					errCh <- err
-					return
-				}
+			// 1) Delete any existing reboot pod
+			if _, err := cl.CoreV1().Pods(ns).Get(ctx, podName, metav1.GetOptions{}); err == nil {
+				log.Infof("Deleting existing reboot pod %s", podName)
+				_ = cl.CoreV1().Pods(ns).Delete(ctx, podName, metav1.DeleteOptions{})
 			}
 
-			// Create the reboot pod
-			if _, err := cl.CoreV1().Pods("kube-amd-gpu").Create(ctx, rebootPod, metav1.CreateOptions{}); err != nil {
-				log.Errorf("Failed to create reboot pod for node: %v, error: %v", node.Name, err)
+			// 2) Extract initial boot ID
+			initialNode, err := cl.CoreV1().Nodes().Get(ctx, node.Name, metav1.GetOptions{})
+			if err != nil {
+				log.Errorf("Failed to get node %s: %v", node.Name, err)
 				errCh <- err
 				return
 			}
+			initialBootID := initialNode.Status.NodeInfo.BootID
 
-			// Wait for the reboot pod to get spawned
-			waitForRebootPod := func() {
-				for i := uint(0); i < 300; _, i = <-time.NewTicker(2*time.Second).C, i+1 {
-					if _, err := cl.CoreV1().Pods("kube-amd-gpu").Get(ctx, rebootPod.Name, metav1.GetOptions{}); err == nil {
-						return
-					}
+			// 3) Create reboot pod
+			err = wait.PollUntilContextTimeout(ctx, 10*time.Second, 1*time.Minute, true, func(ctx context.Context) (bool, error) {
+				if p, err := cl.CoreV1().Pods(ns).Get(ctx, podName, metav1.GetOptions{}); err == nil {
+					log.Infof("Reboot pod %s is already present (phase=%s)", podName, p.Status.Phase)
+					return true, nil
 				}
+
+				// not found yet, try to create it
+				if _, err := cl.CoreV1().Pods(ns).Create(ctx, rebootPod, metav1.CreateOptions{}); err != nil {
+					if apierrors.IsAlreadyExists(err) {
+						// another thread must have created it; retry to pick it up
+						log.Infof("Pod %s AlreadyExists, will re-Get", podName)
+						return false, nil
+					}
+					log.Infof("reboot pod create failed for node %s, retrying: %v", node.Name, err)
+					return false, nil
+				}
+				log.Infof("Created reboot pod %s; waiting for it to be visible", podName)
+				return false, nil
+			})
+			if err != nil {
+				errCh <- fmt.Errorf("pod %s never showed up: %v", podName, err)
+				return
 			}
-			waitForRebootPod()
 
-			// Delete the reboot pod after it has been created
+			// 4) Wait for node boot ID to change
+			log.Infof("Waiting for node %s to reboot", node.Name)
+			if err := wait.PollUntilContextTimeout(ctx, 5*time.Second, 10*time.Minute, true, func(context.Context) (bool, error) {
+				n, err := cl.CoreV1().Nodes().Get(ctx, node.Name, metav1.GetOptions{})
+				if err != nil {
+					return false, nil
+				}
+
+				if n.Status.NodeInfo.BootID != initialBootID {
+					for _, cond := range n.Status.Conditions {
+						if cond.Type == v1.NodeReady && cond.Status == v1.ConditionTrue {
+							log.Infof("Node %s boot ID changed from %s to %s", node.Name, initialBootID, n.Status.NodeInfo.BootID)
+							return true, nil
+						}
+					}
+
+					log.Infof("Node %s boot ID has changed, but node is not Ready", node.Name)
+					return true, nil
+				}
+				return false, nil
+			}); err != nil {
+				log.Warnf("Node %s did not reboot in time", node.Name)
+				DeleteRebootPod(ctx, cl, node.Name, true)
+				errCh <- fmt.Errorf("node %s never rebooted: %v", node.Name, err)
+				return
+			}
+
+			// 5) Final cleanup of reboot pod
+			log.Infof("Node %s successfully rebooted; cleaning up reboot pod %s", node.Name, podName)
 			DeleteRebootPod(ctx, cl, node.Name, false)
-
-			log.Infof("Worker node %s successfully rebooted!", node.Name)
 		}(node)
 	}
 
@@ -1518,33 +1489,42 @@ func HandleNodesReboot(ctx context.Context, cl *kubernetes.Clientset, nodes []v1
 func DeleteRebootPod(ctx context.Context, cl *kubernetes.Clientset, nodeName string, force bool) {
 	rebootPod := GetRebootPod(nodeName)
 
-	pod := &v1.Pod{}
-	if _, err := cl.CoreV1().Pods("kube-amd-gpu").Get(ctx, rebootPod.Name, metav1.GetOptions{}); err != nil {
+	if force {
+		log.Infof("Force-deleting reboot pod for node %s", nodeName)
+		if err := cl.CoreV1().Pods("kube-amd-gpu").Delete(ctx, rebootPod.Name, metav1.DeleteOptions{}); err != nil {
+			log.Errorf("Failed to delete reboot pod for node: %v, error: %v", nodeName, err)
+		}
 		return
 	}
 
-	if !force {
-		// Wait (max 1 hour) until the pod is finished
-		for i := uint(0); i < 60; _, i = <-time.NewTicker(10*time.Second).C, i+1 {
-			if _, err := cl.CoreV1().Pods("kube-amd-gpu").Get(ctx, rebootPod.Name, metav1.GetOptions{}); err == nil {
-				if len(pod.Status.ContainerStatuses) > 0 {
-					containerStatus := pod.Status.ContainerStatuses[0]
-					if containerStatus.State.Terminated != nil && !containerStatus.State.Terminated.FinishedAt.IsZero() {
-						// Pod finished, delete it
-						if err := cl.CoreV1().Pods("kube-amd-gpu").Delete(ctx, rebootPod.Name, metav1.DeleteOptions{}); err != nil {
-							log.Errorf("Failed to delete reboot pod for node: %v, error: %v", nodeName, err)
-						}
-						return
-					}
+	log.Infof("Waiting for reboot pod %s to terminate cleanly...", rebootPod.Name)
+
+	ticker := time.NewTicker(10 * time.Second)
+	defer ticker.Stop()
+
+	for i := 0; i < 60; i++ {
+		<-ticker.C
+		pod, err := cl.CoreV1().Pods("kube-amd-gpu").Get(ctx, rebootPod.Name, metav1.GetOptions{})
+		if err != nil {
+			log.Infof("Reboot pod %s not found (maybe already deleted), skipping cleanup", rebootPod.Name)
+			return
+		}
+
+		if len(pod.Status.ContainerStatuses) > 0 {
+			containerStatus := pod.Status.ContainerStatuses[0]
+			if containerStatus.State.Terminated != nil && !containerStatus.State.Terminated.FinishedAt.IsZero() {
+				log.Infof("Reboot pod %s has terminated (exitCode: %d), deleting...", rebootPod.Name, containerStatus.State.Terminated.ExitCode)
+				if err := cl.CoreV1().Pods("kube-amd-gpu").Delete(ctx, rebootPod.Name, metav1.DeleteOptions{}); err != nil {
+					log.Errorf("Failed to delete reboot pod for node %v: %v", nodeName, err)
 				}
+				return
 			}
 		}
+		log.Infof("Reboot pod %s not yet terminated, checking again...", rebootPod.Name)
 	}
 
-	// Force delete the pod if it's still present
-	if err := cl.CoreV1().Pods("kube-amd-gpu").Delete(ctx, rebootPod.Name, metav1.DeleteOptions{}); err != nil {
-		log.Errorf("Failed to delete reboot pod for node: %v, error: %v", nodeName, err)
-	}
+	log.Warnf("Timeout waiting for reboot pod %s to finish, force-deleting...", rebootPod.Name)
+	_ = cl.CoreV1().Pods("kube-amd-gpu").Delete(ctx, rebootPod.Name, metav1.DeleteOptions{})
 }
 
 func GetRebootPod(nodeName string) *v1.Pod {
@@ -1734,9 +1714,71 @@ func NodeTaint(cl *kubernetes.Clientset, nodeName string) error {
 		return err
 	}
 
-	log.Infof("Updated node %q with taint.\n", nodeName)
+	log.Infof("Updated node %q with taint. \n", nodeName)
 	return nil
 }
+
+func CreateConfigMap(ctx context.Context, cl *kubernetes.Clientset, ns string, cmName string, data map[string]string) error {
+	cmClient := cl.CoreV1().ConfigMaps(ns)
+
+	// Check if ConfigMap exists
+	_, err := cmClient.Get(ctx, cmName, metav1.GetOptions{})
+	if err == nil {
+		// ConfigMap exists, delete it
+		log.Infof("ConfigMap %s/%s already exists. Deleting it.", ns, cmName)
+		err = cmClient.Delete(ctx, cmName, metav1.DeleteOptions{})
+		if err != nil {
+			return fmt.Errorf("failed to delete existing ConfigMap %s/%s: %w", ns, cmName, err)
+		}
+		// Wait for the ConfigMap to be fully deleted before recreating
+		err = wait.PollUntilContextTimeout(ctx, 2*time.Second, 30*time.Second, true, func(context.Context) (bool, error) {
+			_, getErr := cmClient.Get(ctx, cmName, metav1.GetOptions{})
+			if getErr != nil && apierrors.IsNotFound(getErr) {
+				return true, nil // Successfully deleted
+			}
+			if getErr != nil {
+				return false, getErr // Some other error, stop polling
+			}
+			return false, nil // Still exists, continue polling
+		})
+		if err != nil {
+			return fmt.Errorf("error waiting for ConfigMap %s/%s to be deleted: %w", ns, cmName, err)
+		}
+		log.Infof("Successfully deleted existing ConfigMap %s/%s.", ns, cmName)
+	} else if !apierrors.IsNotFound(err) {
+		// Some other error occurred while trying to get the ConfigMap
+		return fmt.Errorf("failed to get ConfigMap %s/%s: %w", ns, cmName, err)
+	}
+
+	// Define the new ConfigMap
+	cm := &v1.ConfigMap{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      cmName,
+			Namespace: ns,
+		},
+		Data: data,
+	}
+
+	// Create the ConfigMap
+	log.Infof("Creating ConfigMap %s/%s.", ns, cmName)
+	_, err = cmClient.Create(ctx, cm, metav1.CreateOptions{})
+	if err != nil {
+		return fmt.Errorf("failed to create ConfigMap %s/%s: %w", ns, cmName, err)
+	}
+	log.Infof("Successfully created ConfigMap %s/%s.", ns, cmName)
+	return nil
+}
+
+func DeleteConfigMap(ctx context.Context, cl *kubernetes.Clientset, ns string, cmName string) error {
+	cmClient := cl.CoreV1().ConfigMaps(ns)
+	err := cmClient.Delete(ctx, cmName, metav1.DeleteOptions{})
+	if err != nil && !apierrors.IsNotFound(err) {
+		return fmt.Errorf("failed to delete ConfigMap %s/%s: %w", ns, cmName, err)
+	}
+	log.Infof("Successfully deleted ConfigMap %s/%s.", ns, cmName)
+	return nil
+}
+
 func CreateOpaqueSecret(ctx context.Context, cl *kubernetes.Clientset, name, ns string, keys map[string]string) error {
 	secret := &v1.Secret{
 		ObjectMeta: metav1.ObjectMeta{

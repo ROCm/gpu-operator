@@ -19,6 +19,7 @@ package utils
 import (
 	"fmt"
 	"reflect"
+	"strings"
 	"testing"
 
 	"github.com/ROCm/gpu-operator/api/v1alpha1"
@@ -275,5 +276,91 @@ func TestShouldUseKMM(t *testing.T) {
 
 	for _, tc := range testCases {
 		assert.Equal(t, ShouldUseKMM(tc.DevConfig), tc.Expect, fmt.Sprintf("test case %+v expect ShouldUseKMM() return %+v but got %+v", tc.Description, tc.Expect, ShouldUseKMM(tc.DevConfig)))
+	}
+}
+
+func TestUbuntuDefaultDriverVersionsMapper(t *testing.T) {
+	testCases := []struct {
+		name          string
+		fullImageStr  string
+		expectedVer   string
+		expectedErr   bool
+		errorContains string
+	}{
+		{
+			name:         "Ubuntu 20.04",
+			fullImageStr: "Ubuntu 20.04 LTS",
+			expectedVer:  "6.1.3",
+			expectedErr:  false,
+		},
+		{
+			name:         "Ubuntu 20.04.1",
+			fullImageStr: "Ubuntu 20.04.1 LTS",
+			expectedVer:  "6.1.3",
+			expectedErr:  false,
+		},
+		{
+			name:         "Ubuntu 22.04.0",
+			fullImageStr: "Ubuntu 22.04 LTS",
+			expectedVer:  "6.1.3",
+			expectedErr:  false,
+		},
+		{
+			name:         "Ubuntu 22.04.1",
+			fullImageStr: "Ubuntu 22.04.1 LTS",
+			expectedVer:  "6.1.3",
+			expectedErr:  false,
+		},
+		{
+			name:         "Ubuntu 22.04.4",
+			fullImageStr: "Ubuntu 22.04.4 LTS",
+			expectedVer:  "6.1.3",
+			expectedErr:  false,
+		},
+		{
+			name:         "Ubuntu 22.04.5",
+			fullImageStr: "Ubuntu 22.04.5 LTS",
+			expectedVer:  "6.3.3",
+			expectedErr:  false,
+		},
+		{
+			name:         "Ubuntu 22.04.6",
+			fullImageStr: "Ubuntu 22.04.6 LTS",
+			expectedVer:  "6.3.3",
+			expectedErr:  false,
+		},
+		{
+			name:         "Ubuntu 24.04",
+			fullImageStr: "Ubuntu 24.04 LTS",
+			expectedVer:  "6.3.3",
+			expectedErr:  false,
+		},
+		{
+			name:          "Unsupported Ubuntu 18.04",
+			fullImageStr:  "Ubuntu 18.04 LTS",
+			expectedVer:   "",
+			expectedErr:   true,
+			errorContains: "unsupported Ubuntu version: Ubuntu 18.04 LTS",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			version, err := UbuntuDefaultDriverVersionsMapper(tc.fullImageStr)
+			if tc.expectedErr {
+				if err == nil {
+					t.Errorf("Expected an error, but got nil")
+				} else if tc.errorContains != "" && !strings.Contains(err.Error(), tc.errorContains) {
+					t.Errorf("Expected error to contain '%s', but got '%s'", tc.errorContains, err.Error())
+				}
+			} else {
+				if err != nil {
+					t.Errorf("Did not expect an error, but got: %v", err)
+				}
+				if version != tc.expectedVer {
+					t.Errorf("Expected version '%s', but got '%s'", tc.expectedVer, version)
+				}
+			}
+		})
 	}
 }

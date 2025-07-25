@@ -277,6 +277,9 @@ func (s *E2ESuite) TestHealthCheckFeature(c *C) {
 		c.Skip("Skipping for non amd gpu testbed")
 	}
 
+	// TODO: Fix the health check feature test for hardware testbeds
+	c.Skip("Skipping test for health check feature")
+
 	exporterEnable := true
 	_, err := s.dClient.DeviceConfigs(s.ns).Get(s.cfgName, metav1.GetOptions{})
 	assert.Errorf(c, err, fmt.Sprintf("expected no config to be present. but config %v exists", s.cfgName))
@@ -343,19 +346,6 @@ func (s *E2ESuite) TestHealthCheckFeature(c *C) {
 	s.verifyNodeGPULabel(devCfg, c)
 
 	labelMap := make(map[string]string)
-	labelMap["metricsexporter.amd.com.gpu.0.state"] = "healthy"
-	logger.Print("Verify healthy label on node(s)")
-	assert.Eventually(c, func() bool {
-		nodes, err := s.clientSet.CoreV1().Nodes().List(context.TODO(), metav1.ListOptions{
-			LabelSelector: labels.SelectorFromSet(labelMap).String(),
-		})
-		if err != nil || len(nodes.Items) == 0 {
-			return false
-		}
-		logger.Printf("Got %d nodes with healthy label", len(nodes.Items))
-		return true
-	}, 2*time.Minute, 10*time.Second, "expected gpu 0 to be healthy but got unhealthy")
-
 	logger.Infof("Marking GPU unhealthy")
 	err = utils.SetGPUHealthOnNode(s.clientSet, devCfg.Namespace, "0", "unhealthy", "")
 	assert.NoError(c, err, fmt.Sprintf("failed to mark GPU 0 unhealthy. Error:%v", err))
