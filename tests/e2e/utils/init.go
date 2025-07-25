@@ -24,7 +24,7 @@ import (
 var (
 	ubuntuBaseImage    string
 	minioImage         string
-	initContainerImage string
+	rocmContainerImage string
 	nodeAppImage       string
 )
 
@@ -39,9 +39,9 @@ func init() {
 	if !ok {
 		log.Fatalf("E2E_MINIO_IMAGE is not defined")
 	}
-	initContainerImage, ok = os.LookupEnv("E2E_INIT_CONTAINER_IMAGE")
+	rocmContainerImage, ok = os.LookupEnv("E2E_ROCM_CONTAINER_IMAGE")
 	if !ok {
-		log.Fatalf("E2E_INIT_CONTAINER_IMAGE is not defined")
+		log.Fatalf("E2E_ROCM_CONTAINER_IMAGE is not defined")
 	}
 	nodeAppImage, ok = os.LookupEnv("E2E_NODEAPP_IMG")
 	if !ok {

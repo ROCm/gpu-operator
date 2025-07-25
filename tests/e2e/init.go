@@ -24,8 +24,9 @@ import (
 var (
 	initContainerImage            string
 	kubeRbacProxyCurlImage        string
+	exporterMockImage             string
+	exporterMockImage2            string
 	exporterImage                 string
-	exporterImage2                string
 	devicePluginImage             string
 	nodeLabellerImage             string
 	devicePluginImage2            string
@@ -47,13 +48,17 @@ func init() {
 	if !ok {
 		log.Fatalf("E2E_KUBE_RBAC_PROXY_CURL_IMAGE is not defined")
 	}
-	exporterImage, ok = os.LookupEnv("E2E_EXPORTER_IMAGE")
+	exporterMockImage, ok = os.LookupEnv("E2E_EXPORTER_MOCK_IMAGE")
 	if !ok {
 		log.Fatalf("E2E_EXPORTER_IMAGE is not defined")
 	}
-	exporterImage2, ok = os.LookupEnv("E2E_EXPORTER_IMAGE_2")
+	exporterMockImage2, ok = os.LookupEnv("E2E_EXPORTER_MOCK_IMAGE_2")
 	if !ok {
 		log.Fatalf("E2E_EXPORTER_IMAGE_2 is not defined")
+	}
+	exporterImage, ok = os.LookupEnv("E2E_EXPORTER_IMAGE")
+	if !ok {
+		log.Fatalf("E2E_EXPORTER_IMAGE is not defined")
 	}
 	devicePluginImage, ok = os.LookupEnv("E2E_DEVICE_PLUGIN_IMAGE")
 	if !ok {

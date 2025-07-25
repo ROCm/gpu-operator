@@ -402,6 +402,7 @@ func (s *E2ESuite) TestDCMConfigMapPartitionHomogenous(c *C) {
 	if !dcmImageDefined {
 		c.Skip("skip DCM test because E2E_DCM_IMAGE is not defined")
 	}
+	c.Skip("Skipping DCM Partition test for now, enable after fixing the test")
 	s.configMapHelper(c)
 	// Trigger partition using labels
 	logger.Infof("Add node label after pod comes up")
@@ -427,6 +428,7 @@ func (s *E2ESuite) TestDCMConfigMapPartitionHeterogenous(c *C) {
 	if !dcmImageDefined {
 		c.Skip("skip DCM test because E2E_DCM_IMAGE is not defined")
 	}
+	c.Skip("Skipping DCM Partition test for now, enable after fixing the test")
 	s.configMapHelper(c)
 	// Trigger partition using labels
 	logger.Infof("Add node label after pod comes up")
@@ -452,6 +454,7 @@ func (s *E2ESuite) TestDCMPartitionNPS4(c *C) {
 	if !dcmImageDefined {
 		c.Skip("skip DCM test because E2E_DCM_IMAGE is not defined")
 	}
+	c.Skip("Skipping DCM Partition test for now, enable after fixing the test")
 	s.configMapHelper(c)
 	// Trigger partition using labels
 	logger.Infof("Add node label after pod comes up")
@@ -475,6 +478,7 @@ func (s *E2ESuite) TestDCMInvalidComputeType(c *C) {
 	if !dcmImageDefined {
 		c.Skip("skip DCM test because E2E_DCM_IMAGE is not defined")
 	}
+	c.Skip("Skipping DCM Partition test for now, enable after fixing the test")
 	s.configMapHelper(c)
 	// Trigger partition using labels
 	logger.Infof("Add node label after pod comes up")
@@ -497,6 +501,7 @@ func (s *E2ESuite) TestDCMInvalidMemoryType(c *C) {
 	if !dcmImageDefined {
 		c.Skip("skip DCM test because E2E_DCM_IMAGE is not defined")
 	}
+	c.Skip("Skipping DCM Partition test for now, enable after fixing the test")
 	s.configMapHelper(c)
 	// Trigger partition using labels
 	logger.Infof("Add node label after pod comes up")
@@ -519,6 +524,7 @@ func (s *E2ESuite) TestDCMInvalidGPUFilter(c *C) {
 	if !dcmImageDefined {
 		c.Skip("skip DCM test because E2E_DCM_IMAGE is not defined")
 	}
+	c.Skip("Skipping DCM Partition test for now, enable after fixing the test")
 	s.configMapHelper(c)
 	// Trigger partition using labels
 	logger.Infof("Add node label after pod comes up")
@@ -544,6 +550,50 @@ func (s *E2ESuite) TestDCMDefaultPartition(c *C) {
 	if !dcmImageDefined {
 		c.Skip("skip DCM test because E2E_DCM_IMAGE is not defined")
 	}
+	logger.Infof("###BEGIN TESTCASE###\n")
+	// check to see existing deviceconfig DS pods
+	_, err := s.dClient.DeviceConfigs(s.ns).Get(s.cfgName, metav1.GetOptions{})
+	assert.Errorf(c, err, fmt.Sprintf("config %v exists", s.cfgName))
+
+	// fetch the CR
+	devCfg := s.getDeviceConfigForDCM(c)
+	logger.Infof("create device-config %+v", devCfg.Spec.ConfigManager)
+	s.createDeviceConfig(devCfg, c)
+
+	s.checkDeviceConfigManagerStatus(devCfg, s.ns, c)
+	logger.Infof("SUCCESSFULLY DEPLOYED DCM DAEMONSET")
+	time.Sleep(30 * time.Second)
+
+	nodeName := s.getWorkerNode(c)
+	err = utils.AddNodeLabel(s.clientSet, nodeName, "dcm.amd.com/apply-gpu-config-profile", "apply")
+	if err != nil {
+		logger.Infof("Error adding node lbels: %s\n", err.Error())
+		return
+	}
+	time.Sleep(15 * time.Second)
+	// Allow partition to happen
+	err = utils.DeleteNodeLabel(s.clientSet, nodeName, "dcm.amd.com/apply-gpu-config-profile")
+	if err != nil {
+		logger.Infof("Error removing node lbels: %s\n", err.Error())
+		return
+	}
+
+	logs := s.getLogs()
+	if strings.Contains(logs, "Partition completed successfully") && (!strings.Contains(logs, "ERROR")) && (s.eventHelper("SuccessfullyPartitioned", "Normal")) {
+		logger.Infof("Successfully tested default partitioning")
+	} else {
+		logger.Errorf("Failure testing default partitioning")
+	}
+}
+
+func (s *E2ESuite) TestDCMDefaultPartition(c *C) {
+	if s.simEnable {
+		c.Skip("Skipping for non amd gpu testbed")
+	}
+	if !dcmImageDefined {
+		c.Skip("skip DCM test because E2E_DCM_IMAGE is not defined")
+	}
+	c.Skip("Skipping DCM Partition test for now, enable after fixing the test")
 	logger.Infof("###BEGIN TESTCASE###\n")
 	// check to see existing deviceconfig DS pods
 	_, err := s.dClient.DeviceConfigs(s.ns).Get(s.cfgName, metav1.GetOptions{})

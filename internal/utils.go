@@ -21,6 +21,7 @@ import (
 	"errors"
 	"fmt"
 	"regexp"
+	"strconv"
 	"strings"
 
 	"github.com/go-logr/logr"
@@ -203,13 +204,32 @@ func UbuntuDefaultDriverVersionsMapper(fullImageStr string) (string, error) {
 	if strings.Contains(fullImageStr, "20.04") {
 		return "6.1.3", nil // due to a known ROCM issue, 6.2 unload + load back may cause system reboot, let's use 6.1.3 as default
 	}
+
 	if strings.Contains(fullImageStr, "22.04") {
-		return "6.1.3", nil // due to a known ROCM issue, 6.2 unload + load back may cause system reboot, let's use 6.1.3 as default
+		re := regexp.MustCompile(`22\.04(?:\.(\d+))?`)
+		match := re.FindStringSubmatch(fullImageStr)
+
+		patch := 0
+		if len(match) > 1 && match[1] != "" {
+			p, err := strconv.Atoi(match[1])
+			if err != nil {
+				return "", fmt.Errorf("failed to parse patch version from %s: %v", fullImageStr, err)
+			}
+			patch = p
+		}
+		if patch >= 5 {
+			// For 22.04.5 and above, we use "6.3.3" as default
+			return "6.3.3", nil
+		}
+		// For 22.04.0 to 22.04.4, we use "6.1.3" as default
+		// This is due to a known ROCM issue where unloading and loading back the driver may cause system reboot.
+		return "6.1.3", nil
 	}
+
 	if strings.Contains(fullImageStr, "24.04") {
-		return "6.1.3", nil // due to a known ROCM issue, 6.2 unload + load back may cause system reboot, let's use 6.1.3 as default
+		return "6.3.3", nil // due to a known ROCM issue, 6.2 unload + load back may cause system reboot, let's use 6.3.3 as default
 	}
-	return "", fmt.Errorf("invalid ubuntu version, should be one of [20.04, 22.04]")
+	return "", fmt.Errorf("unsupported Ubuntu version: %s. Supported versions include 20.04, 22.04 and 24.04", fullImageStr)
 }
 
 func HasNodeLabelKey(node v1.Node, labelKey string) bool {
