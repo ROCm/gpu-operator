@@ -39,4 +39,5 @@ type E2ESuite struct {
 	ciEnv                bool
 	monClient            monitoringClient.Interface
 	apiClientSet         *apiextClient.Clientset
+	framework            string
 }

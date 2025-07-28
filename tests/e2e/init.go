@@ -32,6 +32,7 @@ var (
 	devicePluginImage2            string
 	nodeLabellerImage2            string
 	testRunnerImage               string
+	agfhcTestRunnerImage          string
 	driverImageRepo               string
 	kubeVirtHostDevicePluginImage string
 	kubeVirtHostNodeLabellerImage string
@@ -50,11 +51,11 @@ func init() {
 	}
 	exporterMockImage, ok = os.LookupEnv("E2E_EXPORTER_MOCK_IMAGE")
 	if !ok {
-		log.Fatalf("E2E_EXPORTER_IMAGE is not defined")
+		log.Fatalf("E2E_EXPORTER_MOCK_IMAGE is not defined")
 	}
 	exporterMockImage2, ok = os.LookupEnv("E2E_EXPORTER_MOCK_IMAGE_2")
 	if !ok {
-		log.Fatalf("E2E_EXPORTER_IMAGE_2 is not defined")
+		log.Fatalf("E2E_EXPORTER_MOCK_IMAGE_2 is not defined")
 	}
 	exporterImage, ok = os.LookupEnv("E2E_EXPORTER_IMAGE")
 	if !ok {
@@ -79,6 +80,10 @@ func init() {
 	testRunnerImage, ok = os.LookupEnv("E2E_TEST_RUNNER_IMAGE")
 	if !ok {
 		log.Fatalf("E2E_TEST_RUNNER_IMAGE is not defined")
+	}
+	agfhcTestRunnerImage, ok = os.LookupEnv("E2E_AGFHC_TEST_RUNNER_IMAGE")
+	if !ok {
+		log.Fatalf("E2E_AGFHC_TEST_RUNNER_IMAGE is not defined")
 	}
 	driverImageRepo, ok = os.LookupEnv("E2E_DRIVER_IMAGE_REPO")
 	if !ok {
