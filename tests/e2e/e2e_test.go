@@ -66,6 +66,8 @@ var driverVersion = flag.String("driverVersion", "6.3.3", "the default driver ve
 var openshift = flag.Bool("openshift", false, "openshift deployment")
 var simEnable = flag.Bool("simEnable", false, "testbed without amd gpus")
 var ciEnv = flag.Bool("ciEnv", false, "testbed for CI environment")
+var framework = flag.String("framework", "RVS", "framework for testrunner tests")
+var defaultTestRunningImage string
 
 // Hook up gocheck into the "go test" runner.
 func Test(t *testing.T) {
@@ -85,6 +87,13 @@ func (s *E2ESuite) SetUpSuite(c *C) {
 	s.openshift = *openshift
 	s.simEnable = *simEnable
 	s.ciEnv = *ciEnv
+	s.framework = *framework
+
+	if s.framework == "AGFHC" {
+		defaultTestRunningImage = agfhcTestRunnerImage
+	} else {
+		defaultTestRunningImage = testRunnerImage
+	}
 
 	// use the current context in kubeconfig
 	config, err := clientcmd.BuildConfigFromFlags("", s.kubeconfig)

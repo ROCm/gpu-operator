@@ -311,6 +311,93 @@ func DeployRocmPods(ctx context.Context, cl *kubernetes.Clientset,
 		if err != nil {
 			return fmt.Errorf("failed to list pods %v", err)
 		}
+		for _, p := range its.Items {
+			for _, c := range p.Status.ContainerStatuses {
+				if !c.Ready {
+					return fmt.Errorf("pod %v/%v is not ready(%v)", p.Name, c.Name, c.Ready)
+
+				}
+			}
+		}
+		return nil
+	}, time.Minute*5, time.Second*5); err != nil {
+		return fmt.Errorf("pods not ready %v", err)
+	}
+	return nil
+}
+
+func DeployRocmPytorchPods(ctx context.Context, cl *kubernetes.Clientset,
+	res *v1.ResourceRequirements) error {
+
+	if res == nil {
+		res = &v1.ResourceRequirements{
+			Limits: v1.ResourceList{
+				"amd.com/gpu": resource.MustParse("1"),
+			},
+
+			Requests: v1.ResourceList{
+				"amd.com/gpu": resource.MustParse("1"),
+			},
+		}
+	}
+
+	dsCli := cl.AppsV1().DaemonSets(v1.NamespaceDefault)
+	ds := &appsv1.DaemonSet{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: rocmDs,
+		},
+		Spec: appsv1.DaemonSetSpec{
+			Selector: &metav1.LabelSelector{
+				MatchLabels: rocmLabel,
+			},
+
+			Template: v1.PodTemplateSpec{
+				ObjectMeta: metav1.ObjectMeta{
+					Labels: rocmLabel,
+				},
+				Spec: v1.PodSpec{
+					NodeSelector: map[string]string{"feature.node.kubernetes.io/amd-gpu": "true"},
+					Containers: []v1.Container{
+						{
+							Name:            rocmDs,
+							Image:           "rocm/pytorch:latest",
+							ImagePullPolicy: "IfNotPresent",
+							WorkingDir:      "/root",
+							Command:         []string{"/bin/bash", "-c", "--"},
+							Args:            []string{"rocm-smi > /tmp/rocm-smi-output; git clone https://github.com/ROCm/pytorch-micro-benchmarking.git; cd pytorch-micro-benchmarking;  python micro_benchmarking_pytorch.py --network resnet50 --compile > /tmp/benchmark-output; sleep infinity & wait"},
+							Resources:       *res,
+						},
+					},
+				},
+			},
+		},
+	}
+
+	// Create Deployment
+	_, err := dsCli.Create(context.TODO(), ds, metav1.CreateOptions{})
+	if err != nil && !apierrors.IsAlreadyExists(err) {
+		return fmt.Errorf("failed to create daemonset %v", err)
+	}
+
+	// wait till it is ready, download time could vary
+	if err = Retry(func() error {
+		d, err := dsCli.Get(context.TODO(), ds.Name, metav1.GetOptions{})
+		if err != nil {
+			return fmt.Errorf("failed to get ds %v, %v", ds.Name, err)
+		}
+		if d.Status.NumberReady == 0 || d.Status.DesiredNumberScheduled != d.Status.NumberReady {
+			return fmt.Errorf("ds %v not ready, %v", d.Name, d.Status)
+		}
+		return nil
+	}, 10*time.Minute, time.Second*5); err != nil {
+		return fmt.Errorf("failed to create e2e pods %v", err)
+	}
+
+	if err = Retry(func() error {
+		its, err := cl.CoreV1().Pods("").List(ctx, metav1.ListOptions{LabelSelector: kmmmodule.MapToLabelSelector(rocmLabel)})
+		if err != nil {
+			return fmt.Errorf("failed to list pods %v", err)
+		}
 		if len(its.Items) == 0 {
 			return fmt.Errorf("no pods found with label selector %v", rocmLabel)
 		}
@@ -1871,6 +1958,17 @@ func SetupAccessKeysOnMinioServer(ns, pod, container, accessKey, secretKey strin
 	_, err := ExecPodCmd(cmd, ns, pod, container)
 	if err != nil {
 		log.Errorf("Access key cmd errored. Error: %v", err)
+	}
+}
+
+func RemoveMinioServiceAccount(ns, pod, container, accessKey string) {
+	cmd := fmt.Sprintf(
+		`mc alias set local http://localhost:9000 minioadmin minioadmin && mc admin user svcacct remove local %s || true`,
+		accessKey,
+	)
+	_, err := ExecPodCmd(cmd, ns, pod, container)
+	if err != nil {
+		log.Errorf("Failed to remove minio service account '%s'. Error: %v", accessKey, err)
 	}
 }
 

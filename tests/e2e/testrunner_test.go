@@ -36,15 +36,17 @@ import (
 )
 
 const (
-	defaultRecipe    = "gst_single"
-	minio_access_key = "my-minio-secure-user"
-	minio_secret_key = "my-minio-secure-user-password"
+	defaultRecipe      = "gst_single"
+	defaultAGFHCRecipe = "all_lvl1"
+	minio_access_key   = "my-minio-secure-user"
+	minio_secret_key   = "my-minio-secure-user-password"
 )
 
 var (
 	defaultTestRunningLabel = map[string]string{
 		"testrunner.amd.com.gpu_health_check.gst_single.gpu0": "running",
 	}
+	realWorkload = false
 )
 
 func (s *E2ESuite) checkTestRunnerStatus(devCfg *v1alpha1.DeviceConfig, expectDSExist bool, c *C) {
@@ -75,6 +77,9 @@ func (s *E2ESuite) simulateOneGPUUnhealthyStatus(ns, nodeName string, c *C) {
 	logger.Infof("Marking GPU unhealthy")
 	err := utils.SetGPUHealthOnNode(s.clientSet, ns, "0", "unhealthy", nodeName)
 	assert.NoError(c, err, fmt.Sprintf("failed to mark GPU 0 unhealthy. Error:%v", err))
+	if err != nil {
+		fmt.Printf("failed to mark GPU 0 unhealthy. Error:%v", err)
+	}
 	labelMap["metricsexporter.amd.com.gpu.0.state"] = "unhealthy"
 	logger.Print("Verifying unhealthy label on the node(s)")
 	assert.Eventually(c, func() bool {
@@ -115,6 +120,9 @@ func (s *E2ESuite) deleteTestRunnerPod(node string, devCfg *v1alpha1.DeviceConfi
 }
 
 func getLogsExportInfo(provider, bucketName, secretName string) string {
+	if provider == "" && bucketName == "" && secretName == "" {
+		return ""
+	}
 	return fmt.Sprintf(`"LogsExportConfig": [
 		  {
 		    "Provider": "%s",
@@ -137,6 +145,7 @@ func getTestRunnerConfigJson(nodeName, recipe, logsExportConf string, stopOnFail
 				  "AUTO_UNHEALTHY_GPU_WATCH": {
 				    "TestCases": [
 				      {
+					"Framework": "%v",
 					"Recipe": "%v",
 					"Iterations": %v,
 					"StopOnFailure": %v,
@@ -150,7 +159,7 @@ func getTestRunnerConfigJson(nodeName, recipe, logsExportConf string, stopOnFail
 			    }
 			  }
 			}
-		      }`, nodeName, recipe, iterations, stopOnFailure, timeoutInSeconds, logsExportConf)
+		      }`, nodeName, *framework, recipe, iterations, stopOnFailure, timeoutInSeconds, logsExportConf)
 }
 
 func (s *E2ESuite) createTestRunnerConfigmap(valid bool, devCfg *v1alpha1.DeviceConfig, nodeName, recipe string, provider, bucketName, secretName string, stopOnFailure, configureLogsExport bool, iterations, timeoutInSeconds int, c *C) string {
@@ -199,7 +208,7 @@ func (s *E2ESuite) createTestRunnerConfigmap(valid bool, devCfg *v1alpha1.Device
 	return cmName
 }
 
-func (s *E2ESuite) scheduleWorkloadOnNodeWithMaxGPUs(c *C) string {
+func (s *E2ESuite) scheduleWorkloadOnNodeWithMaxGPUs(pytorch bool, c *C) string {
 	ret, err := utils.GetAMDGPUCount(context.TODO(), s.clientSet, "gpu")
 	if err != nil {
 		logger.Errorf("error: %v", err)
@@ -225,8 +234,11 @@ func (s *E2ESuite) scheduleWorkloadOnNodeWithMaxGPUs(c *C) string {
 			"amd.com/gpu": resource.MustParse(fmt.Sprintf("%d", gpuReqCount)),
 		},
 	}
-
-	err = utils.DeployRocmPods(context.TODO(), s.clientSet, res)
+	if pytorch {
+		err = utils.DeployRocmPytorchPods(context.TODO(), s.clientSet, res)
+	} else {
+		err = utils.DeployRocmPods(context.TODO(), s.clientSet, res)
+	}
 	assert.NoError(c, err, "failed to deploy pods")
 	err = utils.VerifyROCMPODResourceCount(context.TODO(), s.clientSet, gpuReqCount, "gpu")
 	assert.NoError(c, err, fmt.Sprintf("%v", err))
@@ -308,7 +320,17 @@ func (s *E2ESuite) verifyFoundUnhealthyGPUWithWorkload(node string, devCfg *v1al
 	}, 90*time.Second, 10*time.Second, "cannot find test runner pod that has detected unhealthy GPU with associated workload on node %+v", node)
 }
 
-func (s *E2ESuite) verifyTestResultEvts(node, recipe string, devCfg *v1alpha1.DeviceConfig, perEvtVerifyFunc func(v1.Event), c *C) {
+func (s *E2ESuite) verifyTestResultEvts(node, recipe string, devCfg *v1alpha1.DeviceConfig, perEvtVerifyFunc func(v1.Event), iterations int, c *C) {
+	var testDuration time.Duration
+	if s.framework == "AGFHC" {
+		testDuration = 4000
+	} else {
+		testDuration = 720
+	}
+
+	if iterations == 0 {
+		iterations = 1
+	}
 	// verify that the test run event got generated
 	logger.Print("Verifying test result event(s)")
 	testEventLabel := map[string]string{
@@ -333,10 +355,16 @@ func (s *E2ESuite) verifyTestResultEvts(node, recipe string, devCfg *v1alpha1.De
 			}
 		}
 		return true
-	}, 720*time.Second, 2*time.Second, "expected test run result event but got nothing")
+	}, testDuration*time.Duration(iterations)*time.Second, 2*time.Second, "expected test run result event but got nothing")
 }
 
 func (s *E2ESuite) verifyTestrunLogExportEvts(node, recipe, eventType, reason string, devCfg *v1alpha1.DeviceConfig, perEvtVerifyFunc func(v1.Event), c *C) {
+	var testDuration time.Duration
+	if s.framework == "AGFHC" {
+		testDuration = 4000
+	} else {
+		testDuration = 720
+	}
 	// verify that the test run event got generated
 	logger.Print("Verifying test run log export event(s)")
 	testEventLabel := map[string]string{
@@ -360,7 +388,7 @@ func (s *E2ESuite) verifyTestrunLogExportEvts(node, recipe, eventType, reason st
 			}
 		}
 		return true
-	}, 720*time.Second, 2*time.Second, "expected test run result event but got nothing")
+	}, testDuration*time.Second, 2*time.Second, "expected test run result event but got nothing")
 }
 
 func (s *E2ESuite) verifyTestRunningLabel(expect bool, testRunningLabel map[string]string, c *C) string {
@@ -421,9 +449,18 @@ func (s *E2ESuite) TestTestRunnerEnablement(c *C) {
 
 	logger.Infof("create %v", s.cfgName)
 	devCfg := s.getDeviceConfig(c)
+	nodeName := s.getGPUNodeName()
+	assert.NotEqual(c, nodeName, "", "unable to find a gpu node")
 	// test runner shouldn't be brought up when it is disabled
 	enableTestRunner := false
 	enableExporter := false
+	if s.framework == "AGFHC" {
+		cmName := s.createTestRunnerConfigmap(true, devCfg, nodeName, "gfx_lvl1", "", "", "", false, false, 1, 36000, c)
+		devCfg.Spec.TestRunner.Config = &v1.LocalObjectReference{
+			Name: cmName,
+		}
+	}
+	devCfg.Spec.TestRunner.Image = defaultTestRunningImage
 	devCfg.Spec.TestRunner.Enable = &enableTestRunner
 	devCfg.Spec.MetricsExporter.Enable = &enableExporter
 	devCfg.Spec.Driver.Version = "6.3.2"
@@ -443,6 +480,10 @@ func (s *E2ESuite) TestTestRunnerEnablement(c *C) {
 	s.patchTestRunnerEnablement(devCfg, c)
 	s.patchMetricsExporterEnablement(devCfg, c)
 	s.checkTestRunnerStatus(devCfg, true, c)
+	time.Sleep(60 * time.Second) // wait to bring up metrics exporter
+	err = utils.SetGPUHealthOnNode(s.clientSet, devCfg.Namespace, "0", "healthy", nodeName)
+	assert.NoError(c, err, fmt.Sprintf("failed to mark GPU 0 healthy. Error: %v", err))
+	time.Sleep(90 * time.Second) // give enough time for test runner to recognize the GPU is healthy
 }
 
 func (s *E2ESuite) TestTestRunnerAutoUnhealthyGPUWatchTrigger(c *C) {
@@ -457,6 +498,23 @@ func (s *E2ESuite) TestTestRunnerAutoUnhealthyGPUWatchTrigger(c *C) {
 	// when both exporter and test runner are enabled
 	enableTestRunner := true
 	enableExporter := true
+	var testRunningLabel map[string]string
+	var testRecipe string
+	if s.framework == "AGFHC" {
+		testRecipe = "gfx_lvl1"
+		nodeName := s.getGPUNodeName()
+		assert.NotEqual(c, nodeName, "", "unable to find a gpu node")
+		cmName := s.createTestRunnerConfigmap(true, devCfg, nodeName, testRecipe, "", "", "", false, false, 1, 36000, c)
+		devCfg.Spec.TestRunner.Config = &v1.LocalObjectReference{
+			Name: cmName,
+		}
+		testRunningLabel = map[string]string{
+			fmt.Sprintf("testrunner.amd.com.gpu_health_check.%v.gpu0", testRecipe): "running",
+		}
+	} else {
+		testRunningLabel = defaultTestRunningLabel
+	}
+	devCfg.Spec.TestRunner.Image = defaultTestRunningImage
 	devCfg.Spec.TestRunner.Enable = &enableTestRunner
 	devCfg.Spec.MetricsExporter.Enable = &enableExporter
 	devCfg.Spec.MetricsExporter.Image = exporterImage
@@ -469,7 +527,7 @@ func (s *E2ESuite) TestTestRunnerAutoUnhealthyGPUWatchTrigger(c *C) {
 	s.cleanupTestRunnerEvts(devCfg, c)
 	s.simulateOneGPUUnhealthyStatus(devCfg.Namespace, "", c)
 	logger.Print("Verifying test running label on the node(s)")
-	hostName := s.verifyTestRunningLabel(true, defaultTestRunningLabel, c)
+	hostName := s.verifyTestRunningLabel(true, testRunningLabel, c)
 
 	// delete the test runner pod during the test
 	// check logs to make sure that the test will be restarted
@@ -480,16 +538,19 @@ func (s *E2ESuite) TestTestRunnerAutoUnhealthyGPUWatchTrigger(c *C) {
 	s.verifyRestartIncompleteTest(hostName, devCfg, c)
 
 	// verify that the test run event got generated
-	s.verifyTestResultEvts(hostName, defaultRecipe, devCfg, nil, c)
+	s.verifyTestResultEvts(hostName, testRecipe, devCfg, nil, 1, c)
 
 	// verify that the test running label gets removed after the test completed
 	logger.Print("Verifying that the test running label gets removed after the test completed")
-	s.verifyTestRunningLabel(false, defaultTestRunningLabel, c)
+	s.verifyTestRunningLabel(false, testRunningLabel, c)
 
 	// cleanup
 	// need to remove the existing test runner event
 	// so that other test runner test cases won't be affected
 	s.cleanupTestRunnerEvts(devCfg, c)
+	err = utils.SetGPUHealthOnNode(s.clientSet, devCfg.Namespace, "0", "healthy", hostName)
+	assert.NoError(c, err, fmt.Sprintf("failed to mark GPU 0 healthy. Error: %v", err))
+	time.Sleep(90 * time.Second) // give enough time for test runner to recognize the GPU is healthy
 }
 
 func (s *E2ESuite) TestTestRunnerNodeSpecificConfig(c *C) {
@@ -511,6 +572,7 @@ func (s *E2ESuite) TestTestRunnerNodeSpecificConfig(c *C) {
 	// when both exporter and test runner are enabled
 	enableTestRunner := true
 	enableExporter := true
+	devCfg.Spec.TestRunner.Image = defaultTestRunningImage
 	devCfg.Spec.TestRunner.Enable = &enableTestRunner
 	devCfg.Spec.MetricsExporter.Enable = &enableExporter
 	devCfg.Spec.MetricsExporter.Image = exporterImage
@@ -525,21 +587,31 @@ func (s *E2ESuite) TestTestRunnerNodeSpecificConfig(c *C) {
 	logger.Print("Verifying test running label on the node(s)")
 	hostName := s.verifyTestRunningLabel(true, defaultTestRunningLabel, c)
 
-	testRecipe := "babel"
+	var testRecipe string
+	if s.framework == "AGFHC" {
+		testRecipe = "hbm_lvl1"
+	} else {
+		testRecipe = "babel"
+	}
 	cmName := s.createTestRunnerConfigmap(true, devCfg, hostName, testRecipe, "", "", "", false, false, 1, 600, c)
 	devCfg.Spec.TestRunner.Config = &v1.LocalObjectReference{
 		Name: cmName,
 	}
 	s.patchTestRunnerConfigmap(devCfg, c)
 	// verify that the test run event got generated
-	s.verifyTestResultEvts(hostName, testRecipe, devCfg, nil, c)
+	s.verifyTestResultEvts(hostName, testRecipe, devCfg, nil, 1, c)
 
 	// try to recover GPU health, then convert it to unhealthy again
 	// to verify the node name specific config works on other test recipe
 	err = utils.SetGPUHealthOnNode(s.clientSet, devCfg.Namespace, "0", "healthy", hostName)
 	assert.NoError(c, err, fmt.Sprintf("failed to mark GPU 0 healthy. Error:%v", err))
 	time.Sleep(90 * time.Second) // give enough time for test runner to recognize the GPU becomes healthy
-	testRecipe = "gst_single"
+
+	if s.framework == "AGFHC" {
+		testRecipe = "gfx_lvl1"
+	} else {
+		testRecipe = "gst_single"
+	}
 	cmName = s.createTestRunnerConfigmap(true, devCfg, hostName, testRecipe, "", "", "", false, false, 1, 600, c)
 	devCfg.Spec.TestRunner.Config = &v1.LocalObjectReference{
 		Name: cmName,
@@ -548,16 +620,22 @@ func (s *E2ESuite) TestTestRunnerNodeSpecificConfig(c *C) {
 	err = utils.SetGPUHealthOnNode(s.clientSet, devCfg.Namespace, "0", "unhealthy", hostName)
 	assert.NoError(c, err, fmt.Sprintf("failed to mark GPU 0 unhealthy. Error:%v", err))
 	// verify that the test run event got generated
-	s.verifyTestResultEvts(hostName, testRecipe, devCfg, nil, c)
+	s.verifyTestResultEvts(hostName, testRecipe, devCfg, nil, 1, c)
 
 	// verify that the test running label gets removed after the test completed
 	logger.Print("Verifying that the test running label gets removed after the test completed")
-	s.verifyTestRunningLabel(false, defaultTestRunningLabel, c)
+	testRunningLabel := map[string]string{
+		fmt.Sprintf("testrunner.amd.com.gpu_health_check.%v.gpu0", testRecipe): "running",
+	}
+	s.verifyTestRunningLabel(false, testRunningLabel, c)
 
 	// cleanup
 	// need to remove the existing test runner event
 	// so that other test runner test cases won't be affected
 	s.cleanupTestRunnerEvts(devCfg, c)
+	err = utils.SetGPUHealthOnNode(s.clientSet, devCfg.Namespace, "0", "healthy", hostName)
+	assert.NoError(c, err, fmt.Sprintf("failed to mark GPU 0 healthy. Error: %v", err))
+	time.Sleep(90 * time.Second) // give enough time for test runner to recognize the GPU is healthy
 }
 
 func (s *E2ESuite) TestTestRunnerMultipleIterations(c *C) {
@@ -576,13 +654,23 @@ func (s *E2ESuite) TestTestRunnerMultipleIterations(c *C) {
 	// when both exporter and test runner are enabled
 	enableTestRunner := true
 	enableExporter := true
+	devCfg.Spec.TestRunner.Image = defaultTestRunningImage
 	devCfg.Spec.TestRunner.Enable = &enableTestRunner
 	devCfg.Spec.MetricsExporter.Enable = &enableExporter
 	devCfg.Spec.MetricsExporter.Image = exporterImage
 	devCfg.Spec.Driver.Version = "6.3.2"
 	// configure test runner to run 3 iterations of gst_single
 	iterations := 3
-	cmName := s.createTestRunnerConfigmap(true, devCfg, "", "gst_single", "", "", "", false, false, iterations, 600, c)
+	var testRecipe string
+	var testTimeout int
+	if s.framework == "AGFHC" {
+		testRecipe = "dma_lvl1"
+		testTimeout = 36000
+	} else {
+		testRecipe = "gst_single"
+		testTimeout = 600
+	}
+	cmName := s.createTestRunnerConfigmap(true, devCfg, "", testRecipe, "", "", "", false, false, iterations, testTimeout, c)
 	devCfg.Spec.TestRunner.Config = &v1.LocalObjectReference{
 		Name: cmName,
 	}
@@ -594,7 +682,10 @@ func (s *E2ESuite) TestTestRunnerMultipleIterations(c *C) {
 	s.cleanupTestRunnerEvts(devCfg, c)
 	s.simulateOneGPUUnhealthyStatus(devCfg.Namespace, "", c)
 	logger.Print("Verifying test running label on the node(s)")
-	hostName := s.verifyTestRunningLabel(true, defaultTestRunningLabel, c)
+	testRunningLabel := map[string]string{
+		fmt.Sprintf("testrunner.amd.com.gpu_health_check.%v.gpu0", testRecipe): "running",
+	}
+	hostName := s.verifyTestRunningLabel(true, testRunningLabel, c)
 
 	// delete the test runner pod during the test
 	// check logs to make sure that the test will be restarted
@@ -613,31 +704,49 @@ func (s *E2ESuite) TestTestRunnerMultipleIterations(c *C) {
 				iterations, evt)
 		}
 	}
-	s.verifyTestResultEvts(hostName, defaultRecipe, devCfg, verifyIterationsSummary, c)
+	s.verifyTestResultEvts(hostName, testRecipe, devCfg, verifyIterationsSummary, iterations, c)
 
 	// verify that the test running label gets removed after the test completed
 	logger.Print("Verifying that the test running label gets removed after the test completed")
-	s.verifyTestRunningLabel(false, defaultTestRunningLabel, c)
+	s.verifyTestRunningLabel(false, testRunningLabel, c)
 
 	// cleanup
 	// need to remove the existing test runner event
 	// so that other test runner test cases won't be affected
 	s.cleanupTestRunnerEvts(devCfg, c)
+	err = utils.SetGPUHealthOnNode(s.clientSet, devCfg.Namespace, "0", "healthy", hostName)
+	assert.NoError(c, err, fmt.Sprintf("failed to mark GPU 0 healthy. Error: %v", err))
+	time.Sleep(90 * time.Second) // give enough time for test runner to recognize the GPU is healthy
 }
 
 func (s *E2ESuite) TestTestRunnerAssociatedWorkloadOnUnhealthyGPU(c *C) {
 	if s.simEnable {
 		c.Skip("Skipping for non amd gpu testbed")
 	}
-
+	realWorkload = true
 	_, err := s.dClient.DeviceConfigs(s.ns).Get(s.cfgName, metav1.GetOptions{})
 	assert.Errorf(c, err, fmt.Sprintf("config %v exists", s.cfgName))
 	logger.Infof("create %v", s.cfgName)
 	devCfg := s.getDeviceConfig(c)
+	nodeName := s.getGPUNodeName()
+	assert.NotEqual(c, nodeName, "", "unable to find a gpu node")
 	// test runner should be brought up
 	// when both exporter and test runner are enabled
 	enableTestRunner := true
 	enableExporter := true
+	var testRunningLabel map[string]string
+	if s.framework == "AGFHC" {
+		cmName := s.createTestRunnerConfigmap(true, devCfg, nodeName, "gfx_lvl1", "", "", "", false, false, 1, 36000, c)
+		devCfg.Spec.TestRunner.Config = &v1.LocalObjectReference{
+			Name: cmName,
+		}
+		testRunningLabel = map[string]string{
+			"testrunner.amd.com.gpu_health_check.gfx_lvl1.gpu0": "running",
+		}
+	} else {
+		testRunningLabel = defaultTestRunningLabel
+	}
+	devCfg.Spec.TestRunner.Image = defaultTestRunningImage
 	devCfg.Spec.TestRunner.Enable = &enableTestRunner
 	devCfg.Spec.MetricsExporter.Enable = &enableExporter
 	devCfg.Spec.MetricsExporter.Image = exporterImage
@@ -649,7 +758,8 @@ func (s *E2ESuite) TestTestRunnerAssociatedWorkloadOnUnhealthyGPU(c *C) {
 
 	s.cleanupTestRunnerEvts(devCfg, c)
 	// schedule sample workload pods on nodes with maximum GPUs
-	nodeName := s.scheduleWorkloadOnNodeWithMaxGPUs(c)
+	nodeName = s.scheduleWorkloadOnNodeWithMaxGPUs(true, c)
+	time.Sleep(20 * time.Second)
 	defer func() {
 		assert.NoError(c, utils.DelRocmPods(context.TODO(), s.clientSet), "failed to delete workload pods")
 	}()
@@ -659,8 +769,11 @@ func (s *E2ESuite) TestTestRunnerAssociatedWorkloadOnUnhealthyGPU(c *C) {
 	s.simulateOneGPUUnhealthyStatus(devCfg.Namespace, nodeName, c)
 	time.Sleep(time.Minute) // wait for 1 minute in case any test run was triggered unexpectedly
 	s.verifyFoundUnhealthyGPUWithWorkload(nodeName, devCfg, c)
-	s.verifyTestRunningLabel(false, defaultTestRunningLabel, c)
+	s.verifyTestRunningLabel(false, testRunningLabel, c)
 	s.cleanupTestRunnerEvts(devCfg, c)
+	err = utils.SetGPUHealthOnNode(s.clientSet, devCfg.Namespace, "0", "healthy", nodeName)
+	assert.NoError(c, err, fmt.Sprintf("failed to mark GPU 0 healthy. Error: %v", err))
+	time.Sleep(90 * time.Second) // give enough time for test runner to recognize the GPU is healthy
 }
 
 func (s *E2ESuite) TestTestRunnerLogsExport(c *C) {
@@ -710,8 +823,8 @@ func (s *E2ESuite) TestTestRunnerLogsExport(c *C) {
 	enableTestRunner := true
 	enableExporter := true
 	devCfg.Spec.TestRunner.Enable = &enableTestRunner
-	devCfg.Spec.TestRunner.Image = testRunnerImage
-	devCfg.Spec.TestRunner.ImagePullPolicy = "Always"
+	devCfg.Spec.TestRunner.Image = defaultTestRunningImage
+	devCfg.Spec.TestRunner.ImagePullPolicy = "IfNotPresent"
 	minioSecret := &v1.LocalObjectReference{
 		Name: "minio-secret",
 	}
@@ -726,8 +839,16 @@ func (s *E2ESuite) TestTestRunnerLogsExport(c *C) {
 
 	s.cleanupTestRunnerEvts(devCfg, c)
 
-	testRecipe := "gst_single"
-	cmName := s.createTestRunnerConfigmap(true, devCfg, nodeName, testRecipe, "aws", "testrun-logs", "minio-secret", false, true, 1, 600, c)
+	var testRecipe string
+	var testTimeout int
+	if s.framework == "AGFHC" {
+		testRecipe = "gfx_lvl1"
+		testTimeout = 36000
+	} else {
+		testRecipe = "gst_single"
+		testTimeout = 600
+	}
+	cmName := s.createTestRunnerConfigmap(true, devCfg, nodeName, testRecipe, "aws", "testrun-logs", "minio-secret", false, true, 1, testTimeout, c)
 	devCfg.Spec.TestRunner.Config = &v1.LocalObjectReference{
 		Name: cmName,
 	}
@@ -735,9 +856,13 @@ func (s *E2ESuite) TestTestRunnerLogsExport(c *C) {
 	time.Sleep(20 * time.Second)
 	s.simulateOneGPUUnhealthyStatus(devCfg.Namespace, "", c)
 	logger.Print("Verifying test running label on the node(s)")
-	s.verifyTestRunningLabel(true, defaultTestRunningLabel, c)
+	testRunningLabel := map[string]string{
+		fmt.Sprintf("testrunner.amd.com.gpu_health_check.%v.gpu0", testRecipe): "running",
+	}
+	s.verifyTestRunningLabel(true, testRunningLabel, c)
 	s.verifyTestrunLogExportEvts(nodeName, testRecipe, "Normal", "LogsExportPassed", devCfg, nil, c)
 	s.cleanupTestRunnerEvts(devCfg, c)
+	utils.RemoveMinioServiceAccount(s.ns, "minio", "minio", minio_access_key)
 }
 
 func (s *E2ESuite) getGPUNodeName() (nodeWithGPU string) {
