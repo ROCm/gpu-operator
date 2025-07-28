@@ -30,6 +30,7 @@ export E2E_NODE_LABELLER_IMAGE
 export E2E_DEVICE_PLUGIN_IMAGE_2
 export E2E_NODE_LABELLER_IMAGE_2
 export E2E_TEST_RUNNER_IMAGE
+export E2E_AGFHC_TEST_RUNNER_IMAGE
 export E2E_KUBEVIRT_DEVICE_PLUGIN_IMAGE
 export E2E_KUBEVIRT_NODE_LABELLER_IMAGE
 
@@ -61,3 +62,6 @@ lint:
 	@go vet ./...
 dcm_e2e:
 	go test -test.timeout=360m -check.f TestDCM.* -v -deviceConfigName test-deviceconfig
+agfhc:
+	go test -test.timeout=360m -check.f TestTestRunner.* -v -framework "AGFHC"
+	
