@@ -152,12 +152,16 @@ func (nl *configManager) SetConfigManagerAsDesired(ds *appsv1.DaemonSet, devConf
 		"daemonset-name":          devConfig.Name,
 		configManagerLabelPair[0]: configManagerLabelPair[1], // in amdgpu namespace
 	}
-	var nodeSelector map[string]string
 
+	nodeSelector := map[string]string{}
 	if trSpec.Selector != nil {
-		nodeSelector = trSpec.Selector
-	} else {
-		nodeSelector = devConfig.Spec.Selector
+		for k, v := range trSpec.Selector {
+			nodeSelector[k] = v
+		}
+	} else if devConfig.Spec.Selector != nil {
+		for k, v := range devConfig.Spec.Selector {
+			nodeSelector[k] = v
+		}
 	}
 
 	// only use module ready label as node selector when KMM driver is enabled
