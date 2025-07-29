@@ -253,7 +253,7 @@ func (nl *metricsExporter) SetMetricsExporterAsDesired(ds *appsv1.DaemonSet, dev
 			internalPort = port - 1
 		}
 		// Bind service port to localhost only, don't expose port in ContainerPort
-		containers[0].Args = []string{"--bind=127.0.0.1:" + fmt.Sprintf("%v", int32(internalPort))}
+		containers[0].Args = []string{"--bind=127.0.0.1"}
 		containers[0].Env[1].Value = fmt.Sprintf("%v", internalPort)
 
 		kubeImage := defaultKubeRbacProxyImage
