@@ -186,12 +186,16 @@ func (nl *metricsExporter) SetMetricsExporterAsDesired(ds *appsv1.DaemonSet, dev
 		"daemonset-name":            devConfig.Name,
 		metricsExporterLabelPair[0]: metricsExporterLabelPair[1], // in amdgpu namespace
 	}
-	var nodeSelector map[string]string
 
+	nodeSelector := map[string]string{}
 	if mSpec.Selector != nil {
-		nodeSelector = mSpec.Selector
-	} else {
-		nodeSelector = devConfig.Spec.Selector
+		for k, v := range mSpec.Selector {
+			nodeSelector[k] = v
+		}
+	} else if devConfig.Spec.Selector != nil {
+		for k, v := range devConfig.Spec.Selector {
+			nodeSelector[k] = v
+		}
 	}
 
 	// only use module ready label as node selector when KMM driver is enabled
