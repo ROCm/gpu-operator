@@ -228,6 +228,10 @@ func (nl *metricsExporter) SetMetricsExporterAsDesired(ds *appsv1.DaemonSet, dev
 				{
 					Name: "METRICS_EXPORTER_PORT",
 				},
+				{
+					Name:  "AMD_EXPORTER_RELAXED_FLAGS_PARSING",
+					Value: "true",
+				},
 			},
 			Name:            ExporterName + "-container",
 			WorkingDir:      "/root",
