@@ -381,7 +381,7 @@
           "disableTextWrap": false,
           "editorMode": "builder",
           "exemplar": false,
-          "expr": "delta(${g_metrics_prefix}pcie_recovery_count{gpu_uuid=\"$g_gpu_uuid\", hostname=\"$g_hostname\"}[$__interval])",
+          "expr": "delta(${g_metrics_prefix}pcie_recovery_count{gpu_uuid=\"$g_gpu_uuid\", hostname=\"$g_hostname\", gpu_id=\"$g_gpu_id\"}[$__interval])",
           "fullMetaSearch": false,
           "includeNullMetadata": true,
           "instant": true,
@@ -398,7 +398,7 @@
           "disableTextWrap": false,
           "editorMode": "builder",
           "exemplar": false,
-          "expr": "delta(${g_metrics_prefix}pcie_replay_count{gpu_uuid=\"$g_gpu_uuid\", hostname=\"$g_hostname\"}[$__interval])",
+          "expr": "delta(${g_metrics_prefix}pcie_replay_count{gpu_uuid=\"$g_gpu_uuid\", hostname=\"$g_hostname\", gpu_id=\"$g_gpu_id\"}[$__interval])",
           "fullMetaSearch": false,
           "hide": false,
           "includeNullMetadata": true,
@@ -416,7 +416,7 @@
           "disableTextWrap": false,
           "editorMode": "builder",
           "exemplar": false,
-          "expr": "delta(${g_metrics_prefix}pcie_replay_rollover_count{gpu_uuid=\"$g_gpu_uuid\", hostname=\"$g_hostname\"}[$__interval])",
+          "expr": "delta(${g_metrics_prefix}pcie_replay_rollover_count{gpu_uuid=\"$g_gpu_uuid\", hostname=\"$g_hostname\", gpu_id=\"$g_gpu_id\"}[$__interval])",
           "fullMetaSearch": false,
           "hide": false,
           "includeNullMetadata": true,
@@ -434,7 +434,7 @@
           "disableTextWrap": false,
           "editorMode": "builder",
           "exemplar": false,
-          "expr": "delta(${g_metrics_prefix}pcie_nack_received_count{gpu_uuid=\"$g_gpu_uuid\", hostname=\"$g_hostname\"}[$__interval])",
+          "expr": "delta(${g_metrics_prefix}pcie_nack_received_count{gpu_uuid=\"$g_gpu_uuid\", hostname=\"$g_hostname\", gpu_id=\"$g_gpu_id\"}[$__interval])",
           "fullMetaSearch": false,
           "hide": false,
           "includeNullMetadata": true,
@@ -452,7 +452,7 @@
           "disableTextWrap": false,
           "editorMode": "builder",
           "exemplar": false,
-          "expr": "delta(${g_metrics_prefix}pcie_nack_sent_count{gpu_uuid=\"$g_gpu_uuid\", hostname=\"$g_hostname\"}[$__interval])",
+          "expr": "delta(${g_metrics_prefix}pcie_nack_sent_count{gpu_uuid=\"$g_gpu_uuid\", hostname=\"$g_hostname\", gpu_id=\"$g_gpu_id\"}[$__interval])",
           "fullMetaSearch": false,
           "hide": false,
           "includeNullMetadata": true,
@@ -539,7 +539,7 @@
           },
           "disableTextWrap": false,
           "editorMode": "builder",
-          "expr": "${g_metrics_prefix}gpu_health{gpu_uuid=\"$g_gpu_uuid\", hostname=\"$g_hostname\"}",
+          "expr": "${g_metrics_prefix}gpu_health{gpu_uuid=\"$g_gpu_uuid\", hostname=\"$g_hostname\", gpu_id=\"$g_gpu_id\"}",
           "fullMetaSearch": false,
           "includeNullMetadata": true,
           "instant": false,
@@ -643,7 +643,7 @@
           },
           "disableTextWrap": false,
           "editorMode": "builder",
-          "expr": "${g_metrics_prefix}pcie_bandwidth{gpu_uuid=\"$g_gpu_uuid\"}",
+          "expr": "${g_metrics_prefix}pcie_bandwidth{gpu_uuid=\"$g_gpu_uuid\", gpu_id=\"$g_gpu_id\"}",
           "fullMetaSearch": false,
           "includeNullMetadata": true,
           "instant": false,
@@ -894,7 +894,7 @@
           "disableTextWrap": false,
           "editorMode": "builder",
           "exemplar": false,
-          "expr": "${g_metrics_prefix}pcie_bandwidth{gpu_uuid=\"$g_gpu_uuid\", hostname=\"$g_hostname\"}",
+          "expr": "${g_metrics_prefix}pcie_bandwidth{gpu_uuid=\"$g_gpu_uuid\", hostname=\"$g_hostname\", gpu_id=\"$g_gpu_id\"}",
           "fullMetaSearch": false,
           "includeNullMetadata": true,
           "instant": true,
@@ -991,7 +991,7 @@
           "disableTextWrap": false,
           "editorMode": "builder",
           "exemplar": false,
-          "expr": "delta(${g_metrics_prefix}gpu_energy_consumed{gpu_uuid=\"$g_gpu_uuid\", hostname=\"$g_hostname\"}[$__interval])",
+          "expr": "delta(${g_metrics_prefix}gpu_energy_consumed{gpu_uuid=\"$g_gpu_uuid\", hostname=\"$g_hostname\", gpu_id=\"$g_gpu_id\"}[$__interval])",
           "fullMetaSearch": false,
           "hide": true,
           "includeNullMetadata": true,
@@ -1133,7 +1133,6 @@
               "mode": "off"
             }
           },
-          "displayName": "GPU Usage",
           "mappings": [],
           "thresholds": {
             "mode": "absolute",
@@ -1180,13 +1179,47 @@
           },
           "disableTextWrap": false,
           "editorMode": "builder",
-          "expr": "${g_metrics_prefix}gpu_gfx_activity{gpu_uuid=\"$g_gpu_uuid\"}",
+          "expr": "${g_metrics_prefix}gpu_gfx_activity{gpu_uuid=\"$g_gpu_uuid\", card_model=~\"102-D65208-0C|102-D67305-00|102-D65209-0C\", gpu_id=\"$g_gpu_id\"}",
           "fullMetaSearch": false,
           "includeNullMetadata": true,
           "instant": false,
-          "legendFormat": "__auto",
+          "legendFormat": "GPU Usage",
           "range": true,
           "refId": "A",
+          "useBackend": false
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "disableTextWrap": false,
+          "editorMode": "builder",
+          "expr": "avg(${g_metrics_prefix}gpu_gfx_busy_instantaneous{gpu_uuid=\"$g_gpu_uuid\", card_model!~\"102-D65208-0C|102-D67305-00|102-D65209-0C\", gpu_id=\"$g_gpu_id\"})",
+          "fullMetaSearch": false,
+          "hide": false,
+          "includeNullMetadata": true,
+          "instant": false,
+          "legendFormat": "GPU Usage",
+          "range": true,
+          "refId": "B",
+          "useBackend": false
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "disableTextWrap": false,
+          "editorMode": "builder",
+          "expr": "${g_metrics_prefix}gpu_gfx_busy_instantaneous{gpu_uuid=\"$g_gpu_uuid\", card_model!~\"102-D65208-0C|102-D67305-00|102-D65209-0C\", gpu_id=\"$g_gpu_id\"}",
+          "fullMetaSearch": false,
+          "hide": true,
+          "includeNullMetadata": true,
+          "instant": false,
+          "legendFormat": "CC - {{xcc_index}}",
+          "range": true,
+          "refId": "C",
           "useBackend": false
         }
       ],
@@ -1285,7 +1318,7 @@
           },
           "disableTextWrap": false,
           "editorMode": "builder",
-          "expr": "${g_metrics_prefix}gpu_used_vram{gpu_uuid=\"$g_gpu_uuid\"}",
+          "expr": "${g_metrics_prefix}gpu_used_vram{gpu_uuid=\"$g_gpu_uuid\", gpu_id=\"$g_gpu_id\"}",
           "fullMetaSearch": false,
           "hide": true,
           "includeNullMetadata": true,
@@ -1302,7 +1335,7 @@
           },
           "disableTextWrap": false,
           "editorMode": "builder",
-          "expr": "clamp_min(${g_metrics_prefix}gpu_total_vram{gpu_uuid=\"$g_gpu_uuid\"}, 1)",
+          "expr": "clamp_min(${g_metrics_prefix}gpu_total_vram{gpu_uuid=\"$g_gpu_uuid\", gpu_id=\"$g_gpu_id\"}, 1)",
           "fullMetaSearch": false,
           "hide": true,
           "includeNullMetadata": true,
@@ -1419,7 +1452,7 @@
           },
           "disableTextWrap": false,
           "editorMode": "builder",
-          "expr": "${g_metrics_prefix}gpu_package_power{gpu_uuid=\"$g_gpu_uuid\", card_model=~\"102-G30211-00|102-G30211-0C|102-G30211-4C|102-G30212-0C|102-G30213-00|102-G30213-0C\"}",
+          "expr": "${g_metrics_prefix}gpu_package_power{gpu_uuid=\"$g_gpu_uuid\", card_model=~\"102-G30211-00|102-G30211-0C|102-G30211-4C|102-G30212-0C|102-G30213-00|102-G30213-0C\", gpu_id=\"$g_gpu_id\"}",
           "fullMetaSearch": false,
           "includeNullMetadata": true,
           "instant": false,
@@ -1433,13 +1466,17 @@
             "type": "prometheus",
             "uid": "${DS_PROMETHEUS}"
           },
+          "disableTextWrap": false,
           "editorMode": "builder",
-          "expr": "${g_metrics_prefix}gpu_average_package_power{gpu_uuid=\"$g_gpu_uuid\", card_model!~\"102-G30211-00|102-G30211-0C|102-G30211-4C|102-G30212-0C|102-G30213-00|102-G30213-0C\"}",
+          "expr": "${g_metrics_prefix}gpu_average_package_power{gpu_uuid=\"$g_gpu_uuid\", card_model!~\"102-G30211-00|102-G30211-0C|102-G30211-4C|102-G30212-0C|102-G30213-00|102-G30213-0C\", gpu_id=\"$g_gpu_id\"}",
+          "fullMetaSearch": false,
           "hide": false,
+          "includeNullMetadata": true,
           "instant": false,
           "legendFormat": "__auto",
           "range": true,
-          "refId": "B"
+          "refId": "B",
+          "useBackend": false
         }
       ],
       "title": "GPU Package Power",
@@ -1536,7 +1573,7 @@
           },
           "disableTextWrap": false,
           "editorMode": "builder",
-          "expr": "${g_metrics_prefix}gpu_edge_temperature{gpu_uuid=\"$g_gpu_uuid\", card_model!~\"102-G30211-00|102-G30211-0C|102-G30211-4C|102-G30212-0C|102-G30213-00|102-G30213-0C\"}",
+          "expr": "${g_metrics_prefix}gpu_edge_temperature{gpu_uuid=\"$g_gpu_uuid\", card_model!~\"102-G30211-00|102-G30211-0C|102-G30211-4C|102-G30212-0C|102-G30213-00|102-G30213-0C\", gpu_id=\"$g_gpu_id\"}",
           "fullMetaSearch": false,
           "includeNullMetadata": true,
           "instant": false,
@@ -1552,7 +1589,7 @@
           },
           "disableTextWrap": false,
           "editorMode": "builder",
-          "expr": "${g_metrics_prefix}gpu_junction_temperature{gpu_uuid=\"$g_gpu_uuid\", card_model=~\"102-G30211-00|102-G30211-0C|102-G30211-4C|102-G30212-0C|102-G30213-00|102-G30213-0C\"}",
+          "expr": "${g_metrics_prefix}gpu_junction_temperature{gpu_uuid=\"$g_gpu_uuid\", card_model=~\"102-G30211-00|102-G30211-0C|102-G30211-4C|102-G30212-0C|102-G30213-00|102-G30213-0C\", gpu_id=\"$g_gpu_id\"}",
           "fullMetaSearch": false,
           "hide": false,
           "includeNullMetadata": true,
@@ -1657,7 +1694,7 @@
           },
           "disableTextWrap": false,
           "editorMode": "builder",
-          "expr": "${g_metrics_prefix}gpu_memory_temperature{gpu_uuid=\"$g_gpu_uuid\"}",
+          "expr": "${g_metrics_prefix}gpu_memory_temperature{gpu_uuid=\"$g_gpu_uuid\", gpu_id=\"$g_gpu_id\"}",
           "fullMetaSearch": false,
           "includeNullMetadata": true,
           "instant": false,
@@ -1760,7 +1797,7 @@
           },
           "disableTextWrap": false,
           "editorMode": "builder",
-          "expr": "${g_metrics_prefix}gpu_hbm_temperature{gpu_uuid=\"$g_gpu_uuid\"}",
+          "expr": "${g_metrics_prefix}gpu_hbm_temperature{gpu_uuid=\"$g_gpu_uuid\", gpu_id=\"$g_gpu_id\"}",
           "fullMetaSearch": false,
           "includeNullMetadata": true,
           "instant": false,
@@ -1776,7 +1813,7 @@
           },
           "disableTextWrap": false,
           "editorMode": "builder",
-          "expr": "${g_metrics_prefix}gpu_edge_temperature{gpu_uuid=\"$g_gpu_uuid\"}",
+          "expr": "${g_metrics_prefix}gpu_edge_temperature{gpu_uuid=\"$g_gpu_uuid\", gpu_id=\"$g_gpu_id\"}",
           "fullMetaSearch": false,
           "hide": false,
           "includeNullMetadata": true,
@@ -1793,7 +1830,7 @@
           },
           "disableTextWrap": false,
           "editorMode": "builder",
-          "expr": "${g_metrics_prefix}gpu_junction_temperature{gpu_uuid=\"$g_gpu_uuid\"}",
+          "expr": "${g_metrics_prefix}gpu_junction_temperature{gpu_uuid=\"$g_gpu_uuid\", gpu_id=\"$g_gpu_id\"}",
           "fullMetaSearch": false,
           "hide": false,
           "includeNullMetadata": true,
@@ -1831,8 +1868,7 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green",
-                "value": null
+                "color": "green"
               },
               {
                 "color": "red",
@@ -1987,6 +2023,103 @@
       "type": "table"
     },
     {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "barWidthFactor": 0.6,
+            "drawStyle": "line",
+            "fillOpacity": 0,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green"
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          },
+          "unit": "percent"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 7,
+        "w": 8,
+        "x": 6,
+        "y": 24
+      },
+      "id": 44,
+      "maxDataPoints": 60,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "editorMode": "builder",
+          "expr": "${g_metrics_prefix}gpu_gfx_busy_instantaneous{gpu_uuid=\"$g_gpu_uuid\", card_model!~\"102-D65208-0C|102-D67305-00|102-D65209-0C\", gpu_id=\"$g_gpu_id\"}",
+          "instant": false,
+          "legendFormat": "CC - {{xcc_index}}",
+          "range": true,
+          "refId": "A"
+        }
+      ],
+      "title": "GPU Compute Core Usage",
+      "type": "timeseries"
+    },
+    {
       "gridPos": {
         "h": 2,
         "w": 2,
@@ -2019,6 +2152,7 @@
           "value": ""
         },
         "description": "string to prefix names of metrics queries (e.g. gpu_gfx_activity -> amd_gpu_gfx_activity)",
+        "hide": 0,
         "label": "Metrics Prefix",
         "name": "g_metrics_prefix",
         "options": [
