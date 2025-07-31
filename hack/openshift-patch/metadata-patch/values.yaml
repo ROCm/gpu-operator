@@ -1,0 +1,74 @@
+nfd:
+  enabled: true  # Set to false to disable nfd
+kmm:
+  enabled: true  # Set to false to disable kmm
+installdefaultNFDRule: true # default NFD rule will detect amd gpu based on pci vendor ID
+upgradeCRD: true # CRD will be patched as pre-upgrade hook when doing helm upgrade to current helm chart
+controllerManager:
+  manager:
+    args:
+    - --config=controller_manager_config.yaml
+    containerSecurityContext:
+      allowPrivilegeEscalation: false
+    image:
+      repository: docker.io/rocm/amd-gpu-operator
+      tag: dev
+    imagePullPolicy: Always
+    imagePullSecrets: ""
+    tolerations:
+    - key: "node-role.kubernetes.io/master"
+      operator: "Equal"
+      value: ""
+      effect: "NoSchedule"
+    - key: "node-role.kubernetes.io/control-plane"
+      operator: "Equal"
+      value: ""
+      effect: "NoSchedule"
+    resources:
+      limits:
+        cpu: 1000m
+        memory: 1Gi
+      requests:
+        cpu: 100m
+        memory: 256Mi
+  nodeSelector: {}
+  affinity:
+    nodeAffinity:
+      preferredDuringSchedulingIgnoredDuringExecution:
+        - weight: 1
+          preference:
+            matchExpressions:
+              - key: node-role.kubernetes.io/control-plane
+                operator: Exists
+  replicas: 1
+  serviceAccount:
+    annotations: {}
+  env:
+    simEnable: false
+kmmDevicePlugin:
+  serviceAccount:
+    annotations: {}
+kmmModuleLoader:
+  serviceAccount:
+    annotations: {}
+kubernetesClusterDomain: cluster.local
+managerConfig:
+  controllerManagerConfigYaml: |-
+    healthProbeBindAddress: :8081
+    metricsBindAddress: 127.0.0.1:8080
+    leaderElection:
+      enabled: true
+      resourceID: gpu.amd.com
+metricsService:
+  ports:
+  - name: https
+    port: 8443
+    protocol: TCP
+    targetPort: https
+  type: ClusterIP
+nodeLabeller:
+  serviceAccount:
+    annotations: {}
+metricsExporter:
+  serviceAccount:
+    annotations: {}

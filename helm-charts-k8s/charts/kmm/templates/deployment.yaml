@@ -1,0 +1,203 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "kmm.fullname" . }}-controller
+  labels:
+    app.kubernetes.io/component: kmm
+    app.kubernetes.io/part-of: kmm
+    control-plane: controller
+  {{- include "kmm.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.controller.replicas }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/component: kmm
+      app.kubernetes.io/part-of: kmm
+      control-plane: controller
+    {{- include "kmm.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/component: kmm
+        app.kubernetes.io/part-of: kmm
+        control-plane: controller
+      {{- include "kmm.selectorLabels" . | nindent 8 }}
+      annotations:
+        kubectl.kubernetes.io/default-container: manager
+    spec:
+      {{- with .Values.controller.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      nodeSelector: {{- toYaml .Values.controller.nodeSelector | nindent 8 }}
+      containers:
+      - args: {{- toYaml .Values.controller.manager.args | nindent 8 }}
+        env:
+        - name: RELATED_IMAGE_WORKER
+          value: {{ quote .Values.controller.manager.env.relatedImageWorker }}
+        - name: OPERATOR_NAMESPACE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
+        - name: RELATED_IMAGE_BUILD
+          value: {{ quote .Values.controller.manager.env.relatedImageBuild }}
+        - name: RELATED_IMAGE_SIGN
+          value: {{ quote .Values.controller.manager.env.relatedImageSign }}
+        - name: KUBERNETES_CLUSTER_DOMAIN
+          value: {{ quote .Values.kubernetesClusterDomain }}
+        {{- if .Values.controller.manager.env.relatedImageBuildPullSecret }}
+        - name: RELATED_IMAGE_BUILD_PULL_SECRET
+          value: {{ .Values.controller.manager.env.relatedImageBuildPullSecret }}
+        {{- end}}
+        {{- if .Values.controller.manager.env.relatedImageSignPullSecret }}
+        - name: RELATED_IMAGE_SIGN_PULL_SECRET
+          value: {{ .Values.controller.manager.env.relatedImageSignPullSecret }}
+        {{- end}}
+        {{- if .Values.controller.manager.env.relatedImageWorkerPullSecret }}
+        - name: RELATED_IMAGE_WORKER_PULL_SECRET
+          value: {{ .Values.controller.manager.env.relatedImageWorkerPullSecret }}
+        {{- end}}
+        {{- if .Values.global.proxy.env | default dict}}
+        {{- range $key, $value := .Values.global.proxy.env }}
+        - name: {{ $key }}
+          value: {{ $value | quote }}
+        {{- end }}
+        {{- end }}
+        image: {{ .Values.controller.manager.image.repository }}:{{ .Values.controller.manager.image.tag
+          | default .Chart.AppVersion }}
+        imagePullPolicy: {{ .Values.controller.manager.imagePullPolicy }}
+        livenessProbe:
+          httpGet:
+            path: /healthz
+            port: 8081
+          initialDelaySeconds: 15
+          periodSeconds: 20
+        name: manager
+        ports:
+        - containerPort: 8443
+          name: metrics
+          protocol: TCP
+        readinessProbe:
+          httpGet:
+            path: /readyz
+            port: 8081
+          initialDelaySeconds: 5
+          periodSeconds: 10
+        resources: {{- toYaml .Values.controller.manager.resources | nindent 10 }}
+        securityContext: {{- toYaml .Values.controller.manager.containerSecurityContext
+          | nindent 10 }}
+        volumeMounts:
+        - mountPath: /controller_config.yaml
+          name: manager-config
+          subPath: controller_config.yaml
+      {{- if .Values.controller.manager.imagePullSecrets }}
+      imagePullSecrets:
+      - name: {{ .Values.controller.manager.imagePullSecrets }}
+      {{- end}}
+      securityContext:
+        runAsNonRoot: true
+      serviceAccountName: {{ include "kmm.fullname" . }}-controller
+      terminationGracePeriodSeconds: 10
+      {{- with .Values.controller.manager.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      volumes:
+      - configMap:
+          name: {{ include "kmm.fullname" . }}-manager-config
+        name: manager-config
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "kmm.fullname" . }}-webhook-server
+  labels:
+    app.kubernetes.io/component: kmm
+    app.kubernetes.io/part-of: kmm
+    control-plane: webhook-server
+  {{- include "kmm.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.webhookServer.replicas }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/component: kmm
+      app.kubernetes.io/part-of: kmm
+      control-plane: webhook-server
+    {{- include "kmm.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/component: kmm
+        app.kubernetes.io/part-of: kmm
+        control-plane: webhook-server
+      {{- include "kmm.selectorLabels" . | nindent 8 }}
+      annotations:
+        kubectl.kubernetes.io/default-container: webhook-server
+    spec:
+      {{- with .Values.webhookServer.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      nodeSelector: {{- toYaml .Values.webhookServer.nodeSelector | nindent 8 }}
+      containers:
+      - args: {{- toYaml .Values.webhookServer.webhookServer.args | nindent 8 }}
+        env:
+        - name: KUBERNETES_CLUSTER_DOMAIN
+          value: {{ quote .Values.kubernetesClusterDomain }}
+        {{- if .Values.global.proxy.env | default dict}}
+        {{- range $key, $value := .Values.global.proxy.env }}
+        - name: {{ $key }}
+          value: {{ $value | quote }}
+        {{- end }}
+        {{- end }}
+        image: {{ .Values.webhookServer.webhookServer.image.repository }}:{{ .Values.webhookServer.webhookServer.image.tag
+          | default .Chart.AppVersion }}
+        imagePullPolicy: {{ .Values.webhookServer.webhookServer.imagePullPolicy }}
+        livenessProbe:
+          httpGet:
+            path: /healthz
+            port: 8081
+          initialDelaySeconds: 15
+          periodSeconds: 20
+        name: webhook-server
+        ports:
+        - containerPort: 9443
+          name: webhook-server
+          protocol: TCP
+        readinessProbe:
+          httpGet:
+            path: /readyz
+            port: 8081
+          initialDelaySeconds: 5
+          periodSeconds: 10
+        resources: {{- toYaml .Values.webhookServer.webhookServer.resources | nindent 10
+          }}
+        securityContext: {{- toYaml .Values.webhookServer.webhookServer.containerSecurityContext
+          | nindent 10 }}
+        volumeMounts:
+        - mountPath: /tmp/k8s-webhook-server/serving-certs
+          name: cert
+          readOnly: true
+        - mountPath: /controller_config.yaml
+          name: manager-config
+          subPath: controller_config.yaml
+      {{- if .Values.webhookServer.webhookServer.imagePullSecrets }}
+      imagePullSecrets:
+      - name: {{ .Values.webhookServer.webhookServer.imagePullSecrets }}
+      {{- end}}
+      securityContext:
+        runAsNonRoot: true
+      serviceAccountName: {{ include "kmm.fullname" . }}-controller
+      terminationGracePeriodSeconds: 10
+      {{- with .Values.webhookServer.webhookServer.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      volumes:
+      - name: cert
+        secret:
+          defaultMode: 420
+          secretName: kmm-operator-webhook-server-cert
+      - configMap:
+          name: {{ include "kmm.fullname" . }}-manager-config
+        name: manager-config

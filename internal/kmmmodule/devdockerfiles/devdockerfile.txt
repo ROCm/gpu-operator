@@ -1,0 +1,38 @@
+FROM ubuntu:$$VERSION as builder
+
+ARG KERNEL_FULL_VERSION
+
+ARG DRIVERS_VERSION
+
+ARG REPO_URL
+
+RUN apt-get update && apt-get install -y bc \
+    bison \
+    flex \
+    libelf-dev \
+    gnupg \
+    wget \
+    git \
+    make \
+    gcc \
+    linux-headers-${KERNEL_FULL_VERSION} \
+    linux-modules-extra-${KERNEL_FULL_VERSION}
+
+RUN wget ${REPO_URL} && \
+    apt-get install ./$$DEV_DEB -y && \
+    amdgpu-repo --amdgpu-build=$$AMDGPU_BUILD --rocm-build=$$ROCM_BUILD && \
+    amdgpu-install --usecase=dkms -y
+
+RUN depmod ${KERNEL_FULL_VERSION}
+
+FROM ubuntu:$$VERSION
+
+ARG KERNEL_FULL_VERSION
+
+RUN apt-get update && apt-get install -y kmod
+RUN mkdir -p /opt/lib/modules/${KERNEL_FULL_VERSION}/updates/dkms/
+COPY --from=builder /lib/modules/${KERNEL_FULL_VERSION}/updates/dkms/amd* /opt/lib/modules/${KERNEL_FULL_VERSION}/updates/dkms/
+COPY --from=builder /lib/modules/${KERNEL_FULL_VERSION}/modules.* /opt/lib/modules/${KERNEL_FULL_VERSION}/
+RUN ln -s /lib/modules/${KERNEL_FULL_VERSION}/kernel /opt/lib/modules/${KERNEL_FULL_VERSION}/kernel
+RUN mkdir -p /firmwareDir/updates/amdgpu
+COPY --from=builder /lib/firmware/updates/amdgpu /firmwareDir/updates/amdgpu

@@ -1,0 +1,93 @@
+controller:
+  manager:
+    args:
+    - --config=controller_config.yaml
+    containerSecurityContext:
+      allowPrivilegeEscalation: false
+    env:
+      relatedImageBuild: gcr.io/kaniko-project/executor:v1.23.2
+      relatedImageSign: test_host_ip:5000/kernel-module-management-signimage:dev
+      relatedImageWorker: test_host_ip:5000/kmm-e2e-worker:dev
+      relatedImageBuildPullSecret: ""
+      relatedImageSignPullSecret: ""
+      relatedImageWorkerPullSecret: ""
+    image:
+      repository: test_host_ip:5000/kmm-e2e-operator
+      tag: dev
+    imagePullPolicy: Always
+    imagePullSecrets: ""
+    resources:
+      limits:
+        cpu: 500m
+        memory: 384Mi
+      requests:
+        cpu: 10m
+        memory: 64Mi
+  nodeSelector: {}
+  nodeAffinity:
+    nodeSelectorTerms:
+      - key: node-role.kubernetes.io/control-plane
+        operator: Exists
+      - key: node-role.kubernetes.io/master
+        operator: Exists
+  replicas: 1
+  serviceAccount:
+    annotations: {}
+controllerMetricsService:
+  ports:
+  - name: https
+    port: 8443
+    protocol: TCP
+    targetPort: https
+  type: ClusterIP
+kubernetesClusterDomain: cluster.local
+managerConfig:
+  controllerConfigYaml: |-
+    healthProbeBindAddress: :8081
+    webhookPort: 9443
+    leaderElection:
+      enabled: true
+      resourceID: kmm.sigs.x-k8s.io
+    metrics:
+      enableAuthnAuthz: true
+      bindAddress: 0.0.0.0:8443
+      secureServing: true
+    worker:
+      runAsUser: 0
+      seLinuxType: spc_t
+      firmwareHostPath: /var/lib/firmware
+webhookServer:
+  replicas: 1
+  nodeSelector: {}
+  nodeAffinity:
+    nodeSelectorTerms:
+      - key: node-role.kubernetes.io/control-plane
+        operator: Exists
+      - key: node-role.kubernetes.io/master
+        operator: Exists
+  webhookServer:
+    args:
+    - --config=controller_config.yaml
+    - --enable-module
+    - --enable-namespace
+    - --enable-preflightvalidation
+    containerSecurityContext:
+      allowPrivilegeEscalation: false
+    image:
+      repository: test_host_ip:5000/kmm-e2e-webhook-server
+      tag: dev
+    imagePullPolicy: Always
+    imagePullSecrets: ""
+    resources:
+      limits:
+        cpu: 500m
+        memory: 384Mi
+      requests:
+        cpu: 10m
+        memory: 64Mi
+webhookService:
+  ports:
+  - port: 443
+    protocol: TCP
+    targetPort: 9443
+  type: ClusterIP
