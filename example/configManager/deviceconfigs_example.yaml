@@ -1,0 +1,38 @@
+# To get any info about any yaml in kubernetes, do
+# kubectl get <kind (DeviceConfig here) in lowercase>  -n namespace name (check metadata)
+apiVersion: amd.com/v1alpha1
+kind: DeviceConfig
+metadata:
+  name: test-deviceconfig
+  namespace: kube-amd-gpu
+spec:
+
+  configManager:
+    # To enable/disable the metrics exporter, enable to partition
+    enable: True
+
+    # image for the device-config-manager container
+    image: "rocm/device-config-manager:v1.3.0"
+
+    # image pull policy for config manager set to always to pull image of latest version
+    imagePullPolicy: Always
+
+    # specify configmap name which stores profile config info
+    config: 
+      name: "config-manager-config"
+
+    # DCM pod deployed either as a standalone pod or through the GPU operator will have 
+    # a toleration attached to it. User can specify additional tolerations if required
+    # key: amd-dcm , value: up , Operator: Equal, effect: NoExecute 
+
+    # OPTIONAL
+    # toleration field for dcm pod to bypass nodes with specific taints
+    configManagerTolerations:
+      - key: "key1"
+        operator: "Equal" 
+        value: "value1"
+        effect: "NoExecute"
+
+  # Specifythe node to be managed by this DeviceConfig Custom Resource
+  selector:
+    feature.node.kubernetes.io/amd-gpu: "true"

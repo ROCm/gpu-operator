@@ -1,0 +1,112 @@
+apiVersion: amd.com/v1alpha1
+kind: DeviceConfig
+metadata:
+  name: test-deviceconfig
+  # it is highly recommended to use the namespace where AMD GPU Operator is running
+  namespace: kube-amd-gpu
+spec:
+  driver:
+    # Specify driver image here
+    # DO NOT include the image tag as AMD GPU Operator will automatically manage the image tag for you
+    # e.g. docker.io/username/amdgpu-driver
+    image: imageregistry.io/username/repo
+
+    # Specify the credential for your private registry if it requires credential to get pull/push access
+    # you can create the docker-registry type secret by running command like:
+    # kubectl create secret docker-registry mySecret -n KMM-NameSpace --docker-server=https://index.docker.io/v1/ --docker-username=xxx --docker-password=xxx
+    # Make sure you created the secret within the namespace that KMM operator is running
+    imageRegistrySecret:
+      name: docker-auth
+
+    # Specify the driver version
+    # when you need to upgrade the driver, just update this field
+    # we will unload the old version driver and load the new version driver
+    version: "6.4.1"
+
+  devicePlugin:
+    # Specify the device plugin image
+    # default value is rocm/k8s-device-plugin:latest
+    devicePluginImage: rocm/k8s-device-plugin:latest
+
+    # Specify Device Plugin image pull policy
+    # default value is IfNotPresent for valid tags, Always for no tag or "latest" tag
+    devicePluginImagePullPolicy: "Always"
+
+    # Specify the node labeller image
+    # default value is rocm/k8s-device-plugin:labeller-latest
+    nodeLabellerImage: rocm/k8s-device-plugin:labeller-latest
+
+    # Specify Node Labeller image pull policy
+    # default value is IfNotPresent for valid tags, Always for no tag or "latest" tag
+    nodeLabellerImagePullPolicy: "Always"
+        
+  # Specify the metrics exporter config
+  metricsExporter:
+    # To enable/disable the metrics exporter, disabled by default
+    enable: True
+
+    # kubernetes service type for metrics exporter, clusterIP(default) or NodePort
+    serviceType: "NodePort"
+
+    # Node port for metrics exporter service, metrics endpoint $node-ip:$nodePort
+    nodePort: 32500
+
+    # exporter image
+    image: docker.io/rocm/device-metrics-exporter:v1.3.0-beta.2
+
+    # image pull policy for metrics exporter
+    # default value is IfNotPresent for valid tags, Always for no tag or "latest" tag
+    imagePullPolicy: "IfNotPresent"
+
+    # metrics config in configmap
+    #config:
+    #  # configmap name, example config in example/metricsExporter/config.json
+    #  name: configmap-name
+
+  # Specify the testrunner config
+  testRunner:
+    # To enable/disable the testrunner, disabled by default
+    enable: True
+
+    # testrunner image
+    image: docker.io/rocm/test-runner:v1.3.0
+
+    # image pull policy for the testrunner
+    # default value is IfNotPresent for valid tags, Always for no tag or "latest" tag
+    imagePullPolicy: "IfNotPresent"
+
+    # specify the mount for test logs
+    #logsLocation:
+    #  # mount path inside test runner container
+    #  mountPath: "/var/log/amd-test-runner"
+    #  # host path to be mounted into test runner container
+    #  hostPath: "/var/log/amd-test-runner"
+    #  # list of secrets that contain connectivity info to cloud providers
+    #  logsExportSecrets:
+    #  - name: azure-secret
+    #  - name: aws-secret
+
+  configManager:
+    # To enable/disable the metrics exporter, enable to partition
+    enable: True
+    # image for the device-config-manager container
+    image: rocm/device-config-manager:v1.3.0
+    # image pull policy for config manager set to always to pull image of latest version
+    imagePullPolicy: IfNotPresent
+    # specify configmap name which stores profile config info
+    #config: 
+    #  name: "config-manager-config"
+    # DCM pod deployed either as a standalone pod or through the GPU operator will have 
+    # a toleration attached to it. User can specify additional tolerations if required
+    # key: amd-dcm , value: up , Operator: Equal, effect: NoExecute 
+    # OPTIONAL
+    # toleration field for dcm pod to bypass nodes with specific taints
+    #configManagerTolerations:
+    #  - key: "key1"
+    #    operator: "Equal" 
+    #    value: "value1"
+    #    effect: "NoExecute"
+
+  # Specifythe node to be managed by this DeviceConfig Custom Resource
+  selector:
+    feature.node.kubernetes.io/amd-gpu: "true"

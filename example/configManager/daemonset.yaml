@@ -1,0 +1,61 @@
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: test-amdgpu-device-config-manager
+  labels:
+    app: amdgpu-device-config-manager
+spec:
+  selector:
+    matchLabels:
+      app: amdgpu-device-config-manager
+  template:
+    metadata:
+      labels:
+        app: amdgpu-device-config-manager
+    spec:
+      serviceAccountName: amd-gpu-operator-config-manager
+      initContainers:
+      - command:
+        - sh
+        - -c
+        - while [ ! -d /host-sys/class/kfd ] || [ ! -d /host-sys/module/amdgpu/drivers/
+          ]; do echo "amdgpu driver is not loaded "; sleep 2 ;done
+        image: busybox:1.36
+        imagePullPolicy: IfNotPresent
+        name: driver-init
+        securityContext:
+          privileged: true
+        volumeMounts:
+        - mountPath: /host-sys
+          name: sys-volume
+      containers:
+        - name: amdgpu-device-config-manager-container
+          image: "rocm/device-config-manager:v1.3.0"
+          imagePullPolicy: Always
+          env:
+          - name: DS_NODE_NAME
+            valueFrom:
+              fieldRef:
+                fieldPath: spec.nodeName
+          securityContext:
+            privileged: true
+          volumeMounts:
+          - mountPath: /dev
+            name: dev-volume
+          - mountPath: /sys
+            name: sys-volume
+          - mountPath: /etc/config-manager/
+            name: config-manager-config-volume
+          workingDir: /root
+      volumes:
+      - hostPath:
+          path: /dev
+          type: Directory
+        name: dev-volume
+      - hostPath:
+          path: /sys
+          type: Directory
+        name: sys-volume
+      - name: config-manager-config-volume
+        configMap:
+          name: config-manager-config

@@ -1,0 +1,16 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "nfd.fullname" . }}-controller-manager-metrics-service
+  labels:
+    control-plane: controller-manager
+  {{- include "nfd.labels" . | nindent 4 }}
+  annotations:
+    service.beta.openshift.io/serving-cert-secret-name: node-feature-discovery-operator-tls
+spec:
+  type: {{ .Values.metricsService.type }}
+  selector:
+    control-plane: controller-manager
+  {{- include "nfd.selectorLabels" . | nindent 4 }}
+  ports:
+	{{- .Values.metricsService.ports | toYaml | nindent 2 }}
