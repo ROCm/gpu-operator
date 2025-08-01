@@ -27,5 +27,8 @@
                 }          
             ]
         }
+    },
+    "gpuClientSystemdServices": {
+        "names": ["amd-metrics-exporter", "gpuagent"]
     }
   }

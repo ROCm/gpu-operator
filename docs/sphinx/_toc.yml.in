@@ -58,6 +58,7 @@ subtrees:
       - file: dcm/device-config-manager
       - file: dcm/device-config-manager-configmap
       - file: dcm/applying-partition-profiles
+      - file: dcm/systemd_integration
   - caption: Specialized Networks
     entries:
       - file: specialized_networks/airgapped-install

@@ -102,6 +102,9 @@ Below is an example of how to create the `config-manager-config.yaml` file that 
                     }
                 ]
             }
+        },
+        "gpuClientSystemdServices": {
+            "names": ["amd-metrics-exporter", "gpuagent"]
         }
         }
     EOF
