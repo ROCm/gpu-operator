@@ -119,7 +119,7 @@ To install the latest version of the GPU Operator run the following Helm install
 helm install amd-gpu-operator rocm/gpu-operator-charts \
   --namespace kube-amd-gpu \
   --create-namespace \
-  --version=v1.3.0
+  --version=v1.3.1
 ```
 
 ```{note}
@@ -145,7 +145,7 @@ Installation with custom options:
 helm install amd-gpu-operator rocm/gpu-operator-charts \
   --namespace kube-amd-gpu \
   --create-namespace \
-  --version=v1.3.0 \
+  --version=v1.3.1 \
   -f values.yaml
 ```
 

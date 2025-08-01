@@ -293,7 +293,7 @@ Please refer to `TroubleShooting <./troubleshooting.html>`_ if any issue happene
 For a full list of ``DeviceConfig`` configurable options refer to the `Full Reference Config <https://instinct.docs.amd.com/projects/gpu-operator/en/latest/fulldeviceconfig.html>`_ documentation. An example DeviceConfig is supplied in the ROCm/gpu-operator repository:     
       .. code-block:: bash
             
-            kubectl apply -f https://raw.githubusercontent.com/ROCm/gpu-operator/refs/heads/release-v1.3.0/example/deviceconfig_example.yaml
+            kubectl apply -f https://raw.githubusercontent.com/ROCm/gpu-operator/refs/heads/release-v1.3.1/example/deviceconfig_example.yaml
 
 That's it! The GPU Operator components should now all be running. You can verify this by checking the namespace where the gpu-operator components are installed (default: ``kube-amd-gpu``):
 
