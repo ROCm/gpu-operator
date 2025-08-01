@@ -161,8 +161,10 @@ func (nl *configManager) SetConfigManagerAsDesired(ds *appsv1.DaemonSet, devConf
 	}
 
 	// only use module ready label as node selector when KMM driver is enabled
+	useKMMDriver := false
 	if devConfig.Spec.Driver.Enable != nil && *devConfig.Spec.Driver.Enable {
 		nodeSelector[labels.GetKernelModuleReadyNodeLabel(devConfig.Namespace, devConfig.Name)] = ""
+		useKMMDriver = true
 	}
 
 	trImage := defaultConfigManagerImage
@@ -196,6 +198,10 @@ func (nl *configManager) SetConfigManagerAsDesired(ds *appsv1.DaemonSet, devConf
 							FieldPath: "spec.nodeName",
 						},
 					},
+				},
+				{
+					Name:  "KMM_DRIVER_ENABLED",
+					Value: fmt.Sprintf("%v", useKMMDriver),
 				},
 			},
 			Name:            ConfigManagerName + "-container",
