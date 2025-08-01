@@ -77,7 +77,7 @@ spec:
     nodePort: 32500
 
     # exporter image
-    image: docker.io/rocm/device-metrics-exporter:v1.3.0-beta.2
+    image: docker.io/rocm/device-metrics-exporter:v1.3.1
 
     # image pull secrets for fetching metrics exporter image
     #imageRegistrySecret:
@@ -94,7 +94,7 @@ spec:
     enable: True
 
     # testrunner image
-    image: docker.io/rocm/test-runner:v1.3.0
+    image: docker.io/rocm/test-runner:v1.3.1
 
     # image pull policy for the testrunner
     # default value is IfNotPresent for valid tags, Always for no tag or "latest" tag
@@ -114,14 +114,25 @@ spec:
       #- name: aws-secret
 
   configManager:
-    # To enable/disable the device config manager for GPU partition
-    enable: true
-    # device config manager image
-    image: docker.io/rocm/device-config-manager:v1.3.0
-    imagePullPolicy: "IfNotPresent"
-    # config map for device config manager
-    #config:
-    #  name: dcm-config
+    # To enable/disable the metrics exporter, enable to partition
+    enable: True
+    # image for the device-config-manager container
+    image: rocm/device-config-manager:v1.3.1
+    # image pull policy for config manager set to always to pull image of latest version
+    imagePullPolicy: IfNotPresent
+    # specify configmap name which stores profile config info
+    #config: 
+    #  name: "config-manager-config"
+    # DCM pod deployed either as a standalone pod or through the GPU operator will have 
+    # a toleration attached to it. User can specify additional tolerations if required
+    # key: amd-dcm , value: up , Operator: Equal, effect: NoExecute 
+    # OPTIONAL
+    # toleration field for dcm pod to bypass nodes with specific taints
+    #configManagerTolerations:
+    #  - key: "key1"
+    #    operator: "Equal" 
+    #    value: "value1"
+    #    effect: "NoExecute"
 
   # Specifythe node to be managed by this DeviceConfig Custom Resource
   selector:
