@@ -764,6 +764,14 @@ spec:
       clusterPermissions:
       - rules:
         - apiGroups:
+          - kmm.sigs.x-k8s.io
+          resources:
+          - nodemodulesconfigs
+          - nodemodulesconfigs/status
+          verbs:
+          - get
+          - delete
+        - apiGroups:
           - ""
           resources:
           - events
