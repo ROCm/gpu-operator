@@ -32,7 +32,7 @@ metadata:
     capabilities: Seamless Upgrades
     categories: AI/Machine Learning,Monitoring
     containerImage: docker.io/rocm/gpu-operator:v1.2.0
-    createdAt: "2025-08-06T05:54:02Z"
+    createdAt: "2025-08-09T01:44:36Z"
     description: |-
       Operator responsible for deploying AMD GPU kernel drivers, device plugin, device test runner and device metrics exporter
       For more information, visit [documentation](https://instinct.docs.amd.com/projects/gpu-operator/en/latest/)
@@ -44,7 +44,7 @@ metadata:
     features.operators.openshift.io/token-auth-aws: "false"
     features.operators.openshift.io/token-auth-azure: "false"
     features.operators.openshift.io/token-auth-gcp: "false"
-    metricsExporterImage: docker.io/rocm/device-metrics-exporter:v1.2.0
+    metricsExporterImage: docker.io/rocm/device-metrics-exporter:v1.3.1
     nodelabellerImage: docker.io/rocm/k8s-device-plugin:labeller-rhubi-latest
     operatorframework.io/cluster-monitoring: "true"
     operatorframework.io/suggested-namespace: openshift-amd-gpu
@@ -53,7 +53,7 @@ metadata:
     operators.operatorframework.io/project_layout: go.kubebuilder.io/v3
     repository: https://github.com/ROCm/gpu-operator
     support: Advanced Micro Devices, Inc.
-  name: amd-gpu-operator.v1.2.0
+  name: amd-gpu-operator.v1.3.1
   namespace: placeholder
 spec:
   apiservicedefinitions: {}
@@ -1245,4 +1245,4 @@ spec:
   maturity: stable
   provider:
     name: Advanced Micro Devices, Inc.
-  version: 1.2.0
+  version: 1.3.1

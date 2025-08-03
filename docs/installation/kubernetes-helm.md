@@ -155,7 +155,7 @@ The following parameters are able to be configued when using the Helm Chart. In 
 |-----|------|---------|-------------|
 | controllerManager.affinity | object | `{"nodeAffinity":{"preferredDuringSchedulingIgnoredDuringExecution":[{"preference":{"matchExpressions":[{"key":"node-role.kubernetes.io/control-plane","operator":"Exists"}]},"weight":1}]}}` | Deployment affinity configs for controller manager |
 | controllerManager.manager.image.repository | string | `"docker.io/rocm/gpu-operator"` | AMD GPU operator controller manager image repository |
-| controllerManager.manager.image.tag | string | `"v1.2.0"` | AMD GPU operator controller manager image tag |
+| controllerManager.manager.image.tag | string | `"v1.3.1"` | AMD GPU operator controller manager image tag |
 | controllerManager.manager.imagePullPolicy | string | `"Always"` | Image pull policy for AMD GPU operator controller manager pod |
 | controllerManager.manager.imagePullSecrets | string | `""` | Image pull secret name for pulling AMD GPU operator controller manager image if registry needs credential to pull image |
 | controllerManager.manager.resources.limits.cpu | string | `"1000m"` | CPU limits for the controller manager. Consider increasing for large clusters |
@@ -173,12 +173,12 @@ The following parameters are able to be configued when using the Helm Chart. In 
 | kmm.controller.manager.containerSecurityContext.allowPrivilegeEscalation | bool | `false` |  |
 | kmm.controller.manager.env.relatedImageBuild | string | `"gcr.io/kaniko-project/executor:v1.23.2"` | KMM kaniko builder image for building driver image within cluster |
 | kmm.controller.manager.env.relatedImageBuildPullSecret | string | `""` | Image pull secret name for pulling KMM kaniko builder image if registry needs credential to pull image |
-| kmm.controller.manager.env.relatedImageSign | string | `"docker.io/rocm/kernel-module-management-signimage:v1.2.0"` | KMM signer image for signing driver image's kernel module with given key pairs within cluster |
+| kmm.controller.manager.env.relatedImageSign | string | `"docker.io/rocm/kernel-module-management-signimage:v1.3.1"` | KMM signer image for signing driver image's kernel module with given key pairs within cluster |
 | kmm.controller.manager.env.relatedImageSignPullSecret | string | `""` | Image pull secret name for pulling KMM signer image if registry needs credential to pull image |
-| kmm.controller.manager.env.relatedImageWorker | string | `"docker.io/rocm/kernel-module-management-worker:v1.2.0"` | KMM worker image for loading / unloading driver kernel module on worker nodes |
+| kmm.controller.manager.env.relatedImageWorker | string | `"docker.io/rocm/kernel-module-management-worker:v1.3.1"` | KMM worker image for loading / unloading driver kernel module on worker nodes |
 | kmm.controller.manager.env.relatedImageWorkerPullSecret | string | `""` | Image pull secret name for pulling KMM worker image if registry needs credential to pull image |
 | kmm.controller.manager.image.repository | string | `"docker.io/rocm/kernel-module-management-operator"` | KMM controller manager image repository |
-| kmm.controller.manager.image.tag | string | `"v1.2.0"` | KMM controller manager image tag |
+| kmm.controller.manager.image.tag | string | `"v1.3.1"` | KMM controller manager image tag |
 | kmm.controller.manager.imagePullPolicy | string | `"Always"` | Image pull policy for KMM controller manager pod |
 | kmm.controller.manager.imagePullSecrets | string | `""` | Image pull secret name for pulling KMM controller manager image if registry needs credential to pull image |
 | kmm.controller.manager.resources.limits.cpu | string | `"500m"` |  |
@@ -332,7 +332,7 @@ spec:
      serviceType: "NodePort"
      # Node port for metrics exporter service, metrics endpoint $node-ip:$nodePort
      nodePort: 32500
-     image: docker.io/rocm/device-metrics-exporter:v1.2.0
+     image: docker.io/rocm/device-metrics-exporter:v1.3.1
 
   # Specifythe node to be managed by this DeviceConfig Custom Resource
   selector:
@@ -382,7 +382,7 @@ spec:
      serviceType: "NodePort"
      # Node port for metrics exporter service, metrics endpoint $node-ip:$nodePort
      nodePort: 32500
-     image: docker.io/rocm/device-metrics-exporter:v1.2.0
+     image: docker.io/rocm/device-metrics-exporter:v1.3.1
 
   # Specifythe node to be managed by this DeviceConfig Custom Resource
   selector:

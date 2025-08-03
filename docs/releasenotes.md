@@ -36,11 +36,6 @@ The AMD GPU Operator v1.3.1 release extends platform support to OpenShift v4.19 
 
 ### Documentation Updates
 
-- Updated [Release notes](https://instinct.docs.amd.com/projects/gpu-operator/en/latest/releasenotes.html) detailing new features in v1.3.1.
-- Updated GPU Operator install instructions to include the default DeviceConfig custom resource that gets created and how to skip installing it if desired.
-
-### Known Limitations
-
 > **Note:** All current and historical limitations for the GPU Operator, including their latest statuses and any associated workarounds or fixes, are tracked in the following documentation page: [Known Issues and Limitations](https://instinct.docs.amd.com/projects/gpu-operator/en/latest/knownlimitations.html).  
    Please refer to this page regularly for the most up-to-date information.
 
