@@ -77,12 +77,10 @@ spec:
     nodePort: 32500
 
     # exporter image
-    image: docker.io/rocm/device-metrics-exporter:v1.3.1
-
-    # image pull secrets for fetching metrics exporter image
-    #imageRegistrySecret:
-    #  name: exporterimagesecret
-
+    image: docker.io/rocm/device-metrics-exporter:v1.4.0
+    # image pull policy for metrics exporter
+    # default value is IfNotPresent for valid tags, Always for no tag or "latest" tag
+    imagePullPolicy: "IfNotPresent"
     # metrics config in configmap
     # config:
       # configmap name, example config in example/metricsExporter/config.json
@@ -94,8 +92,7 @@ spec:
     enable: True
 
     # testrunner image
-    image: docker.io/rocm/test-runner:v1.3.1
-
+    image: docker.io/rocm/test-runner:v1.4.0
     # image pull policy for the testrunner
     # default value is IfNotPresent for valid tags, Always for no tag or "latest" tag
     imagePullPolicy: "IfNotPresent"
@@ -117,7 +114,7 @@ spec:
     # To enable/disable the config manager, enable to partition
     enable: True
     # image for the device-config-manager container
-    image: rocm/device-config-manager:v1.3.1
+    image: rocm/device-config-manager:v1.4.0
     # image pull policy for config manager set to always to pull image of latest version
     imagePullPolicy: IfNotPresent
     # specify configmap name which stores profile config info
