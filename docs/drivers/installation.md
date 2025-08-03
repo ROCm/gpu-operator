@@ -80,7 +80,7 @@ spec:
      serviceType: "NodePort"
      # Node port for metrics exporter service, metrics endpoint $node-ip:$nodePort
      nodePort: 32500
-     image: docker.io/rocm/device-metrics-exporter:v1.3.1
+     image: docker.io/rocm/device-metrics-exporter:v1.4.0
 
   # Specifythe node to be managed by this DeviceConfig Custom Resource
   selector:
@@ -134,7 +134,7 @@ spec:
      serviceType: "NodePort"
      # Node port for metrics exporter service, metrics endpoint $node-ip:$nodePort
      nodePort: 32500
-     image: docker.io/rocm/device-metrics-exporter:v1.3.1
+     image: docker.io/rocm/device-metrics-exporter:v1.4.0
 
   # Specifythe node to be managed by this DeviceConfig Custom Resource
   selector:

@@ -151,7 +151,7 @@ spec:
           secretName: aws-secret
       containers:
       - name: amd-test-runner
-        image: docker.io/rocm/test-runner:v1.3.1
+        image: docker.io/rocm/test-runner:v1.4.0
         imagePullPolicy: IfNotPresent
         securityContext: # setup security context for container to get access to device related interfaces
           privileged: true

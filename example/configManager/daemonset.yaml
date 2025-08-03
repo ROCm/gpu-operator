@@ -30,7 +30,7 @@ spec:
           name: sys-volume
       containers:
         - name: amdgpu-device-config-manager-container
-          image: "rocm/device-config-manager:v1.3.1"
+          image: "rocm/device-config-manager:v1.4.0"
           imagePullPolicy: Always
           env:
           - name: DS_NODE_NAME
