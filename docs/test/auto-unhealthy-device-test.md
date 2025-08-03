@@ -25,7 +25,7 @@ metricsExporter:
     nodePort: 32500
 
     # image for the metrics-exporter container
-    image: "rocm/device-metrics-exporter:v1.2.0"
+    image: "rocm/device-metrics-exporter:v1.3.1"
 
 # Specify the test runner config
 testRunner:
@@ -33,7 +33,7 @@ testRunner:
     enable: true
 
     # image for the test runner container
-    image: docker.io/rocm/test-runner:v1.2.0-beta.0
+    image: docker.io/rocm/test-runner:v1.3.1
 
     # specify the mount for test logs
     logsLocation:

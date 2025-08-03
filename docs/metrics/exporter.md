@@ -45,7 +45,7 @@ metricsExporter:
     nodePort: 32500
 
     # image for the metrics-exporter container
-    image: "rocm/device-metrics-exporter:v1.2.0"
+    image: "rocm/device-metrics-exporter:v1.3.1"
  
 ```
 

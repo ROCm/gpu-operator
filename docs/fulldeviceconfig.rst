@@ -30,7 +30,7 @@ Below is an example of a full DeviceConfig CR that can be used to install the AM
     apiVersion: amd.com/v1alpha1 
     kind: DeviceConfig #New Custom Resource Definition used by the GPU Operator
     metadata:
-      # Name of the DeviceConfig CR. Note that the name of device plugin, node-labeller and metric-explorter pods will be prefixed with 
+      # Name of the DeviceConfig CR. Note that the name of device plugin, node-labeller and metric-exporter pods will be prefixed with 
       name: gpu-operator 
       namespace: kube-amd-gpu # Namespace for the GPU Operator and it's components
     spec: 
@@ -147,7 +147,7 @@ Below is an example of a full DeviceConfig CR that can be used to install the AM
         serviceType: ClusterIP # ServiceType used to expose the Metrics Exporter endpoint. Can be either `ClusterIp` or `NodePort`.
         port: 5000 # Note if specifying NodePort as the serviceType use `32500` as the port number must be between 30000-32767
         # (Optional) Specifying metrics exporter image is optional. Default imagename shown here if not specified.
-        image: rocm/device-metrics-exporter:v1.2.0 # Change this to trigger metrics exporter upgrade on CR update
+        image: rocm/device-metrics-exporter:v1.3.1 # Change this to trigger metrics exporter upgrade on CR update
         imagePullPolicy: "IfNotPresent" # image pull policy for the metrics exporter container. Either `Always`, `IfNotPresent` or `Never`
         # imagePullPolicy default value is "IfNotPresent" for valid tags, "Always" for no tag or "latest" tag
         config:
@@ -187,7 +187,7 @@ Below is an example of a full DeviceConfig CR that can be used to install the AM
         serviceType: ClusterIP # ServiceType used to expose the Metrics Exporter endpoint. Can be either `ClusterIp` or `NodePort`.
         port: 5000 # Note if specifying NodePort as the serviceType use `32500` as the port number must be between 30000-32767
         # (Optional) Specifying metrics exporter image is optional. Default imagename shown here if not specified.
-        image: docker.io/rocm/test-runner:v1.2.0-beta.0 # Change this to trigger metrics exporter upgrade on CR update
+        image: docker.io/rocm/test-runner:v1.3.1 # Change this to trigger metrics exporter upgrade on CR update
         imagePullPolicy: "IfNotPresent" # image pull policy for the test runner container. Either `Always`, `IfNotPresent` or `Never`
         # imagePullPolicy default value is "IfNotPresent" for valid tags, "Always" for no tag or "latest" tag
         config:
