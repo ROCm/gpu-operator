@@ -71,6 +71,9 @@ subtrees:
   - caption: Slurm on Kubernetes
     entries:
       - file: slinky/slinky-example
+  - caption: Node Problem Detector
+    entries:
+      - file: npd/node-problem-detector
   - caption: Contributing
     entries:
       - file: contributing/developer-guide
