@@ -454,6 +454,13 @@ spec:
         path: metricsExporter.nodePort
         x-descriptors:
         - urn:alm:descriptor:com.amd.deviceconfigs:nodePort
+      - description: Set the host path for pod-resource kubelet.socket, vanila kubernetes
+          path is /var/lib/kubelet/pod-resources microk8s path is /var/snap/microk8s/common/var/lib/kubelet/pod-resources/
+          path is an absolute unix path that allows a trailing slash
+        displayName: PodResourceAPISocketPath
+        path: metricsExporter.podResourceAPISocketPath
+        x-descriptors:
+        - urn:alm:descriptor:com.amd.deviceconfigs:podResourceAPISocketPath
       - description: Port is the internal port used for in-cluster and node access
           to pull metrics from the metrics-exporter (default 5000).
         displayName: Port

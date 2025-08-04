@@ -524,6 +524,16 @@ type MetricsExporterSpec struct {
 	//+operator-sdk:csv:customresourcedefinitions:type=spec,displayName="UpgradePolicy",xDescriptors={"urn:alm:descriptor:com.amd.deviceconfigs:upgradePolicy"}
 	// +optional
 	UpgradePolicy *DaemonSetUpgradeSpec `json:"upgradePolicy,omitempty"`
+
+	// Set the host path for pod-resource kubelet.socket,
+	// vanila kubernetes path is /var/lib/kubelet/pod-resources
+	// microk8s path is /var/snap/microk8s/common/var/lib/kubelet/pod-resources/
+	// path is an absolute unix path that allows a trailing slash
+	//+operator-sdk:csv:customresourcedefinitions:type=spec,displayName="PodResourceAPISocketPath",xDescriptors={"urn:alm:descriptor:com.amd.deviceconfigs:podResourceAPISocketPath"}
+	// +optional
+	// +kubebuilder:validation:Pattern=`^(/[^/\0]+)*(/)?$`
+	// +kubebuilder:default="/var/lib/kubelet/pod-resources"
+	PodResourceAPISocketPath string `json:"podResourceAPISocketPath,omitempty"`
 }
 
 type PrometheusConfig struct {
