@@ -63,6 +63,7 @@ const (
 	defaultSAName                     = "amd-gpu-operator-metrics-exporter"
 	kubeRbacSAName                    = "amd-gpu-operator-metrics-exporter-rbac-proxy"
 	svcLabel                          = "app.kubernetes.io/service"
+	defaultKubeleteDir                = "/var/lib/kubelet/pod-resources"
 )
 
 var serviceMonitorLabelPair = []string{"app", "amd-device-metrics-exporter"}
@@ -117,6 +118,11 @@ func (nl *metricsExporter) SetMetricsExporterAsDesired(ds *appsv1.DaemonSet, dev
 	hostPathDirectory := v1.HostPathDirectory
 	healthCreateHostDirectory := v1.HostPathDirectoryOrCreate
 
+	kubeletDir := defaultKubeleteDir
+	if mSpec.PodResourceAPISocketPath != "" {
+		kubeletDir = mSpec.PodResourceAPISocketPath
+	}
+
 	volumes := []v1.Volume{
 		{
 			Name: "dev-volume",
@@ -140,7 +146,7 @@ func (nl *metricsExporter) SetMetricsExporterAsDesired(ds *appsv1.DaemonSet, dev
 			Name: "pod-resources",
 			VolumeSource: v1.VolumeSource{
 				HostPath: &v1.HostPathVolumeSource{
-					Path: "/var/lib/kubelet/pod-resources",
+					Path: kubeletDir,
 					Type: &hostPathDirectory,
 				},
 			},
