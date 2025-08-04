@@ -1,0 +1,13 @@
+apiVersion: monitoring.coreos.com/v1
+kind: Prometheus
+metadata:
+  name: prometheus-e2e
+  namespace: default
+spec:
+  # Select ServiceMonitor objects from specific namespaces
+  serviceMonitorNamespaceSelector:
+    matchLabels:
+      name: kube-amd-gpu
+  serviceMonitorSelector:
+    matchLabels:
+      app: deviceconfig-example-amdgpu-metrics-exporter
