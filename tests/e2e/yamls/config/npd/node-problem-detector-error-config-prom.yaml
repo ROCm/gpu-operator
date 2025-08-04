@@ -1,0 +1,43 @@
+apiVersion: v1
+data:
+  custom-plugin-monitor.json: |
+    {
+      "plugin": "custom",
+      "pluginConfig": {
+        "invoke_interval": "30s",
+        "timeout": "15s",
+        "max_output_length": 80,
+        "concurrency": 3,
+        "enable_message_change_based_condition_update": false
+      },
+      "source": "amdgpu-custom-plugin-monitor",
+      "metricsReporting": true,
+      "conditions": [
+        {
+          "type": "AMDGPUUnhealthy",
+          "reason": "AMDGPUIsUp",
+          "message": "AMDGPU is up"
+        }
+      ],
+      "rules": [
+        {
+          "type": "permanent",
+          "condition": "AMDGPUUnhealthy",
+          "reason": "AMDGPUIsDown",
+          "path": "/var/lib/amd-metrics-exporter/amdgpuhealth",
+          "args": [
+            "query",
+            "counter-metric",
+            "-m=GPUMetricField_GPU_EDGE_TEMPERATURE",
+            "-t=0",
+            "-d=1m",
+            "--prometheus-endpoint=$$PROM_ENDPOINT$$"
+          ],
+          "timeout": "15s"
+        }
+      ]
+    }
+kind: ConfigMap
+metadata:
+  name: node-problem-detector-config
+  namespace: kube-system
