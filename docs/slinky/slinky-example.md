@@ -37,7 +37,7 @@ helm install prometheus prometheus-community/kube-prometheus-stack \
 
 ```bash
 helm install slurm-operator oci://ghcr.io/slinkyproject/charts/slurm-operator \
-  --values=values-operator.yaml --version=0.1.0 --namespace=slinky --create-namespace
+  --values=values-operator.yaml --namespace=slinky --create-namespace
 ```
 
 Make sure the operator deployed successfully with:
@@ -56,7 +56,7 @@ slurm-operator-webhook-6fd8d7857d-zcvqh   1/1     Running   0          5m00s
 
 ## Building the Slurm Compute Node Image
 
-You will need to build a Slurm docker image to be used for the Slurm compute node that includes ROCm and ROCm-compatible PyTorch version.  The slurm-rocm-torch directory contains an example Dockerfile that can be used to build this image. It is based off of the [Dockerfile from the Slinky repo](https://github.com/SlinkyProject/containers/blob/main/schedmd/slurm/24.05/ubuntu24.04/Dockerfile) with the only modifications being:
+You will need to build a Slurm docker image to be used for the Slurm compute node that includes ROCm and ROCm-compatible PyTorch version.  The slurm-rocm-torch directory contains an example Dockerfile that can be used to build this image. It is based off of the [Dockerfile from the Slinky repo](https://github.com/SlinkyProject/containers/tree/main/schedmd/slurm) with the only modifications being:
 
 - the base image is using the `rocm/pytorch-training:v25.4` image which already has ROCm and PyTorch installed
 - the `COPY patches/ patches/` line has been commented out as there are currently no patches to be applied
@@ -93,7 +93,7 @@ Install the Slurm Cluster helm chart
 
 ```bash
 helm install slurm oci://ghcr.io/slinkyproject/charts/slurm \
-  --values=values-slurm.yaml --version=0.1.0 --namespace=slurm --create-namespace
+  --values=values-slurm.yaml --namespace=slurm --create-namespace
 ```
 
 Make sure the Slurm cluster deployed successfully with:
