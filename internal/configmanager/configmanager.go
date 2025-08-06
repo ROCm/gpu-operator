@@ -91,6 +91,22 @@ func (nl *configManager) SetConfigManagerAsDesired(ds *appsv1.DaemonSet, devConf
 			Name:      "libmodules",
 			MountPath: "/lib/modules",
 		},
+		{
+			Name:      "etc-systemd",
+			MountPath: "/etc/systemd",
+		},
+		{
+			Name:      "run-systemd",
+			MountPath: "/run/systemd",
+		},
+		{
+			Name:      "usr-lib-systemd",
+			MountPath: "/usr/lib/systemd",
+		},
+		{
+			Name:      "var-run-dbus",
+			MountPath: "/var/run/dbus",
+		},
 	}
 
 	hostPathDirectory := v1.HostPathDirectory
@@ -128,6 +144,42 @@ func (nl *configManager) SetConfigManagerAsDesired(ds *appsv1.DaemonSet, devConf
 			VolumeSource: v1.VolumeSource{
 				HostPath: &v1.HostPathVolumeSource{
 					Path: "/lib/modules/",
+					Type: &hostPathDirectory,
+				},
+			},
+		},
+		{
+			Name: "etc-systemd",
+			VolumeSource: v1.VolumeSource{
+				HostPath: &v1.HostPathVolumeSource{
+					Path: "/etc/systemd/",
+					Type: &hostPathDirectory,
+				},
+			},
+		},
+		{
+			Name: "run-systemd",
+			VolumeSource: v1.VolumeSource{
+				HostPath: &v1.HostPathVolumeSource{
+					Path: "/run/systemd",
+					Type: &hostPathDirectory,
+				},
+			},
+		},
+		{
+			Name: "usr-lib-systemd",
+			VolumeSource: v1.VolumeSource{
+				HostPath: &v1.HostPathVolumeSource{
+					Path: "/usr/lib/systemd",
+					Type: &hostPathDirectory,
+				},
+			},
+		},
+		{
+			Name: "var-run-dbus",
+			VolumeSource: v1.VolumeSource{
+				HostPath: &v1.HostPathVolumeSource{
+					Path: "/var/run/dbus",
 					Type: &hostPathDirectory,
 				},
 			},
