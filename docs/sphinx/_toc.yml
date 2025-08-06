@@ -46,8 +46,9 @@ subtrees:
       - file: test/auto-unhealthy-device-test
       - file: test/manual-test
       - file: test/pre-start-job-test
-      - file: test/appendix-test-recipe
       - file: test/logs-export
+      - file: test/agfhc
+      - file: test/appendix-test-recipe
   - caption: Device Plugin
     entries:
       - file: device_plugin/device-plugin
