@@ -2,8 +2,8 @@
 
 ```bash
 # Build Helm Charts from a release branch branch
-cd helm-charts; helm dependency update; helm lint; cd ..; helm package helm-charts/
-git checkout -- helm-charts/; git checkout gh-pages
+cd helm-charts-k8s; helm dependency update; helm lint; cd ..; helm package helm-charts-k8s/
+git checkout -- helm-charts-k8s/; git checkout gh-pages
 mv gpu-operator*.tgz ./charts/
 
 # Update the index.yml
