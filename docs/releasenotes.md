@@ -1,5 +1,60 @@
 # Release Notes
 
+## GPU Operator v1.3.1 Release Notes
+
+The AMD GPU Operator v1.3.1 release extends platform support to OpenShift v4.19 for GPU partitioning on MI300 series GPUs with the Device Config Manager (DCM) component.
+
+### Release Highlights
+
+- **Device Config Manager**
+  - **OpenShift Support for configuring GPU compute & memory partitions**
+    - Add OpenShift platform support of Device-Config-Manager to enable the configuration of GPU partitions.
+
+- **Device-Metrics-Exporter enhancements**
+
+  - **New Metric Fields**
+    - GPU_GFX_BUSY_INSTANTANEOUS, GPU_VC_BUSY_INSTANTANEOUS,
+      GPU_JPEG_BUSY_INSTANTANEOUS are added to represent partition activities at
+      more granular level.
+    - GPU_GFX_ACTIVITY is only applicable for unpartitioned systems, user must
+      rely on the new BUSY_INSTANTANEOUS fields on partitioned systems.
+
+  - **Health Service Config**
+    - Health services can be disabled through configmap
+
+  - **Profiler Metrics Default Config Change**
+    - The previous release of exporter i.e. v1.3.0's ConfigMap present under
+      example directory had Profiler Metrics enabled by default. Now, this is
+      set to be disabled by default from v1.3.1 onwards, because profiling is
+      generally needed only by application developers. If needed, please enable
+      it through the ConfigMap and make sure that there is no other Exporter
+      instance or another tool running ROCm profiler at the same time.
+
+### Platform Support
+
+- OpenShift 4.19 platform support has been added in this release.
+
+### Documentation Updates
+
+- Updated [Release notes](https://instinct.docs.amd.com/projects/gpu-operator/en/latest/releasenotes.html) detailing new features in v1.3.1.
+- Updated GPU Operator install instructions to include the default DeviceConfig custom resource that gets created and how to skip installing it if desired.
+
+### Known Limitations
+
+> **Note:** All current and historical limitations for the GPU Operator, including their latest statuses and any associated workarounds or fixes, are tracked in the following documentation page: [Known Issues and Limitations](https://instinct.docs.amd.com/projects/gpu-operator/en/latest/knownlimitations.html).  
+   Please refer to this page regularly for the most up-to-date information.
+
+### Fixes
+
+  1. **Test Runner pod restart failure with a GPU partition profile change**
+    - Previously in v1.3.0 when users disabled test runner that cut down the ongoing test, then enabled it again with an underlying GPU partition profile change, the test runner would possibly fail to restart due to the device ID change caused by partition profile change.
+    - This has been fixed in v1.3.1 release. 
+
+  2. **Device Config Manager memory partition failure when the driver was installed by Kernel Module Management (KMM) Operator**
+    -  Previously in v1.3.0 if users worker nodes have no inbox/pre-installed amdgpu driver (ROCm 6.4+) and users install the driver via the KMM operator, the memory partition configuration on Device Config Manager would fail
+    - Users who are using inbox/pre-installed amdgpu driver (ROCm 6.4+) won't be affected
+    - This issue has been fixed in v1.3.1 release.
+
 ## GPU Operator v1.3.0 Release Notes
 
 The AMD GPU Operator v1.3.0 release introduces new features, most notably of which is support for GPU partitioning on MI300 series GPUs with the new Device Config Manager component.
