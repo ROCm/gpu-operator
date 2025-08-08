@@ -17,6 +17,7 @@ The AMD GPU Operator simplifies the deployment and management of AMD Instinct GP
 
 | **GPUs** | |
 | --- | --- |
+| AMD Instinct™ MI325X | ✅ Supported |
 | AMD Instinct™ MI300X | ✅ Supported |
 | AMD Instinct™ MI250 | ✅ Supported |
 | AMD Instinct™ MI210 | ✅ Supported |
@@ -36,24 +37,24 @@ Below is a matrix of supported Operating systems and the corresponding Kubernete
   <tbody>
     <tr style="background-color: white; color: black;">
       <td style="background-color: #2c2c2c; color: white; border: 1px solid grey;">Ubuntu 22.04 LTS</td>
-      <td style="border: 1px solid grey;">1.29—1.31</td>
+      <td style="border: 1px solid grey;">1.29—1.33</td>
       <td style="border: 1px solid grey;"></td>
     </tr>
     <tr style="background-color: lightgrey; color: black;">
       <td style="background-color: #2c2c2c; color: white; border: 1px solid grey;">Ubuntu 24.04 LTS</td>
-      <td style="border: 1px solid grey;">1.29—1.31</td>
+      <td style="border: 1px solid grey;">1.29—1.33</td>
       <td style="border: 1px solid grey;"></td>
     </tr>
     <tr style="background-color: white; color: black;">
       <td style="background-color: #2c2c2c; color: white; border: 1px solid grey;">Red Hat Core OS (RHCOS)</td>
       <td style="border: 1px solid grey;"></td>
-      <td style="border: 1px solid grey;">4.16—4.17</td>
+      <td style="border: 1px solid grey;">4.16—4.19</td>
     </tr>
   </tbody>
 </table>
 
 
-Please refer to the [ROCM documentaiton](https://rocm.docs.amd.com/en/latest/compatibility/compatibility-matrix.html) for the compatability matrix for the AMD GPU DKMS driver.
+Please refer to the [ROCM documentation](https://rocm.docs.amd.com/en/latest/compatibility/compatibility-matrix.html) for the compatability matrix for the AMD GPU DKMS driver.
 
 ## Prerequisites
 
