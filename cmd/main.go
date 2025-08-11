@@ -35,6 +35,7 @@ package main
 import (
 	"flag"
 
+	workflowv1alpha1 "github.com/argoproj/argo-workflows/v3/pkg/apis/workflow/v1alpha1"
 	kmmv1beta1 "github.com/rh-ecosystem-edge/kernel-module-management/api/v1beta1"
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
@@ -76,6 +77,7 @@ func init() {
 	utilruntime.Must(kmmv1beta1.AddToScheme(scheme))
 	utilruntime.Must(apiextensionsv1.AddToScheme(scheme))
 	utilruntime.Must(monitoringv1.AddToScheme(scheme))
+	utilruntime.Must(workflowv1alpha1.AddToScheme(scheme))
 	//+kubebuilder:scaffold:scheme
 }
 

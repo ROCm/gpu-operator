@@ -41,6 +41,7 @@ import (
 	"github.com/ROCm/gpu-operator/internal/conditions"
 	"github.com/ROCm/gpu-operator/internal/kmmmodule"
 	"github.com/ROCm/gpu-operator/tests/e2e/utils"
+	wfv1 "github.com/argoproj/argo-workflows/v3/pkg/apis/workflow/v1alpha1"
 	monitoringv1 "github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring/v1"
 	"github.com/stretchr/testify/assert"
 	. "gopkg.in/check.v1"
@@ -395,6 +396,42 @@ func (s *E2ESuite) patchMetricsExporterImage(devCfg *v1alpha1.DeviceConfig, c *C
 	result, err := s.dClient.DeviceConfigs(s.ns).PatchMetricsExporterImage(devCfg)
 	assert.NoError(c, err, "failed to update %v", devCfg.Name)
 	logger.Info(fmt.Sprintf("updated device config %+v", result))
+}
+
+func (s *E2ESuite) patchNodeCondition(c *C, nodeName, condType string, status v1.ConditionStatus) {
+	patch := fmt.Sprintf(`{"status":{"conditions":[{"type":"%s","status":"%s","reason":"e2e-test","message":"set by e2e test"}]}}`, condType, status)
+	_, err := s.clientSet.CoreV1().Nodes().Patch(context.TODO(), nodeName, types.MergePatchType, []byte(patch), metav1.PatchOptions{}, "status")
+	c.Assert(err, IsNil, Commentf("failed to patch condition %s=%s for node %s", condType, status, nodeName))
+}
+
+func (s *E2ESuite) getWorkflowForNode(c *C, nodeName string) *wfv1.Workflow {
+	wfList, err := s.wfClient.ArgoprojV1alpha1().Workflows(s.ns).List(context.TODO(), metav1.ListOptions{})
+	c.Assert(err, IsNil)
+
+	for _, wf := range wfList.Items {
+		if strings.Contains(wf.Name, nodeName) {
+			return &wf
+		}
+	}
+	c.Fatalf("workflow for node %s not found", nodeName)
+	return nil
+}
+
+func (s *E2ESuite) verifyWorkflowSucceeded(c *C, wf *wfv1.Workflow) {
+	assert.Eventually(c, func() bool {
+		updated, err := s.wfClient.ArgoprojV1alpha1().Workflows(wf.Namespace).Get(context.TODO(), wf.Name, metav1.GetOptions{})
+		if err != nil {
+			logger.Errorf("failed to get workflow %s: %v", wf.Name, err)
+			return false
+		}
+		logger.Infof("workflow %s current phase: %s", wf.Name, updated.Status.Phase)
+		return updated.Status.Phase == wfv1.WorkflowSucceeded
+	}, 15*time.Minute, 10*time.Second)
+}
+
+func (s *E2ESuite) deleteWorkflowForNode(c *C, wf *wfv1.Workflow) {
+	err := s.wfClient.ArgoprojV1alpha1().Workflows(wf.Namespace).Delete(context.TODO(), wf.Name, metav1.DeleteOptions{})
+	c.Assert(err, IsNil, Commentf("failed to delete workflow %s", wf.Name))
 }
 
 func (s *E2ESuite) isUpgradeInProgress(devCfg *v1alpha1.DeviceConfig) bool {
@@ -3117,4 +3154,93 @@ func (s *E2ESuite) TestPreUpgradeHookFailure(c *C) {
 		err = utils.HandleNodesReboot(context.TODO(), s.clientSet, nodes)
 		assert.NoError(c, err, "failed to reboot nodes")
 	}
+}
+
+func (s *E2ESuite) TestRemediationWorkflow(c *C) {
+
+	_, err := s.dClient.DeviceConfigs(s.ns).Get(s.cfgName, metav1.GetOptions{})
+	assert.Errorf(c, err, fmt.Sprintf("config %v exists", s.cfgName))
+
+	logger.Infof("create %v", s.cfgName)
+	devCfg := s.getDeviceConfig(c)
+	remediationEnable := true
+	devCfg.Spec.RemediationWorkflow.Enable = &remediationEnable
+	s.createDeviceConfig(devCfg, c)
+	s.verifyDeviceConfigStatus(devCfg, c)
+
+	// Patch the default template to avoid rebooting for kind cluster in CI run. Still tests triggering of workflow on basis of node condition and configmap
+	if s.ciEnv {
+		template, err := s.wfClient.ArgoprojV1alpha1().WorkflowTemplates(s.ns).Get(context.TODO(), "default-template", metav1.GetOptions{})
+		assert.NoError(c, err)
+
+		template.Spec.Templates[0].Steps = []wfv1.ParallelSteps{
+			{Steps: []wfv1.WorkflowStep{{Name: "taint", Template: "taint"}}},
+			{Steps: []wfv1.WorkflowStep{{Name: "suspend", Template: "suspend"}}},
+			{Steps: []wfv1.WorkflowStep{{Name: "drain", Template: "drain"}}},
+			{Steps: []wfv1.WorkflowStep{{Name: "wait", Template: "wait"}}},
+			{Steps: []wfv1.WorkflowStep{{Name: "untaint", Template: "untaint"}}},
+		}
+
+		_, err = s.wfClient.ArgoprojV1alpha1().WorkflowTemplates(s.ns).Update(context.TODO(), template, metav1.UpdateOptions{})
+		assert.NoError(c, err)
+	}
+
+	var nodes []v1.Node
+	if s.simEnable {
+		nodes = utils.GetNonAMDGpuWorker(s.clientSet)
+	} else {
+		nodes = utils.GetAMDGpuWorker(s.clientSet, s.openshift)
+	}
+
+	if len(nodes) == 0 {
+		c.Fatalf("No nodes found for remediation")
+	}
+
+	node := nodes[0]
+	nodeName := node.Name
+
+	defer func() {
+		nodeObj, err := s.clientSet.CoreV1().Nodes().Get(context.TODO(), nodeName, metav1.GetOptions{})
+		if err != nil {
+			logger.Errorf("Failed to fetch node %s for untainting: %v", nodeName, err)
+			return
+		}
+
+		var newTaints []v1.Taint
+		for _, taint := range nodeObj.Spec.Taints {
+			if taint.Key != "amd-gpu-unhealthy" {
+				newTaints = append(newTaints, taint)
+			}
+		}
+		nodeObj.Spec.Taints = newTaints
+
+		_, err = s.clientSet.CoreV1().Nodes().Update(context.TODO(), nodeObj, metav1.UpdateOptions{})
+		if err != nil {
+			logger.Errorf("Failed to remove taint from node %s: %v", nodeName, err)
+		} else {
+			logger.Infof("Removed amd-gpu-unhealthy taint from node %s", nodeName)
+		}
+	}()
+
+	// Patch node condition to True
+	s.patchNodeCondition(c, nodeName, "AMDGPUUnhealthy", v1.ConditionTrue)
+	logger.Info(fmt.Sprintf("Node condition AMDGPUUnhealthy hit on %+v", nodeName))
+
+	// Wait for the workflow to be triggered
+	logger.Info("Waiting for workflow to be triggered")
+	time.Sleep(60 * time.Second)
+
+	// Patch node condition to False (simulate remediation completed)
+	s.patchNodeCondition(c, nodeName, "AMDGPUUnhealthy", v1.ConditionFalse)
+
+	// Get and verify workflow
+	wf := s.getWorkflowForNode(c, nodeName)
+	s.verifyWorkflowSucceeded(c, wf)
+
+	wf = s.getWorkflowForNode(c, nodeName)
+	logger.Infof("Workflow for node %s: %+v", nodeName, wf)
+
+	// Delete workflow
+	s.deleteWorkflowForNode(c, wf)
+
 }
