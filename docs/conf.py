@@ -25,9 +25,13 @@ html_theme_options = {
     "repository_url": "https://github.com/rocm/gpu-operator",
     # Add any additional theme options here
 }
-extensions = ["rocm_docs"]
+extensions = ["rocm_docs","sphinx_substitution_extensions"]
 
 # Table of contents
 external_toc_path = "./sphinx/_toc.yml"
 
 exclude_patterns = ['.venv']
+
+rst_prolog = """
+.. |version| replace:: v{version}
+""".format(version=version)
