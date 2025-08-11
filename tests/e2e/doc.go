@@ -18,6 +18,7 @@ package e2e
 
 import (
 	"github.com/ROCm/gpu-operator/tests/e2e/client"
+	workflowclient "github.com/argoproj/argo-workflows/v3/pkg/client/clientset/versioned"
 	monitoringClient "github.com/prometheus-operator/prometheus-operator/pkg/client/versioned"
 	apiextClient "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
 	"k8s.io/client-go/kubernetes"
@@ -27,6 +28,7 @@ import (
 type E2ESuite struct {
 	clientSet            *kubernetes.Clientset
 	dClient              *client.DeviceConfigClient
+	wfClient             workflowclient.Interface
 	cfgName              string
 	registry             string
 	helmChart            string

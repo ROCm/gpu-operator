@@ -31,6 +31,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/ROCm/gpu-operator/tests/e2e/client"
+	workflowclient "github.com/argoproj/argo-workflows/v3/pkg/client/clientset/versioned"
 	monitoringClient "github.com/prometheus-operator/prometheus-operator/pkg/client/versioned"
 	"github.com/sirupsen/logrus"
 	. "gopkg.in/check.v1"
@@ -132,6 +133,12 @@ func (s *E2ESuite) SetUpSuite(c *C) {
 		c.Fatalf("Error: %v", err.Error())
 	}
 	s.monClient = monClient
+
+	wfClient, err := workflowclient.NewForConfig(config)
+	if err != nil {
+		c.Fatalf("Failed to create workflow client: %v", err)
+	}
+	s.wfClient = wfClient
 
 	s.clusterType = utils.GetClusterType(config)
 
