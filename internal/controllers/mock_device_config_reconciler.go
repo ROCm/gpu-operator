@@ -289,6 +289,21 @@ func (mr *MockdeviceConfigReconcilerHelperAPIMockRecorder) handleNodeLabeller(ct
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "handleNodeLabeller", reflect.TypeOf((*MockdeviceConfigReconcilerHelperAPI)(nil).handleNodeLabeller), ctx, devConfig, nodes)
 }
 
+// handleRemediationWorkflow mocks base method.
+func (m *MockdeviceConfigReconcilerHelperAPI) handleRemediationWorkflow(ctx context.Context, devConfig *v1alpha1.DeviceConfig, nodes *v1.NodeList, delete bool) (controllerruntime.Result, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "handleRemediationWorkflow", ctx, devConfig, nodes, delete)
+	ret0, _ := ret[0].(controllerruntime.Result)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// handleRemediationWorkflow indicates an expected call of handleRemediationWorkflow.
+func (mr *MockdeviceConfigReconcilerHelperAPIMockRecorder) handleRemediationWorkflow(ctx, devConfig, nodes, delete any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "handleRemediationWorkflow", reflect.TypeOf((*MockdeviceConfigReconcilerHelperAPI)(nil).handleRemediationWorkflow), ctx, devConfig, nodes, delete)
+}
+
 // handleTestRunner mocks base method.
 func (m *MockdeviceConfigReconcilerHelperAPI) handleTestRunner(ctx context.Context, devConfig *v1alpha1.DeviceConfig, nodes *v1.NodeList) error {
 	m.ctrl.T.Helper()
@@ -344,6 +359,20 @@ func (m *MockdeviceConfigReconcilerHelperAPI) setFinalizer(ctx context.Context, 
 func (mr *MockdeviceConfigReconcilerHelperAPIMockRecorder) setFinalizer(ctx, devConfig any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "setFinalizer", reflect.TypeOf((*MockdeviceConfigReconcilerHelperAPI)(nil).setFinalizer), ctx, devConfig)
+}
+
+// shouldReconcile mocks base method.
+func (m *MockdeviceConfigReconcilerHelperAPI) shouldReconcile(ctx context.Context, ugpgradeRes, remediationRes controllerruntime.Result) controllerruntime.Result {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "shouldReconcile", ctx, ugpgradeRes, remediationRes)
+	ret0, _ := ret[0].(controllerruntime.Result)
+	return ret0
+}
+
+// shouldReconcile indicates an expected call of shouldReconcile.
+func (mr *MockdeviceConfigReconcilerHelperAPIMockRecorder) shouldReconcile(ctx, ugpgradeRes, remediationRes any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "shouldReconcile", reflect.TypeOf((*MockdeviceConfigReconcilerHelperAPI)(nil).shouldReconcile), ctx, ugpgradeRes, remediationRes)
 }
 
 // updateDeviceConfigStatus mocks base method.

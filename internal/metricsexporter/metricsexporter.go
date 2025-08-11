@@ -452,6 +452,15 @@ func (nl *metricsExporter) SetMetricsExporterAsDesired(ds *appsv1.DaemonSet, dev
 	} else {
 		ds.Spec.Template.Spec.Tolerations = nil
 	}
+	// Add tolerations for the node unhealthy conditions
+	gpuUnhealthyTolerations := []v1.Toleration{
+		{
+			Key:      "amd-gpu-unhealthy",
+			Operator: v1.TolerationOpExists,
+			Effect:   v1.TaintEffectNoSchedule,
+		},
+	}
+	ds.Spec.Template.Spec.Tolerations = append(ds.Spec.Template.Spec.Tolerations, gpuUnhealthyTolerations...)
 	return controllerutil.SetControllerReference(devConfig, ds, nl.scheme)
 
 }

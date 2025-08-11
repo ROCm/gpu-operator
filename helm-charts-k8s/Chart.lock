@@ -5,5 +5,8 @@ dependencies:
 - name: kmm
   repository: file://./charts/kmm
   version: v1.0.0
-digest: sha256:f9a315dd2ce3d515ebf28c8e9a6a82158b493ca2686439ec381487761261b597
-generated: "2025-08-20T11:56:52.623672453Z"
+- name: remediation-controller
+  repository: file://./charts/remediation
+  version: v1.0.0
+digest: sha256:41fa6a6232514acebf6abdcb1bccaf087e134b9f413b8fa33a7fec1f58a99e07
+generated: "2025-07-25T06:05:30.916325524Z"
