@@ -102,7 +102,8 @@ func NewDeviceConfigReconciler(
 	workerMgr workermgr.WorkerMgrAPI,
 	isOpenShift bool) *DeviceConfigReconciler {
 	upgradeMgrHandler := newUpgradeMgrHandler(client, k8sConfig, isOpenShift)
-	helper := newDeviceConfigReconcilerHelper(client, kmmHandler, nlHandler, upgradeMgrHandler, metricsHandler, testrunnerHandler, configmanagerHandler, workerMgr)
+	remediationMgrHandler := newRemediationMgrHandler(client, k8sConfig)
+	helper := newDeviceConfigReconcilerHelper(client, kmmHandler, nlHandler, upgradeMgrHandler, remediationMgrHandler, metricsHandler, testrunnerHandler, configmanagerHandler, workerMgr)
 	podEventHandler := watchers.NewPodEventHandler(client, workerMgr)
 	nodeEventHandler := watchers.NewNodeEventHandler(client, workerMgr)
 	daemonsetEventHandler := watchers.NewDaemonsetEventHandler(client)
@@ -219,6 +220,9 @@ func (r *DeviceConfigReconciler) Reconcile(ctx context.Context, req ctrl.Request
 		if _, err := r.helper.handleModuleUpgrade(ctx, devConfig, nodes, true); err != nil {
 			logger.Error(err, fmt.Sprintf("upgrade manager delete device config error: %v", err))
 		}
+		if _, err := r.helper.handleRemediationWorkflow(ctx, devConfig, nodes, true); err != nil {
+			logger.Error(err, fmt.Sprintf("remediation manager delete device config error: %v", err))
+		}
 		// DeviceConfig is being deleted
 		err = r.helper.finalizeDeviceConfig(ctx, devConfig, nodes)
 		if err != nil {
@@ -306,20 +310,31 @@ func (r *DeviceConfigReconciler) Reconcile(ctx context.Context, req ctrl.Request
 		return res, fmt.Errorf("failed to handle config manager for DeviceConfig %s: %v", req.NamespacedName, err)
 	}
 
+	logger.Info("start remediation workflow reconciliation")
+	remediationRes, err := r.helper.handleRemediationWorkflow(ctx, devConfig, nodes, false)
+	// Upgrade manager and Remediation manager both can decide whether a requeue is needed on the overall reconcile loop.
+	// So we need to reconcile if any one or both of them require it and if one of them needs a requeue faster than the other in the future,
+	// it should be honoured.
+	finalRes := r.helper.shouldReconcile(ctx, res, remediationRes)
+
+	if err != nil {
+		return finalRes, fmt.Errorf("failed to handle remediation workflow for DeviceConfig %s: %v", req.NamespacedName, err)
+	}
+
 	err = r.helper.buildDeviceConfigStatus(ctx, devConfig, nodes)
 	if err != nil {
-		return res, fmt.Errorf("failed to build status for DeviceConfig %s: %v", req.NamespacedName, err)
+		return finalRes, fmt.Errorf("failed to build status for DeviceConfig %s: %v", req.NamespacedName, err)
 	}
 
 	err = r.helper.updateDeviceConfigStatus(ctx, devConfig)
 	if err != nil {
-		return res, fmt.Errorf("failed to update status for DeviceConfig %s: %v", req.NamespacedName, err)
+		return finalRes, fmt.Errorf("failed to update status for DeviceConfig %s: %v", req.NamespacedName, err)
 	}
 
 	// Update nodeAssignments after DeviceConfig status update
 	r.helper.updateNodeAssignments(req.NamespacedName.String(), nodes, false)
 
-	return res, nil
+	return finalRes, nil
 }
 
 //go:generate mockgen -source=device_config_reconciler.go -package=controllers -destination=mock_device_config_reconciler.go deviceConfigReconcilerHelperAPI
@@ -344,31 +359,35 @@ type deviceConfigReconcilerHelperAPI interface {
 	handleMetricsExporter(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig) error
 	handleTestRunner(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig, nodes *v1.NodeList) error
 	handleConfigManager(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig) error
+	handleRemediationWorkflow(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig, nodes *v1.NodeList, delete bool) (ctrl.Result, error)
 	setCondition(ctx context.Context, condition string, devConfig *amdv1alpha1.DeviceConfig, status metav1.ConditionStatus, reason string, message string) error
 	deleteCondition(ctx context.Context, condition string, devConfig *amdv1alpha1.DeviceConfig) error
 	validateDeviceConfig(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig) []string
 	handleModuleUpgrade(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig, nodes *v1.NodeList, delete bool) (ctrl.Result, error)
+	shouldReconcile(ctx context.Context, ugpgradeRes, remediationRes ctrl.Result) ctrl.Result
 }
 
 type deviceConfigReconcilerHelper struct {
-	client               client.Client
-	kmmHandler           kmmmodule.KMMModuleAPI
-	nlHandler            nodelabeller.NodeLabeller
-	metricsHandler       metricsexporter.MetricsExporter
-	testrunnerHandler    testrunner.TestRunner
-	configmanagerHandler configmanager.ConfigManager
-	nodeAssignments      map[string]string
-	conditionUpdater     conditions.ConditionUpdater
-	validator            validator.ValidatorAPI
-	kmmPostProcessor     workermgr.WorkerMgrAPI
-	upgradeMgrHandler    upgradeMgrAPI
-	namespace            string
+	client                client.Client
+	kmmHandler            kmmmodule.KMMModuleAPI
+	nlHandler             nodelabeller.NodeLabeller
+	metricsHandler        metricsexporter.MetricsExporter
+	testrunnerHandler     testrunner.TestRunner
+	configmanagerHandler  configmanager.ConfigManager
+	nodeAssignments       map[string]string
+	conditionUpdater      conditions.ConditionUpdater
+	validator             validator.ValidatorAPI
+	kmmPostProcessor      workermgr.WorkerMgrAPI
+	upgradeMgrHandler     upgradeMgrAPI
+	remediationMgrHandler remediationMgrAPI
+	namespace             string
 }
 
 func newDeviceConfigReconcilerHelper(client client.Client,
 	kmmHandler kmmmodule.KMMModuleAPI,
 	nlHandler nodelabeller.NodeLabeller,
 	upgradeMgrHandler upgradeMgrAPI,
+	remediationMgrHandler remediationMgrAPI,
 	metricsHandler metricsexporter.MetricsExporter,
 	testrunnerHandler testrunner.TestRunner,
 	configmanagerHandler configmanager.ConfigManager,
@@ -376,19 +395,43 @@ func newDeviceConfigReconcilerHelper(client client.Client,
 	conditionUpdater := conditions.NewDeviceConfigConditionMgr()
 	validator := validator.NewValidator()
 	return &deviceConfigReconcilerHelper{
-		client:               client,
-		kmmHandler:           kmmHandler,
-		nlHandler:            nlHandler,
-		metricsHandler:       metricsHandler,
-		testrunnerHandler:    testrunnerHandler,
-		configmanagerHandler: configmanagerHandler,
-		nodeAssignments:      make(map[string]string),
-		conditionUpdater:     conditionUpdater,
-		validator:            validator,
-		kmmPostProcessor:     workerMgr,
-		upgradeMgrHandler:    upgradeMgrHandler,
-		namespace:            os.Getenv("OPERATOR_NAMESPACE"),
+		client:                client,
+		kmmHandler:            kmmHandler,
+		nlHandler:             nlHandler,
+		metricsHandler:        metricsHandler,
+		testrunnerHandler:     testrunnerHandler,
+		configmanagerHandler:  configmanagerHandler,
+		nodeAssignments:       make(map[string]string),
+		conditionUpdater:      conditionUpdater,
+		validator:             validator,
+		kmmPostProcessor:      workerMgr,
+		upgradeMgrHandler:     upgradeMgrHandler,
+		remediationMgrHandler: remediationMgrHandler,
+		namespace:             os.Getenv("OPERATOR_NAMESPACE"),
 	}
+}
+
+func (dcrh *deviceConfigReconcilerHelper) shouldReconcile(ctx context.Context, ugpgradeRes, remediationRes ctrl.Result) ctrl.Result {
+	var finalRes ctrl.Result
+	switch {
+	case ugpgradeRes.RequeueAfter > 0 && remediationRes.RequeueAfter > 0:
+		if ugpgradeRes.RequeueAfter < remediationRes.RequeueAfter {
+			finalRes = ugpgradeRes
+		} else {
+			finalRes = remediationRes
+		}
+
+	case ugpgradeRes.RequeueAfter > 0:
+		finalRes = ugpgradeRes
+
+	case remediationRes.RequeueAfter > 0:
+		finalRes = remediationRes
+
+	default:
+		finalRes = ctrl.Result{}
+	}
+
+	return finalRes
 }
 
 func (dcrh *deviceConfigReconcilerHelper) listDeviceConfigs(ctx context.Context) (*amdv1alpha1.DeviceConfigList, error) {
@@ -1247,6 +1290,13 @@ func (dcrh *deviceConfigReconcilerHelper) handleTestRunner(ctx context.Context, 
 	logger.Info("Reconciled test runner", "namespace", ds.Namespace, "name", ds.Name, "result", opRes)
 
 	return nil
+}
+
+func (dcrh *deviceConfigReconcilerHelper) handleRemediationWorkflow(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig, nodes *v1.NodeList, delete bool) (ctrl.Result, error) {
+	if delete {
+		return dcrh.remediationMgrHandler.HandleDelete(ctx, devConfig, nodes)
+	}
+	return dcrh.remediationMgrHandler.HandleRemediation(ctx, devConfig, nodes)
 }
 
 func (dcrh *deviceConfigReconcilerHelper) handleConfigManager(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig) error {

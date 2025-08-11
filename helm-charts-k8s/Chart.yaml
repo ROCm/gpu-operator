@@ -31,3 +31,7 @@ dependencies:
   version: v1.0.0
   repository: "file://./charts/kmm"
   condition: kmm.enabled
+- name: remediation-controller
+  version: v1.0.0
+  repository: "file://./charts/remediation"
+  condition: remediation.enabled
