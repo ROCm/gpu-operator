@@ -278,3 +278,4 @@ wrapt==1.17.0
     # via deprecated
 zipp==3.21.0
     # via importlib-metadata
+Sphinx-Substitution-Extensions==2025.6.6

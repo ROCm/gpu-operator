@@ -3,9 +3,9 @@ Quick Start Guide
 
 Getting up and running with the AMD GPU Operator and Device Metrics Exporter on Kubernetes is quick and easy. Below is a short guide on how to get started using the helm installation method on a standard Kubernetes install. Note that more detailed instructions on the different installation methods can be found on this site: 
 
-`GPU Operator Kubernetes Helm Install <./installation/kubernetes-helm.md>`_
+`GPU Operator Kubernetes Helm Install <./installation/kubernetes-helm.html>`_
 
-`GPU Operator Red Hat OpenShift Install <./installation/openshift-olm.md>`_
+`GPU Operator Red Hat OpenShift Install <./installation/openshift-olm.html>`_
 
 Installing the GPU Operator
 ---------------------------
@@ -37,69 +37,19 @@ Installing the GPU Operator
 
 By using ``helm install`` command you can install the AMD GPU Operator helm charts. 
 
+.. code-block:: bash
+      :substitutions:
+
+      helm install amd-gpu-operator rocm/gpu-operator-charts \
+            --namespace kube-amd-gpu --create-namespace \
+            --version=|version|
+
 .. tip::
 
       1. Before v1.3.0 the gpu operator helm chart won't provide a default ``DeviceConfig``, you need to take extra step to create a ``DeviceConfig``.
-      2. Starting from v1.3.0 the ``helm install`` command would support one-step installation + configuration, which would create a default ``DeviceConfig`` with default values, which may not work for all the users with different the deployment scenarios, please refer to :ref:`typical-deployment-scenarios`  for more information and get corresponding ``helm install`` commands. 
-
-.. tab-set::
-
-  .. tab-item:: v1.3.0
-
-      .. code-block:: bash
-
-            helm install amd-gpu-operator rocm/gpu-operator-charts \
-            --namespace kube-amd-gpu --create-namespace \
-            --version=v1.3.0
-
-  .. tab-item:: v1.2.2
-
-      .. code-block:: bash
-
-            helm install amd-gpu-operator rocm/gpu-operator-charts \
-            --namespace kube-amd-gpu --create-namespace \
-            --version=v1.2.2
-
-  .. tab-item:: v1.2.1
-
-      .. code-block:: bash
-
-            helm install amd-gpu-operator rocm/gpu-operator-charts \
-            --namespace kube-amd-gpu --create-namespace \
-            --version=v1.2.1
-
-  .. tab-item:: v1.2.0
-
-      .. code-block:: bash
-
-            helm install amd-gpu-operator rocm/gpu-operator-charts \
-            --namespace kube-amd-gpu --create-namespace \
-            --version=v1.2.0
-
-  .. tab-item:: v1.1.1
-
-      .. code-block:: bash
-
-            helm install amd-gpu-operator rocm/gpu-operator-charts \
-            --namespace kube-amd-gpu --create-namespace \
-            --version=v1.1.1
-
-  .. tab-item:: v1.1.0
-
-      .. code-block:: bash
-
-            helm install amd-gpu-operator rocm/gpu-operator-charts \
-            --namespace kube-amd-gpu --create-namespace \
-            --version=v1.1.0 
-
-  .. tab-item:: v1.0.0
-
-      .. code-block:: bash
-
-            helm install amd-gpu-operator rocm/gpu-operator-charts \
-            --namespace kube-amd-gpu --create-namespace \
-            --version=v1.0.0   
-
+      2. Starting from v1.3.0 the ``helm install`` command would support one-step installation + configuration, which would create a default ``DeviceConfig`` with default values and may not work for all the users with different the deployment scenarios, please refer to :ref:`typical-deployment-scenarios`  for more information and get corresponding ``helm install`` commands. 
+      3. The ``--version`` flag is optional, if not specified, the latest version of the GPU Operator will be installed.
+      4. The namespace ``kube-amd-gpu`` is the default namespace for GPU Operator, you can change it by using the ``--namespace`` flag.
 
 .. _typical-deployment-scenarios:
 Typical Deployment Scenarios
@@ -111,72 +61,13 @@ If you are using VM based GPU worker node with Virtual Function (VF) Passthrough
 
 You need to adjust the default node selector to ``"feature.node.kubernetes.io/amd-vgpu":"true"`` to make the ``DeviceConfig`` work for your VM based cluster.
 
+.. code-block:: bash
+      :substitutions:
 
-.. tab-set::
-
-  .. tab-item:: v1.3.0
-
-      .. code-block:: bash
-
-            helm install amd-gpu-operator rocm/gpu-operator-charts \
+      helm install amd-gpu-operator rocm/gpu-operator-charts \
             --namespace kube-amd-gpu --create-namespace \
-            --version=v1.3.0 \
+            --version=|version| \
             --set-json 'deviceConfig.spec.selector={"feature.node.kubernetes.io/amd-gpu":null,"feature.node.kubernetes.io/amd-vgpu":"true"}'
-
-  .. tab-item:: v1.2.2
-
-      .. code-block:: bash
-
-            helm install amd-gpu-operator rocm/gpu-operator-charts \
-            --namespace kube-amd-gpu --create-namespace \
-            --version=v1.2.2
-            # take extra step to create a DeviceConfig with spec.selector "feature.node.kubernetes.io/amd-vgpu":"true"
-
-  .. tab-item:: v1.2.1
-
-      .. code-block:: bash
-
-            helm install amd-gpu-operator rocm/gpu-operator-charts \
-            --namespace kube-amd-gpu --create-namespace \
-            --version=v1.2.1
-            # take extra step to create a DeviceConfig with spec.selector "feature.node.kubernetes.io/amd-vgpu":"true"
-
-  .. tab-item:: v1.2.0
-
-      .. code-block:: bash
-
-            helm install amd-gpu-operator rocm/gpu-operator-charts \
-            --namespace kube-amd-gpu --create-namespace \
-            --version=v1.2.0
-            # no amd-vgpu detection support at this version, please manually modify the DeviceConfig selector to make it select your worker nodes
-
-  .. tab-item:: v1.1.1
-
-      .. code-block:: bash
-
-            helm install amd-gpu-operator rocm/gpu-operator-charts \
-            --namespace kube-amd-gpu --create-namespace \
-            --version=v1.1.1
-            # no amd-vgpu detection support at this version, please manually modify the DeviceConfig selector to make it select your worker nodes
-
-  .. tab-item:: v1.1.0
-
-      .. code-block:: bash
-
-            helm install amd-gpu-operator rocm/gpu-operator-charts \
-            --namespace kube-amd-gpu --create-namespace \
-            --version=v1.1.0
-            # no amd-vgpu detection support at this version, please manually modify the DeviceConfig selector to make it select your worker nodes
-
-  .. tab-item:: v1.0.0
-
-      .. code-block:: bash
-
-            helm install amd-gpu-operator rocm/gpu-operator-charts \
-            --namespace kube-amd-gpu --create-namespace \
-            --version=v1.0.0 
-            # no amd-vgpu detection support at this version, please manually modify the DeviceConfig selector to make it select your worker nodes 
-
 
 2. Use GPU worker node without inbox / pre-installed driver
 
@@ -184,77 +75,20 @@ If your worker node doesn't have inbox / pre-installed AMD GPU driver loaded, th
 
 If you plan to use GPU Operator to install out-of-tree driver on your worker nodes, please refer to `Driver Installation Guide <./drivers/installation.html>`_ to configure the default ``DeviceConfig``. Here are example commands:
 
-.. tab-set::
+.. code-block:: bash
+      :substitutions:
 
-  .. tab-item:: v1.3.0
-
-      .. code-block:: bash
-
-            # 1. prepare image registry to store driver image (e.g. dockerHub)
-            # 2. setup image registry secret: 
-            # kubectl create secret docker-registry mySecret -n kube-amd-gpu --docker-username=xxx --docker-password=xxx --docker-server=index.docker.io
-            helm install amd-gpu-operator rocm/gpu-operator-charts \
+      # 1. prepare image registry to store driver image (e.g. dockerHub)
+      # 2. setup image registry secret: 
+      # kubectl create secret docker-registry mySecret -n kube-amd-gpu --docker-username=xxx --docker-password=xxx --docker-server=index.docker.io
+      helm install amd-gpu-operator rocm/gpu-operator-charts \
             --namespace kube-amd-gpu --create-namespace \
-            --version=v1.3.0 \
+            --version=|version| \
             --set deviceConfig.spec.driver.enable=true \
             --set deviceConfig.spec.driver.blacklist=true \
             --set deviceConfig.spec.driver.version=6.4 \
             --set deviceConfig.spec.driver.image=docker.io/myUserName/amd-driver-image \
             --set deviceConfig.spec.driver.imageRegistrySecret.name=mySecret
-
-  .. tab-item:: v1.2.2
-
-      .. code-block:: bash
-
-            helm install amd-gpu-operator rocm/gpu-operator-charts \
-            --namespace kube-amd-gpu --create-namespace \
-            --version=v1.2.2
-            # take extra step to create a DeviceConfig with proper configs in spec.driver
-
-  .. tab-item:: v1.2.1
-
-      .. code-block:: bash
-
-            helm install amd-gpu-operator rocm/gpu-operator-charts \
-            --namespace kube-amd-gpu --create-namespace \
-            --version=v1.2.1
-            # take extra step to create a DeviceConfig with proper configs in spec.driver
-
-  .. tab-item:: v1.2.0
-
-      .. code-block:: bash
-
-            helm install amd-gpu-operator rocm/gpu-operator-charts \
-            --namespace kube-amd-gpu --create-namespace \
-            --version=v1.2.0
-            # take extra step to create a DeviceConfig with proper configs in spec.driver
-
-  .. tab-item:: v1.1.1
-
-      .. code-block:: bash
-
-            helm install amd-gpu-operator rocm/gpu-operator-charts \
-            --namespace kube-amd-gpu --create-namespace \
-            --version=v1.1.1
-            # take extra step to create a DeviceConfig with proper configs in spec.driver
-
-  .. tab-item:: v1.1.0
-
-      .. code-block:: bash
-
-            helm install amd-gpu-operator rocm/gpu-operator-charts \
-            --namespace kube-amd-gpu --create-namespace \
-            --version=v1.1.0
-            # take extra step to create a DeviceConfig with proper configs in spec.driver
-
-  .. tab-item:: v1.0.0
-
-      .. code-block:: bash
-
-            helm install amd-gpu-operator rocm/gpu-operator-charts \
-            --namespace kube-amd-gpu --create-namespace \
-            --version=v1.0.0 
-            # take extra step to create a DeviceConfig with proper configs in spec.driver
 
 3. Deploy ``DeviceConfig`` separately without using the default one during helm charts installation
 
