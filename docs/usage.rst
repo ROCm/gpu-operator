@@ -3,9 +3,9 @@ Quick Start Guide
 
 Getting up and running with the AMD GPU Operator and Device Metrics Exporter on Kubernetes is quick and easy. Below is a short guide on how to get started using the helm installation method on a standard Kubernetes install. Note that more detailed instructions on the different installation methods can be found on this site: 
 
-`GPU Operator Kubernetes Helm Install <./installation/kubernetes-helm.md>`_
+`GPU Operator Kubernetes Helm Install <./installation/kubernetes-helm.html>`_
 
-`GPU Operator Red Hat OpenShift Install <./installation/openshift-olm.md>`_
+`GPU Operator Red Hat OpenShift Install <./installation/openshift-olm.html>`_
 
 Installing the GPU Operator
 ---------------------------
