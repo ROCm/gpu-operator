@@ -181,19 +181,19 @@ To run ``amd-smi`` in a pod:
       apiVersion: v1
       kind: Pod
       metadata:
-      name: amd-smi
-      spec:
-      containers:
-      - image: docker.io/rocm/rocm-terminal:latest
         name: amd-smi
-        command: ["/bin/bash"]
-        args: ["-c","amd-smi version && amd-smi monitor -ptum"]
-        resources:
-          limits:
-            amd.com/gpu: 1
-          requests:
-            amd.com/gpu: 1
-      restartPolicy: Never
+      spec:
+        containers:
+        - image: docker.io/rocm/rocm-terminal:latest
+          name: amd-smi
+          command: ["/bin/bash"]
+          args: ["-c","amd-smi version && amd-smi monitor -ptum"]
+          resources:
+            limits:
+              amd.com/gpu: 1
+            requests:
+              amd.com/gpu: 1
+        restartPolicy: Never
 
 - Create the pod:
 
