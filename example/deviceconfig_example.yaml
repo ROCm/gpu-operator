@@ -87,7 +87,7 @@ spec:
     #  - name: aws-secret
 
   configManager:
-    # To enable/disable the metrics exporter, enable to partition
+    # To enable/disable the config manager, enable to partition
     enable: True
     # image for the device-config-manager container
     image: rocm/device-config-manager:v1.3.0
