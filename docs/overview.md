@@ -49,7 +49,7 @@ The components work together in the following sequence:
 5. Node Labeller adds detailed GPU information to node labels
 6. Metrics Exporter provides ongoing monitoring
 
-[Placeholder: Architecture diagram]
+![Architecture diagram](./_static/amd-gpu-operator-diagram.png)
 
 ## Plugins and Extensions
 
@@ -85,3 +85,13 @@ The Test Runner offers hardware validation, diagnostics and benchmarking capabil
 - Support manually triggered or scheduled test execution within the Kubernetes cluster.
 - Support executing tests as init containers within the GPU workload pod.
 - Report test results as Kubernetes events.
+
+### Device Config Manager
+
+The [Device Config Manager](https://github.com/ROCm/device-config-manager)  is used to handle AMD GPU Devices' configuration
+
+- DCM will be handling the GPU partitioning configurations
+- Different partition types supported are:
+    - Memory partitions (NPS1, NPS4)
+    - Compute partitions (SPX, CPX)
+- Report partition results as Kubernetes events.
