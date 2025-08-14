@@ -199,7 +199,7 @@ Below is an example of a full DeviceConfig CR that can be used to install the AM
         upgradePolicy:
           #(Optional) If no UpgradePolicy is mentioned for any of the components but their image is changed, the daemonset will
           # get upgraded according to the defaults, which is `upgradeStrategy` set to `RollingUpdate` and `maxUnavailable` set to 1.
-          upgradeStrategy: RollingUpdate, # (Optional) Can be either `RollingUpdate` or `OnDelete`
+          upgradeStrategy: "RollingUpdate" # (Optional) Can be either `RollingUpdate` or `OnDelete`
           maxUnavailable: 1 # (Optional) Number of pods that can be unavailable during the upgrade process. 1 is the default value
         # If specifying a node selector here, the metrics exporter will only be deployed on nodes that match the selector
         # See Item #6 on https://instinct.docs.amd.com/projects/gpu-operator/en/latest/knownlimitations.html for example usage

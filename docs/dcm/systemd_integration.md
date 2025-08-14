@@ -1,4 +1,4 @@
-# DCM Systemd Integration
+# Device Config Manager Systemd Integration
 
 ## Background 
 
