@@ -65,49 +65,47 @@ Below is an example of how to create the `config-manager-config.yaml` file that 
 
 .. code-block:: yaml
     
-    cat <<EOF > config-manager-config.yaml
     apiVersion: v1
     kind: ConfigMap
     metadata:
-    name: config-manager-config
-    namespace: kube-amd-gpu
+        name: config-manager-config
+        namespace: kube-amd-gpu
     data:
-    config.json: |
+        config.json: |
         {
-        "gpu-config-profiles":
-        {
-            "cpx-profile":
+            "gpu-config-profiles":
             {
-                "skippedGPUs": {
-                    "ids": []
+                "cpx-profile":
+                {
+                    "skippedGPUs": {
+                        "ids": []
+                    },
+                    "profiles": [
+                        {
+                            "computePartition": "CPX",
+                            "memoryPartition": "NPS4",
+                            "numGPUsAssigned": 8
+                        }
+                    ]
                 },
-                "profiles": [
-                    {
-                        "computePartition": "CPX",
-                        "memoryPartition": "NPS4",
-                        "numGPUsAssigned": 8
-                    }
-                ]
+                "spx-profile":
+                {
+                    "skippedGPUs": {
+                        "ids": []
+                    },
+                    "profiles": [
+                        {
+                            "computePartition": "SPX",
+                            "memoryPartition": "NPS1",
+                            "numGPUsAssigned": 8
+                        }
+                    ]
+                }
             },
-            "spx-profile":
-            {
-                "skippedGPUs": {
-                    "ids": []
-                },
-                "profiles": [
-                    {
-                        "computePartition": "SPX",
-                        "memoryPartition": "NPS1",
-                        "numGPUsAssigned": 8
-                    }
-                ]
+            "gpuClientSystemdServices": {
+                "names": ["amd-metrics-exporter", "gpuagent"]
             }
-        },
-        "gpuClientSystemdServices": {
-            "names": ["amd-metrics-exporter", "gpuagent"]
         }
-        }
-    EOF
 
 
 Now apply the DCM ConfigMap to your cluster
