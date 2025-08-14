@@ -14,7 +14,7 @@ The Device Config Manager can be enabled by setting the `spec/configManager/enab
 
 ```yaml
   configManager:
-    # To enable/disable the metrics exporter, enable to partition
+    # To enable/disable the config manager, enable to partition
     enable: True
 
     # image for the device-config-manager container

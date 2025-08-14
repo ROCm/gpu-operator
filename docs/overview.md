@@ -85,3 +85,14 @@ The Test Runner offers hardware validation, diagnostics and benchmarking capabil
 - Support manually triggered or scheduled test execution within the Kubernetes cluster.
 - Support executing tests as init containers within the GPU workload pod.
 - Report test results as Kubernetes events.
+
+### Device Config Manager
+
+The [Device Config Manager](https://github.com/ROCm/device-config-manager)  is used to handle AMD GPU Devices' configuration
+
+- DCM will be handling the GPU partitioning configurations
+- Different partition types supported are:
+    - Memory partitions (NPS1, NPS2, NPS4)
+    - Compute partitions (SPX, DPX, QPX, CPX)
+- Supports Systemd integration to start/stop service files
+- Report partition results as Kubernetes events.

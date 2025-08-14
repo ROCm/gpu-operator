@@ -139,7 +139,7 @@ Below is an example of a full DeviceConfig CR that can be used to install the AM
         upgradePolicy:
           #(Optional) If no UpgradePolicy is mentioned for any of the components but their image is changed, the daemonset will
           # get upgraded according to the defaults, which is `upgradeStrategy` set to `RollingUpdate` and `maxUnavailable` set to 1. 
-          upgradeStrategy: RollingUpdate, # (Optional) Can be either `RollingUpdate` or `OnDelete`
+          upgradeStrategy: "RollingUpdate" # (Optional) Can be either `RollingUpdate` or `OnDelete`
           maxUnavailable: 1 # (Optional) Number of pods that can be unavailable during the upgrade process. 1 is the default value
       ## AMD GPU Metrics Exporter Configuration ##
       metricsExporter: 
@@ -156,7 +156,7 @@ Below is an example of a full DeviceConfig CR that can be used to install the AM
         upgradePolicy:
           #(Optional) If no UpgradePolicy is mentioned for any of the components but their image is changed, the daemonset will
           # get upgraded according to the defaults, which is `upgradeStrategy` set to `RollingUpdate` and `maxUnavailable` set to 1.
-          upgradeStrategy: RollingUpdate, # (Optional) Can be either `RollingUpdate` or `OnDelete`
+          upgradeStrategy: "RollingUpdate" # (Optional) Can be either `RollingUpdate` or `OnDelete`
           maxUnavailable: 1 # (Optional) Number of pods that can be unavailable during the upgrade process. 1 is the default value
         # If specifying a node selector here, the metrics exporter will only be deployed on nodes that match the selector
         # See Item #6 on https://instinct.docs.amd.com/projects/gpu-operator/en/latest/knownlimitations.html for example usage
@@ -224,6 +224,29 @@ Below is an example of a full DeviceConfig CR that can be used to install the AM
         selector:   
           feature.node.kubernetes.io/amd-gpu: "true" # You must include this again as this selector will overwrite the global selector
           amd.com/device-test-runner: "true" # Helpful for when you want to disable the test runner on specific nodes 
+      configManager:
+        enable: False # False by Default. Set to True to enable the config manager
+        image: "rocm/device-config-manager:v1.3.1" # image for the device-config-manager container
+        imagePullPolicy: IfNotPresent # image pull policy for config manager. Accepted values are Always, IfNotPresent, Never
+        config: # specify configmap name which stores profile config info
+          name: "config-manager-config"
+        upgradePolicy:
+          #(Optional) If no UpgradePolicy is mentioned for any of the components but their image is changed, the daemonset will
+          # get upgraded according to the defaults, which is `upgradeStrategy` set to `RollingUpdate` and `maxUnavailable` set to 1.
+          upgradeStrategy: "RollingUpdate" # (Optional) Can be either `RollingUpdate` or `OnDelete`
+          maxUnavailable: 1 # (Optional) Number of pods that can be unavailable during the upgrade process. 1 is the default value
+        # DCM pod deployed either as a standalone pod or through the GPU operator will have 
+        # a toleration attached to it. User can specify additional tolerations if required
+        # key: amd-dcm , value: up , Operator: Equal, effect: NoExecute 
+        # OPTIONAL
+        # toleration field for dcm pod to bypass nodes with specific taints
+        configManagerTolerations:
+          - key: "key1"
+            operator: "Equal" 
+            value: "value1"
+            effect: "NoExecute"
+        selector:  # (Optional)
+          feature.node.kubernetes.io/amd-gpu: "true" # You can include this if you wish to overwrite the global selector
       selector: 
       # Specify the nodes to be managed by this DeviceConfig Custom Resource.  This will be applied to all components unless a selector 
       # is specified in the component configuration. The node labeller will automatically find nodes with AMD GPUs and apply the label 
