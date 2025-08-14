@@ -70,6 +70,10 @@ ifdef SKIP_INSTALL_DEFAULT_CR
 	SKIP_INSTALL_DEFAULT_CR_CMD=--set crds.defaultCR.install=false
 endif
 
+ifdef SKIP_REMEDIATION_CONTROLLER
+	SKIP_REMEDIATION_CONTROLLER_CMD=--set remediation.enabled=false
+endif
+
 #################################
 # OpenShift OLM Bundle varaiables
 # BUNDLE_IMG defines the image:tag used for the bundle.
@@ -325,6 +329,9 @@ helm-k8s: helmify manifests kustomize clean-helm-k8s gen-kmm-charts-k8s ## Build
 	# Patching k8s helm chart kmm subchart
 	cp $(shell pwd)/hack/k8s-patch/k8s-kmm-patch/metadata-patch/*.yaml $(shell pwd)/helm-charts-k8s/charts/kmm/
 	cp $(shell pwd)/hack/k8s-patch/k8s-kmm-patch/template-patch/*.yaml $(shell pwd)/helm-charts-k8s/charts/kmm/templates/
+	mkdir -p $(shell pwd)/helm-charts-k8s/charts/remediation/templates
+	cp $(shell pwd)/hack/k8s-patch/k8s-remediation-patch/metadata-patch/*.yaml $(shell pwd)/helm-charts-k8s/charts/remediation/
+	cp $(shell pwd)/hack/k8s-patch/k8s-remediation-patch/template-patch/*.yaml $(shell pwd)/helm-charts-k8s/charts/remediation/templates/
 	cd $(shell pwd)/helm-charts-k8s; helm dependency update; helm lint; cd ..;
 	mkdir $(shell pwd)/helm-charts-k8s/crds
 	echo "moving crd yaml files to crds folder"
@@ -590,7 +597,7 @@ helm-uninstall-openshift:
 	helm uninstall amd-gpu-operator -n kube-amd-gpu
 
 helm-install-k8s:
-	helm install -f helm-charts-k8s/values.yaml amd-gpu-operator ${GPU_OPERATOR_CHART} -n kube-amd-gpu --create-namespace ${SKIP_NFD_CMD} ${SKIP_KMM_CMD} ${HELM_OC_CMD} ${SIM_ENABLE_CMD} ${SKIP_INSTALL_DEFAULT_CR_CMD}
+	helm install -f helm-charts-k8s/values.yaml amd-gpu-operator ${GPU_OPERATOR_CHART} -n kube-amd-gpu --create-namespace ${SKIP_NFD_CMD} ${SKIP_KMM_CMD} ${SKIP_REMEDIATION_CONTROLLER_CMD} ${HELM_OC_CMD} ${SIM_ENABLE_CMD} ${SKIP_INSTALL_DEFAULT_CR_CMD}
 
 helm-uninstall-k8s:
 	echo "Deleting all device configs before uninstalling operator..."

@@ -483,6 +483,11 @@ func setKMMModuleLoader(ctx context.Context, mod *kmmv1beta1.Module, devConfig *
 			Value:    "up",
 			Operator: v1.TolerationOpEqual,
 		},
+		v1.Toleration{
+			Key:      "amd-gpu-unhealthy",
+			Operator: v1.TolerationOpExists,
+			Effect:   v1.TaintEffectNoSchedule,
+		},
 	)
 	return nil
 }

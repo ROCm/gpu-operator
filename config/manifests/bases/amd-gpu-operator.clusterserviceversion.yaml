@@ -616,6 +616,28 @@ spec:
         path: metricsExporter.upgradePolicy.upgradeStrategy
         x-descriptors:
         - urn:alm:descriptor:com.amd.deviceconfigs:upgradeStrategy
+      - description: remediation workflow
+        displayName: RemediationWorkflow
+        path: remediationWorkflow
+        x-descriptors:
+        - urn:alm:descriptor:com.amd.deviceconfigs:remediationWorkflow
+      - description: Name of the ConfigMap that holds condition-to-workflow mappings.
+        displayName: ConditionalWorkflows
+        path: remediationWorkflow.conditionalWorkflows
+        x-descriptors:
+        - urn:alm:descriptor:com.amd.deviceconfigs:conditionalWorkflows
+      - description: enable remediation workflows. disabled by default enable if operator
+          should automatically handle remediation of node incase of gpu issues
+        displayName: Enable
+        path: remediationWorkflow.enable
+        x-descriptors:
+        - urn:alm:descriptor:com.amd.deviceconfigs:enable
+      - description: Time to live for argo workflow object and its pods for a failed
+          workflow in hours. By default, it is set to 24 hours
+        displayName: TtlForFailedWorkflows
+        path: remediationWorkflow.ttlForFailedWorkflows
+        x-descriptors:
+        - urn:alm:descriptor:com.amd.deviceconfigs:ttlForFailedWorkflows
       - description: Selector describes on which nodes the GPU Operator should enable
           the GPU device.
         displayName: Selector

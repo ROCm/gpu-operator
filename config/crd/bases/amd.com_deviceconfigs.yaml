@@ -1265,6 +1265,36 @@ spec:
                         type: string
                     type: object
                 type: object
+              remediationWorkflow:
+                description: remediation workflow
+                properties:
+                  conditionalWorkflows:
+                    description: Name of the ConfigMap that holds condition-to-workflow
+                      mappings.
+                    properties:
+                      name:
+                        default: ""
+                        description: |-
+                          Name of the referent.
+                          This field is effectively required, but due to backwards compatibility is
+                          allowed to be empty. Instances of this type with an empty value here are
+                          almost certainly wrong.
+                          More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                        type: string
+                    type: object
+                    x-kubernetes-map-type: atomic
+                  enable:
+                    description: |-
+                      enable remediation workflows. disabled by default
+                      enable if operator should automatically handle remediation of node incase of gpu issues
+                    type: boolean
+                  ttlForFailedWorkflows:
+                    default: 24
+                    description: Time to live for argo workflow object and its pods
+                      for a failed workflow in hours. By default, it is set to 24
+                      hours
+                    type: integer
+                type: object
               selector:
                 additionalProperties:
                   type: string
