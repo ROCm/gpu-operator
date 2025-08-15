@@ -1,0 +1,33 @@
+apiVersion: v2
+name: gpu-operator-charts
+description: AMD GPU Operator simplifies the deployment and management of AMD Instinct GPU accelerators within Kubernetes clusters.
+type: application
+home: https://github.com/ROCm/gpu-operator
+sources:
+  - https://github.com/ROCm/gpu-operator
+icon: https://raw.githubusercontent.com/ROCm/k8s-device-plugin/master/helm/logo.png
+maintainers:
+  - name: Yan Sun <Yan.Sun3@amd.com>
+keywords:
+  - kubernetes
+  - cluster
+  - hardware
+  - amd
+  - gpu
+  - ai
+  - deep learning
+  - monitoring
+
+kubeVersion: ">= 1.29.0-0"
+version: v1.3.1
+appVersion: "v1.3.1"
+
+dependencies:
+- name: nfd
+  version: v1.0.0
+  repository: "file://./charts/nfd"
+  condition: nfd.enabled
+- name: kmm
+  version: v1.0.0
+  repository: "file://./charts/kmm"
+  condition: kmm.enabled

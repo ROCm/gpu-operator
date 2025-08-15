@@ -1,0 +1,15 @@
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: {{ include "kmm.fullname" . }}-serving-cert
+  labels:
+  {{- include "kmm.labels" . | nindent 4 }}
+spec:
+  dnsNames:
+  - '{{ include "kmm.fullname" . }}-webhook-service.{{ .Release.Namespace }}.svc'
+  - '{{ include "kmm.fullname" . }}-webhook-service.{{ .Release.Namespace }}.svc.{{
+    .Values.kubernetesClusterDomain }}'
+  issuerRef:
+    kind: Issuer
+    name: '{{ include "kmm.fullname" . }}-selfsigned-issuer'
+  secretName: kmm-operator-webhook-server-cert

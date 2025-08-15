@@ -1,0 +1,363 @@
+
+{{- if or (and .Release.IsInstall .Values.crds.defaultCR.install) (and .Release.IsUpgrade .Values.crds.defaultCR.upgrade) }}
+{{- if and (hasKey .Values "deviceConfig") (hasKey .Values.deviceConfig "spec") }}
+apiVersion: amd.com/v1alpha1
+kind: DeviceConfig
+metadata:
+  name: default
+  # the default CR cleanup is handled by pre-delete hook
+  # add this annotation so that helm won't try to delete the default DeviceConfig twice
+  annotations:
+    "helm.sh/resource-policy": keep
+spec:
+  {{- with .Values.deviceConfig.spec.selector }}
+  selector:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+
+  {{- with .Values.deviceConfig.spec.driver }}
+  driver:
+    {{- if (hasKey . "enable") }}
+    enable: {{ .enable }}
+    {{- end }}
+
+    {{- if (hasKey . "blacklist") }}
+    blacklist: {{ .blacklist }}
+    {{- end }}
+
+    {{- with .image }}
+    image: {{ . }}
+    {{- end }}
+
+    {{- with .imageRegistrySecret }}
+    imageRegistrySecret:
+      {{- toYaml . | nindent 6 }}
+    {{- end }}
+
+    {{- with .imageRegistryTLS }}
+    imageRegistryTLS:
+      {{- toYaml . | nindent 6 }}
+    {{- end }}
+
+    {{- with .version }}
+    version: {{ quote . }}
+    {{- end }}
+
+    {{- with .imageSign }}
+    imageSign:
+      {{- toYaml . | nindent 6 }}
+    {{- end }}
+
+    {{- with .imageBuild }}
+    imageBuild:
+      {{- toYaml . | nindent 6 }}
+    {{- end }}
+
+    {{- with .tolerations }}
+    tolerations:
+      {{- toYaml . | nindent 6 }}
+    {{- end }}
+
+    {{- with .upgradePolicy }}
+    upgradePolicy:
+      {{- toYaml . | nindent 6 }}
+    {{- end }}
+  {{- end }}
+
+  {{- with .Values.deviceConfig.spec.commonConfig }}
+  commonConfig:
+    {{- with .initContainerImage }}
+    initContainerImage: {{ . }}
+    {{- end }}
+
+    {{- with .utilsContainer }}
+    utilsContainer:
+      {{- with .image }}
+      image: {{ . }}
+      {{- end }}
+
+      {{- with .imagePullPolicy }}
+      imagePullPolicy: {{ . }}
+      {{- end }}
+
+      {{- with .imageRegistrySecret }}
+      imageRegistrySecret:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+    {{- end }}
+  {{- end }}
+
+  {{- with .Values.deviceConfig.spec.devicePlugin }}
+  devicePlugin:
+    {{- with .devicePluginImage }}
+    devicePluginImage: {{ . }}
+    {{- end }}
+
+    {{- with .devicePluginImagePullPolicy }}
+    devicePluginImagePullPolicy: {{ . }}
+    {{- end }}
+
+    {{- with .devicePluginTolerations }}
+    devicePluginTolerations:
+      {{- toYaml . | nindent 6 }}
+    {{- end }}
+
+    {{- with .devicePluginArguments }}
+    devicePluginArguments:
+      {{- toYaml . | nindent 6 }}
+    {{- end }}
+
+    {{- if (hasKey . "enableNodeLabeller") }}
+    enableNodeLabeller: {{ .enableNodeLabeller }}
+    {{- end }}
+
+    {{- with .nodeLabellerImage }}
+    nodeLabellerImage: {{ . }}
+    {{- end }}
+
+    {{- with .nodeLabellerImagePullPolicy }}
+    nodeLabellerImagePullPolicy: {{ . }}
+    {{- end }}
+
+    {{- with .nodeLabellerTolerations }}
+    nodeLabellerTolerations:
+      {{- toYaml . | nindent 6 }}
+    {{- end }}
+
+    {{- with .nodeLabellerArguments }}
+    nodeLabellerArguments:
+      {{- toYaml . | nindent 6 }}
+    {{- end }}
+
+    {{- with .imageRegistrySecret }}
+    imageRegistrySecret:
+      {{- toYaml . | nindent 6 }}
+    {{- end }}
+
+    {{- with .upgradePolicy }}
+    upgradePolicy:
+      {{- toYaml . | nindent 6 }}
+    {{- end }}
+  {{- end }}
+
+  {{- with .Values.deviceConfig.spec.metricsExporter }}
+  metricsExporter:
+    {{- if (hasKey . "enable") }}
+    enable: {{ .enable }}
+    {{- end }}
+
+    {{- with .serviceType }}
+    serviceType: {{ . }}
+    {{- end }}
+
+    {{- if (hasKey . "port") }}
+    port: {{ .port }}
+    {{- end }}
+
+    {{- if (hasKey . "nodePort") }}
+    nodePort: {{ .nodePort }}
+    {{- end }}
+
+    {{- with .image }}
+    image: {{ . }}
+    {{- end }}
+
+    {{- with .imagePullPolicy }}
+    imagePullPolicy: {{ . }}
+    {{- end }}
+
+    {{- with .config }}
+    config:
+      {{- toYaml . | nindent 6 }}
+    {{- end }}
+
+    {{- with .tolerations }}
+    tolerations:
+      {{- toYaml . | nindent 6 }}
+    {{- end }}
+
+    {{- with .imageRegistrySecret }}
+    imageRegistrySecret:
+      {{- toYaml . | nindent 6 }}
+    {{- end }}
+
+    {{- with .selector }}
+    selector:
+      {{- toYaml . | nindent 6 }}
+    {{- end }}
+
+    {{- with .upgradePolicy }}
+    upgradePolicy:
+      {{- toYaml . | nindent 6 }}
+    {{- end }}
+
+    {{- with .rbacConfig }}
+    rbacConfig:
+      {{- if (hasKey . "enable") }}
+      enable: {{ .enable }}
+      {{- end }}
+
+      {{- with .image }}
+      image: {{ . }}
+      {{- end }}
+
+      {{- if (hasKey . "disableHttps")}}
+      disableHttps: {{ .disableHttps }}
+      {{- end }}
+
+      {{- with .secret }}
+      secret:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+
+      {{- with .clientCAConfigMap }}
+      clientCAConfigMap:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+
+      {{- with .staticAuthorization }}
+      staticAuthorization:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+    {{- end }}
+
+    {{- with .prometheus }}
+    prometheus:
+      {{- with .serviceMonitor }}
+      serviceMonitor:
+        {{- if (hasKey . "enable") }}
+        enable: {{ .enable }}
+        {{- end }}
+
+        {{- if (hasKey . "interval") }}
+        interval: {{ .interval }}
+        {{- end }}
+
+        {{- with .attachMetadata }}
+        attachMetadata:
+          {{- toYaml . | nindent 10 }}
+        {{- end }}
+
+        {{- if (hasKey . "honorLabels") }}
+        honorLabels: {{ .honorLabels }}
+        {{- end }}
+
+        {{- if (hasKey . "honorTimestamps") }}
+        honorTimestamps: {{ .honorTimestamps }}
+        {{- end }}
+
+        {{- with .labels }}
+        labels:
+          {{- toYaml . | nindent 10 }}
+        {{- end }}
+
+        {{- with .relabelings }}
+        relabelings:
+          {{- toYaml . | nindent 10 }}
+        {{- end }}
+
+        {{- with .metricRelabelings }}
+        metricRelabelings:
+          {{- toYaml . | nindent 10 }}
+        {{- end }}
+
+        {{- with .authorization }}
+        authorization:
+          {{- toYaml . | nindent 10 }}
+        {{- end }}
+
+        {{- with .tlsConfig }}
+        tlsConfig:
+          {{- toYaml . | nindent 10 }}
+        {{- end }}
+      {{- end }}
+    {{- end }}
+  {{- end }}
+
+  {{- with .Values.deviceConfig.spec.testRunner }}
+  testRunner:
+    {{- if (hasKey . "enable") }}
+    enable: {{ .enable }}
+    {{- end }}
+
+    {{- with .image }}
+    image: {{ . }}
+    {{- end }}
+
+    {{- with .imagePullPolicy }}
+    imagePullPolicy: {{ . }}
+    {{- end }}
+
+    {{- with .config }}
+    config:
+      {{- toYaml . | nindent 6 }}
+    {{- end }}
+
+    {{- with .logsLocation }}
+    logsLocation:
+      {{- toYaml . | nindent 6 }}
+    {{- end }}
+
+    {{- with .upgradePolicy }}
+    upgradePolicy:
+      {{- toYaml . | nindent 6 }}
+    {{- end }}
+
+    {{- with .tolerations }}
+    tolerations:
+      {{- toYaml . | nindent 6 }}
+    {{- end }}
+
+    {{- with .imageRegistrySecret }}
+    imageRegistrySecret:
+      {{- toYaml . | nindent 6 }}
+    {{- end }}
+
+    {{- with .selector }}
+    selector:
+      {{- toYaml . | nindent 6 }}
+    {{- end }}
+  {{- end }}
+
+  {{- with .Values.deviceConfig.spec.configManager }}
+  configManager:
+    {{- if (hasKey . "enable") }}
+    enable: {{ .enable }}
+    {{- end }}
+
+    {{- with .image }}
+    image: {{ . }}
+    {{- end }}
+
+    {{- with .imagePullPolicy }}
+    imagePullPolicy: {{ . }}
+    {{- end }}
+
+    {{- with .imageRegistrySecret }}
+    imageRegistrySecret:
+      {{- toYaml . | nindent 6 }}
+    {{- end }}
+
+    {{- with .config }}
+    config:
+      {{- toYaml . | nindent 6 }}
+    {{- end }}
+
+    {{- with .selector }}
+    selector:
+      {{- toYaml . | nindent 6 }}
+    {{- end }}
+
+    {{- with .upgradePolicy }}
+    upgradePolicy:
+      {{- toYaml . | nindent 6 }}
+    {{- end }}
+
+    {{- with .configManagerTolerations }}
+    configManagerTolerations:
+      {{- toYaml . | nindent 6 }}
+    {{- end }}
+  {{- end }}
+
+{{- end }}
+{{- end }}
