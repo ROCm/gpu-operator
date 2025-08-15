@@ -5,12 +5,12 @@
 Test runner is periodically watching for the device health status from device metrics exporter per 30 seconds. Once exporter reported GPU status is unhealthy, test runner will start to run one-time test on the unhealthy GPU. The test result will be exported as Kubernetes event.
 
 ```{warning}
-The RVS test recipes in the Test Runner aren't compatible with partitioned GPUs. To address this, either disable the test runner by setting ```spec/testRunner/enable``` to ```false```, or configure the test runner to run only on nodes without partitioned GPUs by using ```spec/testRunner/selector```.
+The RVS test recipes in the Test Runner aren't compatible with partitioned GPUs. To address this, either disable the test runner by setting ```spec.testRunner.enable``` to ```false```, or configure the test runner to run only on nodes without partitioned GPUs by using ```spec.testRunner.selector```.
 ```
 
 ## Configure test runner
 
-To start the Test Runner along with the GPU Operator, Device Metrics Exporter must be enabled since Test Runner is depending on the exported health status. Configure the ``` spec/metricsExporter/enable ``` field in deviceconfig Custom Resource(CR) to enable/disable metrics exporter and configure the ``` spec/testRunner/enable ``` field in deviceconfig Custom Resource(CR) to enable/disable test runner.
+To start the Test Runner daemonset along with the GPU Operator, Device Metrics Exporter must be enabled since Test Runner is depending on the exported health status. Configure the ``` spec.metricsExporter.enable ``` field in deviceconfig Custom Resource(CR) to enable/disable metrics exporter and configure the ``` spec.testRunner.enable ``` field in deviceconfig Custom Resource(CR) to enable/disable test runner.
 
 ```yaml
 # Specify the metrics exporter config
@@ -226,7 +226,8 @@ data:
                       "Recipe": "gst_single",
                       "Iterations": 1,
                       "StopOnFailure": true,
-                      "TimeoutSeconds": 600
+                      "TimeoutSeconds": 600,
+                      "Arguments": "--parallel"
                     }
                   ]
                 }
@@ -240,7 +241,8 @@ data:
                       "Recipe": "mem",
                       "Iterations": 1,
                       "StopOnFailure": true,
-                      "TimeoutSeconds": 600
+                      "TimeoutSeconds": 600,
+                      "Arguments": "--parallel"
                     }
                   ]
                 }
@@ -252,7 +254,7 @@ data:
     }
 ```
 
-The name of the config map should be put under the deviceconfigs Custom Resource's  ``` spec/testRunner/config/name ``` field:
+The name of the config map should be put under the deviceconfigs Custom Resource's  ``` spec.testRunner.config.name ``` field:
 
 ```yaml
 spec:
@@ -296,12 +298,15 @@ Config map explanation:
 
   * TimeoutSeconds:
 
-    Positive integer. Specifies the timeout for each test iteration. The default value is `600` seconds. If the running time exceeds this limit, the current test iteration will be terminated.
+    Positive integer. Specifies the timeout for each test iteration. The default value is `3600` seconds. If the running time exceeds this limit, the current test iteration will be terminated.
+
+  * Arguments:
+
+    You can pass in a string to specify the CLI arguments to execute the test, if there are multiple arguments or values they should be comma separated. E.g. `--parallel,--debug,5`. Please check the [Appendix](./appendix-test-recipe.md) for all available test arguments.
 
   * DeviceIDs (Only works for ```manual``` and ```pre-start-job-check``` test trigger):
 
-    List of string for GPU 0-inedxed ID. A selector to filter which GPU would run the test. For example, if there are 2 GPUs the GPU ID would be 0 and 1. To select GPU0 to run the test only, please configure the DeviceIDs:
-
+    List of string for GPU 0-indexed ID. A selector to filter which GPU would run the test. For example, if there are 2 GPUs the GPU ID would be 0 and 1. To select GPU0 to run the test only, please configure the DeviceIDs:
     ```yaml
     {
       "Recipe": "gst_single",
