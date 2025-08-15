@@ -37,7 +37,7 @@ helm install prometheus prometheus-community/kube-prometheus-stack \
 
 ```bash
 helm install slurm-operator oci://ghcr.io/slinkyproject/charts/slurm-operator \
-  --values=values-operator.yaml --version=0.1.0 --namespace=slinky --create-namespace
+  --values=values-operator.yaml --version=latest --namespace=slinky --create-namespace
 ```
 
 Make sure the operator deployed successfully with:
@@ -93,7 +93,7 @@ Install the Slurm Cluster helm chart
 
 ```bash
 helm install slurm oci://ghcr.io/slinkyproject/charts/slurm \
-  --values=values-slurm.yaml --version=0.1.0 --namespace=slurm --create-namespace
+  --values=values-slurm.yaml --version=latest --namespace=slurm --create-namespace
 ```
 
 Make sure the Slurm cluster deployed successfully with:
