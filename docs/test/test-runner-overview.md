@@ -10,25 +10,10 @@ The test runner component offers hardware validation, diagnostics and benchmarki
 
 - Reporting test results as Kubernetes events
 
-Under the hood the Device Test runner leverages the ROCm Validation Suite (RVS) to run any number of tests including GPU stress tests, PCIE bandwidth benchmarks, memory tests, and longer burn-in tests if so desired. The DeviceConfig custom resource has also been updated to provide new configuration options for the Test Runner:
+Under the hood the Device Test runner leverages the ROCm Validation Suite (RVS) and AMD GPU Field Health Check (AGFHC) toolkit to run any number of tests including GPU stress tests, PCIE bandwidth benchmarks, memory tests, and longer burn-in tests if so desired. 
 
-```bash
-  testRunner:
-    # To enable/disable the testrunner, disabled by default
-    enable: True
+```{note}
+The [public test runner image](https://hub.docker.com/r/rocm/test-runner) includes only RVS and supports RVS tests exclusively.
 
-    # testrunner image
-    image: docker.io/rocm/test-runner:v1.3.1
-
-    # image pull policy for the testrunner
-    # default value is IfNotPresent for valid tags, Always for no tag or "latest" tag
-    imagePullPolicy: "Always"
-
-    # specify the mount for test logs
-    logsLocation:
-      # mount path inside test runner container
-      mountPath: "/var/log/amd-test-runner"
-
-      # host path to be mounted into test runner container
-      hostPath: "/var/log/amd-test-runner"
+To access the full test runner image with both RVS and AGFHC toolkit, please contact your AMD representative for the required authorization process.
 ```
