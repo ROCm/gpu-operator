@@ -229,9 +229,23 @@ for node in "${nodeList[@]}"; do
 	# metrics exporter pod logs
 	KNS="${KUBECTL} -n ${GPUOPER_NS}"
 	EXPORTER_PODS=$(${KNS} get pods -o name --field-selector spec.nodeName=${node} -l "app.kubernetes.io/name=metrics-exporter" || continue)
+
 	if [ -z "$EXPORTER_PODS" ]; then
 		EXPORTER_PODS=$(${KNS} get pods -o name --field-selector spec.nodeName=${node} | grep -i metrics-exporter- || continue)
 	fi
+	mkdir -p ${TECH_SUPPORT_FILE}/${node}/metrics-exporter/smi
+	${KNS} exec -it ${EXPORTER_PODS} -- sh -c "server --version" >${TECH_SUPPORT_FILE}/${node}/metrics-exporter/exporterversion.txt || true
+	${KNS} exec -it ${EXPORTER_PODS} -- sh -c "metricsclient" >${TECH_SUPPORT_FILE}/${node}/metrics-exporter/exporterhealth.txt || true
+	${KNS} exec -it ${EXPORTER_PODS} -- sh -c "cat /etc/metrics/config.json" >${TECH_SUPPORT_FILE}/${node}/metrics-exporter/config.json || true
+	${KNS} exec -it ${EXPORTER_PODS} -- sh -c "metricsclient -pod -json" >${TECH_SUPPORT_FILE}/${node}/metrics-exporter/exporterpod.json || true
+	${KNS} exec -it ${EXPORTER_PODS} -- sh -c "metricsclient -npod" >${TECH_SUPPORT_FILE}/${node}/metrics-exporter/exporternode.txt || true
+	${KNS} exec -it ${EXPORTER_PODS} -- sh -c "amd-smi list" >${TECH_SUPPORT_FILE}/${node}/metrics-exporter/smi/amd-smi-list.txt || true
+	${KNS} exec -it ${EXPORTER_PODS} -- sh -c "amd-smi metric" >${TECH_SUPPORT_FILE}/${node}/metrics-exporter/smi/amd-smi-metric.txt || true
+	${KNS} exec -it ${EXPORTER_PODS} -- sh -c "amd-smi static" >${TECH_SUPPORT_FILE}/${node}/metrics-exporter/smi/amd-smi-static.txt || true
+	${KNS} exec -it ${EXPORTER_PODS} -- sh -c "amd-smi firmware" >${TECH_SUPPORT_FILE}/${node}/metrics-exporter/smi/amd-smi-firmware.txt || true
+	${KNS} exec -it ${EXPORTER_PODS} -- sh -c "amd-smi partition" >${TECH_SUPPORT_FILE}/${node}/metrics-exporter/smi/amd-smi-partition.txt || true
+	${KNS} exec -it ${EXPORTER_PODS} -- sh -c "amd-smi xgmi" >${TECH_SUPPORT_FILE}/${node}/metrics-exporter/smi/amd-smi-xgmi.txt || true
+
 	pod_logs $GPUOPER_NS "metrics-exporter" $node $EXPORTER_PODS
 
 	# device config manager pod logs
