@@ -10,6 +10,7 @@ The AMD GPU Operator simplifies the deployment and management of AMD Instinct GP
 - Support for both vanilla Kubernetes and OpenShift environments
 - Simplified GPU resource allocation for containers
 - Automatic worker node labeling for GPU-enabled nodes
+- GPU health monitoring and troubleshooting
 
 ## Compatibility
 
@@ -17,6 +18,8 @@ The AMD GPU Operator simplifies the deployment and management of AMD Instinct GP
 
 | **GPUs** | |
 | --- | --- |
+| AMD Instinct™ MI355X | ✅ Supported |
+| AMD Instinct™ MI350X | ✅ Supported |
 | AMD Instinct™ MI325X | ✅ Supported |
 | AMD Instinct™ MI300X | ✅ Supported |
 | AMD Instinct™ MI250 | ✅ Supported |
@@ -54,7 +57,7 @@ Below is a matrix of supported Operating systems and the corresponding Kubernete
 </table>
 
 
-Please refer to the [ROCM documentation](https://rocm.docs.amd.com/en/latest/compatibility/compatibility-matrix.html) for the compatability matrix for the AMD GPU DKMS driver.
+Please refer to the [ROCM documentation](https://rocm.docs.amd.com/en/latest/compatibility/compatibility-matrix.html) for the compatibility matrix for the AMD GPU DKMS driver.
 
 ## Prerequisites
 
