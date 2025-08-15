@@ -1,0 +1,74 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ include "helm-charts-k8s.fullname" . }}-config-manager
+  labels:
+    app.kubernetes.io/component: amd-gpu
+    app.kubernetes.io/part-of: amd-gpu
+  {{- include "helm-charts-k8s.labels" . | nindent 4 }}
+rules:
+- apiGroups:
+  - ""
+  resources:
+  - events
+  verbs:
+  - create
+  - get
+  - list
+  - update
+- apiGroups:
+  - ""
+  resources:
+  - nodes
+  verbs:
+  - get
+  - list
+  - watch
+  - update
+- apiGroups:
+  - "apps"
+  resources:
+  - daemonsets
+  verbs:
+  - get
+  - list
+  - watch
+  - delete
+  - create
+  - update
+- apiGroups:
+  - ""
+  resources:
+  - pods
+  verbs:
+  - get
+  - list
+  - watch
+  - delete
+  - create
+  - update
+- apiGroups:
+  - kmm.sigs.x-k8s.io
+  resources:
+  - nodemodulesconfigs
+  - nodemodulesconfigs/status
+  verbs:
+  - delete
+  - get
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: {{ include "helm-charts-k8s.fullname" . }}-config-manager
+  labels:
+    app.kubernetes.io/component: amd-gpu
+    app.kubernetes.io/part-of: amd-gpu
+  {{- include "helm-charts-k8s.labels" . | nindent 4 }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: '{{ include "helm-charts-k8s.fullname" . }}-config-manager'
+subjects:
+- kind: ServiceAccount
+  name: amd-gpu-operator-config-manager
+  namespace: '{{ .Release.Namespace }}'

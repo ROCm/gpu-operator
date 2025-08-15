@@ -1,0 +1,48 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: pre-upgrade-check
+  namespace: {{ .Release.Namespace }}
+  annotations:
+    # hook will be executed before helm upgrade
+    "helm.sh/hook": pre-upgrade,pre-rollback
+    # don't cleanup the job on hook failure
+    "helm.sh/hook-delete-policy": before-hook-creation, hook-succeeded
+spec:
+  backoffLimit: 0 # once the job finished first run, don't retry to create another pod
+  ttlSecondsAfterFinished: 60 # job info will be kept for 1 min then deleted
+  template:
+    spec:
+      serviceAccountName: {{ include "helm-charts-k8s.fullname" . }}-controller-manager
+      containers:
+        - name: pre-upgrade-check
+          image: {{ .Values.controllerManager.manager.image.repository }}:{{ .Values.controllerManager.manager.image.tag }}
+          command:
+            - /bin/sh
+            - -c
+            - |
+              # List all DeviceConfig CRs
+              deviceconfigs=$(kubectl get deviceconfigs -n {{ .Release.Namespace }} -o json)
+
+              echo "DeviceConfigs JSON:"
+              echo "$deviceconfigs" | jq .
+
+              # Check if any UpgradeState is in the blocked states
+              blocked_states='["Upgrade-Not-Started", "Upgrade-Started", "Install-In-Progress", "Upgrade-In-Progress"]'
+              if echo "$deviceconfigs" | jq --argjson blocked_states "$blocked_states" -e '
+                  .items[] |
+                  .status.nodeModuleStatus // {} |
+                  to_entries |
+                  any(.value.status as $state | ($blocked_states | index($state)))' > /dev/null; then
+                echo "Upgrade blocked: Some DeviceConfigs are in a disallowed UpgradeState."
+                exit 1
+              else
+                echo "All DeviceConfigs are in an allowed state. Proceeding with upgrade."
+                exit 0
+              fi
+      {{- if .Values.controllerManager.manager.imagePullSecrets }}
+      imagePullSecrets:
+      - name: {{ .Values.controllerManager.manager.imagePullSecrets }}
+      {{- end }}
+      restartPolicy: Never
+# Run helm upgrade with --no-hooks to bypass the pre-upgrade hook 

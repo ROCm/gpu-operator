@@ -1,0 +1,194 @@
+{{- if .Values.installdefaultNFDRule }}
+apiVersion: nfd.k8s-sigs.io/v1alpha1
+kind: NodeFeatureRule
+metadata:
+  name: amd-gpu-label-nfd-rule
+  # the PCI info is from these websites:
+  # source1: https://admin.pci-ids.ucw.cz/read/PC/1002
+  # source2: https://devicehunt.com/view/type/pci/vendor/1002
+spec:
+  rules:
+  - name: amd-vgpu
+    labels:
+      feature.node.kubernetes.io/amd-vgpu: "true"
+    matchAny:
+      # AMD Instinct
+      - matchFeatures:
+          - feature: pci.device
+            matchExpressions:
+                vendor: {op: In, value: ["1002"]}
+                device: {op: In, value: ["7410"]} # MI210 VF
+      - matchFeatures:
+          - feature: pci.device
+            matchExpressions:
+                vendor: {op: In, value: ["1002"]}
+                device: {op: In, value: ["74b5"]} # MI300X VF
+      - matchFeatures:
+          - feature: pci.device
+            matchExpressions:
+                vendor: {op: In, value: ["1002"]}
+                device: {op: In, value: ["74b9"]} # Mi325X VF
+      - matchFeatures:
+          - feature: pci.device
+            matchExpressions:
+                vendor: {op: In, value: ["1002"]}
+                device: {op: In, value: ["75b0"]} # Mi350X VF
+      - matchFeatures:
+          - feature: pci.device
+            matchExpressions:
+                vendor: {op: In, value: ["1002"]}
+                device: {op: In, value: ["75b3"]} # Mi355X VF
+      # AMD Radeon Pro
+      - matchFeatures:
+          - feature: pci.device
+            matchExpressions:
+                vendor: {op: In, value: ["1002"]}
+                device: {op: In, value: ["7461"]} # Radeon Pro V710 MxGPU
+      - matchFeatures:
+          - feature: pci.device
+            matchExpressions:
+                vendor: {op: In, value: ["1002"]}
+                device: {op: In, value: ["73ae"]} # Radeon Pro V620 MxGPU
+  - name: amd-gpu
+    labels:
+      feature.node.kubernetes.io/amd-gpu: "true"
+    matchAny:
+      # AMD Instinct
+      - matchFeatures:
+          - feature: pci.device
+            matchExpressions:
+              vendor: {op: In, value: ["1002"]}
+              device: {op: In, value: ["75a3"]} # MI355X
+      - matchFeatures:
+          - feature: pci.device
+            matchExpressions:
+              vendor: {op: In, value: ["1002"]}
+              device: {op: In, value: ["75a0"]} # MI350X
+      - matchFeatures:
+          - feature: pci.device
+            matchExpressions:
+              vendor: {op: In, value: ["1002"]}
+              device: {op: In, value: ["74a5"]} # MI325X
+      - matchFeatures:
+          - feature: pci.device
+            matchExpressions:
+              vendor: {op: In, value: ["1002"]}
+              device: {op: In, value: ["74a2"]} # MI308X
+      - matchFeatures:
+          - feature: pci.device
+            matchExpressions:
+              vendor: {op: In, value: ["1002"]}
+              device: {op: In, value: ["74b6"]} # MI308X
+      - matchFeatures:
+          - feature: pci.device
+            matchExpressions:
+              vendor: {op: In, value: ["1002"]}
+              device: {op: In, value: ["74a8"]} # MI308X HF
+      - matchFeatures:
+          - feature: pci.device
+            matchExpressions:
+              vendor: {op: In, value: ["1002"]}
+              device: {op: In, value: ["74a0"]} # MI300A
+      - matchFeatures:
+          - feature: pci.device
+            matchExpressions:
+              vendor: {op: In, value: ["1002"]}
+              device: {op: In, value: ["74a1"]} # MI300X
+      - matchFeatures:
+          - feature: pci.device
+            matchExpressions:
+              vendor: {op: In, value: ["1002"]}
+              device: {op: In, value: ["74a9"]} # MI300X HF
+      - matchFeatures:
+          - feature: pci.device
+            matchExpressions:
+              vendor: {op: In, value: ["1002"]}
+              device: {op: In, value: ["74bd"]} # MI300X HF
+      - matchFeatures:
+          - feature: pci.device
+            matchExpressions:
+              vendor: {op: In, value: ["1002"]}
+              device: {op: In, value: ["740f"]} # MI210
+      - matchFeatures:
+          - feature: pci.device
+            matchExpressions:
+              vendor: {op: In, value: ["1002"]}
+              device: {op: In, value: ["7408"]} # MI250X
+      - matchFeatures:
+          - feature: pci.device
+            matchExpressions:
+              vendor: {op: In, value: ["1002"]}
+              device: {op: In, value: ["740c"]} # MI250/MI250X
+      - matchFeatures:
+          - feature: pci.device
+            matchExpressions:
+              vendor: {op: In, value: ["1002"]}
+              device: {op: In, value: ["738c"]} # MI100
+      - matchFeatures:
+          - feature: pci.device
+            matchExpressions:
+              vendor: {op: In, value: ["1002"]}
+              device: {op: In, value: ["738e"]} # MI100
+      # AMD Radeon Pro
+      - matchFeatures:
+          - feature: pci.device
+            matchExpressions:
+              vendor: {op: In, value: ["1002"]}
+              device: {op: In, value: ["7460"]} # V710
+      - matchFeatures:
+          - feature: pci.device
+            matchExpressions:
+              vendor: {op: In, value: ["1002"]}
+              device: {op: In, value: ["7448"]} # W7900
+      - matchFeatures:
+          - feature: pci.device
+            matchExpressions:
+              vendor: {op: In, value: ["1002"]}
+              device: {op: In, value: ["744a"]} # W7900 Dual Slot
+      - matchFeatures:
+          - feature: pci.device
+            matchExpressions:
+              vendor: {op: In, value: ["1002"]}
+              device: {op: In, value: ["745e"]} # W7800
+      - matchFeatures:
+          - feature: pci.device
+            matchExpressions:
+              vendor: {op: In, value: ["1002"]}
+              device: {op: In, value: ["73a2"]} # W6900X
+      - matchFeatures:
+          - feature: pci.device
+            matchExpressions:
+              vendor: {op: In, value: ["1002"]}
+              device: {op: In, value: ["73a3"]} # W6800 GL-XL
+      - matchFeatures:
+          - feature: pci.device
+            matchExpressions:
+              vendor: {op: In, value: ["1002"]}
+              device: {op: In, value: ["73ab"]} # W6800X / W6800X Duo
+      - matchFeatures:
+          - feature: pci.device
+            matchExpressions:
+              vendor: {op: In, value: ["1002"]}
+              device: {op: In, value: ["73a1"]} # V620
+      # AMD Radeon
+      - matchFeatures:
+          - feature: pci.device
+            matchExpressions:
+              vendor: {op: In, value: ["1002"]}
+              device: {op: In, value: ["7550"]} # RX 9070 / 9070 XT
+      - matchFeatures:
+          - feature: pci.device
+            matchExpressions:
+              vendor: {op: In, value: ["1002"]}
+              device: {op: In, value: ["744c"]} # RX 7900 XT / 7900 XTX / 7900 GRE / 7900M
+      - matchFeatures:
+          - feature: pci.device
+            matchExpressions:
+              vendor: {op: In, value: ["1002"]}
+              device: {op: In, value: ["73af"]} # RX 6900 XT
+      - matchFeatures:
+          - feature: pci.device
+            matchExpressions:
+              vendor: {op: In, value: ["1002"]}
+              device: {op: In, value: ["73bf"]} # RX 6800 / 6800 XT / 6900 XT
+{{- end }}
