@@ -1,0 +1,15 @@
+/bin/
+/manager
+*.tgz
+/*gpu-operator*.tgz
+/helm-charts-k8s/charts/*.tgz
+/helm-charts-openshift/charts/*.tgz
+*.out
+
+# node app for e2e test
+id_rsa*
+nodeapp
+
+# Sphinx documentation
+_build/
+.venv/
