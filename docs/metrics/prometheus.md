@@ -96,10 +96,10 @@ These selectors help Prometheus identify the correct ServiceMonitor to use in th
 
 ## Using with device-metrics-exporter Grafana Dashboards
 
-The [ROCm/device-metrics-exporter](https://github.com/ROCm/device-metrics-exporter) repository includes Grafana dashboards designed to visualize the exported metrics, particularly focusing on job-level or pod-level GPU usage. These dashboards rely on specific labels exported by the metrics exporter, such as:
+The [ROCm/device-metrics-exporter](https://github.com/ROCm/device-metrics-exporter/tree/main/grafana) repository includes Grafana dashboards designed to visualize the exported metrics, particularly focusing on job-level or pod-level GPU usage. More details can be found in [Device Metrics Exporter Grafana](https://instinct.docs.amd.com/projects/device-metrics-exporter/en/main/integrations/prometheus-grafana.html#prometheus-and-grafana-integration). These dashboards rely on specific labels exported by the metrics exporter, such as:
 
-*   `pod`: The name of the workload Pod currently utilizing the GPU.
-*   `job_id`: An identifier for the job associated with the workload Pod.
+*   `pod`: The name of the kubernetes workload Pod currently utilizing the GPU.
+*   `job_id`: An identifier for the slurm job associated with the workload.
 
 ### The `pod` Label Conflict
 
