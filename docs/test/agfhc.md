@@ -143,6 +143,7 @@ As for the AGFHC arguments, please refer to AGFHC official documents for the ful
 | `--ignore-performance`       | Set to ignore performance to skip the performance analysis and perform only RAS/dmesg checks.         | Default: performance analysis enabled            |
 | `--known-dmesg-only`         | Do not fail on any unknown dmesg, but mark them as expected.                                          | Default: any unknown dmesg fails                 |
 | `--disable-hsio-gather`      | Set to disable hsio gather.                                                                           | Default: enabled                                 |
+| `--exit-on-failure`, `-e`    | Exits the execution of test cases on failure of a test, marking remaining as skipped.                 | Default: keep running without exiting on failure | 
 
 # Kubernetes events
 
