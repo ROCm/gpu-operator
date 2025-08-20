@@ -197,6 +197,7 @@ EOF
 ${KUBECTL} apply -f /tmp/techsupport-${UUID}.json
 
 cleanup() {
+	tar cfz ${TECH_SUPPORT_FILE}.tgz ${TECH_SUPPORT_FILE} && rm -rf ${TECH_SUPPORT_FILE} && log "${TECH_SUPPORT_FILE}.tgz is ready"
         ${KUBECTL} delete -f /tmp/techsupport-${UUID}.json
 }
 
@@ -284,5 +285,3 @@ for node in "${nodeList[@]}"; do
 		${KUBECTL} exec ${dbgpod} -- sh -c "dmesg || true" >${TECH_SUPPORT_FILE}/${node}/dmesg.txt
 	done
 done
-
-tar cfz ${TECH_SUPPORT_FILE}.tgz ${TECH_SUPPORT_FILE} && rm -rf ${TECH_SUPPORT_FILE} && log "${TECH_SUPPORT_FILE}.tgz is ready"

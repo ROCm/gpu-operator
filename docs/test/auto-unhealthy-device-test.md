@@ -175,7 +175,7 @@ in the above example ```35824``` is the GPU's KFD ID reported by amd-smi (in roc
   * ```namespace``` is the namespace where the test runner is running.
   * ```labels``` contains all the information regarding the event and is helpful for filtering the event.
 
-    ```yaml
+    ```json
     "labels": {
       "testrunner.amd.com/category": "gpu_health_check",
       "testrunner.amd.com/gpu.id.0": "35824",
