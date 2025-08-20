@@ -35,7 +35,7 @@ package kmmmodule
 import (
 	"context"
 	"fmt"
-	reflect "reflect"
+	"reflect"
 
 	//"gopkg.in/yaml.v3"
 	"os"
