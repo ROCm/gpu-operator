@@ -694,6 +694,15 @@ spec:
                     maximum: 32767
                     minimum: 30000
                     type: integer
+                  podResourceAPISocketPath:
+                    default: /var/lib/kubelet/pod-resources
+                    description: |-
+                      Set the host path for pod-resource kubelet.socket,
+                      vanila kubernetes path is /var/lib/kubelet/pod-resources
+                      microk8s path is /var/snap/microk8s/common/var/lib/kubelet/pod-resources/
+                      path is an absolute unix path that allows a trailing slash
+                    pattern: ^(/[^/\0]+)*(/)?$
+                    type: string
                   port:
                     default: 5000
                     description: Port is the internal port used for in-cluster and node

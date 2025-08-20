@@ -31,7 +31,7 @@ spec:
         - /node-problem-detector
         - --logtostderr
         - --config.custom-plugin-monitor=/config/custom-plugin-monitor.json
-        image: registry.test.pensando.io:5000/node-problem-detector:v0.8.19
+        image: registry.k8s.io/node-problem-detector/node-problem-detector:v0.8.19
         resources:
           limits:
             cpu: 10m
