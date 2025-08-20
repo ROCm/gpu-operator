@@ -62,6 +62,7 @@ import (
 
 const (
 	defaultUtilsImage          = "docker.io/rocm/gpu-operator-utils:latest"
+	defaultOcUtilsImage        = "docker.io/rocm/gpu-operator-utils:rhubi-latest"
 	defaultSAName              = "amd-gpu-operator-utils-container"
 	driverUpgradeStateLabelKey = "operator.amd.com/gpu-driver-upgrade-state"
 	upgradeRequiredLabelValue  = "upgrade-required"
@@ -99,13 +100,13 @@ type upgradeMgrAPI interface {
 	GetNodeBootId(nodeName string) string
 }
 
-func newUpgradeMgrHandler(client client.Client, k8sConfig *rest.Config) upgradeMgrAPI {
+func newUpgradeMgrHandler(client client.Client, k8sConfig *rest.Config, isOpenShift bool) upgradeMgrAPI {
 	k8sIntf, err := kubernetes.NewForConfig(k8sConfig)
 	if err != nil {
 		return nil
 	}
 	return &upgradeMgr{
-		helper: newUpgradeMgrHelperHandler(client, k8sIntf),
+		helper: newUpgradeMgrHelperHandler(client, k8sIntf, isOpenShift),
 	}
 }
 
@@ -358,6 +359,7 @@ type upgradeMgrHelper struct {
 	nodeBootID           *sync.Map
 	init                 bool
 	currentSpec          driverSpec
+	isOpenShift          bool
 }
 
 type driverSpec struct {
@@ -366,13 +368,14 @@ type driverSpec struct {
 }
 
 // Initialize upgrade manager helper interface
-func newUpgradeMgrHelperHandler(client client.Client, k8sInterface kubernetes.Interface) upgradeMgrHelperAPI {
+func newUpgradeMgrHelperHandler(client client.Client, k8sInterface kubernetes.Interface, isOpenShift bool) upgradeMgrHelperAPI {
 	return &upgradeMgrHelper{
 		client:               client,
 		k8sInterface:         k8sInterface,
 		nodeStatus:           new(sync.Map),
 		nodeUpgradeStartTime: new(sync.Map),
 		nodeBootID:           new(sync.Map),
+		isOpenShift:          isOpenShift,
 	}
 }
 
@@ -525,6 +528,7 @@ func (h *upgradeMgrHelper) isNodeReady(ctx context.Context, node *v1.Node, devic
 	if nodeStatus, ok := deviceConfig.Status.NodeModuleStatus[node.Name]; ok {
 		// If driver install is done but CR version not specified, get default version
 		driverVersion, _ := utils.GetDriverVersion(*node, *deviceConfig)
+
 		if strings.HasSuffix(nodeStatus.ContainerImage, driverVersion) {
 
 			currentState := h.getNodeStatus(node.Name)
@@ -534,8 +538,9 @@ func (h *upgradeMgrHelper) isNodeReady(ctx context.Context, node *v1.Node, devic
 				return true
 			}
 
-			// Move to failure state if uncordon fails
+			// Uncordon the node
 			if err := h.cordonOrUncordonNode(ctx, deviceConfig, node, false); err != nil {
+				// Move to failure state if uncordon fails
 				h.setNodeStatus(ctx, node.Name, amdv1alpha1.UpgradeStateUncordonFailed)
 				return false
 			}
@@ -643,7 +648,6 @@ func (h *upgradeMgrHelper) isUpgradePolicyViolated(upgradeInProgress int, upgrad
 	}
 
 	return maxParallelAllowed, false
-
 }
 
 func (h *upgradeMgrHelper) getUpgradeStartTime(nodeName string) string {
@@ -1294,6 +1298,9 @@ func (h *upgradeMgrHelper) getRebootPod(nodeName string, dc *amdv1alpha1.DeviceC
 	nodeSelector := map[string]string{}
 	nodeSelector["kubernetes.io/hostname"] = nodeName
 	utilsImage := defaultUtilsImage
+	if h.isOpenShift {
+		utilsImage = defaultOcUtilsImage
+	}
 	serviceaccount := defaultSAName
 	if dc.Spec.CommonConfig.UtilsContainer.Image != "" {
 		utilsImage = dc.Spec.CommonConfig.UtilsContainer.Image
