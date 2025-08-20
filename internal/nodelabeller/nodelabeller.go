@@ -49,14 +49,16 @@ import (
 )
 
 const (
-	rocmDevicePluginRepo           = "rocm/k8s-device-plugin"
-	rocmUbiNodeLabellerRepo        = "rocm/k8s-node-labeller"
-	defaultNodeLabellerImage       = "rocm/k8s-device-plugin:labeller-latest"
-	defaultUbiNodeLabellerImage    = "rocm/k8s-node-labeller:rhubi-latest"
-	defaultNodeLabellerCommandArgs = "./k8s-node-labeller -vram -cu-count -simd-count -device-id -family -product-name -driver-version"
-	defaultInitContainerImage      = "busybox:1.36"
-	defaultBlacklistFileName       = "blacklist-amdgpu.conf"
-	openShiftBlacklistFileName     = "blacklist-amdgpu-by-operator.conf"
+	rocmDevicePluginRepo        = "rocm/k8s-device-plugin"
+	rocmUbiNodeLabellerRepo     = "rocm/k8s-node-labeller"
+	defaultNodeLabellerImage    = "rocm/k8s-device-plugin:labeller-latest"
+	defaultUbiNodeLabellerImage = "rocm/k8s-node-labeller:rhubi-latest"
+	containerCommandArgs        = "./k8s-node-labeller -vram -cu-count -simd-count -device-id -family -product-name -driver-version"
+	vfPassthroughCommandArgs    = "./k8s-node-labeller -device-id -driver-version"
+	pfPassthroughCommandArgs    = "./k8s-node-labeller -device-id"
+	defaultInitContainerImage   = "busybox:1.36"
+	defaultBlacklistFileName    = "blacklist-amdgpu.conf"
+	openShiftBlacklistFileName  = "blacklist-amdgpu-by-operator.conf"
 )
 
 //go:generate mockgen -source=nodelabeller.go -package=nodelabeller -destination=mock_nodelabeller.go NodeLabeller
@@ -159,7 +161,12 @@ func (nl *nodeLabeller) SetNodeLabellerAsDesired(ds *appsv1.DaemonSet, devConfig
 		imagePullSecrets = append(imagePullSecrets, *devConfig.Spec.DevicePlugin.ImageRegistrySecret)
 	}
 	matchLabels := map[string]string{"daemonset-name": devConfig.Name}
-	commandArgs := defaultNodeLabellerCommandArgs
+	commandArgs := containerCommandArgs
+	if devConfig.Spec.Driver.DriverType == utils.DriverTypeVFPassthrough {
+		commandArgs = vfPassthroughCommandArgs
+	} else if devConfig.Spec.Driver.DriverType == utils.DriverTypePFPassthrough {
+		commandArgs = pfPassthroughCommandArgs
+	}
 
 	nodeLabellerArguments := devConfig.Spec.DevicePlugin.NodeLabellerArguments
 	for _, label := range nodeLabellerArguments {

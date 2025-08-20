@@ -8,7 +8,7 @@ rules:
   verbs: ["get", "list", "update"]
 - apiGroups: [""]
   resources: ["pods"]
-  verbs: ["get", "list"]
+  verbs: ["get", "list", "watch"]
 - apiGroups:
   - security.openshift.io
   resourceNames:

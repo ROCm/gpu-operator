@@ -276,11 +276,24 @@ func (km *kmmModule) SetDevicePluginAsDesired(ds *appsv1.DaemonSet, devConfig *a
 	commandArgs := "./k8s-device-plugin -logtostderr=true -stderrthreshold=INFO -v=5 -pulse=30"
 
 	devicePluginArguments := devConfig.Spec.DevicePlugin.DevicePluginArguments
+
+	// Default resource_naming_strategy to "mixed" for PF and VF passthrough if not set
+	if _, exists := devicePluginArguments["resource_naming_strategy"]; !exists {
+		if devConfig.Spec.Driver.DriverType == utils.DriverTypePFPassthrough ||
+			devConfig.Spec.Driver.DriverType == utils.DriverTypeVFPassthrough {
+			if devicePluginArguments == nil {
+				devicePluginArguments = make(map[string]string)
+			}
+			devicePluginArguments["resource_naming_strategy"] = "mixed"
+		}
+	}
+
 	for key, val := range devicePluginArguments {
 		commandArgs += " -" + key + "=" + val
 	}
 
 	command := []string{"sh", "-c", commandArgs}
+
 	nodeSelector := map[string]string{}
 	for key, val := range devConfig.Spec.Selector {
 		nodeSelector[key] = val
