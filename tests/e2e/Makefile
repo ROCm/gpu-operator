@@ -7,13 +7,14 @@ E2E_ROCM_CONTAINER_IMAGE ?= rocm/rocm-terminal:latest
 E2E_KUBE_RBAC_PROXY_CURL_IMAGE ?= curlimages/curl:7.78.0
 E2E_UBUNTU_BASE_IMAGE ?= ubuntu:22.04
 E2E_MINIO_IMAGE ?= minio/minio:latest
-E2E_EXPORTER_MOCK_IMAGE ?= rocm/device-metrics-exporter:v1.3.1
+E2E_EXPORTER_MOCK_IMAGE ?= rocm/device-metrics-exporter:v1.4.0
+E2E_EXPORTER_MOCK_IMAGE_2 ?= rocm/device-metrics-exporter:v1.3.1
 E2E_EXPORTER_IMAGE ?= rocm/device-metrics-exporter:$(PROJECT_VERSION)
 E2E_DEVICE_PLUGIN_IMAGE ?= rocm/k8s-device-plugin:latest
 E2E_NODE_LABELLER_IMAGE ?= rocm/k8s-device-plugin:labeller-latest
 E2E_DEVICE_PLUGIN_IMAGE_2 ?= rocm/k8s-device-plugin:1.31.0.6
 E2E_NODE_LABELLER_IMAGE_2 ?= rocm/k8s-device-plugin:labeller-1.31.0.6
-E2E_TEST_RUNNER_IMAGE ?= rocm/test-runner:v1.3.1
+E2E_TEST_RUNNER_IMAGE ?= rocm/test-runner:v1.4.0
 E2E_KUBEVIRT_DEVICE_PLUGIN_IMAGE ?= rocm/k8s-device-plugin:latest
 E2E_KUBEVIRT_NODE_LABELLER_IMAGE ?= rocm/k8s-device-plugin:labeller-latest
 

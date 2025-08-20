@@ -6,6 +6,7 @@ metadata:
 data:
   config.json: |
     {
+      "ServerPort": 5000,
       "GPUConfig": {
         "Fields": [
           "GPU_NODES_TOTAL",
