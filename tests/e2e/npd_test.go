@@ -216,11 +216,13 @@ func (s *E2ESuite) TestNodeProblemDetector(c *C) {
 	assert.Errorf(c, err, fmt.Sprintf("expected no config to be present. but config %v exists", s.cfgName))
 
 	exporterEnable := true
+	driverEnable := false
 	devCfg := s.getDeviceConfig(c)
 	devCfg.Spec.MetricsExporter.Enable = &exporterEnable
 	devCfg.Spec.MetricsExporter.Image = exporterImage
 	devCfg.Spec.MetricsExporter.ImagePullPolicy = "Always"
 	devCfg.Spec.MetricsExporter.Port = 5000
+	devCfg.Spec.Driver.Enable = &driverEnable
 
 	s.createDeviceConfig(devCfg, c)
 	s.checkMetricsExporterStatus(devCfg, s.ns, corev1.ServiceTypeClusterIP, c)

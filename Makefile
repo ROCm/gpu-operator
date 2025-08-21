@@ -307,7 +307,6 @@ docker-build-env: ## Build the docker shell container.
 			-f Dockerfile.build .; \
 	fi
 
-
 .PHONY: helm
 helm:
 	if [ -z ${OPENSHIFT} ]; then \

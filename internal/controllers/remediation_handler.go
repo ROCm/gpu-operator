@@ -35,9 +35,10 @@ package controllers
 import (
 	"context"
 	"fmt"
-	"gopkg.in/yaml.v3"
 	"strings"
 	"time"
+
+	"gopkg.in/yaml.v3"
 
 	amdv1alpha1 "github.com/ROCm/gpu-operator/api/v1alpha1"
 
@@ -56,7 +57,7 @@ const (
 	RemediationTaintKey      = "amd-gpu-unhealthy"
 	DefaultConfigMapSuffix   = "default-conditional-workflow-mappings"
 	DefaultTemplate          = "default-template"
-	TestRunnerImage          = "registry.test.pensando.io:5000/test-runner:agfhc-latest"
+	TestRunnerImage          = "docker.io/rocm/test-runner:agfhc-v1.4.0"
 	TestRunnerServiceAccount = "amd-gpu-operator-test-runner"
 )
 
