@@ -13,7 +13,9 @@ The test runner component offers hardware validation, diagnostics and benchmarki
 Under the hood the Device Test runner leverages the ROCm Validation Suite (RVS) and AMD GPU Field Health Check (AGFHC) toolkit to run any number of tests including GPU stress tests, PCIE bandwidth benchmarks, memory tests, and longer burn-in tests if so desired. 
 
 ```{note}
-The [public test runner image](https://hub.docker.com/r/rocm/test-runner) includes only RVS and supports RVS tests exclusively.
+1. The [public test runner image](https://hub.docker.com/r/rocm/test-runner) only supports executing RVS test.
 
-To access the full test runner image with both RVS and AGFHC toolkit, please contact your AMD representative for the required authorization process.
+2. The AGFHC toolkit is NOT publicly accessible and requires special authorization. It can be used not only with the test runner but also in various other workflows. For more details, see the [Instinct documentation website](https://instinct.docs.amd.com/).
+
+3. To access the full test runner image, which includes both RVS and the AGFHC toolkit, please contact your AMD representative to complete the authorization process.
 ```
