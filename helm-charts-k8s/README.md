@@ -313,4 +313,3 @@ Kubernetes: `>= 1.29.0-0`
 | kmm.webhookService.ports[0].targetPort | int | `9443` |  |
 | kmm.webhookService.type | string | `"ClusterIP"` |  |
 | remediation-controller.controller.image | string | `"quay.io/argoproj/workflow-controller:v3.6.5"` |  |
-
