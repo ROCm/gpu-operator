@@ -1,5 +1,15 @@
 # AGFHC (AMD GPU Field Health Check) Support
-In addition to RVS (ROCm Validation Suite), the test runner supports AGFHC (AMD GPU Field Health Check) to ensure the health of AMD GPUs in production environments.
+AGFHC provides command-line interface for running GPU health checks, delivering consistent PASS/FAIL results with detailed logs and results.json for failures. Tests can be grouped into recipes (e.g., short or extended runs) to cover common scenarios, and updates to AGFHC improve coverage without requiring user changes. 
+
+In addition to RVS (ROCm Validation Suite), the test runner also supports AGFHC (AMD GPU Field Health Check) to ensure the health of AMD GPUs in production environments. The test runner image leverages AGFHC in a containerized environment to simplify execution and deployment.
+
+```{note}
+1. The [public test runner image](https://hub.docker.com/r/rocm/test-runner) only supports executing RVS test.
+
+2. The AGFHC toolkit is NOT publicly accessible and requires special authorization. It can be used not only with the test runner but also in various other workflows. For more details, see the [Instinct documentation website](https://instinct.docs.amd.com/).
+
+3. To access the full test runner image, which includes both RVS and the AGFHC toolkit, please contact your AMD representative to complete the authorization process.
+```
 
 # Triggering AGFHC Tests
 
