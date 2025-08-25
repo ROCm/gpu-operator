@@ -51,8 +51,8 @@ spec:
                 properties:
                   initContainerImage:
                     description: InitContainerImage is being used for the operands
-                      pods, i.e. metrics exporter, test runner, device plugin and
-                      node labeller
+                      pods, i.e. metrics exporter, test runner, device plugin, device
+                      config manager and node labeller
                     type: string
                   utilsContainer:
                     description: UtilsContainer contains parameters to configure operator's
