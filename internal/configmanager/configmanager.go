@@ -54,6 +54,7 @@ const (
 	defaultConfigManagerImage = "docker.io/rocm/device-config-manager:v1.4.0"
 	ConfigManagerName         = "device-config-manager"
 	defaultSAName             = "amd-gpu-operator-config-manager"
+	defaultInitContainerImage = "busybox:1.36"
 )
 
 var configManagerLabelPair = []string{"app.kubernetes.io/name", ConfigManagerName}
@@ -289,6 +290,10 @@ func (nl *configManager) SetConfigManagerAsDesired(ds *appsv1.DaemonSet, devConf
 
 	serviceaccount := defaultSAName
 	gracePeriod := int64(1)
+	initContainerImage := defaultInitContainerImage
+	if devConfig.Spec.CommonConfig.InitContainerImage != "" {
+		initContainerImage = devConfig.Spec.CommonConfig.InitContainerImage
+	}
 	initContainerCommand := "if [ \"$SIM_ENABLE\" = \"true\" ]; then exit 0; fi; while [ ! -d /host-sys/class/kfd ] || [ ! -d /host-sys/module/amdgpu/drivers/ ]; do echo \"amdgpu driver is not loaded \"; sleep 2 ;done"
 	switch devConfig.Spec.Driver.DriverType {
 	case utils.DriverTypeVFPassthrough:
@@ -307,7 +312,7 @@ func (nl *configManager) SetConfigManagerAsDesired(ds *appsv1.DaemonSet, devConf
 				InitContainers: []v1.Container{
 					{
 						Name:            "driver-init",
-						Image:           "busybox:1.36",
+						Image:           initContainerImage,
 						Command:         []string{"sh", "-c", initContainerCommand},
 						SecurityContext: &v1.SecurityContext{Privileged: ptr.To(true)},
 						VolumeMounts: []v1.VolumeMount{
