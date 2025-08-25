@@ -773,7 +773,7 @@ type UtilsContainerSpec struct {
 
 // CommonConfigSpec contains the common config across operator and operands
 type CommonConfigSpec struct {
-	// InitContainerImage is being used for the operands pods, i.e. metrics exporter, test runner, device plugin and node labeller
+	// InitContainerImage is being used for the operands pods, i.e. metrics exporter, test runner, device plugin, device config manager and node labeller
 	//+operator-sdk:csv:customresourcedefinitions:type=spec,displayName="InitContainerImage",xDescriptors={"urn:alm:descriptor:com.amd.deviceconfigs:initContainerImage"}
 	// +optional
 	InitContainerImage string `json:"initContainerImage,omitempty"`
