@@ -13,7 +13,7 @@ The AMD GPU Operator uses the Kernel Module Management (KMM) Operator to deploy 
 KMM determines the appropriate driver image based on the combination of:
 
 1. Worker node OS information
-2. Requested ROCm driver version
+2. Requested amdgpu driver version
 
 ### Image Tag Format
 
