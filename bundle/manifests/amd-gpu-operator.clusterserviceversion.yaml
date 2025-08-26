@@ -80,7 +80,8 @@ spec:
         x-descriptors:
         - urn:alm:descriptor:com.amd.deviceconfigs:commonConfig
       - description: InitContainerImage is being used for the operands pods, i.e.
-          metrics exporter, test runner, device plugin and node labeller
+          metrics exporter, test runner, device plugin, device config manager and
+          node labeller
         displayName: InitContainerImage
         path: commonConfig.initContainerImage
         x-descriptors:
