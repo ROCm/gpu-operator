@@ -34,6 +34,7 @@ package controllers
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -131,93 +132,47 @@ func (n *remediationMgr) HandleRemediation(ctx context.Context, devConfig *amdv1
 		mappings[m.NodeCondition] = m
 	}
 
+	var errs error
 	for _, node := range nodes.Items {
-	NodeLoop:
-		for _, cond := range node.Status.Conditions {
-
-			wfList, err := n.helper.getWorkflowList(ctx, devConfig.Namespace)
-			if err != nil {
-				logger.Error(err, fmt.Sprintf("Failed to list workflows. Workflow list: %v", wfList))
-				break NodeLoop
-			}
-
-			// If a workflow is already running on that node, then skip the node but resume/delete workflow if needed
-			for _, wf := range wfList.Items {
-				if strings.HasPrefix(wf.Name, fmt.Sprintf("%s-", node.Name)) {
-					if wf.Status.Phase == workflowv1alpha1.WorkflowSucceeded {
-						if err := n.helper.deleteWorkflow(ctx, &wf); err != nil {
-							logger.Error(err, fmt.Sprintf("Failed to delete workflow %s", wf.Name))
-						}
-						logger.Info(fmt.Sprintf("Deleted workflow: %s", wf.Name))
-					} else if wf.Status.Phase == workflowv1alpha1.WorkflowRunning {
-						stages := wf.Status.Nodes
-						for _, wfStage := range stages {
-							if wfStage.Type == "Suspend" && wfStage.Phase == "Running" {
-								logger.Info(fmt.Sprintf("Suspended workflow %s found for node %s. Attempting resume.", wf.Name, node.Name))
-								if err := n.helper.resumeSuspendedWorkflow(ctx, wf.Name, wf.Namespace); err != nil {
-									logger.Error(err, fmt.Sprintf("Failed to resume workflow %s", wf.Name))
-								}
-								break NodeLoop
-							}
-						}
-						logger.Info(fmt.Sprintf("Workflow: %s already running on the node: %s, skipping creation of workflow", wf.Name, node.Name))
-						break NodeLoop
-					}
-				}
-			}
-
-			if cond.Status != v1.ConditionTrue {
-				continue
-			}
-			mapping, exists := mappings[string(cond.Type)]
-			if !exists {
-				continue
-			}
-
-			logger.Info(fmt.Sprintf("Matching condition found on node %s for condition %s", node.Name, mapping.NodeCondition))
-
-			taint := v1.Taint{
-				Key:    RemediationTaintKey,
-				Value:  mapping.NodeCondition,
-				Effect: v1.TaintEffectNoSchedule,
-			}
-
-			// If taint already exists, skip the node
-			if hasTaint := n.helper.checkIfTaintExists(&node, taint); hasTaint {
-				logger.Info(fmt.Sprintf("Taint %s already present on node %s, skipping creation of workflow", taint.Key, node.Name))
-				break NodeLoop
-			}
-
-			// If driver install/upgrade is in progress, skip the node
-			if driverUpgradeInProgress := n.helper.isDriverUpgradeInProgress(devConfig, &node); driverUpgradeInProgress {
-				logger.Info(fmt.Sprintf("Driver Install/Upgrade is in progress, skipping creation of workflow on node %s", node.Name))
-				break NodeLoop
-			}
-
-			logger.Info(fmt.Sprintf("GPU Condition: %s observed and node: %s is unhealthy. Triggering Remediation Workflow: %s", mapping.NodeCondition, node.Name, mapping.WorkflowTemplate))
-
-			// Fetch WorkflowTemplate
-			wfTemplate, err := n.helper.getWorkflowTemplate(ctx, mapping.WorkflowTemplate, devConfig.Namespace)
-			if err != nil {
-				logger.Error(err, fmt.Sprintf("Failed to fetch WorkflowTemplate %s", mapping.WorkflowTemplate))
-				return res, err
-			}
-
-			// Populate Workflow Object
-			wf := n.helper.populateWorkflow(ctx, wfTemplate, &mapping, node.Name, devConfig)
-
-			// Create Workflow
-			if err := n.helper.createWorkflow(ctx, wf); err != nil {
-				logger.Error(err, fmt.Sprintf("Failed to create Remediation Workflow for node %s", node.Name))
-				return res, err
-			}
-
-			logger.Info(fmt.Sprintf("Remediation Workflow for the condition is created successfully on node %s using template %s", node.Name, mapping.WorkflowTemplate))
-			break NodeLoop
+		// Validate node conditions
+		mapping, err := n.helper.validateNodeConditions(ctx, devConfig, &node, mappings)
+		if err != nil {
+			logger.Info(fmt.Sprintf("Node conditions validations for node %s failed with error: %v", node.Name, err))
+			continue
 		}
+		canSchedule := n.helper.isWorkflowSchedulableOnNode(ctx, devConfig, &node, mapping)
+		if !canSchedule {
+			continue
+		}
+
+		createNewWorkflow := n.helper.handleExistingWorkflowsOnNode(ctx, devConfig, &node)
+		if !createNewWorkflow {
+			continue
+		}
+		logger.Info(fmt.Sprintf("GPU Condition: %s observed and node: %s is unhealthy. Starting Remediation Workflow: %s", mapping.NodeCondition, node.Name, mapping.WorkflowTemplate))
+
+		// Fetch WorkflowTemplate
+		wfTemplate, err := n.helper.getWorkflowTemplate(ctx, mapping.WorkflowTemplate, devConfig.Namespace)
+		if err != nil {
+			logger.Error(err, fmt.Sprintf("Failed to start remediation workflow %s on node %s", mapping.WorkflowTemplate, node.Name))
+			errs = errors.Join(errs, err)
+			continue
+		}
+
+		// Populate Workflow Object
+		wf := n.helper.populateWorkflow(ctx, wfTemplate, &mapping, node.Name, devConfig)
+
+		// Create Workflow
+		if err := n.helper.createWorkflow(ctx, wf); err != nil {
+			logger.Error(err, fmt.Sprintf("Failed to create remediation workflow %s on node %s", mapping.WorkflowTemplate, node.Name))
+			errs = errors.Join(errs, err)
+			continue
+		}
+
+		logger.Info(fmt.Sprintf("Remediation Workflow for the condition is created successfully on node %s using template %s", node.Name, mapping.WorkflowTemplate))
 	}
 	logger.Info("Requeue for any node conditions that may be present")
-	return res, nil
+	return res, errs
 }
 
 // HandleDelete handles the delete operations during remediation process
@@ -266,6 +221,9 @@ type remediationMgrHelperAPI interface {
 	populateWorkflow(ctx context.Context, wfTemplate *workflowv1alpha1.WorkflowTemplate, mapping *ConditionWorkflowMapping, nodeName string, devCfg *amdv1alpha1.DeviceConfig) *workflowv1alpha1.Workflow
 	createWorkflow(ctx context.Context, workflow *workflowv1alpha1.Workflow) error
 	deleteWorkflow(ctx context.Context, workflow *workflowv1alpha1.Workflow) error
+	validateNodeConditions(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig, node *v1.Node, mappings map[string]ConditionWorkflowMapping) (ConditionWorkflowMapping, error)
+	isWorkflowSchedulableOnNode(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig, node *v1.Node, mapping ConditionWorkflowMapping) bool
+	handleExistingWorkflowsOnNode(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig, node *v1.Node) bool
 }
 
 type remediationMgrHelper struct {
@@ -970,4 +928,90 @@ func (h *remediationMgrHelper) getWorkflowTemplate(ctx context.Context, workflow
 		return nil, err
 	}
 	return wfTemplate, nil
+}
+
+func (h *remediationMgrHelper) validateNodeConditions(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig, node *v1.Node, mappings map[string]ConditionWorkflowMapping) (ConditionWorkflowMapping, error) {
+	// Check if any node condition of interest is set to True
+	conditionMet := false
+	exists := false
+	var mapping ConditionWorkflowMapping
+	logger := log.FromContext(ctx)
+	for _, cond := range node.Status.Conditions {
+		if cond.Status != v1.ConditionTrue {
+			continue
+		}
+		mapping, exists = mappings[string(cond.Type)]
+		if !exists {
+			continue
+		}
+		logger.Info(fmt.Sprintf("Matching condition %s found on node %s", mapping.NodeCondition, node.Name))
+		conditionMet = true
+		break
+	}
+	if !conditionMet {
+		return mapping, fmt.Errorf("No matching condition found on node %s for condition %s", node.Name, mapping.NodeCondition)
+	}
+
+	return mapping, nil
+}
+
+func (h *remediationMgrHelper) isWorkflowSchedulableOnNode(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig, node *v1.Node, mapping ConditionWorkflowMapping) bool {
+	logger := log.FromContext(ctx)
+	taint := v1.Taint{
+		Key:    RemediationTaintKey,
+		Value:  mapping.NodeCondition,
+		Effect: v1.TaintEffectNoSchedule,
+	}
+
+	// If taint already exists, skip the node
+	if hasTaint := h.checkIfTaintExists(node, taint); hasTaint {
+		logger.Info(fmt.Sprintf("Taint %s already present on node %s, skipping creation of workflow", taint.Key, node.Name))
+		return false
+	}
+
+	// If driver install/upgrade is in progress, skip the node
+	if driverUpgradeInProgress := h.isDriverUpgradeInProgress(devConfig, node); driverUpgradeInProgress {
+		logger.Info(fmt.Sprintf("Driver Install/Upgrade is in progress, skipping creation of workflow on node %s", node.Name))
+		return false
+	}
+	return true
+}
+
+func (h *remediationMgrHelper) handleExistingWorkflowsOnNode(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig, node *v1.Node) bool {
+	logger := log.FromContext(ctx)
+	wfList, err := h.getWorkflowList(ctx, devConfig.Namespace)
+	if err != nil {
+		logger.Error(err, "Get workflow list failed")
+		return false
+	}
+
+	// If a workflow is already running on that node, then skip the node but resume/delete workflow if needed
+	for _, wf := range wfList.Items {
+		if strings.HasPrefix(wf.Name, fmt.Sprintf("%s-", node.Name)) {
+			if wf.Status.Phase == workflowv1alpha1.WorkflowSucceeded {
+				if err := h.deleteWorkflow(ctx, &wf); err != nil {
+					logger.Error(err, fmt.Sprintf("Failed to delete workflow %s on node %v", wf.Name, node.Name))
+					return false
+				}
+				logger.Info(fmt.Sprintf("Deleted completed workflow %s on node %v", wf.Name, node.Name))
+			} else if wf.Status.Phase == workflowv1alpha1.WorkflowRunning {
+				stages := wf.Status.Nodes
+				for _, wfStage := range stages {
+					if wfStage.Type == "Suspend" && wfStage.Phase == "Running" {
+						logger.Info(fmt.Sprintf("Found suspended workflow %s on node %s. Attempting resume.", wf.Name, node.Name))
+						if err := h.resumeSuspendedWorkflow(ctx, wf.Name, wf.Namespace); err != nil {
+							logger.Error(err, fmt.Sprintf("Failed to resume workflow %s on node %s", wf.Name, node.Name))
+						} else {
+							logger.Info(fmt.Sprintf("successfully resumed workflow %s on node %v", wf.Name, node.Name))
+						}
+						return false
+					}
+				}
+				logger.Info(fmt.Sprintf("Workflow: %s already running on the node: %s, skipping creation of workflow", wf.Name, node.Name))
+				return false
+			}
+			break
+		}
+	}
+	return true
 }

@@ -257,6 +257,20 @@ func (mr *MockremediationMgrHelperAPIMockRecorder) getWorkflowTemplate(ctx, work
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "getWorkflowTemplate", reflect.TypeOf((*MockremediationMgrHelperAPI)(nil).getWorkflowTemplate), ctx, workflowTemplateName, namespace)
 }
 
+// handleExistingWorkflowsOnNode mocks base method.
+func (m *MockremediationMgrHelperAPI) handleExistingWorkflowsOnNode(ctx context.Context, devConfig *v1alpha1.DeviceConfig, node *v1.Node) bool {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "handleExistingWorkflowsOnNode", ctx, devConfig, node)
+	ret0, _ := ret[0].(bool)
+	return ret0
+}
+
+// handleExistingWorkflowsOnNode indicates an expected call of handleExistingWorkflowsOnNode.
+func (mr *MockremediationMgrHelperAPIMockRecorder) handleExistingWorkflowsOnNode(ctx, devConfig, node any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "handleExistingWorkflowsOnNode", reflect.TypeOf((*MockremediationMgrHelperAPI)(nil).handleExistingWorkflowsOnNode), ctx, devConfig, node)
+}
+
 // isDriverUpgradeInProgress mocks base method.
 func (m *MockremediationMgrHelperAPI) isDriverUpgradeInProgress(devCfg *v1alpha1.DeviceConfig, node *v1.Node) bool {
 	m.ctrl.T.Helper()
@@ -286,6 +300,20 @@ func (mr *MockremediationMgrHelperAPIMockRecorder) isRemediationDisabled(ctx, de
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "isRemediationDisabled", reflect.TypeOf((*MockremediationMgrHelperAPI)(nil).isRemediationDisabled), ctx, devConfig)
 }
 
+// isWorkflowSchedulableOnNode mocks base method.
+func (m *MockremediationMgrHelperAPI) isWorkflowSchedulableOnNode(ctx context.Context, devConfig *v1alpha1.DeviceConfig, node *v1.Node, mapping ConditionWorkflowMapping) bool {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "isWorkflowSchedulableOnNode", ctx, devConfig, node, mapping)
+	ret0, _ := ret[0].(bool)
+	return ret0
+}
+
+// isWorkflowSchedulableOnNode indicates an expected call of isWorkflowSchedulableOnNode.
+func (mr *MockremediationMgrHelperAPIMockRecorder) isWorkflowSchedulableOnNode(ctx, devConfig, node, mapping any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "isWorkflowSchedulableOnNode", reflect.TypeOf((*MockremediationMgrHelperAPI)(nil).isWorkflowSchedulableOnNode), ctx, devConfig, node, mapping)
+}
+
 // populateWorkflow mocks base method.
 func (m *MockremediationMgrHelperAPI) populateWorkflow(ctx context.Context, wfTemplate *v1alpha10.WorkflowTemplate, mapping *ConditionWorkflowMapping, nodeName string, devCfg *v1alpha1.DeviceConfig) *v1alpha10.Workflow {
 	m.ctrl.T.Helper()
@@ -312,4 +340,19 @@ func (m *MockremediationMgrHelperAPI) resumeSuspendedWorkflow(ctx context.Contex
 func (mr *MockremediationMgrHelperAPIMockRecorder) resumeSuspendedWorkflow(ctx, wfName, namespace any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "resumeSuspendedWorkflow", reflect.TypeOf((*MockremediationMgrHelperAPI)(nil).resumeSuspendedWorkflow), ctx, wfName, namespace)
+}
+
+// validateNodeConditions mocks base method.
+func (m *MockremediationMgrHelperAPI) validateNodeConditions(ctx context.Context, devConfig *v1alpha1.DeviceConfig, node *v1.Node, mappings map[string]ConditionWorkflowMapping) (ConditionWorkflowMapping, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "validateNodeConditions", ctx, devConfig, node, mappings)
+	ret0, _ := ret[0].(ConditionWorkflowMapping)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// validateNodeConditions indicates an expected call of validateNodeConditions.
+func (mr *MockremediationMgrHelperAPIMockRecorder) validateNodeConditions(ctx, devConfig, node, mappings any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "validateNodeConditions", reflect.TypeOf((*MockremediationMgrHelperAPI)(nil).validateNodeConditions), ctx, devConfig, node, mappings)
 }
