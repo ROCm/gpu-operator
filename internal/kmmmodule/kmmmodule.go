@@ -88,11 +88,13 @@ var (
 	//go:embed dockerfiles/DockerfileTemplate.ubuntu
 	dockerfileTemplateUbuntu string
 	//go:embed dockerfiles/DockerfileTemplate.coreos
-	buildOcDockerfile string
+	dockerfileTemplateCoreOS string
 	//go:embed devdockerfiles/devdockerfile.txt
 	dockerfileDevTemplateUbuntu string
 	//go:embed dockerfiles/DockerfileTemplate.ubuntu.gim
 	dockerfileTemplateGIMUbuntu string
+	//go:embed dockerfiles/DockerfileTemplate.coreos.gim
+	dockerfileTemplateGIMCoreOS string
 )
 
 //go:generate mockgen -source=kmmmodule.go -package=kmmmodule -destination=mock_kmmmodule.go KMMModuleAPI
@@ -162,7 +164,11 @@ func (km *kmmModule) SetBuildConfigMapAsDesired(buildCM *v1.ConfigMap, devConfig
 		buildCM.Data = make(map[string]string)
 	}
 	if km.isOpenShift {
-		buildCM.Data["dockerfile"] = buildOcDockerfile
+		buildCM.Data["dockerfile"] = dockerfileTemplateCoreOS
+		switch devConfig.Spec.Driver.DriverType {
+		case utils.DriverTypeVFPassthrough:
+			buildCM.Data["dockerfile"] = dockerfileTemplateGIMCoreOS
+		}
 	} else {
 		dockerfile, err := resolveDockerfile(buildCM.Name, devConfig)
 		if err != nil {
@@ -219,7 +225,11 @@ func resolveDockerfile(cmName string, devConfig *amdv1alpha1.DeviceConfig) (stri
 			dockerfileTemplate = strings.Replace(dockerfileTemplate, "$$BASEIMG_REGISTRY/ubuntu:$$VERSION", fmt.Sprintf("%v:$$VERSION", internalUbuntuBaseImage), -1)
 		}
 	case "coreos":
-		dockerfileTemplate = buildOcDockerfile
+		dockerfileTemplate = dockerfileTemplateCoreOS
+		switch devConfig.Spec.Driver.DriverType {
+		case utils.DriverTypeVFPassthrough:
+			dockerfileTemplate = dockerfileTemplateGIMCoreOS
+		}
 	// FIX ME
 	// add the RHEL back when it is fully supported
 	/*case "rhel":
@@ -587,7 +597,7 @@ func getKM(devConfig *amdv1alpha1.DeviceConfig, node v1.Node, inTreeModuleToRemo
 		kmmSign = &kmmv1beta1.Sign{
 			KeySecret:   devConfig.Spec.Driver.ImageSign.KeySecret,
 			CertSecret:  devConfig.Spec.Driver.ImageSign.CertSecret,
-			FilesToSign: getKmodsToSign(isOpenShift, node.Status.NodeInfo.KernelVersion),
+			FilesToSign: getKmodsToSign(isOpenShift, node.Status.NodeInfo.KernelVersion, devConfig),
 		}
 		if registryTLS != nil {
 			kmmSign.UnsignedImageRegistryTLS = *registryTLS
@@ -807,8 +817,11 @@ func getModprobeParametersFromNodeInfo(nodes *v1.NodeList, devConfig *amdv1alpha
 	return nil
 }
 
-func getKmodsToSign(isOpenShift bool, kernelVersion string) []string {
+func getKmodsToSign(isOpenShift bool, kernelVersion string, devConfig *amdv1alpha1.DeviceConfig) []string {
 	if isOpenShift {
+		if devConfig.Spec.Driver.DriverType == utils.DriverTypeVFPassthrough {
+			return []string{"/opt/lib/modules/" + kernelVersion + "/extra/gim.ko"}
+		}
 		return []string{
 			"/opt/lib/modules/" + kernelVersion + "/extra/amdgpu.ko",
 			"/opt/lib/modules/" + kernelVersion + "/extra/amdkcl.ko",
@@ -831,6 +844,10 @@ func getKmodsToSign(isOpenShift bool, kernelVersion string) []string {
 			"/opt/lib/modules/" + kernelVersion + "/kernel/drivers/video/fbdev/core/fb_sys_fops.ko",
 			"/opt/lib/modules/" + kernelVersion + "/kernel/drivers/gpu/drm/drm.ko",
 		}
+	}
+
+	if devConfig.Spec.Driver.DriverType == utils.DriverTypeVFPassthrough {
+		return []string{"/opt/lib/modules/" + kernelVersion + "/updates/dkms/gim.ko"}
 	}
 	return []string{
 		"/opt/lib/modules/" + kernelVersion + "/updates/dkms/amdkcl.ko",
