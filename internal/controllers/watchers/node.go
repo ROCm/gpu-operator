@@ -228,8 +228,8 @@ func (h *NodeEventHandler) handlePostProcess(ctx context.Context, logger logr.Lo
 		switch devConfig.Spec.Driver.DriverType {
 		case utils.DriverTypeVFPassthrough,
 			utils.DriverTypePFPassthrough:
-			logger.Info(fmt.Sprintf("node %v with configured PFPassthrough driver %v doesn't have VFIO binding ready, launching VFIO worker pod",
-				node.Name, driverTypeLabel))
+			logger.Info(fmt.Sprintf("node %v with configured %v driver %v doesn't have VFIO binding ready, launching VFIO worker pod",
+				devConfig.Spec.Driver.DriverType, node.Name, driverTypeLabel))
 			if err := h.workerMgr.Work(ctx, devConfig, node); err != nil {
 				logger.Error(err, "failed to create worker pod")
 			}
