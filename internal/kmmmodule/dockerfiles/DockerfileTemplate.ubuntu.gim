@@ -12,11 +12,13 @@ RUN apt-get update && \
     autoconf \
     automake \
     wget \
-    linux-headers-${KERNEL_FULL_VERSION} && \
+    bc \
+    linux-headers-${KERNEL_FULL_VERSION} \
+    linux-modules-extra-${KERNEL_FULL_VERSION} && \
     apt-get clean
 
 RUN wget https://github.com/amd/MxGPU-Virtualization/releases/download/mainline%2F${DRIVERS_VERSION}/gim-dkms_${DRIVERS_VERSION}_all.deb && \
-    dpkg -i gim-dkms_${DRIVERS_VERSION}_all.deb && \
+    apt-get install --fix-broken -y ./gim-dkms_${DRIVERS_VERSION}_all.deb && \
     rm gim-dkms_${DRIVERS_VERSION}_all.deb
 
 RUN depmod ${KERNEL_FULL_VERSION}

@@ -87,12 +87,12 @@ const (
 var (
 	//go:embed dockerfiles/DockerfileTemplate.ubuntu
 	dockerfileTemplateUbuntu string
-	//go:embed dockerfiles/driversDockerfile.txt
+	//go:embed dockerfiles/DockerfileTemplate.coreos
 	buildOcDockerfile string
 	//go:embed devdockerfiles/devdockerfile.txt
 	dockerfileDevTemplateUbuntu string
-	//go:embed dockerfiles/vGPUHostGIM.ubuntu
-	dockerfileTemplateUbuntuVGPUHost string
+	//go:embed dockerfiles/DockerfileTemplate.ubuntu.gim
+	dockerfileTemplateGIMUbuntu string
 )
 
 //go:generate mockgen -source=kmmmodule.go -package=kmmmodule -destination=mock_kmmmodule.go KMMModuleAPI
@@ -189,7 +189,7 @@ func resolveDockerfile(cmName string, devConfig *amdv1alpha1.DeviceConfig) (stri
 		dockerfileTemplate = dockerfileTemplateUbuntu
 		switch devConfig.Spec.Driver.DriverType {
 		case utils.DriverTypeVFPassthrough:
-			dockerfileTemplate = dockerfileTemplateUbuntuVGPUHost
+			dockerfileTemplate = dockerfileTemplateGIMUbuntu
 		}
 		driverLabel, present := driverLabels[version]
 		if !present {
