@@ -61,6 +61,36 @@ subjects:
   name: test-run
   namespace: default
 ---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: pre-start-job-test-config
+data:
+  config.json: |
+    {
+      "TestConfig": {
+        "GPU_HEALTH_CHECK": {
+          "TestLocationTrigger": {
+            "global": {
+              "TestParameters": {
+                "AUTO_UNHEALTHY_GPU_WATCH": {
+                  "TestCases": [
+                    {
+                      "Recipe": "gst_single",
+                      "Iterations": 1,
+                      "StopOnFailure": true,
+                      "TimeoutSeconds": 600,
+                      "Arguments": "--parallel"
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -79,6 +109,14 @@ spec:
         purpose: demo-pytorch-amdgpu
     spec:
       serviceAccountName: test-run
+      volumes:
+      - name: config-volume
+        configMap:
+          name: pre-start-job-test-config
+      - hostPath: # Specify to use this directory on the host as volume
+          path: /var/log/amd-test-runner
+          type: DirectoryOrCreate
+        name: test-runner-volume
       initContainers:
       - name: init-test-runner
         image: docker.io/rocm/test-runner:v1.4.0
@@ -101,6 +139,11 @@ spec:
           valueFrom:
             fieldRef:
               fieldPath: spec.nodeName
+        volumeMounts:
+        - mountPath: /var/log/amd-test-runner # Specify to mount host path volume into specific directory
+          name: test-runner-volume
+        - mountPath: /etc/test-runner/
+          name: config-volume
       containers:
       - name: pytorch-gpu-workload
         image: busybox:latest
