@@ -9,8 +9,9 @@ The RVS test recipes in the Test Runner are not compatible with partitioned GPUs
 ```
 
 ## Use Case 1 - GPU is unhealthy on the node
+When any GPU on a specific worker node is unhealthy, you can manually trigger a test / benchmark run on that worker node to check more details on the unhealthy state by mounting the AMD device related files or folders (`/dev/dri` and `/dev/kfd`) into the test runner container.
 
-When any GPU on a specific worker node is unhealthy, you can manually trigger a test / benchmark run on that worker node to check more details on the unhealthy state. The test job requires RBAC config to grant the test runner access to export events and add node labels to the cluster. Here is an example of configuring the RBAC and Job resources:
+The test job requires RBAC config to grant the test runner access to export events and add node labels to the cluster. Here is an example of configuring the RBAC and Job resources:
 
 ```yaml
 apiVersion: v1
@@ -53,6 +54,36 @@ subjects:
 - kind: ServiceAccount
   name: test-run
   namespace: default
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: manual-config-map
+  namespace: default
+data:
+  config.json: |
+    {
+      "TestConfig": {
+        "GPU_HEALTH_CHECK": {
+          "TestLocationTrigger": {
+            "global": {
+              "TestParameters": {
+                "MANUAL": {
+                  "TestCases": [
+                    {
+                      "Recipe": "gst_single",
+                      "Iterations": 1,
+                      "StopOnFailure": true,
+                      "TimeoutSeconds": 600
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    }
 ---
 apiVersion: batch/v1
 kind: Job
@@ -74,6 +105,13 @@ spec:
         hostPath:
           path: /dev/dri
           type: Directory
+      - name: config-volume # Config map volume
+        configMap:
+          name: manual-config-map
+      - hostPath: # Specify to use this directory on the host as volume
+          path: /var/log/amd-test-runner
+          type: DirectoryOrCreate
+        name: test-runner-volume
       containers:
       - name: amd-test-runner
         image: docker.io/rocm/test-runner:v1.4.0
@@ -85,6 +123,10 @@ spec:
           name: dri
         - mountPath: /dev/kfd
           name: kfd
+        - mountPath: /var/log/amd-test-runner # Specify to mount host path volume into specific directory
+          name: test-runner-volume
+        - mountPath: /etc/test-runner/
+          name: config-volume
         env:
         - name: TEST_TRIGGER
           value: "MANUAL" # Set the TEST_TRIGGER environment variable to MANUAL for manual test
@@ -106,8 +148,9 @@ spec:
 ```
 
 ## Use Case 2 - GPUs are healthy on the node
+When all GPUs on a worker node are healthy, you can manually trigger a benchmark test by requesting GPU resources (`amd.com/gpu`) on that node, rather than mounting device files or folders. If other GPU workloads are running and resources are unavailable, the system will wait until enough resources are free before starting the test.
 
-When all the GPUs on a specific worker node are healthy, you can manually trigger a benchmark test run by requesting all the GPU resources ```amd.com/gpu``` on that worker node. The test job requires RBAC config to grant the test runner access to export events and add node labels to the cluster. Here is an example of configuring the RBAC and Job resources:
+The test job requires RBAC config to grant the test runner access to export events and add node labels to the cluster. Here is an example of configuring the RBAC and Job resources:
 
 ```yaml
 apiVersion: v1
@@ -151,6 +194,36 @@ subjects:
   name: test-run
   namespace: default
 ---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: manual-config-map
+  namespace: default
+data:
+  config.json: |
+    {
+      "TestConfig": {
+        "GPU_HEALTH_CHECK": {
+          "TestLocationTrigger": {
+            "global": {
+              "TestParameters": {
+                "MANUAL": {
+                  "TestCases": [
+                    {
+                      "Recipe": "gst_single",
+                      "Iterations": 1,
+                      "StopOnFailure": true,
+                      "TimeoutSeconds": 600
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+---
 apiVersion: batch/v1
 kind: Job
 metadata:
@@ -162,6 +235,14 @@ spec:
       serviceAccountName: test-run
       nodeSelector:
         kubernetes.io/hostname: node1 # requesting to run test on node1
+      volumes:
+      - name: config-volume # Config map volume
+        configMap:
+          name: manual-config-map
+      - hostPath: # Specify to use this directory on the host as volume
+          path: /var/log/amd-test-runner
+          type: DirectoryOrCreate
+        name: test-runner-volume
       containers:
       - resources:
           limits:
@@ -169,6 +250,13 @@ spec:
         name: amd-test-runner
         image: docker.io/rocm/test-runner:v1.4.0
         imagePullPolicy: IfNotPresent
+        securityContext: # setup security context for container to get access to device related interfaces
+          privileged: true
+        volumeMounts:
+        - mountPath: /var/log/amd-test-runner # Specify to mount host path volume into specific directory
+          name: test-runner-volume
+        - mountPath: /etc/test-runner/
+          name: config-volume
         env:
         - name: TEST_TRIGGER
           value: "MANUAL" # Set the TEST_TRIGGER environment variable to MANUAL for manual test
@@ -259,6 +347,36 @@ subjects:
   name: test-run
   namespace: default
 ---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: manual-config-map
+  namespace: default
+data:
+  config.json: |
+    {
+      "TestConfig": {
+        "GPU_HEALTH_CHECK": {
+          "TestLocationTrigger": {
+            "global": {
+              "TestParameters": {
+                "MANUAL": {
+                  "TestCases": [
+                    {
+                      "Recipe": "gst_single",
+                      "Iterations": 1,
+                      "StopOnFailure": true,
+                      "TimeoutSeconds": 600
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+---
 apiVersion: batch/v1
 kind: CronJob
 metadata:
@@ -282,6 +400,13 @@ spec:
             hostPath:
               path: /dev/dri
               type: Directory
+          - name: config-volume
+            configMap:
+              name: manual-config-map
+          - hostPath: # Specify to use this directory on the host as volume
+              path: /var/log/amd-test-runner
+              type: DirectoryOrCreate
+            name: test-runner-volume
           containers:
           - name: init-test-runner
             image: docker.io/rocm/test-runner:v1.4.0
@@ -293,6 +418,10 @@ spec:
               name: dri
             - mountPath: /dev/kfd
               name: kfd
+            - mountPath: /var/log/amd-test-runner # Specify to mount host path volume into specific directory
+              name: test-runner-volume
+            - mountPath: /etc/test-runner/
+              name: config-volume
             env:
             - name: TEST_TRIGGER
               value: "MANUAL"
@@ -346,8 +475,7 @@ LAST SEEN   TYPE      REASON                    OBJECT                          
 More detailed information about test result events can be found in [this section](./auto-unhealthy-device-test.md#check-test-result-event).
 
 ## Advanced Configuration - ConfigMap
-
-You can create a config map to customize the test triggger and recipe configs. For the example config map and explanation please check [this section](./auto-unhealthy-device-test.md#advanced-configuration---configmap).
+You can create a config map to customize the test trigger and recipe configs. For the example config map and explanation please check [this section](./auto-unhealthy-device-test.md#advanced-configuration---configmap).
 
 After creating the config map, you can specify the volume and volume mount to mount the config map into test runner container.
 
@@ -465,6 +593,10 @@ spec:
       - name: config-volume
         configMap:
           name: manual-config-map
+      - hostPath: # Specify to use this directory on the host as volume
+          path: /var/log/amd-test-runner
+          type: DirectoryOrCreate
+        name: test-runner-volume
       containers:
       - name: amd-test-runner
         image: docker.io/rocm/test-runner:v1.4.0
@@ -476,6 +608,8 @@ spec:
           name: dri
         - mountPath: /dev/kfd
           name: kfd
+        - mountPath: /var/log/amd-test-runner # Specify to mount host path volume into specific directory
+          name: test-runner-volume
         - mountPath: /etc/test-runner/
           name: config-volume
         env:
@@ -637,7 +771,7 @@ spec:
         - mountPath: /etc/test-runner/
           name: config-volume
         env:
-        - name: LOG_MOUNT_DIR # Use LOG_MOUNT_DIR envrionment variable to ask test runner to save logs in mounted directory
+        - name: LOG_MOUNT_DIR # Use LOG_MOUNT_DIR environment variable to ask test runner to save logs in mounted directory
           value: /var/log/amd-test-runner
         - name: TEST_TRIGGER
           value: "MANUAL" # Set the TEST_TRIGGER environment variable to MANUAL for manual test
