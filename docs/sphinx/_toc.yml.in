@@ -1,7 +1,7 @@
 root: index
 defaults:
   numbered: False
-  maxdepth: 6
+  maxdepth: 1
 subtrees:
   - caption: Usage
     entries:
