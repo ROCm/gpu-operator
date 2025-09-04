@@ -23,6 +23,7 @@ html_theme_options = {
     "flavor": "instinct",
     "link_main_doc": True,
     # Add any additional theme options here
+    "show_navbar_depth": 0,
 }
 extensions = ["rocm_docs","sphinx_substitution_extensions"]
 
