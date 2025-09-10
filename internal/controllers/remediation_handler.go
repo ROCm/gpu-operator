@@ -405,8 +405,8 @@ func (h *remediationMgrHelper) createDefaultWorkflowTemplate(ctx context.Context
 					Name: "inbuilt",
 					Steps: []workflowv1alpha1.ParallelSteps{
 						{Steps: []workflowv1alpha1.WorkflowStep{{Name: "taint", Template: "taint"}}},
-						{Steps: []workflowv1alpha1.WorkflowStep{{Name: "suspend", Template: "suspend"}}},
 						{Steps: []workflowv1alpha1.WorkflowStep{{Name: "drain", Template: "drain"}}},
+						{Steps: []workflowv1alpha1.WorkflowStep{{Name: "suspend", Template: "suspend"}}},
 						{Steps: []workflowv1alpha1.WorkflowStep{{Name: "reboot", Template: "reboot", ContinueOn: &workflowv1alpha1.ContinueOn{Failed: true}}}},
 						{Steps: []workflowv1alpha1.WorkflowStep{{Name: "test", Template: "test"}}},
 						{Steps: []workflowv1alpha1.WorkflowStep{{Name: "wait", Template: "wait"}}},
