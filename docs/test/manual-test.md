@@ -459,13 +459,13 @@ test-runner-manual-trigger-cron-job-midnight-28936820-kkqnj   1/1     Running   
 ```
 
 ## Check test running node labels
+When the test is ongoing the corresponding label will be added to the node resource: ```"testrunner.amd.com.gpu_health_check.gst_single": "running"```, the test running label will be removed once the test completed.
 
-When the test is ongoing the corresponding label will be added to the node resource: ```"amd.testrunner.gpu_health_check.gst_single": "running"```, the test running label will be removed once the test completed.
+## Check test result
+Once the test run finishes, the Job's ```Status``` field captures the test run result. If the test run is successful, the status is marked as **Complete**. In case of failure, status is marked as **Failed**.
 
 ## Check test result event
-
-The test runner generated event can be found from Job resource defined namespace
-
+The test runner generated event can be found from Job resource defined namespace. The event contains more granular details about the test run. It can be used to gather more information in case of failure.
 ```bash
 $ kubectl get events -n kube-amd-gpu
 LAST SEEN   TYPE      REASON                    OBJECT                                            MESSAGE
