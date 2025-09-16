@@ -1,0 +1,196 @@
+name: Test Helm Chart
+
+on:
+  pull_request:
+    branches:
+      - gh-pages
+  push:
+    branches:
+      - gh-pages
+
+env:
+  NAMESPACE: kube-amd-gpu
+  HELM_INSTALL_NAME: amd-gpu-operator
+
+jobs:
+  test-helm:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 10
+      - name: Find newly added chart package
+        run: |
+          latest_chart=""
+          for commit in $(git rev-list HEAD); do
+            # Get all added files in this commit under charts
+            diff_output=$(git diff-tree --no-commit-id --diff-filter=A -r "$commit" -- charts/)
+
+            # Print the output for debugging
+            echo "Commit $commit added files:"
+            echo "$diff_output"
+
+            # Filter for .tgz files and pick the first one
+            new_file=$(echo "$diff_output" | awk '{print $6}' | grep '\.tgz$' || true)
+            if [ -n "$new_file" ]; then
+              latest_chart="$new_file"
+              break
+            fi
+          done
+
+          if [ -z "$latest_chart" ]; then
+            echo "No new .tgz file found in history."
+            exit 1
+          fi
+
+          # remove directory prefix (charts/) and suffix (.tgz)
+          filename=$(basename "$latest_chart" .tgz)
+          echo "LATEST_CHART version: $filename"
+          echo "LATEST_CHART=$filename" >> $GITHUB_ENV
+      - name: Set up Kind cluster
+        uses: helm/kind-action@v1.12.0
+      - name: Setup kubectl (latest stable)
+        id: kubectl
+        uses: azure/setup-kubectl@v4
+        with:
+          version: latest
+      - name: Ensure kubectl in PATH
+        run: |
+          if ! which kubectl >/dev/null 2>&1; then
+            echo "kubectl not found in PATH, adding manually..."
+            echo "${{ steps.kubectl.outputs.kubectl-path }}" >> $GITHUB_PATH
+          else
+            echo "kubectl found at $(which kubectl)"
+          fi
+      - name: Install Helm
+        run: curl -fsSL https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
+      - name: Install Cert Manager
+        run: |
+          helm repo add jetstack https://charts.jetstack.io --force-update &&
+          helm install cert-manager jetstack/cert-manager \
+            --namespace cert-manager \
+            --create-namespace \
+            --version v1.15.1 \
+            --set crds.enabled=true
+      - name: Verify kubectl and list current pods
+        run: kubectl version && kubectl get pods -A
+      - name: Install GPU Operator chart (Push)
+        if: github.event_name == 'push'
+        run: |
+          helm repo add rocm https://rocm.github.io/gpu-operator && helm repo update &&
+          helm install ${{ env.HELM_INSTALL_NAME }} rocm/gpu-operator-charts \
+            --namespace ${{ env.NAMESPACE }} \
+            --create-namespace \
+            --version "${LATEST_CHART#gpu-operator-charts-}"
+      - name: Install GPU Operator chart (Pull request)
+        if: github.event_name == 'pull_request'
+        run: |
+          echo "LATEST_CHART version: $LATEST_CHART" &&
+          pwd & ls && ls charts &&
+          helm install ${{ env.HELM_INSTALL_NAME }} charts/$LATEST_CHART.tgz \
+            --namespace ${{ env.NAMESPACE }} \
+            --create-namespace
+      - name: Wait for all pods to be ready
+        run: |
+          set -e
+          # Background watcher
+          kubectl get pods -A -w &
+          WATCH_PID=$!
+
+          # Wait for readiness
+          if ! kubectl wait --for=condition=Ready pod --all -n ${{ env.NAMESPACE }} --timeout=300s; then
+            echo "❌ Timeout waiting for pods"
+            echo "📋 Final pod states:"
+            kubectl get pods -A -o wide
+            kill $WATCH_PID || true
+            exit 1
+          fi
+          kill $WATCH_PID || true
+          echo "✅ All pods are Ready!"
+      - name: Install yq
+        run: |
+          wget -qO /usr/local/bin/yq https://github.com/mikefarah/yq/releases/download/v4.44.1/yq_linux_amd64
+          chmod +x /usr/local/bin/yq
+      - name: Validate images in pods and CR
+        env:
+          NAMESPACE: ${{ env.NAMESPACE }}
+          BASE_PREFIX: ${{ env.HELM_INSTALL_NAME }}-
+        run: |
+          set -e
+          YAML_FILE="charts/${LATEST_CHART}_meta.yml"
+          if [ -z "$YAML_FILE" ] || [ ! -f "$YAML_FILE" ]; then
+            echo "❌ Validation file '$YAML_FILE' not found or variable is empty."
+            ls -l
+            exit 1
+          fi
+          echo "🔍 Validating images using $YAML_FILE"
+
+          # Check pods by prefix
+          yq -r '.images[] | select(.k8s_comp_prefix != null) | .target as $t | .k8s_comp_prefix[] | "\($t) \(. )"' "$YAML_FILE" | \
+          while read -r target suffix; do
+                prefix="${BASE_PREFIX}${suffix}"
+                pods=$(kubectl get pods -n "$NAMESPACE" --no-headers -o custom-columns=NAME:.metadata.name | grep "^$prefix" || true)
+
+              if [ -z "$pods" ]; then
+                  echo "⚠️ No pods found for prefix '$prefix'"
+                  continue
+              fi
+
+              for pod in $pods; do
+                  images=$(kubectl get pod "$pod" -n "$NAMESPACE" -o jsonpath='{.spec.containers[*].image}')
+                  found_match=false
+                  for img in $images; do
+                      if [ "$img" = "$target" ]; then
+                          echo "✅ Pod $pod is using expected image: $target"
+                          found_match=true
+                      fi
+                  done
+
+                  if [ "$found_match" = false ]; then
+                      echo "❌ Pod $pod is NOT using expected image."
+                      echo "   Expected: $target"
+                      echo "   Found:   $images"
+                      exit 1
+                  fi
+              done
+          done
+
+          # Check CR paths
+          yq -r '.images[] | select(.cr_path != null) | .target as $t | .cr_path[] | "\($t) \(. )"' "$YAML_FILE" | \
+          while read -r target crpath; do
+                value=$(kubectl get deviceconfigs -n "$NAMESPACE" default -o yaml | yq "$crpath")
+              if [ "$value" = "$target" ]; then
+                  echo "✅ CR field '$crpath' matches expected image: $target"
+              else
+                  echo "❌ CR field '$crpath' does NOT match expected image."
+                  echo "   Expected: $target"
+                  echo "   Found:   $value"
+                  exit 1
+              fi
+          done
+      - name: Helm uninstall
+        run: helm uninstall ${{ env.HELM_INSTALL_NAME }} -n ${{ env.NAMESPACE }}
+
+      - name: Validate all pods are removed
+        run: |
+          set -ex
+          # Background watcher
+          kubectl get pods -A -w &
+          WATCH_PID=$!
+
+          # Wait for all pods to be removed
+          for i in $(seq 1 30); do
+            pod_count=$(kubectl get pods -n ${{ env.NAMESPACE }} --no-headers 2>/dev/null | wc -l)
+            if [ "$pod_count" -eq 0 ]; then
+              echo "✅ All pods are removed from namespace ${{ env.NAMESPACE }}!"
+              kill $WATCH_PID || true
+              exit 0
+            fi
+            echo "Waiting for pods to be removed... ($pod_count pods remain)"
+            sleep 5
+          done
+          echo "❌ Timeout waiting for pods to be removed from namespace ${{ env.NAMESPACE }}."
+          kubectl get pods -n ${{ env.NAMESPACE }} -o wide || true
+          kill $WATCH_PID || true
+          exit 1
