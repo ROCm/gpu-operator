@@ -68,7 +68,7 @@ deviceConfig:
       tolerations: []
       upgradePolicy:
         # -- enable/disable automatic driver upgrade feature 
-        enable: true
+        enable: false
         # -- how many nodes can be upgraded in parallel
         maxParallelUpgrades: 3
         # -- maximum number of nodes that can be in a failed upgrade state beyond which upgrades will stop to keep cluster at a minimal healthy state

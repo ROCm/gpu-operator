@@ -119,6 +119,10 @@ func (n *upgradeMgr) HandleUpgrade(ctx context.Context, deviceConfig *amdv1alpha
 	var candidateNodes []v1.Node
 	var upgradeDone, upgradeInProgress, upgradeFailedState, installInProgress int
 
+	// if driver section is disabled in device config, skip upgrade policy handler
+	if deviceConfig.Spec.Driver.Enable == nil || !*deviceConfig.Spec.Driver.Enable {
+		return ctrl.Result{}, nil
+	}
 	if deviceConfig.Spec.Driver.UpgradePolicy == nil ||
 		(deviceConfig.Spec.Driver.UpgradePolicy.Enable != nil &&
 			!*deviceConfig.Spec.Driver.UpgradePolicy.Enable) {
