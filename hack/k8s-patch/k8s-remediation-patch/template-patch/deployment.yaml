@@ -2835,6 +2835,7 @@ rules:
   - ""
   resources:
   - configmaps
+  - nodes
   verbs:
   - get
   - watch
@@ -2881,8 +2882,13 @@ rules:
   resources:
   - workflowtaskresults
   verbs:
+  - get
   - list
   - watch
+  - create
+  - update
+  - patch
+  - delete
   - deletecollection
 - apiGroups:
   - ""
@@ -2910,6 +2916,8 @@ rules:
   verbs:
   - create
   - patch
+  - get
+  - list
 - apiGroups:
   - policy
   resources:

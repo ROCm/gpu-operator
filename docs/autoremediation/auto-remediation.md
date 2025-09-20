@@ -82,6 +82,7 @@ data:
   workflow: |-
     - nodeCondition: "AMDGPUUnhealthy"
       workflowTemplate: "default-template"
+      notifyMessage: "notification message for admin(if any) to take manual remediation action"
       validationTestsProfile:
         framework: "AGFHC"
         recipe: "all_lvl4"
@@ -92,7 +93,9 @@ data:
 
 `NodeCondition` field refers to the node condition that the user wants the Operator to watch for and to trigger remediation workflow.
 
-`WorkflowTemplate` will use the default-template in most cases which is discussed below. If user wants to use his own workflow template for a certain node condition, he can create the template in the cluster and mention the name of the template in this field but the recommended way is to let Operator handle it through the default-template  
+`WorkflowTemplate` will use the default-template in most cases which is discussed below. If user wants to use his own workflow template for a certain node condition, he can create the template in the cluster and mention the name of the template in this field but the recommended way is to let Operator handle it through the default-template.
+
+`notifyMessage` contains remediation instructions for the admin in case the node problem requires manual action. Workflow will trigger a Kubernetes event with the content of **notifyMessage** to alert the admin.
 
 `validationTestsProfile` field refers to the AGFHC/RVS test-profile to be run by the workflow to verify that the problem is fixed. The test-profile will be passed onto testrunner for it to be run.
 
@@ -132,11 +135,11 @@ Note: `default-template` will be created on the cluster by GPU-Operator
 
 1. Taint the node with `key = "AMD_GPU_Unhealthy”, op = equal, value = node_condition, effect = noSchedule `
 
-2. Check if physical intervention is required 
+2. Drain workloads/pods that are using AMD GPUs 
 
-3. Suspend workflow 
+3. Notify admin/user if manual intervention is required
 
-4. Drain workloads/pods that are using AMD GPUs 
+4. Suspend workflow
 
 5. Reboot the node 
 
