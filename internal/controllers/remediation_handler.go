@@ -55,11 +55,14 @@ import (
 )
 
 const (
-	RemediationTaintKey      = "amd-gpu-unhealthy"
-	DefaultConfigMapSuffix   = "default-conditional-workflow-mappings"
-	DefaultTemplate          = "default-template"
-	TestRunnerImage          = "docker.io/rocm/test-runner:agfhc-v1.4.0"
-	TestRunnerServiceAccount = "amd-gpu-operator-test-runner"
+	RemediationTaintKey        = "amd-gpu-unhealthy"
+	DefaultConfigMapSuffix     = "default-conditional-workflow-mappings"
+	DefaultTemplate            = "default-template"
+	TestRunnerImage            = "registry.test.pensando.io:5000/test-runner:agfhc-latest"
+	TestRunnerServiceAccount   = "amd-gpu-operator-test-runner"
+	AmdGpuRemediationRequired  = "amd-gpu-remediation-required"
+	AmdGpuRemediationSucceeded = "amd-gpu-remediation-succeeded"
+	AmdGpuRemediationFailed    = "amd-gpu-remediation-failed"
 )
 
 // ConditionWorkflowMapping defines a single condition-to-workflow mapping.
@@ -69,6 +72,7 @@ type ConditionWorkflowMapping struct {
 	WorkflowTemplate     string                 `json:"workflowTemplate" yaml:"workflowTemplate"`
 	ValidationTests      ValidationTestsProfile `json:"validationTestsProfile" yaml:"validationTestsProfile"`
 	PhysicalActionNeeded string                 `json:"physicalActionNeeded" yaml:"physicalActionNeeded"`
+	NotifyMessage        string                 `json:"notifyMessage" yaml:"notifyMessage"`
 }
 
 type ValidationTestsProfile struct {
@@ -393,6 +397,74 @@ func (h *remediationMgrHelper) deleteConfigMap(ctx context.Context, name, namesp
 
 func (h *remediationMgrHelper) createDefaultWorkflowTemplate(ctx context.Context, namespace string) (*workflowv1alpha1.WorkflowTemplate, error) {
 
+	notifyTemplate := &workflowv1alpha1.WorkflowTemplate{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "event-notify-template",
+			Namespace: namespace,
+		},
+		Spec: workflowv1alpha1.WorkflowSpec{
+			Entrypoint: "notify",
+			Templates: []workflowv1alpha1.Template{
+				{
+					Name: "notify",
+					Inputs: workflowv1alpha1.Inputs{
+						Parameters: []workflowv1alpha1.Parameter{
+							{
+								Name: "nodeName",
+							},
+							{
+								Name: "notifyMessage",
+							},
+							{
+								Name: "eventName",
+							},
+						},
+					},
+					Script: &workflowv1alpha1.ScriptTemplate{
+						Source: `
+set -e
+NODE_NAME="{{inputs.parameters.nodeName}}"
+NOTIFY_MESSAGE="{{inputs.parameters.notifyMessage}}"
+EVENT_NAME="{{inputs.parameters.eventName}}"
+
+kubectl create -f - <<EOF
+apiVersion: v1
+kind: Event
+metadata:
+  namespace: {{workflow.namespace}}
+  generateName: ${EVENT_NAME}-
+  labels:
+    app.kubernetes.io/part-of: amd-gpu-operator
+firstTimestamp: $(date -u +"%Y-%m-%dT%H:%M:%S.%3NZ")
+involvedObject:
+  apiVersion: v1
+  kind: Node
+  name: ${NODE_NAME}
+  namespace: {{workflow.namespace}}
+message: ${NOTIFY_MESSAGE}
+reason: AMDGPUUnhealthy
+reportingComponent: amd-gpu-node-remediation-workflow
+reportingInstance: amd-gpu-node-remediation-workflow
+source:
+  component: {{workflow.name}}
+  host: ${NODE_NAME}
+type: Warning
+EOF
+`,
+						Container: v1.Container{
+							Image:   "bitnami/kubectl:1.29.0",
+							Command: []string{"bash"},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	if err := h.client.Create(ctx, notifyTemplate); err != nil {
+		return nil, err
+	}
+
 	template := &workflowv1alpha1.WorkflowTemplate{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "default-template",
@@ -406,11 +478,56 @@ func (h *remediationMgrHelper) createDefaultWorkflowTemplate(ctx context.Context
 					Steps: []workflowv1alpha1.ParallelSteps{
 						{Steps: []workflowv1alpha1.WorkflowStep{{Name: "taint", Template: "taint"}}},
 						{Steps: []workflowv1alpha1.WorkflowStep{{Name: "drain", Template: "drain"}}},
+						{Steps: []workflowv1alpha1.WorkflowStep{
+							{
+								Name:        "notifyBeforeSuspend",
+								TemplateRef: &workflowv1alpha1.TemplateRef{Name: "event-notify-template", Template: "notify"},
+								Arguments: workflowv1alpha1.Arguments{
+									Parameters: []workflowv1alpha1.Parameter{
+										{Name: "nodeName", Value: workflowv1alpha1.AnyStringPtr("{{workflow.parameters.node_name}}")},
+										{Name: "notifyMessage", Value: workflowv1alpha1.AnyStringPtr("{{workflow.parameters.notifyMessage}}")},
+										{Name: "eventName", Value: workflowv1alpha1.AnyStringPtr(AmdGpuRemediationRequired)},
+									},
+								},
+							},
+						},
+						},
 						{Steps: []workflowv1alpha1.WorkflowStep{{Name: "suspend", Template: "suspend"}}},
 						{Steps: []workflowv1alpha1.WorkflowStep{{Name: "reboot", Template: "reboot", ContinueOn: &workflowv1alpha1.ContinueOn{Failed: true}}}},
-						{Steps: []workflowv1alpha1.WorkflowStep{{Name: "test", Template: "test"}}},
-						{Steps: []workflowv1alpha1.WorkflowStep{{Name: "wait", Template: "wait"}}},
-						{Steps: []workflowv1alpha1.WorkflowStep{{Name: "untaint", Template: "untaint"}}},
+						{Steps: []workflowv1alpha1.WorkflowStep{{Name: "test", Template: "test", ContinueOn: &workflowv1alpha1.ContinueOn{Failed: true}}}},
+						{Steps: []workflowv1alpha1.WorkflowStep{
+							{
+								Name:        "notifyGpuTestFailed",
+								TemplateRef: &workflowv1alpha1.TemplateRef{Name: "event-notify-template", Template: "notify"},
+								Arguments: workflowv1alpha1.Arguments{
+									Parameters: []workflowv1alpha1.Parameter{
+										{Name: "nodeName", Value: workflowv1alpha1.AnyStringPtr("{{workflow.parameters.node_name}}")},
+										{Name: "notifyMessage", Value: workflowv1alpha1.AnyStringPtr("{{workflow.parameters.notifyErrorMessage}}")},
+										{Name: "eventName", Value: workflowv1alpha1.AnyStringPtr(AmdGpuRemediationFailed)},
+									},
+								},
+								When: "{{steps.test.exitCode}} != 0",
+							},
+						},
+						},
+						{Steps: []workflowv1alpha1.WorkflowStep{{Name: "failWorkflow", Template: "failWorkflow", When: "{{steps.test.exitCode}} != 0"}}},
+						{Steps: []workflowv1alpha1.WorkflowStep{{Name: "wait", Template: "wait", When: "{{steps.test.exitCode}} == 0"}}},
+						{Steps: []workflowv1alpha1.WorkflowStep{{Name: "untaint", Template: "untaint", When: "{{steps.test.exitCode}} == 0"}}},
+						{Steps: []workflowv1alpha1.WorkflowStep{
+							{
+								Name:        "notifyWorkflowSucceeded",
+								TemplateRef: &workflowv1alpha1.TemplateRef{Name: "event-notify-template", Template: "notify"},
+								Arguments: workflowv1alpha1.Arguments{
+									Parameters: []workflowv1alpha1.Parameter{
+										{Name: "nodeName", Value: workflowv1alpha1.AnyStringPtr("{{workflow.parameters.node_name}}")},
+										{Name: "notifyMessage", Value: workflowv1alpha1.AnyStringPtr("{{workflow.parameters.notifySuccessMessage}}")},
+										{Name: "eventName", Value: workflowv1alpha1.AnyStringPtr(AmdGpuRemediationSucceeded)},
+									},
+								},
+								When: "{{steps.test.exitCode}} == 0",
+							},
+						},
+						},
 					},
 				},
 				{
@@ -681,7 +798,7 @@ while true; do
     echo "Test runner job completed successfully."
 	kubectl logs -n $NAMESPACE job/$JOB_NAME
     echo "Detailed run report can be found at /var/log/amd-test-runner"
-    break
+    exit 0
   elif [ "$job_status" = "Failed" ]; then
     echo "Test runner job failed."
     kubectl logs -n $NAMESPACE job/$JOB_NAME
@@ -762,6 +879,19 @@ set -e
 NODE_NAME="{{inputs.parameters.node_name}}"
 echo "Untainting node $NODE_NAME"
 kubectl taint node "$NODE_NAME" amd-gpu-unhealthy:NoSchedule-
+`,
+						Container: v1.Container{
+							Image:   "bitnami/kubectl:1.29.0",
+							Command: []string{"sh"},
+						},
+					},
+				},
+				{
+					Name: "failWorkflow",
+					Script: &workflowv1alpha1.ScriptTemplate{
+						Source: `
+echo "Failing workflow"
+exit 1
 `,
 						Container: v1.Container{
 							Image:   "bitnami/kubectl:1.29.0",
@@ -897,6 +1027,18 @@ func (h *remediationMgrHelper) populateWorkflow(ctx context.Context, wfTemplate 
 			{
 				Name:  "namespace",
 				Value: workflowv1alpha1.AnyStringPtr(devConfig.Namespace),
+			},
+			{
+				Name:  "notifyMessage",
+				Value: workflowv1alpha1.AnyStringPtr(mapping.NotifyMessage),
+			},
+			{
+				Name:  "notifyErrorMessage",
+				Value: workflowv1alpha1.AnyStringPtr(fmt.Sprintf("Remediation for node condition %s failed on node %s", mapping.NodeCondition, nodeName)),
+			},
+			{
+				Name:  "notifySuccessMessage",
+				Value: workflowv1alpha1.AnyStringPtr(fmt.Sprintf("Remediation for node condition %s completed successfully on node %s", mapping.NodeCondition, nodeName)),
 			},
 		},
 	}
