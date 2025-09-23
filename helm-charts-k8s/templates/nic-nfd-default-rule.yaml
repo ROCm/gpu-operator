@@ -8,6 +8,20 @@ metadata:
   # source2: https://devicehunt.com/view/type/pci/vendor/1dd8
 spec:
   rules:
+  - name: amd-vnic
+    labels:
+      feature.node.kubernetes.io/amd-vnic: "true"
+    matchAny:
+      - matchFeatures:
+          - feature: kernel.loadedmodule
+            matchExpressions:
+              ionic: {op: Exists}
+          - feature: pci.device
+            matchExpressions:
+              vendor: {op: In, value: ["1dd8"]} # AMD Pensando Systems
+              device: {op: In, value: ["1003"]} # DSC Ethernet Controller VF
+              subsystem_vendor: {op: In, value: ["1dd8"]}
+              subsystem_device: {op: In, value: ["5201"]} # POLLARA-1Q400 100/200/400G 1-port Card
   - name: amd-nic
     labels:
       feature.node.kubernetes.io/amd-nic: "true"

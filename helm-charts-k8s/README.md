@@ -319,4 +319,3 @@ Kubernetes: `>= 1.29.0-0`
 | remediation-controller.controller.affinity.nodeAffinity.preferredDuringSchedulingIgnoredDuringExecution[0].weight | int | `1` |  |
 | remediation-controller.controller.image | string | `"quay.io/argoproj/workflow-controller:v3.6.5"` |  |
 | remediation-controller.controller.nodeSelector | object | `{}` |  |
-
