@@ -156,18 +156,18 @@ func (mr *MockremediationMgrHelperAPIMockRecorder) createDefaultObjects(ctx, dev
 }
 
 // createDefaultWorkflowTemplate mocks base method.
-func (m *MockremediationMgrHelperAPI) createDefaultWorkflowTemplate(ctx context.Context, namespace string) (*v1alpha10.WorkflowTemplate, error) {
+func (m *MockremediationMgrHelperAPI) createDefaultWorkflowTemplate(ctx context.Context, devConfig *v1alpha1.DeviceConfig) (*v1alpha10.WorkflowTemplate, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "createDefaultWorkflowTemplate", ctx, namespace)
+	ret := m.ctrl.Call(m, "createDefaultWorkflowTemplate", ctx, devConfig)
 	ret0, _ := ret[0].(*v1alpha10.WorkflowTemplate)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // createDefaultWorkflowTemplate indicates an expected call of createDefaultWorkflowTemplate.
-func (mr *MockremediationMgrHelperAPIMockRecorder) createDefaultWorkflowTemplate(ctx, namespace any) *gomock.Call {
+func (mr *MockremediationMgrHelperAPIMockRecorder) createDefaultWorkflowTemplate(ctx, devConfig any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "createDefaultWorkflowTemplate", reflect.TypeOf((*MockremediationMgrHelperAPI)(nil).createDefaultWorkflowTemplate), ctx, namespace)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "createDefaultWorkflowTemplate", reflect.TypeOf((*MockremediationMgrHelperAPI)(nil).createDefaultWorkflowTemplate), ctx, devConfig)
 }
 
 // createWorkflow mocks base method.
@@ -255,6 +255,20 @@ func (m *MockremediationMgrHelperAPI) getWorkflowTemplate(ctx context.Context, w
 func (mr *MockremediationMgrHelperAPIMockRecorder) getWorkflowTemplate(ctx, workflowTemplateName, namespace any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "getWorkflowTemplate", reflect.TypeOf((*MockremediationMgrHelperAPI)(nil).getWorkflowTemplate), ctx, workflowTemplateName, namespace)
+}
+
+// getWorkflowUtilityImage mocks base method.
+func (m *MockremediationMgrHelperAPI) getWorkflowUtilityImage(devConfig *v1alpha1.DeviceConfig) v1.Container {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "getWorkflowUtilityImage", devConfig)
+	ret0, _ := ret[0].(v1.Container)
+	return ret0
+}
+
+// getWorkflowUtilityImage indicates an expected call of getWorkflowUtilityImage.
+func (mr *MockremediationMgrHelperAPIMockRecorder) getWorkflowUtilityImage(devConfig any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "getWorkflowUtilityImage", reflect.TypeOf((*MockremediationMgrHelperAPI)(nil).getWorkflowUtilityImage), devConfig)
 }
 
 // handleExistingWorkflowsOnNode mocks base method.
