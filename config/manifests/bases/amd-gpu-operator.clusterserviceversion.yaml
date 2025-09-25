@@ -640,6 +640,12 @@ spec:
         path: remediationWorkflow.enable
         x-descriptors:
         - urn:alm:descriptor:com.amd.deviceconfigs:enable
+      - description: Tester image used to run tests and verify if remediation fixed
+          the reported problem.
+        displayName: TesterImage
+        path: remediationWorkflow.testerImage
+        x-descriptors:
+        - urn:alm:descriptor:com.amd.deviceconfigs:testerImage
       - description: Time to live for argo workflow object and its pods for a failed
           workflow in hours. By default, it is set to 24 hours
         displayName: TtlForFailedWorkflows
