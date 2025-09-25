@@ -9,11 +9,19 @@ LABEL summary="AMD GPU Operator Utility Image"
 LABEL description="The AMD GPU Operator utils image is a utility image used by the AMD GPU Operator. The operator controller employs this image as the container's base layer to automate tasks on target worker nodes."
 
 # Install nsenter from util-linux package
-RUN microdnf install -y util-linux pciutils kmod && \
+RUN microdnf install -y util-linux pciutils kmod tar && \
     cp /usr/bin/nsenter /nsenter && \
     microdnf clean all
 
 ADD LICENSE /licenses/LICENSE
+
+# Install kubectl and oc
+RUN mkdir -p /oc && cd /oc && \
+    curl -SsLO 'https://mirror.openshift.com/pub/openshift-v4/clients/ocp/latest/openshift-client-linux-amd64-rhel9-4.19.13.tar.gz' && \
+    tar -xzf openshift-client-linux-amd64-rhel9-4.19.13.tar.gz -C /oc && \
+    cp ./kubectl /usr/local/bin && chmod +x /usr/local/bin/kubectl && \
+    cp ./oc /usr/local/bin && chmod +x /usr/local/bin/oc && \
+    rm -rf /oc
 
 # Set entrypoint to nsenter
 ENTRYPOINT ["/nsenter"]

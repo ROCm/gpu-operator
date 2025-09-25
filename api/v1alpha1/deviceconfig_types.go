@@ -97,6 +97,12 @@ type RemediationWorkflowSpec struct {
 	//+operator-sdk:csv:customresourcedefinitions:type=spec,displayName="TtlForFailedWorkflows",xDescriptors={"urn:alm:descriptor:com.amd.deviceconfigs:ttlForFailedWorkflows"}
 	// +kubebuilder:default:=24
 	TtlForFailedWorkflows int `json:"ttlForFailedWorkflows,omitempty"`
+
+	// Tester image used to run tests and verify if remediation fixed the reported problem.
+	//+operator-sdk:csv:customresourcedefinitions:type=spec,displayName="TesterImage",xDescriptors={"urn:alm:descriptor:com.amd.deviceconfigs:testerImage"}
+	// +optional
+	// +kubebuilder:validation:Pattern=`^([a-z0-9]+(?:[._-][a-z0-9]+)*(:[0-9]+)?)(/[a-z0-9]+(?:[._-][a-z0-9]+)*)*(?::[a-z0-9._-]+)?(?:@[a-zA-Z0-9]+:[a-f0-9]+)?$`
+	TesterImage string `json:"testerImage,omitempty"`
 }
 
 type RegistryTLS struct {

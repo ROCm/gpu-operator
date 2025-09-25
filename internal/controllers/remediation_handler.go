@@ -58,11 +58,12 @@ const (
 	RemediationTaintKey        = "amd-gpu-unhealthy"
 	DefaultConfigMapSuffix     = "default-conditional-workflow-mappings"
 	DefaultTemplate            = "default-template"
-	TestRunnerImage            = "registry.test.pensando.io:5000/test-runner:agfhc-latest"
+	DefaultTestRunnerImage     = "registry.test.pensando.io:5000/test-runner:agfhc-latest"
 	TestRunnerServiceAccount   = "amd-gpu-operator-test-runner"
 	AmdGpuRemediationRequired  = "amd-gpu-remediation-required"
 	AmdGpuRemediationSucceeded = "amd-gpu-remediation-succeeded"
 	AmdGpuRemediationFailed    = "amd-gpu-remediation-failed"
+	DefaultUtilityImage        = "docker.io/rocm/gpu-operator-utils:latest"
 )
 
 // ConditionWorkflowMapping defines a single condition-to-workflow mapping.
@@ -221,7 +222,7 @@ type remediationMgrHelperAPI interface {
 	getConfigMap(ctx context.Context, configmapName string, namespace string) (*v1.ConfigMap, error)
 	deleteConfigMap(ctx context.Context, name, namespace string) error
 	createDefaultConfigMap(ctx context.Context, name, namespace string) (*v1.ConfigMap, error)
-	createDefaultWorkflowTemplate(ctx context.Context, namespace string) (*workflowv1alpha1.WorkflowTemplate, error)
+	createDefaultWorkflowTemplate(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig) (*workflowv1alpha1.WorkflowTemplate, error)
 	createDefaultObjects(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig) (*v1.ConfigMap, error)
 	populateWorkflow(ctx context.Context, wfTemplate *workflowv1alpha1.WorkflowTemplate, mapping *ConditionWorkflowMapping, nodeName string, devCfg *amdv1alpha1.DeviceConfig) *workflowv1alpha1.Workflow
 	createWorkflow(ctx context.Context, workflow *workflowv1alpha1.Workflow) error
@@ -229,6 +230,7 @@ type remediationMgrHelperAPI interface {
 	validateNodeConditions(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig, node *v1.Node, mappings map[string]ConditionWorkflowMapping) (ConditionWorkflowMapping, error)
 	isWorkflowSchedulableOnNode(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig, node *v1.Node, mapping ConditionWorkflowMapping) bool
 	handleExistingWorkflowsOnNode(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig, node *v1.Node) bool
+	getWorkflowUtilityImage(devConfig *amdv1alpha1.DeviceConfig) v1.Container
 }
 
 type remediationMgrHelper struct {
@@ -395,12 +397,19 @@ func (h *remediationMgrHelper) deleteConfigMap(ctx context.Context, name, namesp
 	return h.client.Delete(ctx, cm)
 }
 
-func (h *remediationMgrHelper) createDefaultWorkflowTemplate(ctx context.Context, namespace string) (*workflowv1alpha1.WorkflowTemplate, error) {
+func (h *remediationMgrHelper) createDefaultWorkflowTemplate(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig) (*workflowv1alpha1.WorkflowTemplate, error) {
+
+	utilityContainer := h.getWorkflowUtilityImage(devConfig)
+	utilityContainer.Command = []string{"sh"}
+
+	rebootContainer := h.getWorkflowUtilityImage(devConfig)
+	rebootContainer.Command = []string{"/nsenter", "--all", "--target=1", "--", "/sbin/reboot", "-f"}
+	rebootContainer.SecurityContext = &v1.SecurityContext{Privileged: ptr.To(true)}
 
 	notifyTemplate := &workflowv1alpha1.WorkflowTemplate{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "event-notify-template",
-			Namespace: namespace,
+			Namespace: devConfig.Namespace,
 		},
 		Spec: workflowv1alpha1.WorkflowSpec{
 			Entrypoint: "notify",
@@ -451,10 +460,7 @@ source:
 type: Warning
 EOF
 `,
-						Container: v1.Container{
-							Image:   "bitnami/kubectl:1.29.0",
-							Command: []string{"bash"},
-						},
+						Container: utilityContainer,
 					},
 				},
 			},
@@ -468,7 +474,7 @@ EOF
 	template := &workflowv1alpha1.WorkflowTemplate{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "default-template",
-			Namespace: namespace,
+			Namespace: devConfig.Namespace,
 		},
 		Spec: workflowv1alpha1.WorkflowSpec{
 			Entrypoint: "inbuilt",
@@ -551,10 +557,7 @@ NODE_NAME="{{inputs.parameters.node_name}}"
 echo "Tainting node $NODE_NAME"
 kubectl taint node "$NODE_NAME" amd-gpu-unhealthy="{{inputs.parameters.node_condition}}":NoSchedule --overwrite
 `,
-						Container: v1.Container{
-							Image:   "bitnami/kubectl:1.29.0",
-							Command: []string{"sh"},
-						},
+						Container: utilityContainer,
 					},
 				},
 				{
@@ -603,19 +606,12 @@ else
   done
 fi
 `,
-						Container: v1.Container{
-							Image:   "bitnami/kubectl:1.29.0",
-							Command: []string{"sh"},
-						},
+						Container: utilityContainer,
 					},
 				},
 				{
-					Name: "reboot",
-					Container: &v1.Container{
-						Image:           "docker.io/rocm/gpu-operator-utils:latest",
-						Command:         []string{"/nsenter", "--all", "--target=1", "--", "/sbin/reboot", "-f"},
-						SecurityContext: &v1.SecurityContext{Privileged: ptr.To(true)},
-					},
+					Name:      "reboot",
+					Container: &rebootContainer,
 					PodSpecPatch: `
 hostPID: true
 hostNetwork: true
@@ -810,10 +806,7 @@ while true; do
   fi
 done
 `,
-						Container: v1.Container{
-							Image:   "bitnami/kubectl:1.29.0",
-							Command: []string{"sh"},
-						},
+						Container: utilityContainer,
 					},
 				},
 				{
@@ -857,10 +850,7 @@ done
 echo "{{inputs.parameters.node_condition}} did not remain False for 2 consecutive minutes within 15 minutes. Exiting with failure."
 exit 1
 `,
-						Container: v1.Container{
-							Image:   "bitnami/kubectl:1.29.0",
-							Command: []string{"sh"},
-						},
+						Container: utilityContainer,
 					},
 				},
 				{
@@ -880,10 +870,7 @@ NODE_NAME="{{inputs.parameters.node_name}}"
 echo "Untainting node $NODE_NAME"
 kubectl taint node "$NODE_NAME" amd-gpu-unhealthy:NoSchedule-
 `,
-						Container: v1.Container{
-							Image:   "bitnami/kubectl:1.29.0",
-							Command: []string{"sh"},
-						},
+						Container: utilityContainer,
 					},
 				},
 				{
@@ -893,10 +880,7 @@ kubectl taint node "$NODE_NAME" amd-gpu-unhealthy:NoSchedule-
 echo "Failing workflow"
 exit 1
 `,
-						Container: v1.Container{
-							Image:   "bitnami/kubectl:1.29.0",
-							Command: []string{"sh"},
-						},
+						Container: utilityContainer,
 					},
 				},
 			},
@@ -940,7 +924,7 @@ func (h *remediationMgrHelper) createDefaultObjects(ctx context.Context, devConf
 	_, err = h.getWorkflowTemplate(ctx, DefaultTemplate, devConfig.Namespace)
 	if err != nil {
 		logger.Error(err, fmt.Sprintf("Failed to fetch WorkflowTemplate %s", DefaultTemplate))
-		if _, err = h.createDefaultWorkflowTemplate(ctx, devConfig.Namespace); err != nil {
+		if _, err = h.createDefaultWorkflowTemplate(ctx, devConfig); err != nil {
 			logger.Error(err, "Failed to create default workflow template")
 			return nil, err
 		}
@@ -985,6 +969,12 @@ func (h *remediationMgrHelper) populateWorkflow(ctx context.Context, wfTemplate 
 		wf.Spec.Templates[i].Tolerations = append(wf.Spec.Templates[i].Tolerations, toleration)
 	}
 
+	testrunnerImage := DefaultTestRunnerImage
+
+	if devConfig.Spec.RemediationWorkflow.TesterImage != "" {
+		testrunnerImage = devConfig.Spec.RemediationWorkflow.TesterImage
+	}
+
 	// Pass the args required to be used in the template
 	wf.Spec.Arguments = workflowv1alpha1.Arguments{
 		Parameters: []workflowv1alpha1.Parameter{
@@ -1018,7 +1008,7 @@ func (h *remediationMgrHelper) populateWorkflow(ctx context.Context, wfTemplate 
 			},
 			{
 				Name:  "testRunnerImage",
-				Value: workflowv1alpha1.AnyStringPtr(TestRunnerImage),
+				Value: workflowv1alpha1.AnyStringPtr(testrunnerImage),
 			},
 			{
 				Name:  "testRunnerServiceAccount",
@@ -1157,4 +1147,18 @@ func (h *remediationMgrHelper) handleExistingWorkflowsOnNode(ctx context.Context
 		}
 	}
 	return true
+}
+
+func (h *remediationMgrHelper) getWorkflowUtilityImage(devConfig *amdv1alpha1.DeviceConfig) v1.Container {
+	output := v1.Container{}
+	if devConfig.Spec.CommonConfig.UtilsContainer.Image != "" {
+		output.Image = devConfig.Spec.CommonConfig.UtilsContainer.Image
+	} else {
+		output.Image = DefaultUtilityImage
+	}
+	if devConfig.Spec.CommonConfig.UtilsContainer.ImagePullPolicy != "" {
+		output.ImagePullPolicy = v1.PullPolicy(devConfig.Spec.CommonConfig.UtilsContainer.ImagePullPolicy)
+	}
+
+	return output
 }
