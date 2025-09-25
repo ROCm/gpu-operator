@@ -11,10 +11,7 @@ metadata:
   name: node-problem-detector
 rules:
 - apiGroups: [""]
-  resources: ["nodes"]
-  verbs: ["get", "list", "watch"]
-- apiGroups: [""]
-  resources: ["pods"]
+  resources: ["nodes", "pods", "services"]
   verbs: ["get", "list", "watch"]
 - apiGroups: [""]
   resources: ["events"]

@@ -1301,6 +1301,11 @@ spec:
                       enable remediation workflows. disabled by default
                       enable if operator should automatically handle remediation of node incase of gpu issues
                     type: boolean
+                  testerImage:
+                    description: Tester image used to run tests and verify if remediation
+                      fixed the reported problem.
+                    pattern: ^([a-z0-9]+(?:[._-][a-z0-9]+)*(:[0-9]+)?)(/[a-z0-9]+(?:[._-][a-z0-9]+)*)*(?::[a-z0-9._-]+)?(?:@[a-zA-Z0-9]+:[a-f0-9]+)?$
+                    type: string
                   ttlForFailedWorkflows:
                     default: 24
                     description: Time to live for argo workflow object and its pods
