@@ -73,7 +73,7 @@ data:
           "TestLocationTrigger": {
             "global": {
               "TestParameters": {
-                "AUTO_UNHEALTHY_GPU_WATCH": {
+                "PRE_START_JOB_CHECK": {
                   "TestCases": [
                     {
                       "Recipe": "gst_single",
@@ -124,6 +124,8 @@ spec:
         resources:
           requests:
             amd.com/gpu: 8 # requesting all GPUs on the worker node
+          limits:
+            amd.com/gpu: 8
         env:
         - name: TEST_TRIGGER
           value: "PRE_START_JOB_CHECK" # Set the TEST_TRIGGER environment variable to PRE_START_JOB_CHECK for test runner as init container
@@ -152,6 +154,8 @@ spec:
         resources:
           requests:
             amd.com/gpu: 8 # requesting all GPUs on the worker node
+          limits:
+            amd.com/gpu: 8
 ```
 
 ## Check test runner init container
