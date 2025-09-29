@@ -217,7 +217,9 @@ for node in "${nodeList[@]}"; do
 	if [ -z "$NFD_PODS" ]; then
 		NFD_PODS=$(${KNS} get pods -o name --field-selector spec.nodeName=${node} | grep -i nfd- || continue)
 	fi
-	pod_logs $NFD_NS "nfd" $node $NFD_PODS
+	if ! pod_logs $NFD_NS "nfd" $node $NFD_PODS; then
+		log "Failed to collect logs for NFD pods on node ${node}"
+	fi
 
 	# kmm pod logs
 	KNS="${KUBECTL} -n ${KMM_NS}"
@@ -225,7 +227,9 @@ for node in "${nodeList[@]}"; do
 	if [ -z "$KMM_PODS" ]; then
 		KMM_PODS=$(${KNS} get pods -o name --field-selector spec.nodeName=${node} | grep -i kmm-operator- || continue)
 	fi
-	pod_logs $KMM_NS "kmm" $node $KMM_PODS
+	if ! pod_logs $KMM_NS "kmm" $node $KMM_PODS; then
+		log "Failed to collect logs for KMM pods on node ${node}"
+	fi
 
 	# metrics exporter pod logs
 	KNS="${KUBECTL} -n ${GPUOPER_NS}"
@@ -247,31 +251,43 @@ for node in "${nodeList[@]}"; do
 	${KNS} exec -it ${EXPORTER_PODS} -- sh -c "amd-smi partition" >${TECH_SUPPORT_FILE}/${node}/metrics-exporter/smi/amd-smi-partition.txt || true
 	${KNS} exec -it ${EXPORTER_PODS} -- sh -c "amd-smi xgmi" >${TECH_SUPPORT_FILE}/${node}/metrics-exporter/smi/amd-smi-xgmi.txt || true
 
-	pod_logs $GPUOPER_NS "metrics-exporter" $node $EXPORTER_PODS
+	if ! pod_logs $GPUOPER_NS "metrics-exporter" $node $EXPORTER_PODS; then
+    	log "Failed to collect logs for device-metrics-exporter on node ${node}"
+	fi
 
 	# device config manager pod logs
 	KNS="${KUBECTL} -n ${GPUOPER_NS}"
 	DEVICE_CONFIG_MANAGER_PODS=$(${KNS} get pods -o name --field-selector spec.nodeName=${node} -l "app.kubernetes.io/name=device-config-manager" || continue)
-	pod_logs $GPUOPER_NS "device-config-manager" $node $DEVICE_CONFIG_MANAGER_PODS
+	if ! pod_logs $GPUOPER_NS "device-config-manager" $node $DEVICE_CONFIG_MANAGER_PODS; then
+    	log "Failed to collect logs for device-config-manager on node ${node}"
+	fi
 	
 	# device plugin pod logs
 	DEVICE_PLUGIN_PODS=$(${KNS} get pods -o name --field-selector spec.nodeName=${node} | grep -i device-plugin- || continue)
-	pod_logs $GPUOPER_NS "device-plugin" $node $DEVICE_PLUGIN_PODS
+	if ! pod_logs $GPUOPER_NS "device-plugin" $node $DEVICE_PLUGIN_PODS; then
+    	log "Failed to collect logs for device-plugin on node ${node}"
+	fi
 
 	# node labeller pod logs
 	NODE_LABELLER_PODS=$(${KNS} get pods -o name --field-selector spec.nodeName=${node} | grep -i node-labeller- || continue)
-	pod_logs $GPUOPER_NS "node-labeller" $node $NODE_LABELLER_PODS
+	if ! pod_logs $GPUOPER_NS "node-labeller" $node $NODE_LABELLER_PODS; then
+		log "Failed to collect logs for node-labeller on node ${node}"
+	fi
 
 	# test runner pod logs
 	TEST_RUNNER_PODS=$(${KNS} get pods -o name --field-selector spec.nodeName=${node} | grep -i test-runner- || continue)
-	pod_logs $GPUOPER_NS "test-runner" $node $TEST_RUNNER_PODS
+	if ! pod_logs $GPUOPER_NS "test-runner" $node $TEST_RUNNER_PODS; then
+		log "Failed to collect logs for test-runner on node ${node}"
+	fi
 
 	# operator pod logs
 	GPUOPER_PODS=$(${KNS} get pods -o name --field-selector spec.nodeName=${node} -l "app.kubernetes.io/name=gpu-operator-charts" || continue)
 	if [ -z "$GPUOPER_PODS" ]; then
 		GPUOPER_PODS=$(${KNS} get pods -o name --field-selector spec.nodeName=${node} | grep -i amd-gpu-operator-controller-manager || continue)
 	fi
-	pod_logs $GPUOPER_NS "gpu-operator" $node $GPUOPER_PODS
+	if ! pod_logs $GPUOPER_NS "gpu-operator" $node $GPUOPER_PODS; then
+		log "Failed to collect logs for gpu-operator on node ${node}"
+	fi
 
 	# node logs
 	dbgpods=$(${KUBECTL} get pods -o name --field-selector spec.nodeName=${node} -l "app=techsupport-${UUID}" || continue)
