@@ -1,5 +1,46 @@
 # Release Notes
 
+## GPU Operator v1.4.0 Release Notes
+
+The AMD GPU Operator v1.4.0 release extends platform support to Newer MI35X platforms.
+
+### Release Highlights
+
+- **Device Config Manager**
+  - **MI35X Support**
+    - Add support for MI35X series GPUs to enable the configuration of GPU partitions.
+
+- **Device-Metrics-Exporter enhancements**
+  - **MI35X Support**
+    - Add support for MI35X series GPUs to enable the collection of GPU metrics.
+  
+  - **Mask Unsupported Fields**
+    - Platform-specific unsupported fields (amd-smi marked as N/A) will not be exported. Boot logs will indicate which fields are supported by the platform (logged once during startup).
+
+  - **New Profiler Fields**
+    - New fields are added for better understanding of the application
+
+  - **Depricated Fields Notice**
+    - Following fields are depricated from 6.14.14 driver onwards
+      - GPU_MMA_ACTIVITY
+      - GPU_JPEG_ACTIVITY
+      - GPU_VCN_ACTIVITY
+
+    - These fields are replaced by following fields
+      - GPU_JPEG_BUSY_INSTANTANEOUS
+      - GPU_VCN_BUSY_INSTANTANEOUS
+  
+
+### Platform Support
+ - Validated for vanilla kubernetes 1.31
+
+### Fixes
+ TBD
+
+### Known Limitations
+> **Note:** All current and historical limitations for the GPU Operator, including their latest statuses and any associated workarounds or fixes, are tracked in the following documentation page: [Known Issues and Limitations](https://instinct.docs.amd.com/projects/gpu-operator/en/latest/knownlimitations.html).  
+   Please refer to this page regularly for the most up-to-date information.
+
 ## GPU Operator v1.3.1 Release Notes
 
 The AMD GPU Operator v1.3.1 release extends platform support to OpenShift v4.19 for GPU partitioning on MI300 series GPUs with the Device Config Manager (DCM) component.
