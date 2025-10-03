@@ -36,7 +36,7 @@ metadata:
 spec:
   driver:
     enable: true
-    version: "6.4.1"
+    version: "7.0"
 
   devicePlugin:
     devicePluginImage: rocm/k8s-device-plugin:rhubi-latest
@@ -98,7 +98,7 @@ spec:
   driver:
     image: image-registry.openshift-image-registry.svc:5000/kube-amd-gpu/amdgpu_kmod
     enable: true
-    version: "6.4.1"
+    version: "7.0"
 
   devicePlugin:
     devicePluginImage: image-registry.openshift-image-registry.svc:5000/kube-amd-gpu/k8s-device-plugin:rhubi-latest
