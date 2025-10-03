@@ -43,7 +43,7 @@ Below is an example of a full DeviceConfig CR that can be used to install the AM
         # Not working for OpenShift cluster. OpenShift users please use the Machine Config Operator (MCO) resource to configure amdgpu blacklist.
         # Example MCO resource is available at https://instinct.docs.amd.com/projects/gpu-operator/en/latest/installation/openshift-olm.html#create-blacklist-for-installing-out-of-tree-kernel-module
         blacklist: false
-        version: "6.4" # Specify the driver version you would like to be installed that coincides with a ROCm version number
+        version: "7.0" # Specify the driver version you would like to be installed that coincides with a ROCm version number
         # Specify your repository to host driver image
         # Note:
         # 1. DO NOT include the image tag as AMD GPU Operator will automatically manage the image tag for you
