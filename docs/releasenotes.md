@@ -2,9 +2,17 @@
 
 ## GPU Operator v1.4.0 Release Notes
 
-The AMD GPU Operator v1.4.0 release extends platform support to Newer MI35X platforms.
+The AMD GPU Operator v1.4.0 adds MI35X platform support and updates all managed operands to ROCm 7 runtime libraries, aligning the full stack with the ROCm 7 release.
 
 ### Release Highlights
+
+- **Test Runner**
+  - **MI35X Support**
+    - Introduced support for testing MI35X series GPUs.
+  - **Expanded Test Framework**
+    - Enabled execution of AMD GPU Field Health Check (AGFHC) test recipes.
+    - Note: Public test runner images support only ROCmValidationSuite (RVS) test recipes. Using AGFHC related features requires a licensed private test runner image. Contact AMD representatives for access.
+    - For details, refer to [AGFHC documentation](https://instinct.docs.amd.com/projects/gpu-operator/en/main/test/agfhc.html).
 
 - **Device Config Manager**
   - **MI35X Support**
@@ -32,10 +40,17 @@ The AMD GPU Operator v1.4.0 release extends platform support to Newer MI35X plat
   
 
 ### Platform Support
- - Validated for vanilla kubernetes 1.31
+ - Validated for vanilla kubernetes 1.32, 1.33
 
 ### Fixes
- TBD
+  1. **Failed to load GPU Operator managed amdgpu kernel module on Ubuntu 24.04**
+     * When users are using GPU Operator to build and manage the amdgpu kernel module, it may fail on the Ubuntu 24.04 worker nodes if the node doesn't have `linux-modules-extra-$(uname -r)` installed.
+     * This issue was fixed by this release, `linux-modules-extra-$(uname -r)` won't be required to be installed on the worker node.
+  2. **Improved Test Runner Result Handling**
+     * Previously, if some test cases in a recipe were skipped while others passed, the test runner would incorrectly mark the entire recipe as failed.
+     * Now, the test runner marks the recipe as passed if at least some test cases pass. If all test cases are skipped, the recipe is marked as skipped.
+  3. **Device Config Manager keeps retrying and waiting for unsupported memory partition type**
+     * This issue has been fixed, currently if users provide unsupported memory partitions for the GPU model, DMC would immediately fail the workflow and won't keep retrying on unsupported memory partition.
 
 ### Known Limitations
 > **Note:** All current and historical limitations for the GPU Operator, including their latest statuses and any associated workarounds or fixes, are tracked in the following documentation page: [Known Issues and Limitations](https://instinct.docs.amd.com/projects/gpu-operator/en/latest/knownlimitations.html).  

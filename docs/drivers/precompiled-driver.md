@@ -136,7 +136,7 @@ spec:
       name: docker-auth
       
     # Driver version
-    version: "6.2.2"
+    version: "7.0"
     
   devicePlugin:
     devicePluginImage: rocm/k8s-device-plugin:latest

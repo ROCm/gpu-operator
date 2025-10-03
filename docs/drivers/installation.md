@@ -122,7 +122,7 @@ spec:
     imageRegistrySecret:
       name: mysecret
     # Specify the driver version by using ROCm version
-    version: "6.2.1"
+    version: "7.0"
 
   devicePlugin:
     devicePluginImage: rocm/k8s-device-plugin:latest
