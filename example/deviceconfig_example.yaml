@@ -17,7 +17,7 @@ spec:
     blacklist: false
         
     # Specify the out-of-tree driver version
-    version: "6.4"
+    version: "7.0"
 
     # Specify driver image here
     # DO NOT include the image tag as AMD GPU Operator will automatically manage the image tag for you
