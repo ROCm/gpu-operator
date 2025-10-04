@@ -1,0 +1,21 @@
+images:
+  - target: docker.io/rocm/gpu-operator:v1.4.0
+    k8s_comp_prefix:
+      - gpu-operator-charts-controller-manager
+  - target: docker.io/rocm/device-metrics-exporter:v1.4.0
+    cr_path:
+      - .spec.metricsExporter.image
+  - target: docker.io/rocm/test-runner:v1.4.0
+    cr_path:
+      - .spec.testRunner.image
+  - target: docker.io/rocm/device-config-manager:v1.4.0
+    cr_path:
+      - .spec.configManager.image
+  - target: docker.io/rocm/kernel-module-management-signimage:v1.4.0
+  - target: docker.io/rocm/kernel-module-management-worker:v1.4.0
+  - target: docker.io/rocm/kernel-module-management-webhook-server:v1.4.0
+    k8s_comp_prefix:
+      - kmm-webhook-server
+  - target: docker.io/rocm/kernel-module-management-operator:v1.4.0
+    k8s_comp_prefix:
+      - kmm-controller
