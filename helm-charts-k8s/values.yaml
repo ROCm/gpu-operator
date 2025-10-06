@@ -15,30 +15,24 @@ node-feature-discovery:
         effect: "NoSchedule"
     # -- Set nodeSelector for NFD worker daemonset
     nodeSelector: {}
-
 # KMM related configs
 kmm:
   # -- Set to true/false to enable/disable the installation of kernel module management (KMM) operator
   enabled: true
-
 # Remediation related configs
 remediation:
   # -- Set to true/false to enable/disable the installation of remediation workflow controller
   enabled: true
-
 # -- Default NFD rule will detect amd gpu based on pci vendor ID
 installdefaultNFDRule: true
-
 # -- CRD will be patched as pre-upgrade/pre-rollback hook when doing helm upgrade/rollback to current helm chart
 upgradeCRD: true
-
 crds:
   defaultCR:
     # -- Deploy default DeviceConfig during helm chart installation
     install: true
     # -- Deploy / Patch default DeviceConfig during helm chart upgrade. Be careful about this option: 1. Your customized change on default DeviceConfig may be overwritten 2. Your existing DeviceConfig may conflict with upgraded default DeviceConfig 
     upgrade: false
-
 deviceConfig:
   spec:
     # -- Set node selector for the default DeviceConfig
@@ -135,7 +129,7 @@ deviceConfig:
       # -- external port for pulling metrics from outside the cluster for NodePort service, in the range 30000-32767 (assigned automatically by default)
       nodePort: 32500
       # -- metrics exporter image
-      image: rocm/device-metrics-exporter:v1.4.0
+      image: registry.test.pensando.io:5000/device-metrics-exporter:latest
       # -- metrics exporter image pull policy
       imagePullPolicy: "IfNotPresent"
       # -- name of the metrics exporter config map, e.g. {"name": "metricConfigMapName"}
@@ -193,14 +187,14 @@ deviceConfig:
       # -- enable / disable test runner
       enable: false
       # -- test runner image
-      image: docker.io/rocm/test-runner:v1.4.0
+      image: registry.test.pensando.io:5000/test-runner:latest
       # -- test runner image pull policy
-      imagePullPolicy: "IfNotPresent" 
+      imagePullPolicy: "IfNotPresent"
       # -- test runner config map, e.g. {"name": "myConfigMap"}
       config: {}
       logsLocation:
         # -- test runner internal mounted directory to save test run logs
-        mountPath: "/var/log/amd-test-runner" 
+        mountPath: "/var/log/amd-test-runner"
         # -- host directory to save test run logs
         hostPath: "/var/log/amd-test-runner"
         # -- a list of secrets that contain connectivity info to multiple cloud providers
@@ -220,7 +214,7 @@ deviceConfig:
       # -- enable/disable the config manager 
       enable: false
       # -- config manager image
-      image: rocm/device-config-manager:v1.4.0
+      image: registry.test.pensando.io:5000/device-config-manager:latest
       # -- image pull policy for config manager image
       imagePullPolicy: IfNotPresent
       # -- image pull secret for config manager image, e.g. {"name": "myPullSecret"}
@@ -236,12 +230,11 @@ deviceConfig:
         maxUnavailable: 1
       # -- config manager tolerations
       configManagerTolerations: []
-
 # AMD GPU operator controller related configs
 controllerManager:
   manager:
     args:
-    - --config=controller_manager_config.yaml
+      - --config=controller_manager_config.yaml
     containerSecurityContext:
       allowPrivilegeEscalation: false
     image:
@@ -254,14 +247,14 @@ controllerManager:
     # -- Image pull secret name for pulling AMD GPU operator controller manager image if registry needs credential to pull image
     imagePullSecrets: ""
     tolerations:
-    - key: "node-role.kubernetes.io/master"
-      operator: "Equal"
-      value: ""
-      effect: "NoSchedule"
-    - key: "node-role.kubernetes.io/control-plane"
-      operator: "Equal"
-      value: ""
-      effect: "NoSchedule"
+      - key: "node-role.kubernetes.io/master"
+        operator: "Equal"
+        value: ""
+        effect: "NoSchedule"
+      - key: "node-role.kubernetes.io/control-plane"
+        operator: "Equal"
+        value: ""
+        effect: "NoSchedule"
     resources:
       limits:
         cpu: 1000m
@@ -301,10 +294,10 @@ managerConfig:
       resourceID: gpu.amd.com
 metricsService:
   ports:
-  - name: https
-    port: 8443
-    protocol: TCP
-    targetPort: https
+    - name: https
+      port: 8443
+      protocol: TCP
+      targetPort: https
   type: ClusterIP
 nodeLabeller:
   serviceAccount:

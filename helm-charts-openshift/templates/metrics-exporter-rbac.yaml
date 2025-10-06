@@ -14,13 +14,16 @@ rules:
   verbs:
   - get
   - list
+  - watch
 - apiGroups:
   - ""
   resources:
   - nodes
   verbs:
+  - watch
   - get
   - list
+  - update
 - apiGroups:
   - security.openshift.io
   resourceNames:

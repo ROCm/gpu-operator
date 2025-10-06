@@ -1,13 +1,13 @@
 nfd:
-  enabled: true  # Set to false to disable nfd
+  enabled: true # Set to false to disable nfd
 kmm:
-  enabled: true  # Set to false to disable kmm
+  enabled: true # Set to false to disable kmm
 installdefaultNFDRule: true # default NFD rule will detect amd gpu based on pci vendor ID
 upgradeCRD: true # CRD will be patched as pre-upgrade hook when doing helm upgrade to current helm chart
 controllerManager:
   manager:
     args:
-    - --config=controller_manager_config.yaml
+      - --config=controller_manager_config.yaml
     containerSecurityContext:
       allowPrivilegeEscalation: false
     image:
@@ -16,14 +16,14 @@ controllerManager:
     imagePullPolicy: Always
     imagePullSecrets: ""
     tolerations:
-    - key: "node-role.kubernetes.io/master"
-      operator: "Equal"
-      value: ""
-      effect: "NoSchedule"
-    - key: "node-role.kubernetes.io/control-plane"
-      operator: "Equal"
-      value: ""
-      effect: "NoSchedule"
+      - key: "node-role.kubernetes.io/master"
+        operator: "Equal"
+        value: ""
+        effect: "NoSchedule"
+      - key: "node-role.kubernetes.io/control-plane"
+        operator: "Equal"
+        value: ""
+        effect: "NoSchedule"
     resources:
       limits:
         cpu: 1000m
@@ -61,10 +61,10 @@ managerConfig:
       resourceID: gpu.amd.com
 metricsService:
   ports:
-  - name: https
-    port: 8443
-    protocol: TCP
-    targetPort: https
+    - name: https
+      port: 8443
+      protocol: TCP
+      targetPort: https
   type: ClusterIP
 nodeLabeller:
   serviceAccount:
@@ -72,3 +72,11 @@ nodeLabeller:
 metricsExporter:
   serviceAccount:
     annotations: {}
+deviceConfig:
+  spec:
+    metricsExporter:
+      image: registry.test.pensando.io:5000/device-metrics-exporter:latest
+    configManager:
+      image: registry.test.pensando.io:5000/device-config-manager:latest
+    testRunner:
+      image: registry.test.pensando.io:5000/test-runner:latest
