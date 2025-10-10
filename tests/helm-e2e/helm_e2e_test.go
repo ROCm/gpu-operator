@@ -28,6 +28,7 @@ import (
 	. "gopkg.in/check.v1"
 	corev1 "k8s.io/api/core/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/resource"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
 
@@ -827,6 +828,17 @@ deviceConfig:
 					ImagePullPolicy: "Always",
 					Config: v1alpha1.MetricsConfig{
 						Name: "metricsConfig",
+					},
+					PodResourceAPISocketPath: "/var/lib/kubelet/pod-resources",
+					Resource: &corev1.ResourceRequirements{
+						Limits: corev1.ResourceList{
+							corev1.ResourceCPU:    resource.MustParse("2"),
+							corev1.ResourceMemory: resource.MustParse("4G"),
+						},
+						Requests: corev1.ResourceList{
+							corev1.ResourceCPU:    resource.MustParse("500m"),
+							corev1.ResourceMemory: resource.MustParse("512M"),
+						},
 					},
 					Tolerations: []corev1.Toleration{
 						{

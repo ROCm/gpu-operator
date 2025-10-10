@@ -41,6 +41,7 @@ import (
 	"github.com/rh-ecosystem-edge/kernel-module-management/pkg/labels"
 	appsv1 "k8s.io/api/apps/v1"
 	v1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/intstr"
@@ -245,6 +246,23 @@ func (nl *metricsExporter) SetMetricsExporterAsDesired(ds *appsv1.DaemonSet, dev
 			SecurityContext: &v1.SecurityContext{Privileged: ptr.To(true)},
 			VolumeMounts:    containerVolumeMounts,
 		},
+	}
+
+	// Set resource limits if configured
+	if mSpec.Resource != nil {
+		containers[0].Resources = *mSpec.Resource
+	} else {
+		// Set default resource limits
+		containers[0].Resources = v1.ResourceRequirements{
+			Limits: v1.ResourceList{
+				v1.ResourceCPU:    resource.MustParse("2"),
+				v1.ResourceMemory: resource.MustParse("4G"),
+			},
+			Requests: v1.ResourceList{
+				v1.ResourceCPU:    resource.MustParse("500m"),
+				v1.ResourceMemory: resource.MustParse("512M"),
+			},
+		}
 	}
 
 	if mSpec.ImagePullPolicy != "" {

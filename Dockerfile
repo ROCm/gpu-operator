@@ -75,8 +75,8 @@ USER 201:201
 LABEL name="amd-gpu-operator" \ 
     maintainer="yan.sun3@amd.com,shrey.ajmera@amd.com,nitish.bhat@amd.com,praveenkumar.shanmugam@amd.com" \
     vendor="Advanced Micro Devices, Inc." \
-    version="v1.4.0" \
-    release="v1.4.0" \
+    version="v1.4.1" \
+    release="v1.4.1" \
     summary="The AMD GPU Operator simplifies the management and deployment of AMD GPUs on Kubernetes cluster" \
     description="The AMD GPU Operator controller manager images are essential for managing, deploying, and orchestrating AMD GPU resources and operations within Kubernetes clusters. It streamline various tasks, including automated driver installation and management, easy deployment of the AMD GPU device plugin, and metrics collection and export. Its operands could simplify GPU resource allocation for containers, automatically label worker nodes with GPU properties, and provide comprehensive GPU health monitoring and troubleshooting."
 

@@ -590,6 +590,11 @@ spec:
         path: metricsExporter.rbacConfig.staticAuthorization.enable
         x-descriptors:
         - urn:alm:descriptor:com.amd.deviceconfigs:enable
+      - description: Set resource config for metrics exporter
+        displayName: Resource
+        path: metricsExporter.resource
+        x-descriptors:
+        - urn:alm:descriptor:com.amd.deviceconfigs:resource
       - description: Selector describes on which nodes to enable metrics exporter
         displayName: Selector
         path: metricsExporter.selector
