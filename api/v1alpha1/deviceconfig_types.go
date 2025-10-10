@@ -536,6 +536,12 @@ type MetricsExporterSpec struct {
 	// +kubebuilder:validation:Pattern=`^(/[^/\0]+)*(/)?$`
 	// +kubebuilder:default="/var/lib/kubelet/pod-resources"
 	PodResourceAPISocketPath string `json:"podResourceAPISocketPath,omitempty"`
+
+	// Set resource config for metrics exporter
+	//+operator-sdk:csv:customresourcedefinitions:type=spec,displayName="Resource",xDescriptors={"urn:alm:descriptor:com.amd.deviceconfigs:resource"}
+	// +optional
+	// +kubebuilder:default:={limits: {cpu: "2", memory: "4G"}, requests: {cpu: "500m", memory: "512M"}}
+	Resource *v1.ResourceRequirements `json:"resource,omitempty"`
 }
 
 type PrometheusConfig struct {
