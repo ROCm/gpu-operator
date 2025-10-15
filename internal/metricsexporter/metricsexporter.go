@@ -265,6 +265,12 @@ func (nl *metricsExporter) SetMetricsExporterAsDesired(ds *appsv1.DaemonSet, dev
 		}
 	}
 
+	// set annotations for metrics exporter
+	podAnnotations := map[string]string{}
+	if mSpec.PodAnnotations != nil {
+		podAnnotations = mSpec.PodAnnotations
+	}
+
 	if mSpec.ImagePullPolicy != "" {
 		containers[0].ImagePullPolicy = v1.PullPolicy(mSpec.ImagePullPolicy)
 	}
@@ -416,7 +422,8 @@ func (nl *metricsExporter) SetMetricsExporterAsDesired(ds *appsv1.DaemonSet, dev
 		Selector: &metav1.LabelSelector{MatchLabels: matchLabels},
 		Template: v1.PodTemplateSpec{
 			ObjectMeta: metav1.ObjectMeta{
-				Labels: matchLabels,
+				Labels:      matchLabels,
+				Annotations: podAnnotations,
 			},
 
 			Spec: v1.PodSpec{
@@ -501,6 +508,16 @@ func (nl *metricsExporter) SetMetricsServiceAsDesired(svc *v1.Service, devConfig
 			metricsExporterLabelPair[0]: metricsExporterLabelPair[1],
 		},
 	}
+
+	// set annotations for metrics exporter
+	serviceAnnocations := map[string]string{}
+	if mSpec.ServiceAnnotations != nil {
+		serviceAnnocations = mSpec.ServiceAnnotations
+	}
+	if svc.Annotations == nil {
+		svc.Annotations = make(map[string]string)
+	}
+	svc.Annotations = serviceAnnocations
 
 	port := servicePort
 	if mSpec.Port > 0 {
