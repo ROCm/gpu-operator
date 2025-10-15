@@ -455,6 +455,11 @@ spec:
         path: metricsExporter.nodePort
         x-descriptors:
         - urn:alm:descriptor:com.amd.deviceconfigs:nodePort
+      - description: Set PodAnnotations for metrics exporter
+        displayName: PodAnnotations
+        path: metricsExporter.podAnnotations
+        x-descriptors:
+        - urn:alm:descriptor:com.amd.deviceconfigs:podAnnotations
       - description: Set the host path for pod-resource kubelet.socket, vanila kubernetes
           path is /var/lib/kubelet/pod-resources microk8s path is /var/snap/microk8s/common/var/lib/kubelet/pod-resources/
           path is an absolute unix path that allows a trailing slash
@@ -590,11 +595,21 @@ spec:
         path: metricsExporter.rbacConfig.staticAuthorization.enable
         x-descriptors:
         - urn:alm:descriptor:com.amd.deviceconfigs:enable
+      - description: Set resource config for metrics exporter
+        displayName: Resource
+        path: metricsExporter.resource
+        x-descriptors:
+        - urn:alm:descriptor:com.amd.deviceconfigs:resource
       - description: Selector describes on which nodes to enable metrics exporter
         displayName: Selector
         path: metricsExporter.selector
         x-descriptors:
         - urn:alm:descriptor:com.amd.deviceconfigs:selector
+      - description: Set ServiceAnnotations for metrics exporter
+        displayName: ServiceAnnotations
+        path: metricsExporter.serviceAnnotations
+        x-descriptors:
+        - urn:alm:descriptor:com.amd.deviceconfigs:serviceAnnotations
       - description: ServiceType service type for metrics, clusterIP/NodePort, clusterIP
           by default
         displayName: ServiceType

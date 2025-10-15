@@ -162,7 +162,7 @@ Kubernetes: `>= 1.29.0-0`
 | deviceConfig.spec.configManager.config | object | `{}` | config map for config manager, e.g. {"name": "myConfigMap"} |
 | deviceConfig.spec.configManager.configManagerTolerations | list | `[]` | config manager tolerations |
 | deviceConfig.spec.configManager.enable | bool | `false` | enable/disable the config manager  |
-| deviceConfig.spec.configManager.image | string | `"registry.test.pensando.io:5000/device-config-manager:latest"` | config manager image |
+| deviceConfig.spec.configManager.image | string | `"rocm/device-config-manager:latest"` | config manager image |
 | deviceConfig.spec.configManager.imagePullPolicy | string | `"IfNotPresent"` | image pull policy for config manager image |
 | deviceConfig.spec.configManager.imageRegistrySecret | object | `{}` | image pull secret for config manager image, e.g. {"name": "myPullSecret"} |
 | deviceConfig.spec.configManager.selector | object | `{}` | node selector for config manager, if not specified it will reuse spec.selector |
@@ -202,7 +202,7 @@ Kubernetes: `>= 1.29.0-0`
 | deviceConfig.spec.driver.version | string | `"6.4"` | specify an out-of-tree driver version to install |
 | deviceConfig.spec.metricsExporter.config | object | `{}` | name of the metrics exporter config map, e.g. {"name": "metricConfigMapName"} |
 | deviceConfig.spec.metricsExporter.enable | bool | `true` | enable / disable device metrics exporter |
-| deviceConfig.spec.metricsExporter.image | string | `"registry.test.pensando.io:5000/device-metrics-exporter:latest"` | metrics exporter image |
+| deviceConfig.spec.metricsExporter.image | string | `"rocm/device-metrics-exporter:latest"` | metrics exporter image |
 | deviceConfig.spec.metricsExporter.imagePullPolicy | string | `"IfNotPresent"` | metrics exporter image pull policy |
 | deviceConfig.spec.metricsExporter.imageRegistrySecret | object | `{}` | metrics exporter image pull secret, e.g. {"name": "pullSecretName"} |
 | deviceConfig.spec.metricsExporter.nodePort | int | `32500` | external port for pulling metrics from outside the cluster for NodePort service, in the range 30000-32767 (assigned automatically by default) |
@@ -232,7 +232,7 @@ Kubernetes: `>= 1.29.0-0`
 | deviceConfig.spec.selector | object | `{"feature.node.kubernetes.io/amd-gpu":"true"}` | Set node selector for the default DeviceConfig |
 | deviceConfig.spec.testRunner.config | object | `{}` | test runner config map, e.g. {"name": "myConfigMap"} |
 | deviceConfig.spec.testRunner.enable | bool | `false` | enable / disable test runner |
-| deviceConfig.spec.testRunner.image | string | `"registry.test.pensando.io:5000/test-runner:latest"` | test runner image |
+| deviceConfig.spec.testRunner.image | string | `"rocm/test-runner:latest"` | test runner image |
 | deviceConfig.spec.testRunner.imagePullPolicy | string | `"IfNotPresent"` | test runner image pull policy |
 | deviceConfig.spec.testRunner.imageRegistrySecret | object | `{}` | test runner image pull secret |
 | deviceConfig.spec.testRunner.logsLocation.hostPath | string | `"/var/log/amd-test-runner"` | host directory to save test run logs |

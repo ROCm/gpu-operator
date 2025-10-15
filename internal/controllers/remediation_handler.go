@@ -58,7 +58,7 @@ const (
 	RemediationTaintKey        = "amd-gpu-unhealthy"
 	DefaultConfigMapSuffix     = "default-conditional-workflow-mappings"
 	DefaultTemplate            = "default-template"
-	DefaultTestRunnerImage     = "registry.test.pensando.io:5000/test-runner:agfhc-latest"
+	DefaultTestRunnerImage     = "docker.io/rocm/test-runner:agfhc-latest"
 	TestRunnerServiceAccount   = "amd-gpu-operator-test-runner"
 	AmdGpuRemediationRequired  = "amd-gpu-remediation-required"
 	AmdGpuRemediationSucceeded = "amd-gpu-remediation-succeeded"
