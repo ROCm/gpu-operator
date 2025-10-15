@@ -56,6 +56,10 @@ spec:
     # node labeller is required for adding / removing blacklist config of amdgpu kernel module
     # please set to true if you want to blacklist the inbox driver and use our-of-tree driver
     enableNodeLabeller: true
+
+    # Specify Node Labeller image pull policy
+    # default value is IfNotPresent for valid tags, Always for no tag or "latest" tag
+    nodeLabellerImagePullPolicy: "Always"
         
   # Specify the metrics exporter config
   metricsExporter:
@@ -66,6 +70,12 @@ spec:
     # if not specified metrics exporter will use the node selector from spec.selector by default
     #selector:
     #  feature.node.kubernetes.io/amd-gpu: "true"
+
+    # podAnnotations for metrics exporter
+    podAnnotations: {}
+
+    # serviceAnnotations for metrics exporter
+    serviceAnnotations: {}
 
     # kubernetes service type for metrics exporter, clusterIP(default) or NodePort
     serviceType: "NodePort"
@@ -86,7 +96,7 @@ spec:
       # configmap name, example config in example/metricsExporter/config.json
     #  name: gpu-config
 
-  # Specify the testrunner config
+    # Specify the testrunner config
   testRunner:
     # To enable/disable the testrunner, disabled by default
     enable: True
@@ -131,6 +141,6 @@ spec:
     #    value: "value1"
     #    effect: "NoExecute"
 
-  # Specifythe node to be managed by this DeviceConfig Custom Resource
+    # Specifythe node to be managed by this DeviceConfig Custom Resource
   selector:
     feature.node.kubernetes.io/amd-gpu: "true"

@@ -8,9 +8,9 @@ controller:
       # -- KMM kaniko builder image for building driver image within cluster
       relatedImageBuild: gcr.io/kaniko-project/executor:v1.23.2
       # -- KMM signer image for signing driver image's kernel module with given key pairs within cluster
-      relatedImageSign: registry.test.pensando.io:5000/kernel-module-management-signimage:latest
+      relatedImageSign: docker.io/rocm/kernel-module-management-signimage:latest
       # -- KMM worker image for loading / unloading driver kernel module on worker nodes
-      relatedImageWorker: registry.test.pensando.io:5000/kernel-module-management-worker:latest
+      relatedImageWorker: docker.io/rocm/kernel-module-management-worker:latest
       # -- Image pull secret name for pulling KMM kaniko builder image if registry needs credential to pull image
       relatedImageBuildPullSecret: ""
       # -- Image pull secret name for pulling KMM signer image if registry needs credential to pull image
@@ -19,7 +19,7 @@ controller:
       relatedImageWorkerPullSecret: ""
     image:
       # -- KMM controller manager image repository
-      repository: registry.test.pensando.io:5000/kernel-module-management-operator
+      repository: docker.io/rocm/kernel-module-management-operator
       # -- KMM controller manager image tag
       tag: latest
     # -- Image pull policy for KMM controller manager pod
@@ -102,7 +102,7 @@ webhookServer:
       allowPrivilegeEscalation: false
     image:
       # -- KMM webhook image repository
-      repository: registry.test.pensando.io:5000/kernel-module-management-webhook-server
+      repository: docker.io/rocm/kernel-module-management-webhook-server
       # -- KMM webhook image tag
       tag: latest
     # -- Image pull policy for KMM webhook pod

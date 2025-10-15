@@ -542,6 +542,16 @@ type MetricsExporterSpec struct {
 	// +optional
 	// +kubebuilder:default:={limits: {cpu: "2", memory: "4G"}, requests: {cpu: "500m", memory: "512M"}}
 	Resource *v1.ResourceRequirements `json:"resource,omitempty"`
+
+	// Set PodAnnotations for metrics exporter
+	//+operator-sdk:csv:customresourcedefinitions:type=spec,displayName="PodAnnotations",xDescriptors={"urn:alm:descriptor:com.amd.deviceconfigs:podAnnotations"}
+	// +optional
+	PodAnnotations map[string]string `json:"podAnnotations,omitempty"`
+
+	// Set ServiceAnnotations for metrics exporter
+	//+operator-sdk:csv:customresourcedefinitions:type=spec,displayName="ServiceAnnotations",xDescriptors={"urn:alm:descriptor:com.amd.deviceconfigs:serviceAnnotations"}
+	// +optional
+	ServiceAnnotations map[string]string `json:"serviceAnnotations,omitempty"`
 }
 
 type PrometheusConfig struct {

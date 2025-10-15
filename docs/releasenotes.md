@@ -1,5 +1,14 @@
 # Release Notes
 
+## GPU Operator v1.4.1 Release Notes
+
+The AMD GPU Operator v1.4.1 release extends platform support to OpenShift v4.19
+
+### Release Highlights
+- **Device-Metrics-Exporter enhancements**
+  - **Enhanced Pod and Service Annotations**
+    - **Pod Annotations**, **Service Annotations** : Custom annotations can now be applied to exporter pods via the DeviceConfig CRD
+
 ## GPU Operator v1.4.0 Release Notes
 
 The AMD GPU Operator v1.4.0 adds MI35X platform support and updates all managed operands to ROCm 7 runtime libraries, aligning the full stack with the ROCm 7 release.

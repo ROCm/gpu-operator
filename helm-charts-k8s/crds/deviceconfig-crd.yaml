@@ -695,6 +695,11 @@ spec:
                     maximum: 32767
                     minimum: 30000
                     type: integer
+                  podAnnotations:
+                    additionalProperties:
+                      type: string
+                    description: Set PodAnnotations for metrics exporter
+                    type: object
                   podResourceAPISocketPath:
                     default: /var/lib/kubelet/pod-resources
                     description: |-
@@ -1279,6 +1284,11 @@ spec:
                       type: string
                     description: Selector describes on which nodes to enable metrics
                       exporter
+                    type: object
+                  serviceAnnotations:
+                    additionalProperties:
+                      type: string
+                    description: Set ServiceAnnotations for metrics exporter
                     type: object
                   serviceType:
                     default: ClusterIP
