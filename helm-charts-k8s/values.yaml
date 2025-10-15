@@ -122,7 +122,7 @@ deviceConfig:
       # -- external port for pulling metrics from outside the cluster for NodePort service, in the range 30000-32767 (assigned automatically by default)
       nodePort: 32500
       # -- metrics exporter image
-      image: registry.test.pensando.io:5000/device-metrics-exporter:latest
+      image: rocm/device-metrics-exporter:latest
       # -- metrics exporter image pull policy
       imagePullPolicy: "IfNotPresent"
       # -- name of the metrics exporter config map, e.g. {"name": "metricConfigMapName"}
@@ -180,7 +180,7 @@ deviceConfig:
       # -- enable / disable test runner
       enable: false
       # -- test runner image
-      image: registry.test.pensando.io:5000/test-runner:latest
+      image: rocm/test-runner:latest
       # -- test runner image pull policy
       imagePullPolicy: "IfNotPresent"
       # -- test runner config map, e.g. {"name": "myConfigMap"}
@@ -207,7 +207,7 @@ deviceConfig:
       # -- enable/disable the config manager 
       enable: false
       # -- config manager image
-      image: registry.test.pensando.io:5000/device-config-manager:latest
+      image: rocm/device-config-manager:latest
       # -- image pull policy for config manager image
       imagePullPolicy: IfNotPresent
       # -- image pull secret for config manager image, e.g. {"name": "myPullSecret"}
@@ -232,7 +232,7 @@ controllerManager:
       allowPrivilegeEscalation: false
     image:
       # -- AMD GPU operator controller manager image repository
-      repository: registry.test.pensando.io:5000/gpu-operator
+      repository: docker.io/rocm/gpu-operator
       # -- AMD GPU operator controller manager image tag
       tag: dev
     # -- Image pull policy for AMD GPU operator controller manager pod

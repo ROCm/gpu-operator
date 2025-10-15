@@ -11,7 +11,7 @@ controllerManager:
     containerSecurityContext:
       allowPrivilegeEscalation: false
     image:
-      repository: registry.test.pensando.io:5000/gpu-operator
+      repository: docker.io/rocm/gpu-operator
       tag: dev
     imagePullPolicy: Always
     imagePullSecrets: ""
@@ -75,8 +75,8 @@ metricsExporter:
 deviceConfig:
   spec:
     metricsExporter:
-      image: registry.test.pensando.io:5000/device-metrics-exporter:latest
+      image: rocm/device-metrics-exporter:latest
     configManager:
-      image: registry.test.pensando.io:5000/device-config-manager:latest
+      image: rocm/device-config-manager:latest
     testRunner:
-      image: registry.test.pensando.io:5000/test-runner:latest
+      image: rocm/test-runner:latest
