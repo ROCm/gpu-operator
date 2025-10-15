@@ -36,7 +36,7 @@ GPU Operator will handle adding this toleration for in-house components like KMM
 
 -> Remediation workflow uses a utility image for executing the steps. Specify the utility image in `Spec.CommonConfig.UtilsContainer` section of Device Config. If the UtilsContainer section is not specified, default image used is `docker.io/rocm/gpu-operator-utils:latest`
 
--> Specify the test runner image in field `RemediationWorkflow.TesterImage`. The image can be one of the images supported by `Spec.TestRunner.Image`. This image is used to test the GPUs after the remediation process is performed. If the field is not specified, default image used is `registry.test.pensando.io:5000/test-runner:agfhc-latest`.
+-> Specify the test runner image in field `RemediationWorkflow.TesterImage`. The image can be one of the images supported by `Spec.TestRunner.Image`. This image is used to test the GPUs after the remediation process is performed. If the field is not specified, default image used is `rocm/test-runner:agfhc-latest`.
 
 -> If a workflow runs and fails, the node will remain in tainted state. If the user wants to go ahead and make the node schedulable again for workloads, the node should be untainted with:
   `kubectl taint node <node-name> amd-gpu-unhealthy:NoSchedule-`
