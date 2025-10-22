@@ -234,6 +234,14 @@ func (nl *testRunner) SetTestRunnerAsDesired(ds *appsv1.DaemonSet, devConfig *am
 					},
 				},
 				{
+					Name: "POD_UID",
+					ValueFrom: &v1.EnvVarSource{
+						FieldRef: &v1.ObjectFieldSelector{
+							FieldPath: "metadata.uid",
+						},
+					},
+				},
+				{
 					Name: "NODE_NAME",
 					ValueFrom: &v1.EnvVarSource{
 						FieldRef: &v1.ObjectFieldSelector{
