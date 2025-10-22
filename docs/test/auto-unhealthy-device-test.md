@@ -90,6 +90,7 @@ Test runner generated event can be retrieved by filtering the source component: 
     "labels": {
       "testrunner.amd.com/category": "gpu_health_check",
       "testrunner.amd.com/gpu.id.0": "35824",
+      "testrunner.amd.com/framework": "RVS",
       "testrunner.amd.com/gpu.kfd.35824": "0",
       "testrunner.amd.com/hostname": "leto",
       "testrunner.amd.com/recipe": "gst_single",
@@ -191,6 +192,7 @@ in the above example ```35824``` is the GPU's KFD ID reported by amd-smi (in roc
     * ```testrunner.amd.com/recipe``` is the test recipe name.
     * ```testrunner.amd.com/hostname``` is the name of the host where the test happened.
     * ```testrunner.amd.com/gpu.id.X``` shows which GPU was involved and ```X``` is the GPU index number, the value is corresponding GPU KFD ID.
+    * ```testrunner.amd.com/framework``` indicates the test framework used to execute the test.
     * ```testrunner.amd.com/gpu.kfd.Y``` shows which GPU was involved and ```Y``` is the GPU KFD ID, the value is corresponding GPU index number.
 * ```reason``` gives an overall result of the whole test run, it could be ```TestPassed```, ```TestFailed``` or ```TestTimedOut```.
 * ```source``` shows where the event came from, including component name ```amd-test-runner``` and worker node's host name.
