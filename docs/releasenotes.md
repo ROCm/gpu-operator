@@ -2,12 +2,15 @@
 
 ## GPU Operator v1.4.1 Release Notes
 
-The AMD GPU Operator v1.4.1 release extends platform support to OpenShift v4.19
+The AMD GPU Operator v1.4.1 release extends platform support to OpenShift v4.20
 
 ### Release Highlights
 - **Device-Metrics-Exporter enhancements**
   - **Enhanced Pod and Service Annotations**
     - **Pod Annotations**, **Service Annotations** : Custom annotations can now be applied to exporter pods via the DeviceConfig CRD
+- **Test Runner enhancements**
+  - **Enhanced Test Result Events**
+    - Test runner Kubernetes events now include additional information: pod UID and test framework name (e.g., RVS, AGFHC) as event labels, providing more comprehensive test run information for improved tracking and diagnostics.
 
 ## GPU Operator v1.4.0 Release Notes
 
