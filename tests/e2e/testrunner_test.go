@@ -334,10 +334,11 @@ func (s *E2ESuite) verifyTestResultEvts(node, recipe string, devCfg *v1alpha1.De
 	// verify that the test run event got generated
 	logger.Print("Verifying test result event(s)")
 	testEventLabel := map[string]string{
-		"testrunner.amd.com/category": "gpu_health_check",
-		"testrunner.amd.com/trigger":  "auto_unhealthy_gpu_watch",
-		"testrunner.amd.com/recipe":   recipe,
-		"testrunner.amd.com/hostname": node,
+		"testrunner.amd.com/category":  "gpu_health_check",
+		"testrunner.amd.com/trigger":   "auto_unhealthy_gpu_watch",
+		"testrunner.amd.com/recipe":    recipe,
+		"testrunner.amd.com/hostname":  node,
+		"testrunner.amd.com/framework": s.framework,
 	}
 	assert.Eventually(c, func() bool {
 		evts, err := s.clientSet.CoreV1().Events(devCfg.Namespace).List(context.TODO(), metav1.ListOptions{
