@@ -12,6 +12,10 @@ The AMD GPU Operator v1.4.1 release extends platform support to OpenShift v4.20
   - **Enhanced Test Result Events**
     - Test runner Kubernetes events now include additional information: pod UID and test framework name (e.g., RVS, AGFHC) as event labels, providing more comprehensive test run information for improved tracking and diagnostics.
 
+### Fixes
+  1. **Node Feature Discovery rule fix**
+     * Fix the PCI device ID for the Virtual Function (VF) of these GPU: MI308X and MI300X-HF
+
 ## GPU Operator v1.4.0 Release Notes
 
 The AMD GPU Operator v1.4.0 adds MI35X platform support and updates all managed operands to ROCm 7 runtime libraries, aligning the full stack with the ROCm 7 release.
