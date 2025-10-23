@@ -1,0 +1,52 @@
+FROM $$BASEIMG_REGISTRY/suse/sle15:$$VERSION AS builder
+
+ARG KERNEL_FULL_VERSION
+
+ARG DRIVERS_VERSION
+
+ARG REPO_URL
+
+RUN zypper --non-interactive --gpg-auto-import-keys refresh
+
+# Note: Only kernel-default-devel is needed (provides kernel headers)
+# kernel-source package does NOT exist in SLES repositories
+RUN zypper --non-interactive install -y \
+    kernel-default-devel \
+    gcc \
+    make \
+    bc \
+    bison \
+    flex \
+    libelf-devel \
+    perl \
+    python3 \
+    python3-setuptools \
+    python3-wheel
+
+# Add AMD GPU repository for SLES
+# The $$VERSION variable (e.g., "15.6", "15.7") is substituted at runtime
+RUN zypper --non-interactive addrepo \
+    --no-gpgcheck \
+    ${REPO_URL}/amdgpu/${DRIVERS_VERSION}/sle/$$VERSION/main/x86_64/ \
+    amdgpu
+
+# Refresh repositories again to include AMD repo
+RUN zypper --non-interactive --gpg-auto-import-keys refresh
+RUN zypper --non-interactive --gpg-auto-import-keys install -y amdgpu-dkms
+RUN depmod ${KERNEL_FULL_VERSION}
+
+
+FROM $$BASEIMG_REGISTRY/suse/sle15:$$VERSION
+ARG KERNEL_FULL_VERSION
+
+RUN zypper --non-interactive --gpg-auto-import-keys refresh && \
+    zypper --non-interactive install -y kmod
+
+RUN mkdir -p /opt/lib/modules/${KERNEL_FULL_VERSION}/updates/
+
+# Note: amdgpu-dkms on SLES places modules in /lib/modules/.../updates/ (not updates/dkms/)
+COPY --from=builder /lib/modules/${KERNEL_FULL_VERSION}/updates/amd* /opt/lib/modules/${KERNEL_FULL_VERSION}/updates/
+COPY --from=builder /lib/modules/${KERNEL_FULL_VERSION}/modules.* /opt/lib/modules/${KERNEL_FULL_VERSION}/
+RUN ln -s /lib/modules/${KERNEL_FULL_VERSION}/kernel /opt/lib/modules/${KERNEL_FULL_VERSION}/kernel
+RUN mkdir -p /firmwareDir/updates/amdgpu
+COPY --from=builder /lib/firmware/updates/amdgpu /firmwareDir/updates/amdgpu

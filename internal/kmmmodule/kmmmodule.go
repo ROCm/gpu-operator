@@ -89,6 +89,8 @@ var (
 	dockerfileTemplateUbuntu string
 	//go:embed dockerfiles/DockerfileTemplate.coreos
 	dockerfileTemplateCoreOS string
+	//go:embed dockerfiles/DockerfileTemplate.sles
+	dockerfileTemplateSLES string
 	//go:embed devdockerfiles/devdockerfile.txt
 	dockerfileDevTemplateUbuntu string
 	//go:embed dockerfiles/DockerfileTemplate.ubuntu.gim
@@ -230,6 +232,8 @@ func resolveDockerfile(cmName string, devConfig *amdv1alpha1.DeviceConfig) (stri
 		case utils.DriverTypeVFPassthrough:
 			dockerfileTemplate = dockerfileTemplateGIMCoreOS
 		}
+	case "sles":
+		dockerfileTemplate = dockerfileTemplateSLES
 	// FIX ME
 	// add the RHEL back when it is fully supported
 	/*case "rhel":
