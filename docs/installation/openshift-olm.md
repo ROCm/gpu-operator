@@ -155,10 +155,11 @@ spec:
                       "75a3", # MI355X
                       "75a0", # MI350X
                       "74a5", # MI325X
+                      "74a2", # MI308X
+                      "74a8", # MI308X-HF
                       "74a0", # MI300A
                       "74a1", # MI300X
                       "74a9", # MI300X-HF
-                      "74bd", # MI300X-HF
                       "740f", # MI210
                       "7408", # MI250X
                       "740c", # MI250/MI250X
@@ -177,8 +178,11 @@ spec:
                       "75b3", # MI355X VF
                       "75b0", # MI350X VF
                       "74b9", # MI325X VF
+                      "74b6", # MI308X VF
+                      "74bc", # MI308X-HF VF
                       "74b5", # MI300X VF
-                      "7410", # MI210 VF
+                      "74bd", # MI300X-HF VF
+                      "7410"  # MI210 VF
                     ]}
 ```
 
@@ -206,15 +210,16 @@ spec:
                   "75a3", # MI355X
                   "75a0", # MI350X
                   "74a5", # MI325X
+                  "74a2", # MI308X
+                  "74a8", # MI308X-HF
                   "74a0", # MI300A
                   "74a1", # MI300X
                   "74a9", # MI300X-HF
-                  "74bd", # MI300X-HF
                   "740f", # MI210
                   "7408", # MI250X
                   "740c", # MI250/MI250X
                   "738c", # MI100
-                  "738e" # MI100
+                  "738e"  # MI100
                 ]}
     - name: amd-vgpu
       labels:
@@ -228,8 +233,11 @@ spec:
                   "75b3", # MI355X VF
                   "75b0", # MI350X VF
                   "74b9", # MI325X VF
+                  "74b6", # MI308X VF
+                  "74bc", # MI308X-HF VF
                   "74b5", # MI300X VF
-                  "7410", # MI210 VF
+                  "74bd", # MI300X-HF VF
+                  "7410"  # MI210 VF
                 ]}
 ```
 
