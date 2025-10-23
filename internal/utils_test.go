@@ -364,3 +364,50 @@ func TestUbuntuDefaultDriverVersionsMapper(t *testing.T) {
 		})
 	}
 }
+
+func TestSLESDefaultDriverVersionsMapper(t *testing.T) {
+	tests := []struct {
+		name     string
+		osImage  string
+		expected string
+		wantErr  bool
+	}{
+		{
+			name:     "SLES 15 SP7",
+			osImage:  "SUSE Linux Enterprise Server 15 SP7",
+			expected: "7.0.3",
+			wantErr:  false,
+		},
+		{
+			name:     "SLES 15 SP7 with dash format",
+			osImage:  "sles 15-sp7",
+			expected: "7.0.3",
+			wantErr:  false,
+		},
+		{
+			name:    "SLES 15 SP6 unsupported",
+			osImage: "SUSE Linux Enterprise Server 15 SP6",
+			wantErr: true,
+		},
+		{
+			name:    "SLES 15 base unsupported",
+			osImage: "SUSE Linux Enterprise Server 15",
+			wantErr: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result, err := SLESDefaultDriverVersionsMapper(tt.osImage)
+
+			if (err != nil) != tt.wantErr {
+				t.Errorf("SLESDefaultDriverVersionsMapper() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+
+			if result != tt.expected {
+				t.Errorf("SLESDefaultDriverVersionsMapper() = %q, want %q", result, tt.expected)
+			}
+		})
+	}
+}
