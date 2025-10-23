@@ -27,6 +27,21 @@ spec:
           - feature: pci.device
             matchExpressions:
                 vendor: {op: In, value: ["1002"]}
+                device: {op: In, value: ["74bd"]} # MI300X HF VF
+      - matchFeatures:
+          - feature: pci.device
+            matchExpressions:
+                vendor: {op: In, value: ["1002"]}
+                device: {op: In, value: ["74b6"]} # MI308X VF
+      - matchFeatures:
+          - feature: pci.device
+            matchExpressions:
+                vendor: {op: In, value: ["1002"]}
+                device: {op: In, value: ["74bc"]} # MI308X HF VF
+      - matchFeatures:
+          - feature: pci.device
+            matchExpressions:
+                vendor: {op: In, value: ["1002"]}
                 device: {op: In, value: ["74b9"]} # Mi325X VF
       - matchFeatures:
           - feature: pci.device
@@ -78,11 +93,6 @@ spec:
           - feature: pci.device
             matchExpressions:
               vendor: {op: In, value: ["1002"]}
-              device: {op: In, value: ["74b6"]} # MI308X
-      - matchFeatures:
-          - feature: pci.device
-            matchExpressions:
-              vendor: {op: In, value: ["1002"]}
               device: {op: In, value: ["74a8"]} # MI308X HF
       - matchFeatures:
           - feature: pci.device
@@ -99,11 +109,6 @@ spec:
             matchExpressions:
               vendor: {op: In, value: ["1002"]}
               device: {op: In, value: ["74a9"]} # MI300X HF
-      - matchFeatures:
-          - feature: pci.device
-            matchExpressions:
-              vendor: {op: In, value: ["1002"]}
-              device: {op: In, value: ["74bd"]} # MI300X HF
       - matchFeatures:
           - feature: pci.device
             matchExpressions:
