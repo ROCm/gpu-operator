@@ -85,6 +85,8 @@ var (
 	dockerfileTemplateCoreOSFromSrcImage string
 	//go:embed dockerfiles/DockerfileTemplate.rpm.coreos
 	dockerfileTemplateCoreOSFromRPM string
+	//go:embed dockerfiles/DockerfileTemplate.sles
+	dockerfileTemplateSLES string
 	//go:embed devdockerfiles/devdockerfile.txt
 	dockerfileDevTemplateUbuntu string
 	//go:embed dockerfiles/DockerfileTemplate.ubuntu.gim
@@ -92,6 +94,14 @@ var (
 	//go:embed dockerfiles/DockerfileTemplate.coreos.gim
 	dockerfileTemplateGIMCoreOS string
 )
+
+// slesCSDPrebuiltDriverImages maps SLES codestream version -> driver version -> prebuilt image.
+// Tag format: sles-<codestream>-<ga_kernel>-<driver_version>
+var slesCSDPrebuiltDriverImages = map[string]map[string]string{
+	"15.7": {
+		"7.0.3": "registry.suse.com/third-party/amd/amdgpu-driver:sles-15.7-7.0.3",
+	},
+}
 
 //go:generate mockgen -source=kmmmodule.go -package=kmmmodule -destination=mock_kmmmodule.go KMMModuleAPI
 type KMMModuleAPI interface {
@@ -290,6 +300,8 @@ func resolveDockerfile(cmName string, devConfig *amdv1alpha1.DeviceConfig) (stri
 				dockerfileTemplate = dockerfileTemplateCoreOSFromSrcImage
 			}
 		}
+	case "sles":
+		dockerfileTemplate = dockerfileTemplateSLES
 	// FIX ME
 	// add the RHEL back when it is fully supported
 	/*case "rhel":
@@ -548,6 +560,21 @@ func getKM(devConfig *amdv1alpha1.DeviceConfig, node v1.Node, inTreeModuleToRemo
 				Value: sourceImageRepo,
 			},
 		)
+	}
+
+	// Inject SUSE_PREBUILT_DRIVER_IMG build arg for SLES nodes.
+	if strings.HasPrefix(osName, "sles-") {
+		csVersion := strings.TrimPrefix(osName, "sles-") // e.g. "15.7"
+		if driverVersions, ok := slesCSDPrebuiltDriverImages[csVersion]; ok {
+			if prebuiltImg, ok := driverVersions[driversVersion]; ok {
+				kmmBuild.BuildArgs = append(kmmBuild.BuildArgs,
+					kmmv1beta1.BuildArg{
+						Name:  "SUSE_PREBUILT_DRIVER_IMG",
+						Value: prebuiltImg,
+					},
+				)
+			}
+		}
 	}
 
 	// trim suffix "+" to handle the dirty build kernel version
