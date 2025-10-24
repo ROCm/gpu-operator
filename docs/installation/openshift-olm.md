@@ -2,6 +2,10 @@
 
 This guide explains how to deploy the AMD GPU Operator on OpenShift using the Operator Lifecycle Manager (OLM).
 
+```{note}
+For installing AMD GPU Operator in air-gapped OpenShift cluster, please also refer to [OpenShift Air-Gapped Installation](../specialized_networks/airgapped-install-openshift.md)
+```
+
 ## Prerequisites
 
 Before installing the AMD GPU Operator, ensure your OpenShift cluster meets the following requirements:
@@ -312,6 +316,40 @@ oc get pods | grep test-cr
 # Verify GPU resource labels
 oc get node -o json | grep amd.com
 ```
+
+### 4. Enable Cluster Monitoring
+
+In order to enable the OpenShift native cluster monitoring stack to scrape metrics from metrics exporter, please:
+
+* Label the namespace with OpenShift specific cluster monitoring label
+
+For example if AMD GPU Operator was deployed in namespace `openshift-amd-gpu`:
+
+```bash
+oc label namespace openshift-amd-gpu openshift.io/cluster-monitoring="true"
+```
+
+* Enable the metrics exporter and configure the `serviceMonitor` in `DeviceConfig`
+
+For example:
+
+```yaml
+spec:
+  metricsExporter:
+    enable: true
+    prometheus:
+      serviceMonitor:
+        enable: true
+        interval: "60s" # Metrics scrape interval
+        attachMetadata:
+          node: true
+```
+
+After applying this configuration, verify the metrics are being collected:
+
+* Navigate to the OpenShift web console
+* Go to **Observe** → **Targets** to confirm the metrics target is active
+* Go to **Observe** → **Metrics** to query AMD GPU metrics
 
 ## Uninstallation
 
