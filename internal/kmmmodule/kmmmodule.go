@@ -252,7 +252,11 @@ func resolveDockerfile(cmName string, devConfig *amdv1alpha1.DeviceConfig) (stri
 	// render base image registry
 	baseImageRegistry := defaultBaseImageRegistry
 	if devConfig.Spec.Driver.ImageBuild.BaseImageRegistry != "" {
+		// user-specified registry takes precendence
 		baseImageRegistry = devConfig.Spec.Driver.ImageBuild.BaseImageRegistry
+	} else if osDistro == "sles" {
+		// if OS == "sles", use default image registry as "registry.suse.com"
+		baseImageRegistry = "registry.suse.com"
 	}
 	dockerfileTemplate = strings.Replace(dockerfileTemplate, "$$BASEIMG_REGISTRY", baseImageRegistry, -1)
 	// render driver version
