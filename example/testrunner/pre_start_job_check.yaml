@@ -79,7 +79,8 @@ data: # file name within configmap should be config.json
                       "Recipe": "gst_single",
                       "Iterations": 1,
                       "StopOnFailure": true,
-                      "TimeoutSeconds": 600
+                      "TimeoutSeconds": 1200,
+                      "Arguments": "--parallel"
                     }
                   ]
                 }
@@ -93,7 +94,8 @@ data: # file name within configmap should be config.json
                       "Recipe": "mem",
                       "Iterations": 1,
                       "StopOnFailure": true,
-                      "TimeoutSeconds": 600
+                      "TimeoutSeconds": 1200,
+                      "Arguments": "--parallel"
                     }
                   ],
                   "LogsExportConfig": [
