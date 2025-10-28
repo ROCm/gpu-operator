@@ -79,7 +79,7 @@ data:
                       "Recipe": "gst_single",
                       "Iterations": 1,
                       "StopOnFailure": true,
-                      "TimeoutSeconds": 600,
+                      "TimeoutSeconds": 1200,
                       "Arguments": "--parallel"
                     }
                   ]
