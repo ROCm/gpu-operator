@@ -195,6 +195,8 @@ var defaultDriverversionsMappers = map[string]func(fullImageStr string) (string,
 	"red hat": func(f string) (string, error) {
 		return defaultOcDriversVersion, nil
 	},
+	"sles": SLESDefaultDriverVersionsMapper,
+	"suse": SLESDefaultDriverVersionsMapper,
 }
 
 func UbuntuDefaultDriverVersionsMapper(fullImageStr string) (string, error) {
@@ -227,6 +229,27 @@ func UbuntuDefaultDriverVersionsMapper(fullImageStr string) (string, error) {
 		return "6.3.3", nil // due to a known ROCM issue, 6.2 unload + load back may cause system reboot, let's use 6.3.3 as default
 	}
 	return "", fmt.Errorf("unsupported Ubuntu version: %s. Supported versions include 20.04, 22.04 and 24.04", fullImageStr)
+}
+
+func SLESDefaultDriverVersionsMapper(fullImageStr string) (string, error) {
+	// For SLES 15 SP6 and above, use the latest stable driver version
+	if strings.Contains(fullImageStr, "15") {
+		// Check for SP6 or later
+		re := regexp.MustCompile(`15\s*-?\s*sp(\d+)`)
+		match := re.FindStringSubmatch(strings.ToLower(fullImageStr))
+		if len(match) > 1 {
+			spVersion, err := strconv.Atoi(match[1])
+			if err == nil && spVersion >= 6 {
+				return "7.0.2", nil // Latest stable version for SP6+
+			}
+			if err == nil && spVersion >= 5 {
+				return "6.2.2", nil // Stable version for SP5
+			}
+		}
+		// Default for SLES 15 without SP info
+		return "6.2.2", nil
+	}
+	return "", fmt.Errorf("unsupported SLES version: %s. Supported versions include SLES 15 SP5 and above", fullImageStr)
 }
 
 func HasNodeLabelKey(node v1.Node, labelKey string) bool {
