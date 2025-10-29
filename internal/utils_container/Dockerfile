@@ -17,8 +17,8 @@ ADD LICENSE /licenses/LICENSE
 
 # Install kubectl and oc
 RUN mkdir -p /oc && cd /oc && \
-    curl -SsLO 'https://mirror.openshift.com/pub/openshift-v4/clients/ocp/latest/openshift-client-linux-amd64-rhel9-4.19.13.tar.gz' && \
-    tar -xzf openshift-client-linux-amd64-rhel9-4.19.13.tar.gz -C /oc && \
+    curl -SsLO 'https://mirror.openshift.com/pub/openshift-v4/clients/ocp/latest/openshift-client-linux-amd64-rhel9.tar.gz' && \
+    tar -xzf openshift-client-linux-amd64-rhel9.tar.gz -C /oc && \
     cp ./kubectl /usr/local/bin && chmod +x /usr/local/bin/kubectl && \
     cp ./oc /usr/local/bin && chmod +x /usr/local/bin/oc && \
     rm -rf /oc
