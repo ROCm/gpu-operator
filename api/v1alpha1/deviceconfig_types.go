@@ -397,7 +397,15 @@ type ImageBuildSpec struct {
 	// +kubebuilder:default=docker.io
 	BaseImageRegistry string `json:"baseImageRegistry,omitempty"`
 
+	// NOTE: currently this field is only for OpenShift
+	// image repo to fetch source code image for building driver image
+	// default is docker.io/rocm/amdgpu-driver
+	// the image tag will be auto determined by the operator based on the cluster RHEL version and driver version specified in spec.driver.version
+	// e.g. docker.io/rocm/amdgpu-driver:<driver version>-rhcos-<rhel version>
+	SourceImageRepo string `json:"sourceImageRepo,omitempty"`
+
 	// TLS settings for fetching base image
+	// this field will be applied to SourceImageRepo as well
 	BaseImageRegistryTLS RegistryTLS `json:"baseImageRegistryTLS,omitempty"`
 }
 
