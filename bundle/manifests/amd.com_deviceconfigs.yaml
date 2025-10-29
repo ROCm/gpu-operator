@@ -407,7 +407,9 @@ spec:
                           NOTE: this field won't apply for OpenShift since OpenShift is using its own DriverToolKit image to build driver image
                         type: string
                       baseImageRegistryTLS:
-                        description: TLS settings for fetching base image
+                        description: |-
+                          TLS settings for fetching base image
+                          this field will be applied to SourceImageRepo as well
                         properties:
                           insecure:
                             description: If true, check if the container image already
@@ -418,6 +420,14 @@ spec:
                               validation
                             type: boolean
                         type: object
+                      sourceImageRepo:
+                        description: |-
+                          NOTE: currently this field is only for OpenShift
+                          image repo to fetch source code image for building driver image
+                          default is docker.io/rocm/amdgpu-driver
+                          the image tag will be auto determined by the operator based on the cluster RHEL version and driver version specified in spec.driver.version
+                          e.g. docker.io/rocm/amdgpu-driver:<driver version>-rhcos-<rhel version>
+                        type: string
                     type: object
                   imageRegistrySecret:
                     description: secrets used for pull/push images from/to private
