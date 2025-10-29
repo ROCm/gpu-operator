@@ -73,6 +73,7 @@ mirror:
   # adjust the image tag if needed
   additionalImages:
     - name: registry.redhat.io/ubi9/ubi:latest
+    - name: registry.redhat.io/ubi9/ubi-minimal:latest
     - name: docker.io/rocm/gpu-operator:v1.3.1
     - name: docker.io/rocm/gpu-operator-utils:v1.3.1
     - name: docker.io/library/busybox:1.36

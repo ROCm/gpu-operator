@@ -677,4 +677,58 @@ var _ = Describe("getKernelMappings", func() {
 			}
 		}
 	})
+
+	It("test parseRHELVersion", func() {
+		testCases := []struct {
+			labels   map[string]string
+			input    string
+			expected string
+		}{
+			{
+				// legacy format
+				input:    "Red Hat Enterprise Linux CoreOS 418.94.202410090804-0 (Pecan)",
+				expected: "9.4",
+			},
+			{
+				// legacy format
+				input:    "Red Hat Enterprise Linux CoreOS 419.96.202410090804-0 (Plow)",
+				expected: "9.6",
+			},
+			{
+				input:    "Red Hat Enterprise Linux CoreOS 9.6.20250916-0 (Plow)",
+				expected: "9.6",
+			},
+			{
+				labels:   map[string]string{"feature.node.kubernetes.io/system-os_release.VERSION_ID": "9.6"},
+				input:    "Red Hat Enterprise Linux CoreOS 9.6.20250916-0 (Plow)",
+				expected: "9.6",
+			},
+			{
+				input:    "Red Hat Enterprise Linux CoreOS 10.0.20260101-0 (Future)",
+				expected: "10.0",
+			},
+			{
+				labels:   map[string]string{"feature.node.kubernetes.io/system-os_release.VERSION_ID": "10.0"},
+				input:    "Red Hat Enterprise Linux CoreOS 10.0.20250916-0 (Future)",
+				expected: "10.0",
+			},
+			{
+				input:    "Red Hat Enterprise Linux CoreOS 10.1.20260101-0 (Future)",
+				expected: "10.1",
+			},
+			{
+				input:    "Red Hat Enterprise Linux CoreOS 10.10.20260101-0 (Future)",
+				expected: "10.10",
+			},
+			{
+				input:    "Red Hat Enterprise Linux CoreOS 11.0.20260101-0 (Future)",
+				expected: "11.0",
+			},
+		}
+
+		for _, tc := range testCases {
+			result := parseRHELVersion(tc.labels, tc.input)
+			Expect(result).To(Equal(tc.expected))
+		}
+	})
 })
