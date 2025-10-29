@@ -82,13 +82,15 @@ const (
 	defaultInstallerRepoURL     = "https://repo.radeon.com"
 	defaultInitContainerImage   = "busybox:1.36"
 	defaultBaseImageRegistry    = "docker.io"
+	defaultSourceImageRepo      = "docker.io/rocm/amdgpu-driver"
+	nfdOSReleaseLabelKey        = "feature.node.kubernetes.io/system-os_release.VERSION_ID"
 )
 
 var (
 	//go:embed dockerfiles/DockerfileTemplate.ubuntu
 	dockerfileTemplateUbuntu string
-	//go:embed dockerfiles/driversDockerfile.txt
-	buildOcDockerfile string
+	//go:embed dockerfiles/DockerfileTemplate.coreos
+	dockerfileTemplateCoreOS string
 	//go:embed devdockerfiles/devdockerfile.txt
 	dockerfileDevTemplateUbuntu string
 	//go:embed dockerfiles/vGPUHostGIM.ubuntu
@@ -162,7 +164,7 @@ func (km *kmmModule) SetBuildConfigMapAsDesired(buildCM *v1.ConfigMap, devConfig
 		buildCM.Data = make(map[string]string)
 	}
 	if km.isOpenShift {
-		buildCM.Data["dockerfile"] = buildOcDockerfile
+		buildCM.Data["dockerfile"] = dockerfileTemplateCoreOS
 	} else {
 		dockerfile, err := resolveDockerfile(buildCM.Name, devConfig)
 		if err != nil {
@@ -177,6 +179,40 @@ var driverLabels = map[string]string{
 	"20.04": "focal",
 	"22.04": "jammy",
 	"24.04": "noble",
+}
+
+func parseRHELHelper(regExp *regexp.Regexp, osImage string) string {
+	matches := regExp.FindStringSubmatch(osImage)
+	if len(matches) >= 3 {
+		return fmt.Sprintf("%s.%s", matches[1], matches[2])
+	}
+	return ""
+}
+
+func parseRHELVersion(labels map[string]string, osImage string) string {
+	// firstly check if NFD label for RHEL version is present
+	// if yes, use it directly
+	if labels != nil {
+		if rhelVersion, found := labels[nfdOSReleaseLabelKey]; found {
+			return rhelVersion
+		}
+	}
+
+	// if NFD label not found, parse the RHEL version from OS image string
+	// https://github.com/openshift/release-controller/blob/c4b8d4c3c7674884f2e479c35a8876428aa08de8/pkg/rhcos/rhcos.go#L38-L42
+	// OpenShift < 4.19 Legacy format: e.g., 418.94.202410090804-0 → 9.4
+	reLegacy := regexp.MustCompile(`\b4\d+\.(\d)(\d+)\.\d+-\d+\b`)
+	// OpenShift >= 4.19 Modern format: e.g., 9.6.20250121-0 or 10.0.20260101-0 → 9.6 or 10.0
+	reModern := regexp.MustCompile(`\b(\d+)\.(\d+)\.\d+-\d+\b`)
+
+	switch {
+	case reLegacy.MatchString(osImage):
+		return parseRHELHelper(reLegacy, osImage)
+	case reModern.MatchString(osImage):
+		return parseRHELHelper(reModern, osImage)
+	}
+
+	return ""
 }
 
 func resolveDockerfile(cmName string, devConfig *amdv1alpha1.DeviceConfig) (string, error) {
@@ -219,7 +255,7 @@ func resolveDockerfile(cmName string, devConfig *amdv1alpha1.DeviceConfig) (stri
 			dockerfileTemplate = strings.Replace(dockerfileTemplate, "$$BASEIMG_REGISTRY/ubuntu:$$VERSION", fmt.Sprintf("%v:$$VERSION", internalUbuntuBaseImage), -1)
 		}
 	case "coreos":
-		dockerfileTemplate = buildOcDockerfile
+		dockerfileTemplate = dockerfileTemplateCoreOS
 	// FIX ME
 	// add the RHEL back when it is fully supported
 	/*case "rhel":
@@ -538,6 +574,10 @@ func getKM(devConfig *amdv1alpha1.DeviceConfig, node v1.Node, inTreeModuleToRemo
 		return kmmv1beta1.KernelMapping{}, "", err
 	}
 
+	// OpenShift source image build needs RHEL version and source image registry
+	rhelVersion := ""
+	sourceImageRepo := defaultSourceImageRepo
+
 	if isOpenShift {
 		if driversVersion == "" {
 			driversVersion = defaultOcDriversVersion
@@ -546,6 +586,10 @@ func getKM(devConfig *amdv1alpha1.DeviceConfig, node v1.Node, inTreeModuleToRemo
 			driversImage = defaultOcDriversImageTemplate
 		}
 		driversImage = addNodeInfoSuffixToImageTag(driversImage, osName, driversVersion, devConfig)
+		rhelVersion = parseRHELVersion(node.Labels, node.Status.NodeInfo.OSImage)
+		if devConfig.Spec.Driver.ImageBuild.SourceImageRepo != "" {
+			sourceImageRepo = devConfig.Spec.Driver.ImageBuild.SourceImageRepo
+		}
 	} else {
 		if driversVersion == "" {
 			driversVersion, err = utils.GetDefaultDriversVersion(node)
@@ -616,6 +660,21 @@ func getKM(devConfig *amdv1alpha1.DeviceConfig, node v1.Node, inTreeModuleToRemo
 	if isCIEnvSet || devConfig.Spec.Driver.DriverType == utils.DriverTypeVFPassthrough {
 		kmmBuild.BaseImageRegistryTLS.Insecure = true
 		kmmBuild.BaseImageRegistryTLS.InsecureSkipTLSVerify = true
+	}
+	if isOpenShift {
+		if rhelVersion != "" {
+			kmmBuild.BuildArgs = append(kmmBuild.BuildArgs,
+				kmmv1beta1.BuildArg{
+					Name:  "RHEL_VERSION",
+					Value: rhelVersion,
+				})
+		}
+		kmmBuild.BuildArgs = append(kmmBuild.BuildArgs,
+			kmmv1beta1.BuildArg{
+				Name:  "SOURCE_IMAGE_REPO",
+				Value: sourceImageRepo,
+			},
+		)
 	}
 
 	return kmmv1beta1.KernelMapping{
