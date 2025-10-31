@@ -89,8 +89,10 @@ const (
 var (
 	//go:embed dockerfiles/DockerfileTemplate.ubuntu
 	dockerfileTemplateUbuntu string
-	//go:embed dockerfiles/DockerfileTemplate.coreos
-	dockerfileTemplateCoreOS string
+	//go:embed dockerfiles/DockerfileTemplate.srcimg.coreos
+	dockerfileTemplateCoreOSFromSrcImage string
+	//go:embed dockerfiles/DockerfileTemplate.rpm.coreos
+	dockerfileTemplateCoreOSFromRPM string
 	//go:embed devdockerfiles/devdockerfile.txt
 	dockerfileDevTemplateUbuntu string
 	//go:embed dockerfiles/DockerfileTemplate.ubuntu.gim
@@ -166,10 +168,16 @@ func (km *kmmModule) SetBuildConfigMapAsDesired(buildCM *v1.ConfigMap, devConfig
 		buildCM.Data = make(map[string]string)
 	}
 	if km.isOpenShift {
-		buildCM.Data["dockerfile"] = dockerfileTemplateCoreOS
 		switch devConfig.Spec.Driver.DriverType {
 		case utils.DriverTypeVFPassthrough:
 			buildCM.Data["dockerfile"] = dockerfileTemplateGIMCoreOS
+		case utils.DriverTypeContainer:
+			fallthrough
+		default:
+			buildCM.Data["dockerfile"] = dockerfileTemplateCoreOSFromRPM
+			if devConfig.Spec.Driver.UseSourceImage != nil && *devConfig.Spec.Driver.UseSourceImage {
+				buildCM.Data["dockerfile"] = dockerfileTemplateCoreOSFromSrcImage
+			}
 		}
 	} else {
 		dockerfile, err := resolveDockerfile(buildCM.Name, devConfig)
@@ -261,10 +269,16 @@ func resolveDockerfile(cmName string, devConfig *amdv1alpha1.DeviceConfig) (stri
 			dockerfileTemplate = strings.Replace(dockerfileTemplate, "$$BASEIMG_REGISTRY/ubuntu:$$VERSION", fmt.Sprintf("%v:$$VERSION", internalUbuntuBaseImage), -1)
 		}
 	case "coreos":
-		dockerfileTemplate = dockerfileTemplateCoreOS
 		switch devConfig.Spec.Driver.DriverType {
 		case utils.DriverTypeVFPassthrough:
 			dockerfileTemplate = dockerfileTemplateGIMCoreOS
+		case utils.DriverTypeContainer:
+			fallthrough
+		default:
+			dockerfileTemplate = dockerfileTemplateCoreOSFromRPM
+			if devConfig.Spec.Driver.UseSourceImage != nil && *devConfig.Spec.Driver.UseSourceImage {
+				dockerfileTemplate = dockerfileTemplateCoreOSFromSrcImage
+			}
 		}
 	// FIX ME
 	// add the RHEL back when it is fully supported

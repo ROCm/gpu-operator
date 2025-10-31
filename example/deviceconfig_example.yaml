@@ -36,6 +36,21 @@ spec:
     #  insecure: true
     #  insecureSkipTLSVerify: true
 
+    ## (Optional) configure the driver image build within the cluster
+    #imageBuild:
+    #  # configure the registry to search for base image for building driver
+    #  # e.g. if you are using worker node with ubuntu 22.04 and baseImageRegistry is docker.io
+    #  # image builder will use docker.io/ubuntu:22.04 as base image
+    #  baseImageRegistry: docker.io
+    #  # sourceImageRepo: specify the amdgpu source code image repo for building driver
+    #  # the Operator will decide the image tag based on user provided driver version and system OS version
+    #  # e.g. if you input docker.io/rocm/amdgpu-driver the image tag will be coreos-<rhel version>-<driver version>
+    #  # NOTE: currently only work for OpenShift cluster
+    #  sourceImageRepo: docker.io/rocm/amdgpu-driver
+    #  baseImageRegistryTLS:
+    #    insecure: False # If True, check for the container image using plain HTTP
+    #    insecureSkipTLSVerify: False # If True, skip any TLS server certificate validation (useful for self-signed certificates)
+
     # Specify the image signing config for building + signing image within cluster
     #imageSign:
     #  keySecret:
@@ -86,7 +101,7 @@ spec:
     nodePort: 32500
 
     # exporter image
-    image: docker.io/rocm/device-metrics-exporter:v1.4.0
+    image: docker.io/rocm/device-metrics-exporter:v1.4.1
     # image pull policy for metrics exporter
     # default value is IfNotPresent for valid tags, Always for no tag or "latest" tag
     imagePullPolicy: "IfNotPresent"
@@ -101,7 +116,7 @@ spec:
     enable: True
 
     # testrunner image
-    image: docker.io/rocm/test-runner:v1.4.0
+    image: docker.io/rocm/test-runner:v1.4.1
     # image pull policy for the testrunner
     # default value is IfNotPresent for valid tags, Always for no tag or "latest" tag
     imagePullPolicy: "IfNotPresent"
@@ -123,7 +138,7 @@ spec:
     # To enable/disable the config manager, enable to partition
     enable: True
     # image for the device-config-manager container
-    image: rocm/device-config-manager:v1.4.0
+    image: rocm/device-config-manager:v1.4.1
     # image pull policy for config manager set to always to pull image of latest version
     imagePullPolicy: IfNotPresent
     # specify configmap name which stores profile config info
