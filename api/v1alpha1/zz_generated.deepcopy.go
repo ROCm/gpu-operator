@@ -349,6 +349,11 @@ func (in *DriverSpec) DeepCopyInto(out *DriverSpec) {
 		*out = new(bool)
 		**out = **in
 	}
+	if in.UseSourceImage != nil {
+		in, out := &in.UseSourceImage, &out.UseSourceImage
+		*out = new(bool)
+		**out = **in
+	}
 	in.ImageRegistryTLS.DeepCopyInto(&out.ImageRegistryTLS)
 	if in.ImageRegistrySecret != nil {
 		in, out := &in.ImageRegistrySecret, &out.ImageRegistrySecret

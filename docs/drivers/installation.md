@@ -106,6 +106,8 @@ spec:
   driver:
     # enable operator to install out-of-tree amdgpu kernel module
     enable: true
+    # Specify the driver version by using ROCm version
+    version: "7.0"
     # blacklist is required for installing out-of-tree amdgpu kernel module
     # Not working for OpenShift cluster. OpenShift users please use the Machine Config Operator (MCO) resource to configure amdgpu blacklist.
     # Example MCO resource is available at https://instinct.docs.amd.com/projects/gpu-operator/en/latest/installation/openshift-olmhtml#create-blacklist-for-installing-out-of-tree-kernel-module
@@ -121,8 +123,24 @@ spec:
     # Make sure you created the secret within the namespace that KMM operator is running
     imageRegistrySecret:
       name: mysecret
-    # Specify the driver version by using ROCm version
-    version: "7.0"
+    # (Optional) Currently only for OpenShift cluster, set to true to use source code image to build driver within the cluster
+    # default is false and operator will use debian or rpm package from radeon repo to install driver
+    useSourceImage: false
+    # (Optional) configure the driver image build within the cluster
+    imageBuild:
+      # configure the registry to search for base image for building driver
+      # e.g. if you are using worker node with ubuntu 22.04 and baseImageRegistry is docker.io
+      # image builder will use docker.io/ubuntu:22.04 as base image
+      baseImageRegistry: docker.io
+      # sourceImageRepo: specify the amdgpu source code image repo for building driver
+      # the Operator will decide the image tag based on user provided driver version and system OS version
+      # e.g. if you input docker.io/rocm/amdgpu-driver the image tag will be coreos-<rhel version>-<driver version>
+      # NOTE: currently only work for OpenShift cluster
+      # NOTE: will be used when spec.driver.useSourceImage is true
+      sourceImageRepo: docker.io/rocm/amdgpu-driver
+      baseImageRegistryTLS:
+        insecure: False # If True, check for the container image using plain HTTP
+        insecureSkipTLSVerify: False # If True, skip any TLS server certificate validation (useful for self-signed certificates)
 
   devicePlugin:
     devicePluginImage: rocm/k8s-device-plugin:latest
@@ -140,6 +158,102 @@ spec:
   selector:
     feature.node.kubernetes.io/amd-gpu: "true"
 ```
+
+```{note}
+As for the configuration in `spec.driver.imageBuild`:
+1. If the base OS image or source image is hosted in a registry that requires pull secrets to pull those images, you need to use `spec.driver.imageRegistrySecret` to inject the pull secret.
+2. `spec.driver.imageRegistrySecret` was originally designed for providing secret to pull/push image to the repository specified in `spec.driver.image`, if unfortunately the base image and source image requires different secret to pull, please combine the access information into one single Kubernetes secret.
+
+    ```bash
+    REGISTRY1=https://index.docker.io/v1/
+    USER1=my-username-1
+    PWD1=my-password-1
+    REGISTRY2=another-registry.io:5000
+    USER2=my-username-2
+    PWD2=my-password-2
+    cat > config.json <<EOF
+    {
+      "auths": {
+        "${REGISTRY1}": {
+          "auth": "$(echo -n "${USER1}:${PWD1}" | base64 -w0)"
+        },
+        "${REGISTRY2}": {
+          "auth": "$(echo -n "${USER2}:${PWD2}" | base64 -w0)"
+        }
+      }
+    }
+    EOF
+    unset REGISTRY1 USER1 PWD1 REGISTRY2 USER2 PWD2
+
+    kubectl delete secret generic mysecret -n kube-amd-gpu --ignore-not-found
+    kubectl create secret generic mysecret -n kube-amd-gpu \
+      --type=kubernetes.io/dockerconfigjson \
+      --from-file=.dockerconfigjson=config.json
+    ```
+
+3. For OpenShift users, if you are using OpenShift internal image registry to pull/push compiled driver image while at the same time need another secret to pull the base image or source image, please combine another secret with the OpenShift internal builder secret, so that the single secret could be able to pull/push compiled driver image + pull the base/source image.
+
+    ```bash
+    #!/bin/bash
+    set -e
+    NS=openshift-amd-gpu
+    REGISTRY1=https://index.docker.io/v1/
+    USER1=my-username-1    # put registry username here 
+    PWD1=my-password-1     # put registry password or token here
+    SECRET_NAME=mysecret   # change this to desired secret name
+
+    # 1. ensure builder has push rights
+    oc policy add-role-to-user system:image-builder -z builder -n $NS
+
+    # 2. create long-lived token secret
+    oc apply -f - <<EOF
+    apiVersion: v1
+    kind: Secret
+    metadata:
+      name: builder-token
+      namespace: ${NS}
+      annotations:
+        kubernetes.io/service-account.name: builder
+    type: kubernetes.io/service-account-token
+    EOF
+
+    # 3. wait for token to be populated
+    for i in {1..10}; do
+      BUILDER_TOKEN=$(oc get secret builder-token -n ${NS} -o jsonpath='{.data.token}' 2>/dev/null)
+      [[ -n "$BUILDER_TOKEN" ]] && break
+      sleep 1
+    done
+    [ -z "$BUILDER_TOKEN" ] && { echo "❌ token not ready"; exit 1; }
+
+    # 4. generate combined docker config
+    cat > config.json <<EOF
+    {
+      "auths": {
+        "image-registry.openshift-image-registry.svc:5000": {
+          "auth": "$(echo -n "<token>:$(echo $BUILDER_TOKEN | base64 -d)" | base64 -w0)"
+        },
+        "image-registry.openshift-image-registry.svc.cluster.local:5000": {
+          "auth": "$(echo -n "<token>:$(echo $BUILDER_TOKEN | base64 -d)" | base64 -w0)"
+        },
+        "${REGISTRY1}": {
+          "auth": "$(echo -n "${USER1}:${PWD1}" | base64 -w0)"
+        }
+      }
+    }
+    EOF
+
+    # 5. create kubernetes secret
+    oc delete secret "${SECRET_NAME}" -n "$NS" --ignore-not-found
+    oc create secret generic "${SECRET_NAME}" \
+      -n "$NS" \
+      --type=kubernetes.io/dockerconfigjson \
+      --from-file=.dockerconfigjson=config.json
+
+    echo "✅ Secret '${SECRET_NAME}' created and ready."
+    ```
+
+```
+
 
 #### Configuration Reference
 
@@ -168,6 +282,10 @@ To check the full spec of `DeviceConfig` definition run `kubectl get crds device
 | `imageSign.keySecret` | secret name of the private key<br> used to sign kernel modules after image building in cluster<br>see [secure boot](./secure-boot) doc for instructions to create the secret | |
 | `imageSign.certSecret` | secret name of the public key<br> used to sign kernel modules after image building in cluster<br>see [secure boot](./secure-boot) doc for instructions to create the secret | |
 | `tolerations` | List of tolerations that will be set for KMM module object and its components like build pod and worker pod | |
+| `imageBuild.baseImageRegistry` | registry to host base OS image, e.g. when using Ubuntu 22.04 worker node with specified baseImageRegistry `docker.io` the operator will use base image from `docker.io/ubuntu:22.04`  | `docker.io` |
+| `imageBuild.baseImageRegistryTLS.insecure` | If true, check if the container image<br> already exists using plain HTTP | `false` |
+| `imageBuild.baseImageRegistryTLS.insecureSkipTLSVerify` | If true, skip any TLS server certificate validation | `false` |
+| `imageBuild.sourceImageRepo` | (Currently only applied to OpenShift) Image repository to host amdgpu source code image, operator will auto determine the image tag based on users system and `spec.driver.version`. E.g. for building driver from ROCm 7.0 + RHEL 9.6 + default source image repo, the image would be `docker.io/rocm/amdgpu-driver:coreos-9.6-7.0` | `docker.io/rocm/amdgpu-driver` |
 
 #### `spec.devicePlugin` Parameters
 
