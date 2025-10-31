@@ -400,6 +400,7 @@ spec:
                         description: |-
                           image registry to fetch base image for building driver image, default value is docker.io, the builder will search for corresponding OS base image from given registry
                           e.g. if your worker node is using Ubuntu 22.04, by default the base image would be docker.io/ubuntu:22.04
+                          Use spec.driver.imageRegistrySecret for authentication with private registries.
                           NOTE: this field won't apply for OpenShift since OpenShift is using its own DriverToolKit image to build driver image
                         type: string
                       baseImageRegistryTLS:
@@ -418,11 +419,11 @@ spec:
                         type: object
                       sourceImageRepo:
                         description: |-
-                          NOTE: currently this field is only for OpenShift
-                          image repo to fetch source code image for building driver image
-                          default is docker.io/rocm/amdgpu-driver
-                          the image tag will be auto determined by the operator based on the cluster RHEL version and driver version specified in spec.driver.version
-                          e.g. docker.io/rocm/amdgpu-driver:<driver version>-rhcos-<rhel version>
+                          SourceImageRepo specifies the image repository for the driver source code (OpenShift only).
+                          Used when spec.driver.useSourceImage is true. The operator automatically determines the image tag
+                          based on cluster RHEL version and spec.driver.version (format: coreos-<rhel>-<driver version>).
+                          Default: docker.io/rocm/amdgpu-driver
+                          Use spec.driver.imageRegistrySecret for authentication with private registries.
                         type: string
                     type: object
                   imageRegistrySecret:
@@ -629,6 +630,12 @@ spec:
                           to perform reboot on worker nodes
                         type: boolean
                     type: object
+                  useSourceImage:
+                    description: |-
+                      NOTE: currently only for OpenShift cluster
+                      set to true to use source image to build driver image on the fly
+                      otherwise use installer debian/rpm packages from radeon repo to build driver image
+                    type: boolean
                   version:
                     description: |-
                       version of the drivers source code, can be used as part of image of dockerfile source image

@@ -154,6 +154,12 @@ type DriverSpec struct {
 	//+operator-sdk:csv:customresourcedefinitions:type=spec,displayName="BlacklistDrivers",xDescriptors={"urn:alm:descriptor:com.amd.deviceconfigs:blacklistDrivers"}
 	Blacklist *bool `json:"blacklist,omitempty"`
 
+	// NOTE: currently only for OpenShift cluster
+	// set to true to use source image to build driver image on the fly
+	// otherwise use installer debian/rpm packages from radeon repo to build driver image
+	//+operator-sdk:csv:customresourcedefinitions:type=spec,displayName="UseSourceImage",xDescriptors={"urn:alm:descriptor:com.amd.deviceconfigs:useSourceImage"}
+	UseSourceImage *bool `json:"useSourceImage,omitempty"`
+
 	// radeon repo URL for fetching amdgpu installer if building driver image on the fly
 	// installer URL is https://repo.radeon.com/amdgpu-install by default
 	//+operator-sdk:csv:customresourcedefinitions:type=spec,displayName="AMDGPUInstallerRepoURL",xDescriptors={"urn:alm:descriptor:com.amd.deviceconfigs:amdgpuInstallerRepoURL"}
@@ -421,19 +427,23 @@ type ImageSignSpec struct {
 type ImageBuildSpec struct {
 	// image registry to fetch base image for building driver image, default value is docker.io, the builder will search for corresponding OS base image from given registry
 	// e.g. if your worker node is using Ubuntu 22.04, by default the base image would be docker.io/ubuntu:22.04
+	// Use spec.driver.imageRegistrySecret for authentication with private registries.
 	// NOTE: this field won't apply for OpenShift since OpenShift is using its own DriverToolKit image to build driver image
 	// +kubebuilder:default=docker.io
+	//+operator-sdk:csv:customresourcedefinitions:type=spec,displayName="BaseImageRegistry",xDescriptors={"urn:alm:descriptor:com.amd.deviceconfigs:baseImageRegistry"}
 	BaseImageRegistry string `json:"baseImageRegistry,omitempty"`
 
-	// NOTE: currently this field is only for OpenShift
-	// image repo to fetch source code image for building driver image
-	// default is docker.io/rocm/amdgpu-driver
-	// the image tag will be auto determined by the operator based on the cluster RHEL version and driver version specified in spec.driver.version
-	// e.g. docker.io/rocm/amdgpu-driver:<driver version>-rhcos-<rhel version>
+	// SourceImageRepo specifies the image repository for the driver source code (OpenShift only).
+	// Used when spec.driver.useSourceImage is true. The operator automatically determines the image tag
+	// based on cluster RHEL version and spec.driver.version (format: coreos-<rhel>-<driver version>).
+	// Default: docker.io/rocm/amdgpu-driver
+	// Use spec.driver.imageRegistrySecret for authentication with private registries.
+	//+operator-sdk:csv:customresourcedefinitions:type=spec,displayName="SourceImageRepo",xDescriptors={"urn:alm:descriptor:com.amd.deviceconfigs:sourceImageRepo"}
 	SourceImageRepo string `json:"sourceImageRepo,omitempty"`
 
 	// TLS settings for fetching base image
 	// this field will be applied to SourceImageRepo as well
+	//+operator-sdk:csv:customresourcedefinitions:type=spec,displayName="BaseImageRegistryTLS",xDescriptors={"urn:alm:descriptor:com.amd.deviceconfigs:baseImageRegistryTLS"}
 	BaseImageRegistryTLS RegistryTLS `json:"baseImageRegistryTLS,omitempty"`
 }
 
