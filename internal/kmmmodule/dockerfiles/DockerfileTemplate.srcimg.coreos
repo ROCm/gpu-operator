@@ -3,7 +3,7 @@ ARG RHEL_VERSION
 ARG SOURCE_IMAGE_REPO=docker.io/rocm/amdgpu-source
 ARG DRIVERS_VERSION
 
-FROM ${SOURCE_IMAGE_REPO}:${DRIVERS_VERSION}-rhcos-${RHEL_VERSION} as sources
+FROM ${SOURCE_IMAGE_REPO}:coreos-${RHEL_VERSION}-${DRIVERS_VERSION} as sources
 FROM ${DTK_AUTO} as builder
 
 ARG KERNEL_VERSION
@@ -30,8 +30,6 @@ RUN mkdir -p /modules_files && \
 FROM registry.redhat.io/ubi9/ubi-minimal
 
 ARG KERNEL_VERSION
-
-RUN microdnf install -y kmod
 
 COPY --from=builder /amdgpu_ko_files /opt/lib/modules/${KERNEL_VERSION}/extra
 COPY --from=builder /kernel_files /opt/lib/modules/${KERNEL_VERSION}/kernel
