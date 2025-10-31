@@ -2,19 +2,25 @@
 
 ## GPU Operator v1.4.1 Release Notes
 
-The AMD GPU Operator v1.4.1 release extends platform support to OpenShift v4.20
+The AMD GPU Operator v1.4.1 release extends platform support to OpenShift v4.20 and introduces the ability to build `amdgpu` kernel modules directly within air-gapped clusters.
 
 ### Release Highlights
-- **Device-Metrics-Exporter enhancements**
+- **OpenShift Platform Support Enhancements**
+  - **Build Driver Images Directly within Disconnected OpenShift Clusters**
+    - Starting from v1.4.1, the AMD GPU Operator supports building driver kernel modules directly within disconnected OpenShift clusters. 
+    - For Red Hat Enterprise Linux CoreOS (used by OpenShift), OpenShift will download source code and firmware from AMD provided [amdgpu-driver images](https://hub.docker.com/r/rocm/amdgpu-driver) into their [DriverToolKit](https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/specialized_hardware_and_driver_enablement/driver-toolkit) and directly build the kernel modules from source code without dependency on lots of RPM packages.
+  - **Cluster Monitoring Enablement**
+    - The v1.4.1 AMD GPU Operator automatically creates the RBAC resources required by the OpenShift [Cluster Monitoring stack](https://rhobs-handbook.netlify.app/products/openshiftmonitoring/collecting_metrics.md/#configuring-prometheus-to-scrape-metrics). This reduces one manual configuration steps when setting up the OpenShift monitoring stack to scrape metrics from the device metrics exporter.
+- **Device-Metrics-Exporter Enhancements**
   - **Enhanced Pod and Service Annotations**
-    - **Pod Annotations**, **Service Annotations** : Custom annotations can now be applied to exporter pods via the DeviceConfig CRD
-- **Test Runner enhancements**
+    - Custom annotations can now be applied to exporter pods and services via the DeviceConfig CRD, providing greater flexibility in metadata management.
+- **Test Runner Enhancements**
   - **Enhanced Test Result Events**
-    - Test runner Kubernetes events now include additional information: pod UID and test framework name (e.g., RVS, AGFHC) as event labels, providing more comprehensive test run information for improved tracking and diagnostics.
+    - Test runner Kubernetes events now include additional information such as pod UID and test framework name (e.g., RVS, AGFHC) as event labels, providing more comprehensive test run information for improved tracking and diagnostics.
 
 ### Fixes
-  1. **Node Feature Discovery rule fix**
-     * Fix the PCI device ID for the Virtual Function (VF) of these GPU: MI308X and MI300X-HF
+  1. **Node Feature Discovery Rule Fix**
+     * Fixed the PCI device ID for the Virtual Function (VF) of MI308X and MI300X-HF GPUs
 
 ## GPU Operator v1.4.0 Release Notes
 

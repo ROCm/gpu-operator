@@ -69,12 +69,21 @@ Below is an example of a full DeviceConfig CR that can be used to install the AM
             name: image-sign-private-key-secret
           certSecret:
             name: image-sign-public-key-secret
+        # (Optional) Currently only for OpenShift cluster, set to true to use source code image to build driver within the cluster
+        # default is false and operator will use debian or rpm package from radeon repo to install driver
+        useSourceImage: false
         # (Optional) configure the driver image build within the cluster
         imageBuild:
           # configure the registry to search for base image for building driver
           # e.g. if you are using worker node with ubuntu 22.04 and baseImageRegistry is docker.io
           # image builder will use docker.io/ubuntu:22.04 as base image
           baseImageRegistry: docker.io
+          # sourceImageRepo: specify the amdgpu source code image repo for building driver
+          # the Operator will decide the image tag based on user provided driver version and system OS version
+          # e.g. if you input docker.io/rocm/amdgpu-driver the image tag will be coreos-<rhel version>-<driver version>
+          # NOTE: currently only work for OpenShift cluster
+          # NOTE: will be used when spec.driver.useSourceImage is true
+          sourceImageRepo: docker.io/rocm/amdgpu-driver
           baseImageRegistryTLS:
             insecure: False # If True, check for the container image using plain HTTP
             insecureSkipTLSVerify: False # If True, skip any TLS server certificate validation (useful for self-signed certificates)
