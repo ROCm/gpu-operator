@@ -89,6 +89,8 @@ var (
 	dockerfileTemplateUbuntu string
 	//go:embed dockerfiles/DockerfileTemplate.coreos
 	dockerfileTemplateCoreOS string
+	//go:embed dockerfiles/DockerfileTemplate.sles
+	dockerfileTemplateSLES string
 	//go:embed devdockerfiles/devdockerfile.txt
 	dockerfileDevTemplateUbuntu string
 	//go:embed dockerfiles/DockerfileTemplate.ubuntu.gim
@@ -230,6 +232,8 @@ func resolveDockerfile(cmName string, devConfig *amdv1alpha1.DeviceConfig) (stri
 		case utils.DriverTypeVFPassthrough:
 			dockerfileTemplate = dockerfileTemplateGIMCoreOS
 		}
+	case "sles":
+		dockerfileTemplate = dockerfileTemplateSLES
 	// FIX ME
 	// add the RHEL back when it is fully supported
 	/*case "rhel":
@@ -248,7 +252,11 @@ func resolveDockerfile(cmName string, devConfig *amdv1alpha1.DeviceConfig) (stri
 	// render base image registry
 	baseImageRegistry := defaultBaseImageRegistry
 	if devConfig.Spec.Driver.ImageBuild.BaseImageRegistry != "" {
+		// user-specified registry takes precendence
 		baseImageRegistry = devConfig.Spec.Driver.ImageBuild.BaseImageRegistry
+	} else if osDistro == "sles" {
+		// if OS == "sles", use default image registry as "registry.suse.com"
+		baseImageRegistry = "registry.suse.com"
 	}
 	dockerfileTemplate = strings.Replace(dockerfileTemplate, "$$BASEIMG_REGISTRY", baseImageRegistry, -1)
 	// render driver version
@@ -686,6 +694,8 @@ var cmNameMappers = map[string]func(fullImageStr string) string{
 	"rhel":    rhelCMNameMapper,
 	"red hat": rhelCMNameMapper,
 	"redhat":  rhelCMNameMapper,
+	"sles":    slesCMNameMapper,
+	"suse":    slesCMNameMapper,
 }
 
 func rhelCMNameMapper(osImageStr string) string {
@@ -717,6 +727,25 @@ func ubuntuCMNameMapper(osImageStr string) string {
 	versionSplits := strings.Split(version, ".")
 	trimmedVersion := strings.Join(versionSplits[:2], ".")
 	return fmt.Sprintf("%s-%s", os, trimmedVersion)
+}
+
+func slesCMNameMapper(osImageStr string) string {
+	// Example: "SUSE Linux Enterprise Server 15 SP6" -> "sles-15.6"
+	// Example: "suse linux enterprise server 15-sp6" -> "sles-15.6"
+	// Convert to lowercase for consistent matching
+	osImageLower := strings.ToLower(osImageStr)
+	re := regexp.MustCompile(`(\d+)\s*-?\s*sp(\d+)`)
+	matches := re.FindStringSubmatch(osImageLower)
+	if len(matches) >= 3 {
+		return fmt.Sprintf("sles-%s.%s", matches[1], matches[2])
+	}
+	// Fallback for base version "SLES 15" or "SUSE Linux Enterprise Server 15"
+	re = regexp.MustCompile(`(\d+)`)
+	matches = re.FindStringSubmatch(osImageLower)
+	if len(matches) > 1 {
+		return fmt.Sprintf("sles-%s", matches[1])
+	}
+	return "sles-" + osImageLower
 }
 
 func GetK8SNodes(ctx context.Context, cli client.Client, labelSelector labels.Selector) (*v1.NodeList, error) {

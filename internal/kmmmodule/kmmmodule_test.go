@@ -678,3 +678,60 @@ var _ = Describe("getKernelMappings", func() {
 		}
 	})
 })
+
+var _ = Describe("resolveDockerfile", func() {
+	It("should use correct default registry when not specified by user", func() {
+		testCases := []struct {
+			cmName           string
+			expectedImageUrl string
+		}{
+			{"ubuntu-22.04", "docker.io/ubuntu:22.04"},
+			{"sles-15.6", "registry.suse.com/suse/sle15:15.6"},
+		}
+		for _, tc := range testCases {
+			input := &amdv1alpha1.DeviceConfig{
+				Spec: amdv1alpha1.DeviceConfigSpec{
+					Driver: amdv1alpha1.DriverSpec{},
+				},
+			}
+			dockerfile, err := resolveDockerfile(tc.cmName, input)
+			Expect(err).To(BeNil())
+			Expect(dockerfile).To(ContainSubstring(tc.expectedImageUrl))
+		}
+	})
+	It("should respect user-specified BaseImageRegistry for all OS types", func() {
+		testCases := []struct {
+			cmName           string
+			expectedImageUrl string
+		}{
+			{"ubuntu-22.04", "example-image-registry.com/ubuntu:22.04"},
+			{"sles-15.6", "example-image-registry.com/suse/sle15:15.6"},
+		}
+		for _, tc := range testCases {
+			input := &amdv1alpha1.DeviceConfig{
+				Spec: amdv1alpha1.DeviceConfigSpec{
+					Driver: amdv1alpha1.DriverSpec{
+						ImageBuild: amdv1alpha1.ImageBuildSpec{
+							BaseImageRegistry: "example-image-registry.com",
+						},
+					},
+				},
+			}
+			dockerfile, err := resolveDockerfile(tc.cmName, input)
+			Expect(err).To(BeNil())
+			Expect(dockerfile).To(ContainSubstring(tc.expectedImageUrl))
+			Expect(dockerfile).NotTo(ContainSubstring("docker.io"))
+			Expect(dockerfile).NotTo(ContainSubstring("registry.suse.com"))
+		}
+	})
+	It("should return error for unsupported OS", func() {
+		input := &amdv1alpha1.DeviceConfig{
+			Spec: amdv1alpha1.DeviceConfigSpec{
+				Driver: amdv1alpha1.DriverSpec{},
+			},
+		}
+		_, err := resolveDockerfile("unsupported-os", input)
+		Expect(err).NotTo(BeNil())
+		Expect(err.Error()).To(ContainSubstring("not supported OS"))
+	})
+})
