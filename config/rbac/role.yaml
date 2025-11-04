@@ -77,6 +77,7 @@ rules:
   - amd.com
   resources:
   - deviceconfigs
+  - remediationworkflowstatuses
   verbs:
   - create
   - get
@@ -88,12 +89,14 @@ rules:
   - amd.com
   resources:
   - deviceconfigs/finalizers
+  - remediationworkflowstatuses/finalizers
   verbs:
   - update
 - apiGroups:
   - amd.com
   resources:
   - deviceconfigs/status
+  - remediationworkflowstatuses/status
   verbs:
   - get
   - patch

@@ -224,6 +224,7 @@ spec:
             kubectl apply -f /opt/helm-charts-crds-k8s/module-crd.yaml
             kubectl apply -f /opt/helm-charts-crds-k8s/nodemodulesconfig-crd.yaml
             {{- end }}
+            kubectl apply -f /opt/helm-charts-crds-k8s/remediationworkflowstatus-crd.yaml
       restartPolicy: OnFailure
 {{- end }}
 # Run helm upgrade with --no-hooks to bypass the pre-upgrade hook

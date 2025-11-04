@@ -27,6 +27,7 @@ package controllers
 import (
 	context "context"
 	reflect "reflect"
+	time "time"
 
 	v1alpha1 "github.com/ROCm/gpu-operator/api/v1alpha1"
 	v1alpha10 "github.com/argoproj/argo-workflows/v3/pkg/apis/workflow/v1alpha1"
@@ -111,6 +112,61 @@ func (m *MockremediationMgrHelperAPI) EXPECT() *MockremediationMgrHelperAPIMockR
 	return m.recorder
 }
 
+// abortWorkflow mocks base method.
+func (m *MockremediationMgrHelperAPI) abortWorkflow(ctx context.Context, workflow *v1alpha10.Workflow) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "abortWorkflow", ctx, workflow)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// abortWorkflow indicates an expected call of abortWorkflow.
+func (mr *MockremediationMgrHelperAPIMockRecorder) abortWorkflow(ctx, workflow any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "abortWorkflow", reflect.TypeOf((*MockremediationMgrHelperAPI)(nil).abortWorkflow), ctx, workflow)
+}
+
+// attemptAbortWorkflowOnNode mocks base method.
+func (m *MockremediationMgrHelperAPI) attemptAbortWorkflowOnNode(ctx context.Context, node *v1.Node, wf *v1alpha10.Workflow) (bool, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "attemptAbortWorkflowOnNode", ctx, node, wf)
+	ret0, _ := ret[0].(bool)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// attemptAbortWorkflowOnNode indicates an expected call of attemptAbortWorkflowOnNode.
+func (mr *MockremediationMgrHelperAPIMockRecorder) attemptAbortWorkflowOnNode(ctx, node, wf any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "attemptAbortWorkflowOnNode", reflect.TypeOf((*MockremediationMgrHelperAPI)(nil).attemptAbortWorkflowOnNode), ctx, node, wf)
+}
+
+// attemptResumeWorkflowOnNode mocks base method.
+func (m *MockremediationMgrHelperAPI) attemptResumeWorkflowOnNode(ctx context.Context, node *v1.Node, mapping ConditionWorkflowMapping, wf *v1alpha10.Workflow) {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "attemptResumeWorkflowOnNode", ctx, node, mapping, wf)
+}
+
+// attemptResumeWorkflowOnNode indicates an expected call of attemptResumeWorkflowOnNode.
+func (mr *MockremediationMgrHelperAPIMockRecorder) attemptResumeWorkflowOnNode(ctx, node, mapping, wf any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "attemptResumeWorkflowOnNode", reflect.TypeOf((*MockremediationMgrHelperAPI)(nil).attemptResumeWorkflowOnNode), ctx, node, mapping, wf)
+}
+
+// canResumeWorkflowOnNode mocks base method.
+func (m *MockremediationMgrHelperAPI) canResumeWorkflowOnNode(ctx context.Context, node *v1.Node, mapping *ConditionWorkflowMapping) bool {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "canResumeWorkflowOnNode", ctx, node, mapping)
+	ret0, _ := ret[0].(bool)
+	return ret0
+}
+
+// canResumeWorkflowOnNode indicates an expected call of canResumeWorkflowOnNode.
+func (mr *MockremediationMgrHelperAPIMockRecorder) canResumeWorkflowOnNode(ctx, node, mapping any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "canResumeWorkflowOnNode", reflect.TypeOf((*MockremediationMgrHelperAPI)(nil).canResumeWorkflowOnNode), ctx, node, mapping)
+}
+
 // checkIfTaintExists mocks base method.
 func (m *MockremediationMgrHelperAPI) checkIfTaintExists(node *v1.Node, targetTaint v1.Taint) bool {
 	m.ctrl.T.Helper()
@@ -170,6 +226,21 @@ func (mr *MockremediationMgrHelperAPIMockRecorder) createDefaultWorkflowTemplate
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "createDefaultWorkflowTemplate", reflect.TypeOf((*MockremediationMgrHelperAPI)(nil).createDefaultWorkflowTemplate), ctx, devConfig)
 }
 
+// createRemediationWorkflowStatus mocks base method.
+func (m *MockremediationMgrHelperAPI) createRemediationWorkflowStatus(ctx context.Context, namespace string) (*v1alpha1.RemediationWorkflowStatus, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "createRemediationWorkflowStatus", ctx, namespace)
+	ret0, _ := ret[0].(*v1alpha1.RemediationWorkflowStatus)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// createRemediationWorkflowStatus indicates an expected call of createRemediationWorkflowStatus.
+func (mr *MockremediationMgrHelperAPIMockRecorder) createRemediationWorkflowStatus(ctx, namespace any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "createRemediationWorkflowStatus", reflect.TypeOf((*MockremediationMgrHelperAPI)(nil).createRemediationWorkflowStatus), ctx, namespace)
+}
+
 // createWorkflow mocks base method.
 func (m *MockremediationMgrHelperAPI) createWorkflow(ctx context.Context, workflow *v1alpha10.Workflow) error {
 	m.ctrl.T.Helper()
@@ -212,6 +283,34 @@ func (mr *MockremediationMgrHelperAPIMockRecorder) deleteWorkflow(ctx, workflow 
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "deleteWorkflow", reflect.TypeOf((*MockremediationMgrHelperAPI)(nil).deleteWorkflow), ctx, workflow)
 }
 
+// dropOlderRecoveryAttemptsFromStatusCR mocks base method.
+func (m *MockremediationMgrHelperAPI) dropOlderRecoveryAttemptsFromStatusCR(ctx context.Context, namespace string) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "dropOlderRecoveryAttemptsFromStatusCR", ctx, namespace)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// dropOlderRecoveryAttemptsFromStatusCR indicates an expected call of dropOlderRecoveryAttemptsFromStatusCR.
+func (mr *MockremediationMgrHelperAPIMockRecorder) dropOlderRecoveryAttemptsFromStatusCR(ctx, namespace any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "dropOlderRecoveryAttemptsFromStatusCR", reflect.TypeOf((*MockremediationMgrHelperAPI)(nil).dropOlderRecoveryAttemptsFromStatusCR), ctx, namespace)
+}
+
+// dropOlderRecoveryAttemptsInternal mocks base method.
+func (m *MockremediationMgrHelperAPI) dropOlderRecoveryAttemptsInternal(nodeName, nodeCondition, windowSize string) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "dropOlderRecoveryAttemptsInternal", nodeName, nodeCondition, windowSize)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// dropOlderRecoveryAttemptsInternal indicates an expected call of dropOlderRecoveryAttemptsInternal.
+func (mr *MockremediationMgrHelperAPIMockRecorder) dropOlderRecoveryAttemptsInternal(nodeName, nodeCondition, windowSize any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "dropOlderRecoveryAttemptsInternal", reflect.TypeOf((*MockremediationMgrHelperAPI)(nil).dropOlderRecoveryAttemptsInternal), nodeName, nodeCondition, windowSize)
+}
+
 // getConfigMap mocks base method.
 func (m *MockremediationMgrHelperAPI) getConfigMap(ctx context.Context, configmapName, namespace string) (*v1.ConfigMap, error) {
 	m.ctrl.T.Helper()
@@ -227,6 +326,92 @@ func (mr *MockremediationMgrHelperAPIMockRecorder) getConfigMap(ctx, configmapNa
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "getConfigMap", reflect.TypeOf((*MockremediationMgrHelperAPI)(nil).getConfigMap), ctx, configmapName, namespace)
 }
 
+// getMaxAllowedRunsPerWindow mocks base method.
+func (m *MockremediationMgrHelperAPI) getMaxAllowedRunsPerWindow(recoveryPolicy *RecoveryPolicyConfig) int {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "getMaxAllowedRunsPerWindow", recoveryPolicy)
+	ret0, _ := ret[0].(int)
+	return ret0
+}
+
+// getMaxAllowedRunsPerWindow indicates an expected call of getMaxAllowedRunsPerWindow.
+func (mr *MockremediationMgrHelperAPIMockRecorder) getMaxAllowedRunsPerWindow(recoveryPolicy any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "getMaxAllowedRunsPerWindow", reflect.TypeOf((*MockremediationMgrHelperAPI)(nil).getMaxAllowedRunsPerWindow), recoveryPolicy)
+}
+
+// getRecentRecoveryCount mocks base method.
+func (m *MockremediationMgrHelperAPI) getRecentRecoveryCount(nodeName, nodeCondition string) int {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "getRecentRecoveryCount", nodeName, nodeCondition)
+	ret0, _ := ret[0].(int)
+	return ret0
+}
+
+// getRecentRecoveryCount indicates an expected call of getRecentRecoveryCount.
+func (mr *MockremediationMgrHelperAPIMockRecorder) getRecentRecoveryCount(nodeName, nodeCondition any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "getRecentRecoveryCount", reflect.TypeOf((*MockremediationMgrHelperAPI)(nil).getRecentRecoveryCount), nodeName, nodeCondition)
+}
+
+// getRecoveryTrackerKey mocks base method.
+func (m *MockremediationMgrHelperAPI) getRecoveryTrackerKey(nodeName, nodeCondition string) (string, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "getRecoveryTrackerKey", nodeName, nodeCondition)
+	ret0, _ := ret[0].(string)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// getRecoveryTrackerKey indicates an expected call of getRecoveryTrackerKey.
+func (mr *MockremediationMgrHelperAPIMockRecorder) getRecoveryTrackerKey(nodeName, nodeCondition any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "getRecoveryTrackerKey", reflect.TypeOf((*MockremediationMgrHelperAPI)(nil).getRecoveryTrackerKey), nodeName, nodeCondition)
+}
+
+// getRemediationWorkflowStatus mocks base method.
+func (m *MockremediationMgrHelperAPI) getRemediationWorkflowStatus(ctx context.Context, namespace string) (*v1alpha1.RemediationWorkflowStatus, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "getRemediationWorkflowStatus", ctx, namespace)
+	ret0, _ := ret[0].(*v1alpha1.RemediationWorkflowStatus)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// getRemediationWorkflowStatus indicates an expected call of getRemediationWorkflowStatus.
+func (mr *MockremediationMgrHelperAPIMockRecorder) getRemediationWorkflowStatus(ctx, namespace any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "getRemediationWorkflowStatus", reflect.TypeOf((*MockremediationMgrHelperAPI)(nil).getRemediationWorkflowStatus), ctx, namespace)
+}
+
+// getServiceAccountName mocks base method.
+func (m *MockremediationMgrHelperAPI) getServiceAccountName(ctx context.Context, devConfig *v1alpha1.DeviceConfig) string {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "getServiceAccountName", ctx, devConfig)
+	ret0, _ := ret[0].(string)
+	return ret0
+}
+
+// getServiceAccountName indicates an expected call of getServiceAccountName.
+func (mr *MockremediationMgrHelperAPIMockRecorder) getServiceAccountName(ctx, devConfig any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "getServiceAccountName", reflect.TypeOf((*MockremediationMgrHelperAPI)(nil).getServiceAccountName), ctx, devConfig)
+}
+
+// getWindowSize mocks base method.
+func (m *MockremediationMgrHelperAPI) getWindowSize(recoveryPolicy *RecoveryPolicyConfig) string {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "getWindowSize", recoveryPolicy)
+	ret0, _ := ret[0].(string)
+	return ret0
+}
+
+// getWindowSize indicates an expected call of getWindowSize.
+func (mr *MockremediationMgrHelperAPIMockRecorder) getWindowSize(recoveryPolicy any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "getWindowSize", reflect.TypeOf((*MockremediationMgrHelperAPI)(nil).getWindowSize), recoveryPolicy)
+}
+
 // getWorkflowList mocks base method.
 func (m *MockremediationMgrHelperAPI) getWorkflowList(ctx context.Context, namespace string) (*v1alpha10.WorkflowList, error) {
 	m.ctrl.T.Helper()
@@ -240,6 +425,21 @@ func (m *MockremediationMgrHelperAPI) getWorkflowList(ctx context.Context, names
 func (mr *MockremediationMgrHelperAPIMockRecorder) getWorkflowList(ctx, namespace any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "getWorkflowList", reflect.TypeOf((*MockremediationMgrHelperAPI)(nil).getWorkflowList), ctx, namespace)
+}
+
+// getWorkflowTaskScriptSource mocks base method.
+func (m *MockremediationMgrHelperAPI) getWorkflowTaskScriptSource(scriptFileName string) (string, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "getWorkflowTaskScriptSource", scriptFileName)
+	ret0, _ := ret[0].(string)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// getWorkflowTaskScriptSource indicates an expected call of getWorkflowTaskScriptSource.
+func (mr *MockremediationMgrHelperAPIMockRecorder) getWorkflowTaskScriptSource(scriptFileName any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "getWorkflowTaskScriptSource", reflect.TypeOf((*MockremediationMgrHelperAPI)(nil).getWorkflowTaskScriptSource), scriptFileName)
 }
 
 // getWorkflowTemplate mocks base method.
@@ -272,17 +472,31 @@ func (mr *MockremediationMgrHelperAPIMockRecorder) getWorkflowUtilityImage(devCo
 }
 
 // handleExistingWorkflowsOnNode mocks base method.
-func (m *MockremediationMgrHelperAPI) handleExistingWorkflowsOnNode(ctx context.Context, devConfig *v1alpha1.DeviceConfig, node *v1.Node) bool {
+func (m *MockremediationMgrHelperAPI) handleExistingWorkflowsOnNode(ctx context.Context, devConfig *v1alpha1.DeviceConfig, node *v1.Node, mapping ConditionWorkflowMapping) bool {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "handleExistingWorkflowsOnNode", ctx, devConfig, node)
+	ret := m.ctrl.Call(m, "handleExistingWorkflowsOnNode", ctx, devConfig, node, mapping)
 	ret0, _ := ret[0].(bool)
 	return ret0
 }
 
 // handleExistingWorkflowsOnNode indicates an expected call of handleExistingWorkflowsOnNode.
-func (mr *MockremediationMgrHelperAPIMockRecorder) handleExistingWorkflowsOnNode(ctx, devConfig, node any) *gomock.Call {
+func (mr *MockremediationMgrHelperAPIMockRecorder) handleExistingWorkflowsOnNode(ctx, devConfig, node, mapping any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "handleExistingWorkflowsOnNode", reflect.TypeOf((*MockremediationMgrHelperAPI)(nil).handleExistingWorkflowsOnNode), ctx, devConfig, node)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "handleExistingWorkflowsOnNode", reflect.TypeOf((*MockremediationMgrHelperAPI)(nil).handleExistingWorkflowsOnNode), ctx, devConfig, node, mapping)
+}
+
+// handleSuspendedWorkflowsOnNode mocks base method.
+func (m *MockremediationMgrHelperAPI) handleSuspendedWorkflowsOnNode(ctx context.Context, devConfig *v1alpha1.DeviceConfig, node *v1.Node, mapping ConditionWorkflowMapping, wf *v1alpha10.Workflow) bool {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "handleSuspendedWorkflowsOnNode", ctx, devConfig, node, mapping, wf)
+	ret0, _ := ret[0].(bool)
+	return ret0
+}
+
+// handleSuspendedWorkflowsOnNode indicates an expected call of handleSuspendedWorkflowsOnNode.
+func (mr *MockremediationMgrHelperAPIMockRecorder) handleSuspendedWorkflowsOnNode(ctx, devConfig, node, mapping, wf any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "handleSuspendedWorkflowsOnNode", reflect.TypeOf((*MockremediationMgrHelperAPI)(nil).handleSuspendedWorkflowsOnNode), ctx, devConfig, node, mapping, wf)
 }
 
 // isDriverUpgradeInProgress mocks base method.
@@ -299,6 +513,48 @@ func (mr *MockremediationMgrHelperAPIMockRecorder) isDriverUpgradeInProgress(dev
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "isDriverUpgradeInProgress", reflect.TypeOf((*MockremediationMgrHelperAPI)(nil).isDriverUpgradeInProgress), devCfg, node)
 }
 
+// isNodeLabelledForAbortWorkflow mocks base method.
+func (m *MockremediationMgrHelperAPI) isNodeLabelledForAbortWorkflow(node *v1.Node) bool {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "isNodeLabelledForAbortWorkflow", node)
+	ret0, _ := ret[0].(bool)
+	return ret0
+}
+
+// isNodeLabelledForAbortWorkflow indicates an expected call of isNodeLabelledForAbortWorkflow.
+func (mr *MockremediationMgrHelperAPIMockRecorder) isNodeLabelledForAbortWorkflow(node any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "isNodeLabelledForAbortWorkflow", reflect.TypeOf((*MockremediationMgrHelperAPI)(nil).isNodeLabelledForAbortWorkflow), node)
+}
+
+// isNodeLabelledForForceResume mocks base method.
+func (m *MockremediationMgrHelperAPI) isNodeLabelledForForceResume(ctx context.Context, node *v1.Node) bool {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "isNodeLabelledForForceResume", ctx, node)
+	ret0, _ := ret[0].(bool)
+	return ret0
+}
+
+// isNodeLabelledForForceResume indicates an expected call of isNodeLabelledForForceResume.
+func (mr *MockremediationMgrHelperAPIMockRecorder) isNodeLabelledForForceResume(ctx, node any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "isNodeLabelledForForceResume", reflect.TypeOf((*MockremediationMgrHelperAPI)(nil).isNodeLabelledForForceResume), ctx, node)
+}
+
+// isRecoveryPolicyViolated mocks base method.
+func (m *MockremediationMgrHelperAPI) isRecoveryPolicyViolated(ctx context.Context, nodeName string, mapping *ConditionWorkflowMapping) bool {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "isRecoveryPolicyViolated", ctx, nodeName, mapping)
+	ret0, _ := ret[0].(bool)
+	return ret0
+}
+
+// isRecoveryPolicyViolated indicates an expected call of isRecoveryPolicyViolated.
+func (mr *MockremediationMgrHelperAPIMockRecorder) isRecoveryPolicyViolated(ctx, nodeName, mapping any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "isRecoveryPolicyViolated", reflect.TypeOf((*MockremediationMgrHelperAPI)(nil).isRecoveryPolicyViolated), ctx, nodeName, mapping)
+}
+
 // isRemediationDisabled mocks base method.
 func (m *MockremediationMgrHelperAPI) isRemediationDisabled(ctx context.Context, devConfig *v1alpha1.DeviceConfig) (bool, error) {
 	m.ctrl.T.Helper()
@@ -312,6 +568,20 @@ func (m *MockremediationMgrHelperAPI) isRemediationDisabled(ctx context.Context,
 func (mr *MockremediationMgrHelperAPIMockRecorder) isRemediationDisabled(ctx, devConfig any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "isRemediationDisabled", reflect.TypeOf((*MockremediationMgrHelperAPI)(nil).isRemediationDisabled), ctx, devConfig)
+}
+
+// isStatusSynced mocks base method.
+func (m *MockremediationMgrHelperAPI) isStatusSynced(ctx context.Context) bool {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "isStatusSynced", ctx)
+	ret0, _ := ret[0].(bool)
+	return ret0
+}
+
+// isStatusSynced indicates an expected call of isStatusSynced.
+func (mr *MockremediationMgrHelperAPIMockRecorder) isStatusSynced(ctx any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "isStatusSynced", reflect.TypeOf((*MockremediationMgrHelperAPI)(nil).isStatusSynced), ctx)
 }
 
 // isWorkflowSchedulableOnNode mocks base method.
@@ -342,6 +612,76 @@ func (mr *MockremediationMgrHelperAPIMockRecorder) populateWorkflow(ctx, wfTempl
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "populateWorkflow", reflect.TypeOf((*MockremediationMgrHelperAPI)(nil).populateWorkflow), ctx, wfTemplate, mapping, nodeName, devCfg)
 }
 
+// registerRecoveryAttempt mocks base method.
+func (m *MockremediationMgrHelperAPI) registerRecoveryAttempt(ctx context.Context, nodeName, nodeCondition, namespace, wfName string) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "registerRecoveryAttempt", ctx, nodeName, nodeCondition, namespace, wfName)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// registerRecoveryAttempt indicates an expected call of registerRecoveryAttempt.
+func (mr *MockremediationMgrHelperAPIMockRecorder) registerRecoveryAttempt(ctx, nodeName, nodeCondition, namespace, wfName any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "registerRecoveryAttempt", reflect.TypeOf((*MockremediationMgrHelperAPI)(nil).registerRecoveryAttempt), ctx, nodeName, nodeCondition, namespace, wfName)
+}
+
+// registerRecoveryAttemptInternal mocks base method.
+func (m *MockremediationMgrHelperAPI) registerRecoveryAttemptInternal(nodeName, nodeCondition, namespace string, startTime time.Time) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "registerRecoveryAttemptInternal", nodeName, nodeCondition, namespace, startTime)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// registerRecoveryAttemptInternal indicates an expected call of registerRecoveryAttemptInternal.
+func (mr *MockremediationMgrHelperAPIMockRecorder) registerRecoveryAttemptInternal(nodeName, nodeCondition, namespace, startTime any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "registerRecoveryAttemptInternal", reflect.TypeOf((*MockremediationMgrHelperAPI)(nil).registerRecoveryAttemptInternal), nodeName, nodeCondition, namespace, startTime)
+}
+
+// registerRecoveryAttemptToStatusCR mocks base method.
+func (m *MockremediationMgrHelperAPI) registerRecoveryAttemptToStatusCR(ctx context.Context, nodeName, nodeCondition, namespace, wfName string, startTime time.Time) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "registerRecoveryAttemptToStatusCR", ctx, nodeName, nodeCondition, namespace, wfName, startTime)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// registerRecoveryAttemptToStatusCR indicates an expected call of registerRecoveryAttemptToStatusCR.
+func (mr *MockremediationMgrHelperAPIMockRecorder) registerRecoveryAttemptToStatusCR(ctx, nodeName, nodeCondition, namespace, wfName, startTime any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "registerRecoveryAttemptToStatusCR", reflect.TypeOf((*MockremediationMgrHelperAPI)(nil).registerRecoveryAttemptToStatusCR), ctx, nodeName, nodeCondition, namespace, wfName, startTime)
+}
+
+// removeAbortWorkflowLabelFromNode mocks base method.
+func (m *MockremediationMgrHelperAPI) removeAbortWorkflowLabelFromNode(ctx context.Context, node *v1.Node) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "removeAbortWorkflowLabelFromNode", ctx, node)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// removeAbortWorkflowLabelFromNode indicates an expected call of removeAbortWorkflowLabelFromNode.
+func (mr *MockremediationMgrHelperAPIMockRecorder) removeAbortWorkflowLabelFromNode(ctx, node any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "removeAbortWorkflowLabelFromNode", reflect.TypeOf((*MockremediationMgrHelperAPI)(nil).removeAbortWorkflowLabelFromNode), ctx, node)
+}
+
+// removeForceResumeWorkflowLabelFromNode mocks base method.
+func (m *MockremediationMgrHelperAPI) removeForceResumeWorkflowLabelFromNode(ctx context.Context, node *v1.Node) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "removeForceResumeWorkflowLabelFromNode", ctx, node)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// removeForceResumeWorkflowLabelFromNode indicates an expected call of removeForceResumeWorkflowLabelFromNode.
+func (mr *MockremediationMgrHelperAPIMockRecorder) removeForceResumeWorkflowLabelFromNode(ctx, node any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "removeForceResumeWorkflowLabelFromNode", reflect.TypeOf((*MockremediationMgrHelperAPI)(nil).removeForceResumeWorkflowLabelFromNode), ctx, node)
+}
+
 // resumeSuspendedWorkflow mocks base method.
 func (m *MockremediationMgrHelperAPI) resumeSuspendedWorkflow(ctx context.Context, wfName, namespace string) error {
 	m.ctrl.T.Helper()
@@ -354,6 +694,20 @@ func (m *MockremediationMgrHelperAPI) resumeSuspendedWorkflow(ctx context.Contex
 func (mr *MockremediationMgrHelperAPIMockRecorder) resumeSuspendedWorkflow(ctx, wfName, namespace any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "resumeSuspendedWorkflow", reflect.TypeOf((*MockremediationMgrHelperAPI)(nil).resumeSuspendedWorkflow), ctx, wfName, namespace)
+}
+
+// syncInternalMapFromStatusCR mocks base method.
+func (m *MockremediationMgrHelperAPI) syncInternalMapFromStatusCR(ctx context.Context, namespace string) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "syncInternalMapFromStatusCR", ctx, namespace)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// syncInternalMapFromStatusCR indicates an expected call of syncInternalMapFromStatusCR.
+func (mr *MockremediationMgrHelperAPIMockRecorder) syncInternalMapFromStatusCR(ctx, namespace any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "syncInternalMapFromStatusCR", reflect.TypeOf((*MockremediationMgrHelperAPI)(nil).syncInternalMapFromStatusCR), ctx, namespace)
 }
 
 // validateNodeConditions mocks base method.

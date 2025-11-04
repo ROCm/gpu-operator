@@ -2988,6 +2988,11 @@ spec:
       labels:
         app: amd-gpu-operator-workflow-controller
     spec:
+      {{- with .Values.controller.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      nodeSelector: {{- toYaml .Values.controller.nodeSelector | nindent 8 }}
       containers:
       - args: []
         command:
@@ -3019,8 +3024,6 @@ spec:
             - ALL
           readOnlyRootFilesystem: true
           runAsNonRoot: true
-      nodeSelector:
-        kubernetes.io/os: linux
       priorityClassName: workflow-controller
       securityContext:
         runAsNonRoot: true

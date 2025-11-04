@@ -1,0 +1,74 @@
+---
+# Source: gpu-operator-charts/templates/remediationworkflowstatus-crd.yaml
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: remediationworkflowstatuses.amd.com
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.17.0
+  labels:
+    app.kubernetes.io/component: amd-gpu
+    app.kubernetes.io/part-of: amd-gpu
+    helm.sh/chart: gpu-operator-charts-v1.4.0
+    app.kubernetes.io/name: gpu-operator-charts
+    app.kubernetes.io/instance: amd-gpu
+    app.kubernetes.io/version: "v1.4.0"
+    app.kubernetes.io/managed-by: Helm
+spec:
+  group: amd.com
+  names:
+    kind: RemediationWorkflowStatus
+    listKind: RemediationWorkflowStatusList
+    plural: remediationworkflowstatuses
+    shortNames:
+    - rwfstatus
+    singular: remediationworkflowstatus
+  scope: Namespaced
+  versions:
+  - name: v1alpha1
+    schema:
+      openAPIV3Schema:
+        description: RemediationWorkflowStatus keeps a record of recent remediation
+          workflow runs.
+        properties:
+          apiVersion:
+            description: |-
+              APIVersion defines the versioned schema of this representation of an object.
+              Servers should convert recognized schemas to the latest internal value, and
+              may reject unrecognized values.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
+            type: string
+          kind:
+            description: |-
+              Kind is a string value representing the REST resource this object represents.
+              Servers may infer this from the endpoint the client submits requests to.
+              Cannot be updated.
+              In CamelCase.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
+            type: string
+          metadata:
+            type: object
+          status:
+            additionalProperties:
+              additionalProperties:
+                items:
+                  properties:
+                    name:
+                      type: string
+                    startTime:
+                      type: string
+                  type: object
+                type: array
+              type: object
+            type: object
+        type: object
+    served: true
+    storage: true
+    subresources:
+      status: {}
+status:
+  acceptedNames:
+    kind: ""
+    plural: ""
+  conditions: []
+  storedVersions: []

@@ -125,7 +125,8 @@ helm install amd-gpu-operator rocm/gpu-operator-charts \
 ```{note}
 Installation Options
   - Skip NFD installation: `--set node-feature-discovery.enabled=false`
-  - Skip KMM installation: `--set kmm.enabled=false`. <br> Although KMM is a [Kubernetes-SIGs](https://github.com/kubernetes-sigs) maintained project, it is strongly recommended to use AMD optimized and published KMM images included in each operator release.
+  - Skip KMM installation: `--set kmm.enabled=false` <br> Although KMM is a [Kubernetes-SIGs](https://github.com/kubernetes-sigs) maintained project, it is strongly recommended to use AMD optimized and published KMM images included in each operator release.
+  - Skip Auto Node Remediation: `--set remediation.enabled=false`
   - Disable default DeviceConfig installation: `--set crds.defaultCR.install=false`
 ```
 

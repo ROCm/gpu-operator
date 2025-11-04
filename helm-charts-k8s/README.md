@@ -70,10 +70,12 @@ helm install amd-gpu-operator rocm/gpu-operator-charts \
   --version=v1.4.0
 ```
 
-#### Installation Options
-
-* Skip NFD installation: `--set node-feature-discovery.enabled=false`
-* Skip KMM installation: `--set kmm.enabled=false`
+```{note}
+Installation Options
+  - Skip NFD installation: `--set node-feature-discovery.enabled=false`
+  - Skip KMM installation: `--set kmm.enabled=false`
+  - Skip Auto Node Remediation: `--set remediation.enabled=false`
+```
 
 > [!WARNING]
 > It is strongly recommended to use AMD-optimized KMM images included in the operator release. This is not required when installing the GPU Operator on Red Hat OpenShift.
@@ -312,4 +314,9 @@ Kubernetes: `>= 1.29.0-0`
 | kmm.webhookService.ports[0].protocol | string | `"TCP"` |  |
 | kmm.webhookService.ports[0].targetPort | int | `9443` |  |
 | kmm.webhookService.type | string | `"ClusterIP"` |  |
+| remediation-controller.controller.affinity.nodeAffinity.preferredDuringSchedulingIgnoredDuringExecution[0].preference.matchExpressions[0].key | string | `"node-role.kubernetes.io/control-plane"` |  |
+| remediation-controller.controller.affinity.nodeAffinity.preferredDuringSchedulingIgnoredDuringExecution[0].preference.matchExpressions[0].operator | string | `"Exists"` |  |
+| remediation-controller.controller.affinity.nodeAffinity.preferredDuringSchedulingIgnoredDuringExecution[0].weight | int | `1` |  |
 | remediation-controller.controller.image | string | `"quay.io/argoproj/workflow-controller:v3.6.5"` |  |
+| remediation-controller.controller.nodeSelector | object | `{}` |  |
+

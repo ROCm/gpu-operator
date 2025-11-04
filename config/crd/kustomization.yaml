@@ -6,6 +6,7 @@ kind: Kustomization
 # It should be run by config/default
 resources:
 - bases/amd.com_deviceconfigs.yaml
+- bases/amd.com_remediationworkflowstatuses.yaml
 #+kubebuilder:scaffold:crdkustomizeresource
 
 patches:
