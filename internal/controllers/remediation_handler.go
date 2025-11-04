@@ -36,7 +36,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 
 	"gopkg.in/yaml.v3"
@@ -64,16 +67,37 @@ const (
 	AmdGpuRemediationSucceeded = "amd-gpu-remediation-succeeded"
 	AmdGpuRemediationFailed    = "amd-gpu-remediation-failed"
 	DefaultUtilityImage        = "docker.io/rocm/gpu-operator-utils:latest"
+	// DefaultRecoveryPolicyWindowSize - defines the time window size for recovery policy
+	DefaultRecoveryPolicyWindowSize = "15m"
+	// DefaultRecoveryPolicyMaxRunsPerWindow - defines the max allowed runs per window for recovery policy
+	// If a specific node condition is hit more than this number of times within the window size, no new remediation workflows will be scheduled
+	DefaultRecoveryPolicyMaxRunsPerWindow = 3
+	DefaultTimeFormatLayout               = "2006-01-02 15:04:05 UTC"
+	DefaultStatusCRCleanupWindowSize      = "72h"
+	// Below is the label and value needed to be added to node to force resume a suspended workflow
+	ForceResumeWorkflowLabelKey   = "operator.amd.com/gpu-force-resume-workflow"
+	ForceResumeWorkflowLabelValue = "true"
+	// Below is the label and value needed to be added to node to abort an ongoing workflow
+	AbortWorkflowLabelKey   = "operator.amd.com/gpu-abort-workflow"
+	AbortWorkflowLabelValue = "true"
+	RemediationFilesPath    = "/remediation"
 )
+
+type RecoveryPolicyConfig struct {
+	MaxAllowedRunsPerWindow int    `json:"maxAllowedRunsPerWindow" yaml:"maxAllowedRunsPerWindow"`
+	WindowSize              string `json:"windowSize" yaml:"windowSize"`
+}
 
 // ConditionWorkflowMapping defines a single condition-to-workflow mapping.
 // This is used when parsing the ConfigMap specified in the DeviceConfig.
 type ConditionWorkflowMapping struct {
-	NodeCondition        string                 `json:"nodeCondition" yaml:"nodeCondition"`
-	WorkflowTemplate     string                 `json:"workflowTemplate" yaml:"workflowTemplate"`
-	ValidationTests      ValidationTestsProfile `json:"validationTestsProfile" yaml:"validationTestsProfile"`
-	PhysicalActionNeeded string                 `json:"physicalActionNeeded" yaml:"physicalActionNeeded"`
-	NotifyMessage        string                 `json:"notifyMessage" yaml:"notifyMessage"`
+	NodeCondition            string                 `json:"nodeCondition" yaml:"nodeCondition"`
+	WorkflowTemplate         string                 `json:"workflowTemplate" yaml:"workflowTemplate"`
+	ValidationTests          ValidationTestsProfile `json:"validationTestsProfile" yaml:"validationTestsProfile"`
+	PhysicalActionNeeded     bool                   `json:"physicalActionNeeded" yaml:"physicalActionNeeded"`
+	NotifyRemediationMessage string                 `json:"notifyRemediationMessage" yaml:"notifyRemediationMessage"`
+	NotifyTestFailureMessage string                 `json:"notifyTestFailureMessage" yaml:"notifyTestFailureMessage"`
+	RecoveryPolicy           RecoveryPolicyConfig   `json:"recoveryPolicy" yaml:"recoveryPolicy"`
 }
 
 type ValidationTestsProfile struct {
@@ -113,7 +137,6 @@ func (n *remediationMgr) HandleRemediation(ctx context.Context, devConfig *amdv1
 
 	// Don't handle remediation if disabled
 	remediationDisabled, err := n.helper.isRemediationDisabled(ctx, devConfig)
-
 	if err != nil {
 		return res, err
 	}
@@ -125,6 +148,21 @@ func (n *remediationMgr) HandleRemediation(ctx context.Context, devConfig *amdv1
 	var configMap *v1.ConfigMap
 	if configMap, err = n.helper.createDefaultObjects(ctx, devConfig); err != nil {
 		return res, err
+	}
+
+	// Clear any older recovery attempts from the status CR
+	if err := n.helper.dropOlderRecoveryAttemptsFromStatusCR(ctx, devConfig.Namespace); err != nil {
+		logger.Error(err, "Failed to drop older recovery attempts from status CR")
+		return res, err
+	}
+
+	// If statusSynced is false, we need to populate the internal map from the status CR
+	if !n.helper.isStatusSynced(ctx) {
+		if err := n.helper.syncInternalMapFromStatusCR(ctx, devConfig.Namespace); err != nil {
+			logger.Error(err, "Failed to sync internal map from status CR")
+			return res, err
+		}
+		logger.Info("Internal map synced from status CR successfully")
 	}
 
 	var mappingsList []ConditionWorkflowMapping
@@ -145,13 +183,12 @@ func (n *remediationMgr) HandleRemediation(ctx context.Context, devConfig *amdv1
 			logger.Info(fmt.Sprintf("Node conditions validations for node %s failed with error: %v", node.Name, err))
 			continue
 		}
-		canSchedule := n.helper.isWorkflowSchedulableOnNode(ctx, devConfig, &node, mapping)
-		if !canSchedule {
+		createNewWorkflow := n.helper.handleExistingWorkflowsOnNode(ctx, devConfig, &node, mapping)
+		if !createNewWorkflow {
 			continue
 		}
-
-		createNewWorkflow := n.helper.handleExistingWorkflowsOnNode(ctx, devConfig, &node)
-		if !createNewWorkflow {
+		canSchedule := n.helper.isWorkflowSchedulableOnNode(ctx, devConfig, &node, mapping)
+		if !canSchedule {
 			continue
 		}
 		logger.Info(fmt.Sprintf("GPU Condition: %s observed and node: %s is unhealthy. Starting Remediation Workflow: %s", mapping.NodeCondition, node.Name, mapping.WorkflowTemplate))
@@ -173,8 +210,20 @@ func (n *remediationMgr) HandleRemediation(ctx context.Context, devConfig *amdv1
 			errs = errors.Join(errs, err)
 			continue
 		}
-
 		logger.Info(fmt.Sprintf("Remediation Workflow for the condition is created successfully on node %s using template %s", node.Name, mapping.WorkflowTemplate))
+
+		// Drop older recovery attempts from internal map based on the window size
+		windowSize := n.helper.getWindowSize(&mapping.RecoveryPolicy)
+		if err := n.helper.dropOlderRecoveryAttemptsInternal(node.Name, mapping.NodeCondition, windowSize); err != nil {
+			logger.Error(err, fmt.Sprintf("Failed to drop older recovery attempts for node %s and condition %s", node.Name, mapping.NodeCondition))
+			return res, err
+		}
+
+		// Register the recovery attempt in internal map
+		if err := n.helper.registerRecoveryAttempt(ctx, node.Name, mapping.NodeCondition, devConfig.Namespace, wf.Name); err != nil {
+			logger.Error(err, fmt.Sprintf("Failed to register recovery attempt for node %s", node.Name))
+			return res, err
+		}
 	}
 	logger.Info("Requeue for any node conditions that may be present")
 	return res, errs
@@ -213,6 +262,7 @@ func (n *remediationMgr) HandleDelete(ctx context.Context, deviceConfig *amdv1al
 
 //go:generate mockgen -source=remediation_handler.go -package=controllers -destination=mock_remediation_handler.go remediationMgrHelperAPI
 type remediationMgrHelperAPI interface {
+	getServiceAccountName(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig) string
 	isRemediationDisabled(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig) (bool, error)
 	resumeSuspendedWorkflow(ctx context.Context, wfName, namespace string) error
 	isDriverUpgradeInProgress(devCfg *amdv1alpha1.DeviceConfig, node *v1.Node) bool
@@ -229,21 +279,65 @@ type remediationMgrHelperAPI interface {
 	deleteWorkflow(ctx context.Context, workflow *workflowv1alpha1.Workflow) error
 	validateNodeConditions(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig, node *v1.Node, mappings map[string]ConditionWorkflowMapping) (ConditionWorkflowMapping, error)
 	isWorkflowSchedulableOnNode(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig, node *v1.Node, mapping ConditionWorkflowMapping) bool
-	handleExistingWorkflowsOnNode(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig, node *v1.Node) bool
+	handleExistingWorkflowsOnNode(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig, node *v1.Node, mapping ConditionWorkflowMapping) bool
 	getWorkflowUtilityImage(devConfig *amdv1alpha1.DeviceConfig) v1.Container
+	createRemediationWorkflowStatus(ctx context.Context, namespace string) (*amdv1alpha1.RemediationWorkflowStatus, error)
+	getRemediationWorkflowStatus(ctx context.Context, namespace string) (*amdv1alpha1.RemediationWorkflowStatus, error)
+	getRecentRecoveryCount(nodeName string, nodeCondition string) int
+	dropOlderRecoveryAttemptsFromStatusCR(ctx context.Context, namespace string) error
+	dropOlderRecoveryAttemptsInternal(nodeName string, nodeCondition string, windowSize string) error
+	registerRecoveryAttempt(ctx context.Context, nodeName string, nodeCondition string, namespace string, wfName string) error
+	registerRecoveryAttemptInternal(nodeName string, nodeCondition string, namespace string, startTime time.Time) error
+	registerRecoveryAttemptToStatusCR(ctx context.Context, nodeName string, nodeCondition string, namespace string, wfName string, startTime time.Time) error
+	getRecoveryTrackerKey(nodeName string, nodeCondition string) (string, error)
+	getMaxAllowedRunsPerWindow(recoveryPolicy *RecoveryPolicyConfig) int
+	getWindowSize(recoveryPolicy *RecoveryPolicyConfig) string
+	isRecoveryPolicyViolated(ctx context.Context, nodeName string, mapping *ConditionWorkflowMapping) bool
+	canResumeWorkflowOnNode(ctx context.Context, node *v1.Node, mapping *ConditionWorkflowMapping) bool
+	syncInternalMapFromStatusCR(ctx context.Context, namespace string) error
+	isStatusSynced(ctx context.Context) bool
+	isNodeLabelledForForceResume(ctx context.Context, node *v1.Node) bool
+	removeForceResumeWorkflowLabelFromNode(ctx context.Context, node *v1.Node) error
+	isNodeLabelledForAbortWorkflow(node *v1.Node) bool
+	removeAbortWorkflowLabelFromNode(ctx context.Context, node *v1.Node) error
+	abortWorkflow(ctx context.Context, workflow *workflowv1alpha1.Workflow) error
+	attemptAbortWorkflowOnNode(ctx context.Context, node *v1.Node, wf *workflowv1alpha1.Workflow) (bool, error)
+	attemptResumeWorkflowOnNode(ctx context.Context, node *v1.Node, mapping ConditionWorkflowMapping, wf *workflowv1alpha1.Workflow)
+	handleSuspendedWorkflowsOnNode(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig, node *v1.Node, mapping ConditionWorkflowMapping, wf *workflowv1alpha1.Workflow) bool
+	getWorkflowTaskScriptSource(scriptFileName string) (string, error)
 }
 
 type remediationMgrHelper struct {
-	client       client.Client
-	k8sInterface kubernetes.Interface
+	client             client.Client
+	k8sInterface       kubernetes.Interface
+	recoveryTracker    *sync.Map
+	statusSynced       bool
+	serviceAccountName string
 }
 
 // Initialize remediation manager helper interface
 func newRemediationMgrHelperHandler(client client.Client, k8sInterface kubernetes.Interface) remediationMgrHelperAPI {
 	return &remediationMgrHelper{
-		client:       client,
-		k8sInterface: k8sInterface,
+		client:          client,
+		k8sInterface:    k8sInterface,
+		recoveryTracker: new(sync.Map),
+		statusSynced:    false,
 	}
+}
+
+func (h *remediationMgrHelper) getServiceAccountName(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig) string {
+	if h.serviceAccountName == "" {
+		sas := v1.ServiceAccountList{}
+		if err := h.client.List(ctx, &sas, client.InNamespace(devConfig.Namespace)); err == nil {
+			for _, sa := range sas.Items {
+				if strings.HasSuffix(sa.Name, "controller-manager") {
+					h.serviceAccountName = sa.Name
+					break
+				}
+			}
+		}
+	}
+	return h.serviceAccountName
 }
 
 func (h *remediationMgrHelper) isRemediationDisabled(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig) (bool, error) {
@@ -351,22 +445,19 @@ func (h *remediationMgrHelper) getConfigMap(ctx context.Context, configmapName s
 		Name:      configmapName,
 		Namespace: namespace,
 	}, cm)
-	if err != nil {
-		return nil, err
-	}
-	return cm, nil
+	return cm, err
 }
 
 func (h *remediationMgrHelper) createDefaultConfigMap(ctx context.Context, name string, namespace string) (*v1.ConfigMap, error) {
+	logger := log.FromContext(ctx)
 
-	workflowYaml := `- nodeCondition: "AMDGPUUnhealthy"
-  workflowTemplate: "default-template"
-  validationTestsProfile:
-    framework: "AGFHC"
-    recipe: "all_lvl4"
-    iterations: 1
-    stopOnFailure: true
-    timeoutSeconds: 4800`
+	yamlBytes, err := os.ReadFile(filepath.Join(RemediationFilesPath, "configs/default-configmap.yaml"))
+	if err != nil {
+		logger.Error(err, "Failed to read default remediation workflows file")
+		return nil, err
+	}
+
+	workflowYaml := string(yamlBytes)
 
 	defaultCfgMap := &v1.ConfigMap{
 		TypeMeta: metav1.TypeMeta{
@@ -382,8 +473,9 @@ func (h *remediationMgrHelper) createDefaultConfigMap(ctx context.Context, name 
 		},
 	}
 
-	err := h.client.Create(ctx, defaultCfgMap)
+	err = h.client.Create(ctx, defaultCfgMap)
 	if err != nil {
+		logger.Error(err, "Failed to create default remediation configmap")
 		return nil, err
 	}
 	return defaultCfgMap, nil
@@ -397,6 +489,15 @@ func (h *remediationMgrHelper) deleteConfigMap(ctx context.Context, name, namesp
 	return h.client.Delete(ctx, cm)
 }
 
+func (h *remediationMgrHelper) getWorkflowTaskScriptSource(scriptFileName string) (string, error) {
+	scriptPath := filepath.Join(RemediationFilesPath, "scripts", scriptFileName)
+	yamlBytes, err := os.ReadFile(scriptPath)
+	if err != nil {
+		return "", fmt.Errorf("failed to read script file %q: %w", scriptFileName, err)
+	}
+	return string(yamlBytes), nil
+}
+
 func (h *remediationMgrHelper) createDefaultWorkflowTemplate(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig) (*workflowv1alpha1.WorkflowTemplate, error) {
 
 	utilityContainer := h.getWorkflowUtilityImage(devConfig)
@@ -405,6 +506,11 @@ func (h *remediationMgrHelper) createDefaultWorkflowTemplate(ctx context.Context
 	rebootContainer := h.getWorkflowUtilityImage(devConfig)
 	rebootContainer.Command = []string{"/nsenter", "--all", "--target=1", "--", "/sbin/reboot", "-f"}
 	rebootContainer.SecurityContext = &v1.SecurityContext{Privileged: ptr.To(true)}
+
+	notifySrc, err := h.getWorkflowTaskScriptSource("notify.sh")
+	if err != nil {
+		return nil, err
+	}
 
 	notifyTemplate := &workflowv1alpha1.WorkflowTemplate{
 		ObjectMeta: metav1.ObjectMeta{
@@ -430,36 +536,7 @@ func (h *remediationMgrHelper) createDefaultWorkflowTemplate(ctx context.Context
 						},
 					},
 					Script: &workflowv1alpha1.ScriptTemplate{
-						Source: `
-set -e
-NODE_NAME="{{inputs.parameters.nodeName}}"
-NOTIFY_MESSAGE="{{inputs.parameters.notifyMessage}}"
-EVENT_NAME="{{inputs.parameters.eventName}}"
-
-kubectl create -f - <<EOF
-apiVersion: v1
-kind: Event
-metadata:
-  namespace: {{workflow.namespace}}
-  generateName: ${EVENT_NAME}-
-  labels:
-    app.kubernetes.io/part-of: amd-gpu-operator
-firstTimestamp: $(date -u +"%Y-%m-%dT%H:%M:%S.%3NZ")
-involvedObject:
-  apiVersion: v1
-  kind: Node
-  name: ${NODE_NAME}
-  namespace: {{workflow.namespace}}
-message: ${NOTIFY_MESSAGE}
-reason: AMDGPUUnhealthy
-reportingComponent: amd-gpu-node-remediation-workflow
-reportingInstance: amd-gpu-node-remediation-workflow
-source:
-  component: {{workflow.name}}
-  host: ${NODE_NAME}
-type: Warning
-EOF
-`,
+						Source:    notifySrc,
 						Container: utilityContainer,
 					},
 				},
@@ -468,6 +545,26 @@ EOF
 	}
 
 	if err := h.client.Create(ctx, notifyTemplate); err != nil {
+		return nil, err
+	}
+	taintSrc, err := h.getWorkflowTaskScriptSource("taint.sh")
+	if err != nil {
+		return nil, err
+	}
+	drainSrc, err := h.getWorkflowTaskScriptSource("drain.sh")
+	if err != nil {
+		return nil, err
+	}
+	testSrc, err := h.getWorkflowTaskScriptSource("test.sh")
+	if err != nil {
+		return nil, err
+	}
+	waitSrc, err := h.getWorkflowTaskScriptSource("wait.sh")
+	if err != nil {
+		return nil, err
+	}
+	untaintSrc, err := h.getWorkflowTaskScriptSource("untaint.sh")
+	if err != nil {
 		return nil, err
 	}
 
@@ -551,12 +648,7 @@ EOF
 						},
 					},
 					Script: &workflowv1alpha1.ScriptTemplate{
-						Source: `
-set -e
-NODE_NAME="{{inputs.parameters.node_name}}"
-echo "Tainting node $NODE_NAME"
-kubectl taint node "$NODE_NAME" amd-gpu-unhealthy="{{inputs.parameters.node_condition}}":NoSchedule --overwrite
-`,
+						Source:    taintSrc,
 						Container: utilityContainer,
 					},
 				},
@@ -575,37 +667,7 @@ kubectl taint node "$NODE_NAME" amd-gpu-unhealthy="{{inputs.parameters.node_cond
 						},
 					},
 					Script: &workflowv1alpha1.ScriptTemplate{
-						Source: `
-set -e
-echo "Fetching node name..."
-NODE_NAME="{{inputs.parameters.node_name}}"
-echo "Identified node: $NODE_NAME"
-echo "Finding pods on node $NODE_NAME with volume mount path starting with /dev/dri..."
-PODS=$(kubectl get pods --all-namespaces -o json | jq -r '
-  .items[] |
-    select(.spec.nodeName == "'"$NODE_NAME"'") |
-    select(
-      (
-        [.spec.volumes[]? | select(.hostPath?.path != null and (.hostPath.path | startswith("/dev/dri")))]
-        | length > 0
-      ) or (
-        [.spec.containers[]? | select(.resources.requests["amd.com/gpu"] != null)]
-        | length > 0
-      )
-    ) |
-    "\(.metadata.namespace) \(.metadata.name)"
-')
-if [ -z "$PODS" ]; then
-  echo "No pods with /dev/dri mounts found on node $NODE_NAME."
-else
-  echo "Evicting pods:"
-  echo "$PODS"
-  echo "$PODS" | while read -r ns name; do
-    echo "Deleting pod $name in namespace $ns"
-    kubectl delete pod "$name" -n "$ns" --grace-period=0 --force || true
-  done
-fi
-`,
+						Source:    drainSrc,
 						Container: utilityContainer,
 					},
 				},
@@ -664,148 +726,7 @@ containers:
 						},
 					},
 					Script: &workflowv1alpha1.ScriptTemplate{
-						Source: `
-set -e
-NODE_NAME="{{inputs.parameters.node_name}}"
-JOB_NAME="test-runner-manual-trigger-${NODE_NAME}"
-CM_NAME="manual-config-map-${NODE_NAME}"
-FRAMEWORK="{{inputs.parameters.framework}}"
-RECIPE="{{inputs.parameters.recipe}}"
-ITERATIONS="{{inputs.parameters.iterations}}"
-STOPONFAILURE="{{inputs.parameters.stopOnFailure}}"
-TIMEOUTSECONDS="{{inputs.parameters.timeoutSeconds}}"
-TESTRUNNERIMAGE="{{inputs.parameters.testRunnerImage}}"
-TESTRUNNERSA="{{inputs.parameters.testRunnerServiceAccount}}"
-NAMESPACE="{{inputs.parameters.namespace}}"
-
-if [ -z "$FRAMEWORK" ] || [ -z "$RECIPE" ] || [ -z "$ITERATIONS" ] || [ -z "$STOPONFAILURE" ] || [ -z "$TIMEOUTSECONDS" ]; then
-  echo "Validation profile incomplete, skipping configmap and job creation. Please enter framework, recipe, iterations, stopOnFailure, timeoutSeconds as per testrunner requirements"
-  exit 0
-fi
-
-echo "Creating test runner Job $JOB_NAME and ConfigMap $CM_NAME..."
-
-cat <<EOF | kubectl apply -f -
----
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: ${CM_NAME}
-  namespace: ${NAMESPACE}
-data:
-  config.json: |
-    {
-      "TestConfig": {
-        "GPU_HEALTH_CHECK": {
-          "TestLocationTrigger": {
-            "${NODE_NAME}": {
-              "TestParameters": {
-                "MANUAL": {
-                  "TestCases": [
-                    {
-                      "Framework": "${FRAMEWORK}",
-                      "Recipe": "${RECIPE}",
-                      "Iterations": "${ITERATIONS}",
-                      "StopOnFailure": "${STOPONFAILURE}",
-                      "TimeoutSeconds": "${TIMEOUTSECONDS}"
-                    }
-                  ]
-                }
-              }
-            }
-          }
-        }
-      }
-    }
----
-apiVersion: batch/v1
-kind: Job
-metadata:
-  name: ${JOB_NAME}
-  namespace: ${NAMESPACE}
-spec:
-  ttlSecondsAfterFinished: 120
-  backoffLimit: 0
-  template:
-    spec:
-      serviceAccountName: "${TESTRUNNERSA}"
-      nodeSelector:
-        kubernetes.io/hostname: ${NODE_NAME}
-      tolerations:
-      - key: "amd-gpu-unhealthy"
-        operator: "Exists"
-        effect: "NoSchedule"
-      restartPolicy: Never
-      volumes:
-        - name: kfd
-          hostPath:
-            path: /dev/kfd
-            type: CharDevice
-        - name: dri
-          hostPath:
-            path: /dev/dri
-            type: Directory
-        - name: config-volume
-          configMap:
-            name: ${CM_NAME}
-        - hostPath:
-            path: /var/log/amd-test-runner
-            type: DirectoryOrCreate
-          name: test-runner-volume
-      containers:
-        - name: amd-test-runner
-          image: "${TESTRUNNERIMAGE}"
-          imagePullPolicy: IfNotPresent
-          securityContext:
-            privileged: true
-          volumeMounts:
-            - mountPath: /dev/dri
-              name: dri
-            - mountPath: /dev/kfd
-              name: kfd
-            - mountPath: /var/log/amd-test-runner
-              name: test-runner-volume
-            - mountPath: /etc/test-runner/
-              name: config-volume
-          env:
-            - name: LOG_MOUNT_DIR # Use LOG_MOUNT_DIR environment variable to ask test runner to save logs in mounted directory
-              value: /var/log/amd-test-runner
-            - name: TEST_TRIGGER
-              value: "MANUAL"
-            - name: POD_NAME
-              valueFrom:
-                fieldRef:
-                  fieldPath: metadata.name
-            - name: POD_NAMESPACE
-              valueFrom:
-                fieldRef:
-                  fieldPath: metadata.namespace
-            - name: NODE_NAME
-              valueFrom:
-                fieldRef:
-                  fieldPath: spec.nodeName
-EOF
-
-echo "Waiting for Job $JOB_NAME to complete..."
-
-while true; do
-  job_status=$(kubectl get job "$JOB_NAME" -n "$NAMESPACE" -o jsonpath='{.status.conditions[0].type}' 2>/dev/null || true)
-  if [ "$job_status" = "Complete" ]; then
-    echo "Test runner job completed successfully."
-	kubectl logs -n $NAMESPACE job/$JOB_NAME
-    echo "Detailed run report can be found at /var/log/amd-test-runner"
-    exit 0
-  elif [ "$job_status" = "Failed" ]; then
-    echo "Test runner job failed."
-    kubectl logs -n $NAMESPACE job/$JOB_NAME
-    echo "Detailed run report can be found at /var/log/amd-test-runner"
-    exit 1
-  else
-    echo "Test runner job is still running. Waiting..."
-    sleep 60
-  fi
-done
-`,
+						Source:    testSrc,
 						Container: utilityContainer,
 					},
 				},
@@ -824,32 +745,7 @@ done
 						},
 					},
 					Script: &workflowv1alpha1.ScriptTemplate{
-						Source: `
-set -e
-NODE_NAME="{{inputs.parameters.node_name}}"
-echo "Waiting for {{inputs.parameters.node_condition}} condition to be False on node $NODE_NAME for 2 consecutive minutes (timeout: 15 minutes)"
-STABLE_COUNT=0
-TOTAL_WAIT=0
-while [ "$TOTAL_WAIT" -lt 15 ]; do
-  STATUS=$(kubectl get node "$NODE_NAME" -o jsonpath="{.status.conditions[?(@.type=='{{inputs.parameters.node_condition}}')].status}")
-  echo "[$(date)] {{inputs.parameters.node_condition}} status: $STATUS"
-  if [ "$STATUS" = "False" ]; then
-    STABLE_COUNT=$((STABLE_COUNT + 1))
-    echo "Condition is stable (False) for $STABLE_COUNT minute(s)"
-    if [ "$STABLE_COUNT" -ge 2 ]; then
-      echo "Condition has been False for 2 consecutive checks (~2 minutes). Proceeding..."
-      exit 0
-    fi
-  else
-    STABLE_COUNT=0
-    echo "Condition is not stable (status: $STATUS)."
-  fi
-  sleep 60
-  TOTAL_WAIT=$((TOTAL_WAIT + 1))
-done
-echo "{{inputs.parameters.node_condition}} did not remain False for 2 consecutive minutes within 15 minutes. Exiting with failure."
-exit 1
-`,
+						Source:    waitSrc,
 						Container: utilityContainer,
 					},
 				},
@@ -864,22 +760,14 @@ exit 1
 						},
 					},
 					Script: &workflowv1alpha1.ScriptTemplate{
-						Source: `
-set -e
-NODE_NAME="{{inputs.parameters.node_name}}"
-echo "Untainting node $NODE_NAME"
-kubectl taint node "$NODE_NAME" amd-gpu-unhealthy:NoSchedule-
-`,
+						Source:    untaintSrc,
 						Container: utilityContainer,
 					},
 				},
 				{
 					Name: "failWorkflow",
 					Script: &workflowv1alpha1.ScriptTemplate{
-						Source: `
-echo "Failing workflow"
-exit 1
-`,
+						Source:    `echo "Failing workflow" && exit 1`,
 						Container: utilityContainer,
 					},
 				},
@@ -903,7 +791,6 @@ func (h *remediationMgrHelper) createDefaultObjects(ctx context.Context, devConf
 	} else {
 		cfgMapName = devConfig.Name + "-" + DefaultConfigMapSuffix
 	}
-
 	// Create default configmap if required
 	cm, err := h.getConfigMap(ctx, cfgMapName, devConfig.Namespace)
 	if err != nil {
@@ -931,6 +818,17 @@ func (h *remediationMgrHelper) createDefaultObjects(ctx context.Context, devConf
 		logger.Info("Created default workflow template successfully")
 	}
 
+	// Create Default RemediationWorkflowStatus if required
+	_, err = h.getRemediationWorkflowStatus(ctx, devConfig.Namespace)
+	if err != nil {
+		logger.Error(err, fmt.Sprintf("Failed to fetch RemediationWorkflowStatus %s", "default"))
+		if _, err = h.createRemediationWorkflowStatus(ctx, devConfig.Namespace); err != nil {
+			logger.Error(err, "Failed to create default remediation workflow status")
+			return nil, err
+		}
+		logger.Info("Created default remediation workflow status successfully")
+	}
+
 	return cm, nil
 }
 
@@ -944,7 +842,7 @@ func (h *remediationMgrHelper) populateWorkflow(ctx context.Context, wfTemplate 
 	}
 
 	wf.Spec.Entrypoint = wfTemplate.Spec.Entrypoint
-	wf.Spec.ServiceAccountName = "amd-gpu-operator-gpu-operator-charts-controller-manager"
+	wf.Spec.ServiceAccountName = h.getServiceAccountName(ctx, devConfig)
 	ttlHours := devConfig.Spec.RemediationWorkflow.TtlForFailedWorkflows
 	ttlSeconds := int32(ttlHours * 3600)
 	wf.Spec.TTLStrategy = &workflowv1alpha1.TTLStrategy{
@@ -1020,11 +918,11 @@ func (h *remediationMgrHelper) populateWorkflow(ctx context.Context, wfTemplate 
 			},
 			{
 				Name:  "notifyMessage",
-				Value: workflowv1alpha1.AnyStringPtr(mapping.NotifyMessage),
+				Value: workflowv1alpha1.AnyStringPtr(mapping.NotifyRemediationMessage),
 			},
 			{
 				Name:  "notifyErrorMessage",
-				Value: workflowv1alpha1.AnyStringPtr(fmt.Sprintf("Remediation for node condition %s failed on node %s", mapping.NodeCondition, nodeName)),
+				Value: workflowv1alpha1.AnyStringPtr(fmt.Sprintf("Remediation for node condition %s failed on node %s. %s", mapping.NodeCondition, nodeName, mapping.NotifyTestFailureMessage)),
 			},
 			{
 				Name:  "notifySuccessMessage",
@@ -1110,7 +1008,7 @@ func (h *remediationMgrHelper) isWorkflowSchedulableOnNode(ctx context.Context, 
 	return true
 }
 
-func (h *remediationMgrHelper) handleExistingWorkflowsOnNode(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig, node *v1.Node) bool {
+func (h *remediationMgrHelper) handleExistingWorkflowsOnNode(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig, node *v1.Node, mapping ConditionWorkflowMapping) bool {
 	logger := log.FromContext(ctx)
 	wfList, err := h.getWorkflowList(ctx, devConfig.Namespace)
 	if err != nil {
@@ -1120,33 +1018,85 @@ func (h *remediationMgrHelper) handleExistingWorkflowsOnNode(ctx context.Context
 
 	// If a workflow is already running on that node, then skip the node but resume/delete workflow if needed
 	for _, wf := range wfList.Items {
-		if strings.HasPrefix(wf.Name, fmt.Sprintf("%s-", node.Name)) {
-			if wf.Status.Phase == workflowv1alpha1.WorkflowSucceeded {
-				if err := h.deleteWorkflow(ctx, &wf); err != nil {
-					logger.Error(err, fmt.Sprintf("Failed to delete workflow %s on node %v", wf.Name, node.Name))
-					return false
-				}
-				logger.Info(fmt.Sprintf("Deleted completed workflow %s on node %v", wf.Name, node.Name))
-			} else if wf.Status.Phase == workflowv1alpha1.WorkflowRunning {
-				stages := wf.Status.Nodes
-				for _, wfStage := range stages {
-					if wfStage.Type == "Suspend" && wfStage.Phase == "Running" {
-						logger.Info(fmt.Sprintf("Found suspended workflow %s on node %s. Attempting resume.", wf.Name, node.Name))
-						if err := h.resumeSuspendedWorkflow(ctx, wf.Name, wf.Namespace); err != nil {
-							logger.Error(err, fmt.Sprintf("Failed to resume workflow %s on node %s", wf.Name, node.Name))
-						} else {
-							logger.Info(fmt.Sprintf("successfully resumed workflow %s on node %v", wf.Name, node.Name))
-						}
-						return false
-					}
-				}
-				logger.Info(fmt.Sprintf("Workflow: %s already running on the node: %s, skipping creation of workflow", wf.Name, node.Name))
+		if !strings.HasPrefix(wf.Name, fmt.Sprintf("%s-", node.Name)) {
+			continue
+		}
+		if wf.Status.Phase == workflowv1alpha1.WorkflowSucceeded {
+			if err := h.deleteWorkflow(ctx, &wf); err != nil {
+				logger.Error(err, fmt.Sprintf("Failed to delete workflow %s on node %v", wf.Name, node.Name))
 				return false
 			}
-			break
+			logger.Info(fmt.Sprintf("Deleted completed workflow %s on node %v", wf.Name, node.Name))
+		} else if wf.Status.Phase == workflowv1alpha1.WorkflowRunning {
+			return h.handleSuspendedWorkflowsOnNode(ctx, devConfig, node, mapping, &wf)
 		}
 	}
 	return true
+}
+
+func (h *remediationMgrHelper) handleSuspendedWorkflowsOnNode(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig, node *v1.Node, mapping ConditionWorkflowMapping, wf *workflowv1alpha1.Workflow) bool {
+	logger := log.FromContext(ctx)
+	if wf.Status.Phase != workflowv1alpha1.WorkflowRunning {
+		return false
+	}
+	stages := wf.Status.Nodes
+	for _, wfStage := range stages {
+		if wfStage.Type == "Suspend" && wfStage.Phase == "Running" {
+			logger.Info(fmt.Sprintf("Suspended workflow %s found on node %s", wf.Name, node.Name))
+			// Check if the workflow can be aborted, and attempt abort
+			// If aborted, return true so that new workflow can be created
+			canAbort, err := h.attemptAbortWorkflowOnNode(ctx, node, wf)
+			if canAbort && err == nil {
+				return true
+			}
+
+			// Check if the workflow can be resumed, and attempt resume
+			h.attemptResumeWorkflowOnNode(ctx, node, mapping, wf)
+			// irrespective of whether it was resumed or not, return false to avoid creating a new workflow
+			return false
+		}
+	}
+	return false
+}
+
+func (h *remediationMgrHelper) attemptAbortWorkflowOnNode(ctx context.Context, node *v1.Node, wf *workflowv1alpha1.Workflow) (bool, error) {
+	logger := log.FromContext(ctx)
+	canAbort := h.isNodeLabelledForAbortWorkflow(node)
+	if canAbort {
+		logger.Info(fmt.Sprintf("Found abort label on node %s. Attempting abort workflow %s", node.Name, wf.Name))
+		if err := h.abortWorkflow(ctx, wf); err != nil {
+			logger.Error(err, fmt.Sprintf("Failed to abort workflow %s on node %s", wf.Name, node.Name))
+			return true, fmt.Errorf("Failed to abort workflow %s on node %s", wf.Name, node.Name)
+		}
+		if err := h.removeAbortWorkflowLabelFromNode(ctx, node); err != nil {
+			return true, err
+		}
+		logger.Info(fmt.Sprintf("Aborted and deleted workflow %s on node %s.", wf.Name, node.Name))
+		return true, nil
+	}
+	return canAbort, nil
+}
+
+func (h *remediationMgrHelper) attemptResumeWorkflowOnNode(ctx context.Context, node *v1.Node, mapping ConditionWorkflowMapping, wf *workflowv1alpha1.Workflow) {
+	logger := log.FromContext(ctx)
+	// Check if the workflow can be resumed
+	canResume := h.canResumeWorkflowOnNode(ctx, node, &mapping)
+	if canResume {
+		logger.Info(fmt.Sprintf("Attempting to resume suspended workflow %q on node %q.", wf.Name, node.Name))
+		if err := h.resumeSuspendedWorkflow(ctx, wf.Name, wf.Namespace); err != nil {
+			logger.Error(err, fmt.Sprintf("Failed to resume workflow %s", wf.Name))
+			return
+		}
+		resume := h.isNodeLabelledForForceResume(ctx, node)
+		if resume {
+			// Remove the label after allowing resumption
+			if err := h.removeForceResumeWorkflowLabelFromNode(ctx, node); err != nil {
+				logger.Error(err, fmt.Sprintf("Failed to remove force resume label from node %s", node.Name))
+				return
+			}
+		}
+		logger.Info(fmt.Sprintf("Resumed suspended workflow %q on node %q.", wf.Name, node.Name))
+	}
 }
 
 func (h *remediationMgrHelper) getWorkflowUtilityImage(devConfig *amdv1alpha1.DeviceConfig) v1.Container {
@@ -1161,4 +1111,345 @@ func (h *remediationMgrHelper) getWorkflowUtilityImage(devConfig *amdv1alpha1.De
 	}
 
 	return output
+}
+
+func (h *remediationMgrHelper) getRecentRecoveryCount(nodeName string, nodeCondition string) int {
+	// get the length of the slice of attempts for the given node and condition
+	key, err := h.getRecoveryTrackerKey(nodeName, nodeCondition)
+	if err != nil {
+		return 0
+	}
+
+	attempts, ok := h.recoveryTracker.Load(key)
+	if !ok {
+		return 0
+	}
+	if attemptsSlice, ok := attempts.([]time.Time); ok {
+		// Return the length of the slice as the count of recent recovery attempts
+		return len(attemptsSlice)
+	}
+	return 0
+}
+
+func (h *remediationMgrHelper) dropOlderRecoveryAttemptsInternal(nodeName string, nodeCondition string, windowSize string) error {
+	key, err := h.getRecoveryTrackerKey(nodeName, nodeCondition)
+	if err != nil {
+		return fmt.Errorf("failed to get recovery tracker key: %w", err)
+	}
+
+	attempts, _ := h.recoveryTracker.LoadOrStore(key, []time.Time{})
+	if attemptsSlice, ok := attempts.([]time.Time); ok {
+		windowSizeDuration, err := time.ParseDuration(windowSize)
+		if err != nil {
+			return fmt.Errorf("failed to parse window size %s: %w", windowSize, err)
+		}
+
+		// Filter out attempts older than the window size
+		cutoffTime := time.Now().UTC().Add(-time.Duration(windowSizeDuration))
+		startIndex := len(attemptsSlice)
+		for i, attempt := range attemptsSlice {
+			if attempt.After(cutoffTime) {
+				startIndex = i
+				break
+			}
+		}
+		filtered := attemptsSlice[startIndex:]
+		h.recoveryTracker.Store(key, filtered)
+	} else {
+		return fmt.Errorf("failed to cast recovery tracker value to []time.Time")
+	}
+
+	return nil
+}
+
+func (h *remediationMgrHelper) dropOlderRecoveryAttemptsFromStatusCR(ctx context.Context, namespace string) error {
+	windowSize := DefaultStatusCRCleanupWindowSize
+	wfStatus, err := h.getRemediationWorkflowStatus(ctx, namespace)
+	if err != nil {
+		return fmt.Errorf("failed to get remediation workflow status: %w", err)
+	}
+
+	if wfStatus.Status == nil {
+		return nil // Nothing to drop
+	}
+
+	wfStatusCopy := wfStatus.DeepCopy()
+	windowSizeDuration, err := time.ParseDuration(windowSize)
+	if err != nil {
+		return fmt.Errorf("failed to parse window size %s: %w", windowSize, err)
+	}
+
+	cutoffTime := time.Now().UTC().Add(-time.Duration(windowSizeDuration))
+
+	for nodeName, conditions := range wfStatus.Status {
+		for nodeCondition, attempts := range conditions {
+			filtered := []amdv1alpha1.WorkflowMetadata{}
+			for _, attempt := range attempts {
+				attemptTime, err := time.Parse(DefaultTimeFormatLayout, attempt.StartTime)
+				if err != nil {
+					return fmt.Errorf("failed to parse attempt start time %s: %w", attempt.StartTime, err)
+				}
+				if attemptTime.After(cutoffTime) {
+					filtered = append(filtered, attempt)
+				}
+			}
+			// Update the status for the node and condition with the filtered attempts
+			if len(filtered) > 0 {
+				wfStatus.Status[nodeName][nodeCondition] = filtered
+			} else {
+				// If no attempts are left, remove the condition from the node
+				delete(wfStatus.Status[nodeName], nodeCondition)
+			}
+		}
+		// If no conditions are left for the node, remove the node from the status
+		if len(wfStatus.Status[nodeName]) == 0 {
+			delete(wfStatus.Status, nodeName)
+		}
+	}
+
+	if err := h.client.Status().Patch(ctx, wfStatus, client.MergeFrom(wfStatusCopy)); err != nil {
+		return fmt.Errorf("failed to patch remediation workflow status: %w", err)
+	}
+
+	return nil
+}
+
+func (h *remediationMgrHelper) registerRecoveryAttempt(ctx context.Context, nodeName string, nodeCondition string, namespace string, wfName string) error {
+	startTime := time.Now().UTC()
+
+	// Register the recovery attempt in internal map
+	if err := h.registerRecoveryAttemptInternal(nodeName, nodeCondition, namespace, startTime); err != nil {
+		return fmt.Errorf("failed to register recovery attempt: %w", err)
+	}
+
+	// Register the recovery attempt in the status CR
+	if err := h.registerRecoveryAttemptToStatusCR(ctx, nodeName, nodeCondition, namespace, wfName, startTime); err != nil {
+		return fmt.Errorf("failed to register recovery attempt in status CR: %w", err)
+	}
+
+	return nil
+}
+
+func (h *remediationMgrHelper) registerRecoveryAttemptToStatusCR(ctx context.Context, nodeName string, nodeCondition string, namespace string, wfName string, startTime time.Time) error {
+	wfStatus, err := h.getRemediationWorkflowStatus(ctx, namespace)
+	if err != nil {
+		return fmt.Errorf("failed to get remediation workflow status: %w", err)
+	}
+
+	wfStatusCopy := wfStatus.DeepCopy()
+
+	if wfStatus.Status == nil {
+		wfStatus.Status = make(map[string]map[string][]amdv1alpha1.WorkflowMetadata)
+	}
+	if wfStatus.Status[nodeName] == nil {
+		wfStatus.Status[nodeName] = make(map[string][]amdv1alpha1.WorkflowMetadata)
+	}
+	if wfStatus.Status[nodeName][nodeCondition] == nil {
+		wfStatus.Status[nodeName][nodeCondition] = []amdv1alpha1.WorkflowMetadata{}
+	}
+
+	// Create a new WorkflowMetadata entry
+	metadata := amdv1alpha1.WorkflowMetadata{
+		Name:      wfName,
+		StartTime: startTime.Format(DefaultTimeFormatLayout),
+	}
+
+	// Append the new metadata entry to the status
+	wfStatus.Status[nodeName][nodeCondition] = append(wfStatus.Status[nodeName][nodeCondition], metadata)
+
+	// Patch the wfStatus with the new entry
+	if err := h.client.Status().Patch(ctx, wfStatus, client.MergeFrom(wfStatusCopy)); err != nil {
+		return fmt.Errorf("failed to patch remediation workflow status: %w", err)
+	}
+	return nil
+}
+
+func (h *remediationMgrHelper) registerRecoveryAttemptInternal(nodeName string, nodeCondition string, namespace string, startTime time.Time) error {
+	key, err := h.getRecoveryTrackerKey(nodeName, nodeCondition)
+	if err != nil {
+		return fmt.Errorf("failed to get recovery tracker key: %w", err)
+	}
+
+	attempts, _ := h.recoveryTracker.LoadOrStore(key, []time.Time{})
+	if attemptsSlice, ok := attempts.([]time.Time); ok {
+		attemptsSlice = append(attemptsSlice, startTime)
+		h.recoveryTracker.Store(key, attemptsSlice)
+	} else {
+		return fmt.Errorf("failed to cast recovery tracker value to []time.Time")
+	}
+
+	return nil
+}
+
+func (h *remediationMgrHelper) getRecoveryTrackerKey(nodeName string, nodeCondition string) (string, error) {
+	key := fmt.Sprintf("%s-%s", nodeName, nodeCondition)
+	return key, nil
+}
+
+func (h *remediationMgrHelper) getMaxAllowedRunsPerWindow(recoveryPolicy *RecoveryPolicyConfig) int {
+	if recoveryPolicy == nil || recoveryPolicy.MaxAllowedRunsPerWindow == 0 {
+		return DefaultRecoveryPolicyMaxRunsPerWindow
+	}
+	return recoveryPolicy.MaxAllowedRunsPerWindow
+}
+
+func (h *remediationMgrHelper) getWindowSize(recoveryPolicy *RecoveryPolicyConfig) string {
+	if recoveryPolicy == nil || recoveryPolicy.WindowSize == "" {
+		return DefaultRecoveryPolicyWindowSize
+	}
+	return recoveryPolicy.WindowSize
+}
+
+func (h *remediationMgrHelper) createRemediationWorkflowStatus(ctx context.Context, namespace string) (*amdv1alpha1.RemediationWorkflowStatus, error) {
+	wfstatus := &amdv1alpha1.RemediationWorkflowStatus{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "default",
+			Namespace: namespace,
+		},
+		Status: make(map[string]map[string][]amdv1alpha1.WorkflowMetadata),
+	}
+
+	if err := h.client.Create(ctx, wfstatus); err != nil {
+		return nil, fmt.Errorf("failed to create remediation workflow status: %w", err)
+	}
+	return wfstatus, nil
+}
+
+func (h *remediationMgrHelper) getRemediationWorkflowStatus(ctx context.Context, namespace string) (*amdv1alpha1.RemediationWorkflowStatus, error) {
+	wfstatus := &amdv1alpha1.RemediationWorkflowStatus{}
+	err := h.client.Get(ctx, client.ObjectKey{Name: "default", Namespace: namespace}, wfstatus)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get remediation workflow status: %w", err)
+	}
+	return wfstatus, nil
+}
+
+func (h *remediationMgrHelper) syncInternalMapFromStatusCR(ctx context.Context, namespace string) error {
+	wfStatus, err := h.getRemediationWorkflowStatus(ctx, namespace)
+	if err != nil {
+		return fmt.Errorf("failed to get remediation workflow status: %w", err)
+	}
+
+	if wfStatus.Status == nil {
+		h.statusSynced = true
+		return nil // Nothing to sync
+	}
+
+	for nodeName, conditions := range wfStatus.Status {
+		for nodeCondition, attempts := range conditions {
+			key, err := h.getRecoveryTrackerKey(nodeName, nodeCondition)
+			if err != nil {
+				return fmt.Errorf("failed to get recovery tracker key: %w", err)
+			}
+
+			attemptTimes := make([]time.Time, len(attempts))
+			for i, attempt := range attempts {
+				attemptTime, err := time.Parse(DefaultTimeFormatLayout, attempt.StartTime)
+				if err != nil {
+					return fmt.Errorf("failed to parse attempt start time %s: %w", attempt.StartTime, err)
+				}
+				attemptTimes[i] = attemptTime
+			}
+			h.recoveryTracker.Store(key, attemptTimes)
+		}
+	}
+
+	h.statusSynced = true
+	return nil
+}
+
+func (h *remediationMgrHelper) isStatusSynced(ctx context.Context) bool {
+	return h.statusSynced
+}
+
+func (h *remediationMgrHelper) isRecoveryPolicyViolated(ctx context.Context, nodeName string, mapping *ConditionWorkflowMapping) bool {
+	logger := log.FromContext(ctx)
+
+	maxAllowedRuns := h.getMaxAllowedRunsPerWindow(&mapping.RecoveryPolicy)
+	recentRecoveryCount := h.getRecentRecoveryCount(nodeName, mapping.NodeCondition)
+
+	logger.Info(fmt.Sprintf("Recent recovery count for node %s and condition %s: %d", nodeName, mapping.NodeCondition, recentRecoveryCount))
+	logger.Info(fmt.Sprintf("Max allowed runs per window for node %s and condition %s: %d", nodeName, mapping.NodeCondition, maxAllowedRuns))
+	return recentRecoveryCount > maxAllowedRuns
+}
+
+func (h *remediationMgrHelper) isNodeLabelledForForceResume(ctx context.Context, nodeObj *v1.Node) bool {
+	if labelValue, exists := nodeObj.Labels[ForceResumeWorkflowLabelKey]; exists && labelValue == ForceResumeWorkflowLabelValue {
+		return true
+	}
+	return false
+}
+
+func (h *remediationMgrHelper) removeForceResumeWorkflowLabelFromNode(ctx context.Context, nodeObj *v1.Node) error {
+	logger := log.FromContext(ctx)
+
+	if labelValue, exists := nodeObj.Labels[ForceResumeWorkflowLabelKey]; exists {
+		if labelValue == ForceResumeWorkflowLabelValue {
+			original := nodeObj.DeepCopy()
+			delete(nodeObj.Labels, ForceResumeWorkflowLabelKey)
+
+			if err := h.client.Patch(ctx, nodeObj, client.MergeFrom(original)); err != nil {
+				logger.Error(err, fmt.Sprintf("Failed to remove label %q from node %s using Patch", ForceResumeWorkflowLabelKey, nodeObj.Name))
+				return err
+			}
+			logger.Info(fmt.Sprintf("Successfully removed label %q from node %s", ForceResumeWorkflowLabelKey, nodeObj.Name))
+		}
+	}
+	return nil
+}
+
+func (h *remediationMgrHelper) canResumeWorkflowOnNode(ctx context.Context, node *v1.Node, mapping *ConditionWorkflowMapping) bool {
+	logger := log.FromContext(ctx)
+
+	// Check if the recovery policy is violated, if so, do not allow resumption
+	recoveryPolicyViolated := h.isRecoveryPolicyViolated(ctx, node.Name, mapping)
+	if recoveryPolicyViolated {
+		logger.Info(fmt.Sprintf("Recovery policy is violated for node %s with condition %s, not allowing workflow resumption", node.Name, mapping.NodeCondition))
+		return false
+	}
+
+	// if no physical action is needed, allow resumption of workflow
+	if !mapping.PhysicalActionNeeded {
+		return true
+	}
+
+	// in case physical action is needed, check if the node is labelled for force resume
+	resume := h.isNodeLabelledForForceResume(ctx, node)
+	if !resume {
+		logger.Info(fmt.Sprintf("Node %s is not labelled for force resume, not allowing workflow resumption", node.Name))
+	}
+	return resume
+}
+
+func (h *remediationMgrHelper) isNodeLabelledForAbortWorkflow(node *v1.Node) bool {
+	if labelValue, exists := node.Labels[AbortWorkflowLabelKey]; exists && labelValue == AbortWorkflowLabelValue {
+		return true
+	}
+	return false
+}
+
+func (h *remediationMgrHelper) removeAbortWorkflowLabelFromNode(ctx context.Context, nodeObj *v1.Node) error {
+	logger := log.FromContext(ctx)
+	if labelValue, exists := nodeObj.Labels[AbortWorkflowLabelKey]; exists && labelValue == AbortWorkflowLabelValue {
+		original := nodeObj.DeepCopy()
+		delete(nodeObj.Labels, AbortWorkflowLabelKey)
+		if err := h.client.Patch(ctx, nodeObj, client.MergeFrom(original)); err != nil {
+			logger.Error(err, fmt.Sprintf("Failed to remove label %q on node %s", AbortWorkflowLabelKey, nodeObj.Name))
+			return err
+		}
+		logger.Info(fmt.Sprintf("Successfully removed label %q from node %s", AbortWorkflowLabelKey, nodeObj.Name))
+	}
+	return nil
+}
+
+func (h *remediationMgrHelper) abortWorkflow(ctx context.Context, wf *workflowv1alpha1.Workflow) error {
+	logger := log.FromContext(ctx)
+
+	// Delete the workflow
+	if err := h.client.Delete(ctx, wf); err != nil {
+		return fmt.Errorf("failed to delete workflow %s: %w", wf.Name, err)
+	}
+
+	logger.Info(fmt.Sprintf("Workflow %s aborted successfully", wf.Name))
+	return nil
 }

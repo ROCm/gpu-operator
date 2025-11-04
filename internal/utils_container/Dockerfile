@@ -9,7 +9,7 @@ LABEL summary="AMD GPU Operator Utility Image"
 LABEL description="The AMD GPU Operator utils image is a utility image used by the AMD GPU Operator. The operator controller employs this image as the container's base layer to automate tasks on target worker nodes."
 
 # Install nsenter from util-linux package
-RUN microdnf install -y util-linux pciutils kmod tar && \
+RUN microdnf install -y util-linux pciutils kmod tar jq && \
     cp /usr/bin/nsenter /nsenter && \
     microdnf clean all
 

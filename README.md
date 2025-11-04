@@ -70,10 +70,12 @@ helm install amd-gpu-operator rocm/gpu-operator-charts \
   --version=v1.4.0
 ```
 
-#### Installation Options
-
-* Skip NFD installation: `--set node-feature-discovery.enabled=false`
-* Skip KMM installation: `--set kmm.enabled=false`
+```{note}
+Installation Options
+  - Skip NFD installation: `--set node-feature-discovery.enabled=false`
+  - Skip KMM installation: `--set kmm.enabled=false`
+  - Skip Auto Node Remediation: `--set remediation.enabled=false`
+```
 
 > [!WARNING]
 > It is strongly recommended to use AMD-optimized KMM images included in the operator release. This is not required when installing the GPU Operator on Red Hat OpenShift.

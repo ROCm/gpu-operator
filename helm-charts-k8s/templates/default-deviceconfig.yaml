@@ -389,5 +389,24 @@ spec:
     {{- end }}
   {{- end }}
 
+  {{- with .Values.deviceConfig.spec.remediationWorkflow }}
+  remediationWorkflow:
+    {{- if (hasKey . "enable") }}
+    enable: {{ .enable }}
+    {{- end }}
+
+    {{- with .conditionalWorkflows }}
+    conditionalWorkflows: {{ . }}
+    {{- end }}
+
+    {{- with .ttlForFailedWorkflows }}
+    ttlForFailedWorkflows: {{ . }}
+    {{- end }}
+
+    {{- with .testerImage }}
+    testerImage: {{ . }}
+    {{- end }}
+  {{- end }}
+
 {{- end }}
 {{- end }}

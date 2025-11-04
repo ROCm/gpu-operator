@@ -1,0 +1,332 @@
+- nodeCondition: AMDGPUXgmi
+  workflowTemplate: default-template
+  validationTestsProfile:
+    framework: AGFHC
+    recipe: all_lvl4
+    iterations: 1
+    stopOnFailure: true
+    timeoutSeconds: 4800
+  physicalActionNeeded: true
+  notifyRemediationMessage: Remove GPU tray from node.Confirm that all four screws on all eight OAMs are torqued as described in OAM Removal and Installation guideRe-install the GPU tray into node.
+  notifyTestFailureMessage: 'Remove the failing UBB assembly and return to AMD, along with the relevant failure details: at a minimum this should be the RF event that indicated the original fail, and if that RF event includes an additional data URI, the CPER and/or the decoded JSON from the CPER as pointed by the additional data.Install a new or known-good UBB assembly to the GPU tray.'
+  recoveryPolicy:
+    maxAllowedRunsPerWindow: 3
+    windowSize: 15m
+- nodeCondition: AMDGPUBadPageRetirementThreshold
+  workflowTemplate: default-template
+  validationTestsProfile:
+    framework: AGFHC
+    recipe: all_lvl4
+    iterations: 1
+    stopOnFailure: true
+    timeoutSeconds: 4800
+  physicalActionNeeded: true
+  notifyRemediationMessage: 'Remove the failing OAM (see OAM Removal and Installation) and return to AMD, along with the relevant failure details: at a minimum this should be the RF event that indicated the original fail, and if that RF event includes an additional data URI, the CPER and/or the decoded JSON from the CPER as pointed by the additional data.Install a new or known-good OAM (see OAM Removal and Installation).'
+  notifyTestFailureMessage: Check test run logs for next steps.
+  recoveryPolicy:
+    maxAllowedRunsPerWindow: 3
+    windowSize: 15m
+- nodeCondition: AMDGPUThrottle
+  workflowTemplate: default-template
+  validationTestsProfile:
+    framework: AGFHC
+    recipe: thermal
+    iterations: 1
+    stopOnFailure: true
+    timeoutSeconds: 4800
+  physicalActionNeeded: true
+  notifyRemediationMessage: Ensure that all platform fans are operational. For DLC, ensure that all liquid pumps, heat exchangers, etc. are operational, and that there are no leaks.Ensure that a static low fan speed has not been configured on the system. Fans must be set statically at full speed or in the dynamic mode that allows the BMC to adjust fan speeds based on observed component temperatures. For DLC, ensure that a static low pump speed has not been configured on the system. Pumps must be set statically at full speed or in the dynamic mode that allows the BMC to adjust pump speeds based on observed component temperatures.Verify data center temperatures are within the acceptable range.
+  notifyTestFailureMessage: Check test run logs for next steps.
+  recoveryPolicy:
+    maxAllowedRunsPerWindow: 3
+    windowSize: 15m
+- nodeCondition: AMDGPUPcieLinkSpeedNotCorrect
+  workflowTemplate: default-template
+  validationTestsProfile:
+    framework: AGFHC
+    recipe: pcie_link_status
+    iterations: 1
+    stopOnFailure: true
+    timeoutSeconds: 4800
+  physicalActionNeeded: true
+  notifyRemediationMessage: 'Validate the PCIe links by running the following AGFHC command. Note if PCIe Link Speed Not Correct, or PCIe Link Width Not Correct, or if there are reported AER: device recovery failed in dmesg. /opt/amd/agfhc/agfhc -t pcie_link_statusVerify upstream devices (switches, root port) are working properly, by checking for error messages on the host. (See vendor diagnostics.) If there are host-related issues, resolve those and return to step 1. If there are no host-related issues, continue to step 3.Check the mechanical connection of upstream devices (switches, root port). See vendor instructions. If issues are found and corrected, return to step 1. If no issues are found, continue to step 4.Remove GPU tray from node. See vendor instructions.Confirm that all four screws on all eight OAMs are torqued as described in OAM Removal and Installation.Re-install the GPU tray into node. See vendor instructions.Repeat steps 1 and 2.If the problem still has not been resolved, then replace OAM (OAM location to be detected by OS/ System SEL-based monitoring). Send OS AER logs / System SEL event logs and dmesg with the RMA (see SA2 - RMA the Failing OAM).'
+  notifyTestFailureMessage: 'Remove the failing UBB assembly and return to AMD, along with the relevant failure details: at a minimum this should be the RF event that indicated the original fail, and if that RF event includes an additional data URI, the CPER and/or the decoded JSON from the CPER as pointed by the additional data.Install a new or known-good UBB assembly to the GPU tray.'
+  recoveryPolicy:
+    maxAllowedRunsPerWindow: 3
+    windowSize: 15m
+- nodeCondition: AMDGPUBootFailed
+  workflowTemplate: default-template
+  validationTestsProfile:
+    framework: AGFHC
+    recipe: all_lvl4
+    iterations: 1
+    stopOnFailure: true
+    timeoutSeconds: 4800
+  physicalActionNeeded: false
+  notifyRemediationMessage: Rerun the known failing workload.
+  notifyTestFailureMessage: 'Remove the failing OAM (see OAM Removal and Installation) and return to AMD, along with the relevant failure details: at a minimum this should be the RF event that indicated the original fail, and if that RF event includes an additional data URI, the CPER and/or the decoded JSON from the CPER as pointed by the additional data.Install a new or known-good OAM (see OAM Removal and Installation).'
+  recoveryPolicy:
+    maxAllowedRunsPerWindow: 3
+    windowSize: 15m
+- nodeCondition: AMDGPUGemmPerformance
+  workflowTemplate: default-template
+  validationTestsProfile:
+    framework: AGFHC
+    recipe: all_lvl4
+    iterations: 1
+    stopOnFailure: true
+    timeoutSeconds: 4800
+  physicalActionNeeded: true
+  notifyRemediationMessage: 'Remove the failing OAM (see OAM Removal and Installation) and return to AMD, along with the relevant failure details: at a minimum this should be the RF event that indicated the original fail, and if that RF event includes an additional data URI, the CPER and/or the decoded JSON from the CPER as pointed by the additional data.Install a new or known-good OAM (see OAM Removal and Installation).'
+  notifyTestFailureMessage: Check test run logs for next steps.
+  recoveryPolicy:
+    maxAllowedRunsPerWindow: 3
+    windowSize: 15m
+- nodeCondition: AMDGPUHBMError
+  workflowTemplate: default-template
+  validationTestsProfile:
+    framework: AGFHC
+    recipe: all_lvl4
+    iterations: 1
+    stopOnFailure: true
+    timeoutSeconds: 4800
+  physicalActionNeeded: false
+  notifyRemediationMessage: Rerun the known failing workload.
+  notifyTestFailureMessage: 'Remove the failing OAM (see OAM Removal and Installation) and return to AMD, along with the relevant failure details: at a minimum this should be the RF event that indicated the original fail, and if that RF event includes an additional data URI, the CPER and/or the decoded JSON from the CPER as pointed by the additional data.Install a new or known-good OAM (see OAM Removal and Installation).'
+  recoveryPolicy:
+    maxAllowedRunsPerWindow: 3
+    windowSize: 15m
+- nodeCondition: AMDGPUPcieLinkWidthNotCorrect
+  workflowTemplate: default-template
+  validationTestsProfile:
+    framework: AGFHC
+    recipe: pcie_link_status
+    iterations: 1
+    stopOnFailure: true
+    timeoutSeconds: 4800
+  physicalActionNeeded: true
+  notifyRemediationMessage: 'Validate the PCIe links by running the following AGFHC command. Note if PCIe Link Speed Not Correct, or PCIe Link Width Not Correct, or if there are reported AER: device recovery failed in dmesg. /opt/amd/agfhc/agfhc -t pcie_link_statusVerify upstream devices (switches, root port) are working properly, by checking for error messages on the host. (See vendor diagnostics.) If there are host-related issues, resolve those and return to step 1. If there are no host-related issues, continue to step 3.Check the mechanical connection of upstream devices (switches, root port). See vendor instructions. If issues are found and corrected, return to step 1. If no issues are found, continue to step 4.Remove GPU tray from node. See vendor instructions.Confirm that all four screws on all eight OAMs are torqued as described in OAM Removal and Installation.Re-install the GPU tray into node. See vendor instructions.Repeat steps 1 and 2.If the problem still has not been resolved, then replace OAM (OAM location to be detected by OS/ System SEL-based monitoring). Send OS AER logs / System SEL event logs and dmesg with the RMA (see SA2 - RMA the Failing OAM).'
+  notifyTestFailureMessage: 'Remove the failing UBB assembly and return to AMD, along with the relevant failure details: at a minimum this should be the RF event that indicated the original fail, and if that RF event includes an additional data URI, the CPER and/or the decoded JSON from the CPER as pointed by the additional data.Install a new or known-good UBB assembly to the GPU tray.'
+  recoveryPolicy:
+    maxAllowedRunsPerWindow: 3
+    windowSize: 15m
+- nodeCondition: AMDGPUPcieBandwidthPerformance
+  workflowTemplate: default-template
+  validationTestsProfile:
+    framework: AGFHC
+    recipe: pcie_link_status
+    iterations: 1
+    stopOnFailure: true
+    timeoutSeconds: 4800
+  physicalActionNeeded: true
+  notifyRemediationMessage: 'Validate the PCIe links by running the following AGFHC command. Note if PCIe Link Speed Not Correct, or PCIe Link Width Not Correct, or if there are reported AER: device recovery failed in dmesg. /opt/amd/agfhc/agfhc -t pcie_link_statusVerify upstream devices (switches, root port) are working properly, by checking for error messages on the host. (See vendor diagnostics.) If there are host-related issues, resolve those and return to step 1. If there are no host-related issues, continue to step 3.Check the mechanical connection of upstream devices (switches, root port). See vendor instructions. If issues are found and corrected, return to step 1. If no issues are found, continue to step 4.Remove GPU tray from node. See vendor instructions.Confirm that all four screws on all eight OAMs are torqued as described in OAM Removal and Installation.Re-install the GPU tray into node. See vendor instructions.Repeat steps 1 and 2.If the problem still has not been resolved, then replace OAM (OAM location to be detected by OS/ System SEL-based monitoring). Send OS AER logs / System SEL event logs and dmesg with the RMA (see SA2 - RMA the Failing OAM).'
+  notifyTestFailureMessage: 'Remove the failing UBB assembly and return to AMD, along with the relevant failure details: at a minimum this should be the RF event that indicated the original fail, and if that RF event includes an additional data URI, the CPER and/or the decoded JSON from the CPER as pointed by the additional data.Install a new or known-good UBB assembly to the GPU tray.'
+  recoveryPolicy:
+    maxAllowedRunsPerWindow: 3
+    windowSize: 15m
+- nodeCondition: AMDGPUDeviceInternalError
+  workflowTemplate: default-template
+  validationTestsProfile:
+    framework: AGFHC
+    recipe: all_lvl4
+    iterations: 1
+    stopOnFailure: true
+    timeoutSeconds: 4800
+  physicalActionNeeded: true
+  notifyRemediationMessage: 'Remove the failing OAM (see OAM Removal and Installation) and return to AMD, along with the relevant failure details: at a minimum this should be the RF event that indicated the original fail, and if that RF event includes an additional data URI, the CPER and/or the decoded JSON from the CPER as pointed by the additional data.Install a new or known-good OAM (see OAM Removal and Installation).'
+  notifyTestFailureMessage: Check test run logs for next steps.
+  recoveryPolicy:
+    maxAllowedRunsPerWindow: 3
+    windowSize: 15m
+- nodeCondition: AMDGPUXgmiBandwidthPerformance
+  workflowTemplate: default-template
+  validationTestsProfile:
+    framework: AGFHC
+    recipe: all_lvl4
+    iterations: 1
+    stopOnFailure: true
+    timeoutSeconds: 4800
+  physicalActionNeeded: true
+  notifyRemediationMessage: 'Remove the failing UBB assembly and return to AMD, along with the relevant failure details: at a minimum this should be the RF event that indicated the original fail, and if that RF event includes an additional data URI, the CPER and/or the decoded JSON from the CPER as pointed by the additional data.Install a new or known-good UBB assembly to the GPU tray.'
+  notifyTestFailureMessage: Check test run logs for next steps.
+  recoveryPolicy:
+    maxAllowedRunsPerWindow: 3
+    windowSize: 15m
+- nodeCondition: AMDGPUWatchdogTimeoutWdt
+  workflowTemplate: default-template
+  validationTestsProfile:
+    framework: AGFHC
+    recipe: all_lvl4
+    iterations: 1
+    stopOnFailure: true
+    timeoutSeconds: 4800
+  physicalActionNeeded: false
+  notifyRemediationMessage: Rerun the known failing workload.
+  notifyTestFailureMessage: 'Remove the failing OAM (see OAM Removal and Installation) and return to AMD, along with the relevant failure details: at a minimum this should be the RF event that indicated the original fail, and if that RF event includes an additional data URI, the CPER and/or the decoded JSON from the CPER as pointed by the additional data.Install a new or known-good OAM (see OAM Removal and Installation).'
+  recoveryPolicy:
+    maxAllowedRunsPerWindow: 3
+    windowSize: 15m
+- nodeCondition: AMDGPUProgramFaultDueToHardwareError
+  workflowTemplate: default-template
+  validationTestsProfile:
+    framework: AGFHC
+    recipe: all_lvl4
+    iterations: 1
+    stopOnFailure: true
+    timeoutSeconds: 4800
+  physicalActionNeeded: false
+  notifyRemediationMessage: Rerun the known failing workload.
+  notifyTestFailureMessage: 'Remove the failing OAM (see OAM Removal and Installation) and return to AMD, along with the relevant failure details: at a minimum this should be the RF event that indicated the original fail, and if that RF event includes an additional data URI, the CPER and/or the decoded JSON from the CPER as pointed by the additional data.Install a new or known-good OAM (see OAM Removal and Installation).'
+  recoveryPolicy:
+    maxAllowedRunsPerWindow: 3
+    windowSize: 15m
+- nodeCondition: AMDGPUGeneralApplicationFault
+  workflowTemplate: default-template
+  validationTestsProfile:
+    framework: AGFHC
+    recipe: all_lvl4
+    iterations: 1
+    stopOnFailure: true
+    timeoutSeconds: 4800
+  physicalActionNeeded: false
+  notifyRemediationMessage: Rerun the known failing workload.
+  notifyTestFailureMessage: 'Remove the failing OAM (see OAM Removal and Installation) and return to AMD, along with the relevant failure details: at a minimum this should be the RF event that indicated the original fail, and if that RF event includes an additional data URI, the CPER and/or the decoded JSON from the CPER as pointed by the additional data.Install a new or known-good OAM (see OAM Removal and Installation).'
+  recoveryPolicy:
+    maxAllowedRunsPerWindow: 3
+    windowSize: 15m
+- nodeCondition: AMDGPUHbmBandwidthPerformance
+  workflowTemplate: default-template
+  validationTestsProfile:
+    framework: AGFHC
+    recipe: all_lvl4
+    iterations: 1
+    stopOnFailure: true
+    timeoutSeconds: 4800
+  physicalActionNeeded: true
+  notifyRemediationMessage: 'Remove the failing OAM (see OAM Removal and Installation) and return to AMD, along with the relevant failure details: at a minimum this should be the RF event that indicated the original fail, and if that RF event includes an additional data URI, the CPER and/or the decoded JSON from the CPER as pointed by the additional data.Install a new or known-good OAM (see OAM Removal and Installation).'
+  notifyTestFailureMessage: Check test run logs for next steps.
+  recoveryPolicy:
+    maxAllowedRunsPerWindow: 3
+    windowSize: 15m
+- nodeCondition: AMDGPUHwsHang
+  workflowTemplate: default-template
+  validationTestsProfile:
+    framework: AGFHC
+    recipe: all_lvl4
+    iterations: 1
+    stopOnFailure: true
+    timeoutSeconds: 4800
+  physicalActionNeeded: false
+  notifyRemediationMessage: Rerun the known failing workload.
+  notifyTestFailureMessage: 'Remove the failing OAM (see OAM Removal and Installation) and return to AMD, along with the relevant failure details: at a minimum this should be the RF event that indicated the original fail, and if that RF event includes an additional data URI, the CPER and/or the decoded JSON from the CPER as pointed by the additional data.Install a new or known-good OAM (see OAM Removal and Installation).'
+  recoveryPolicy:
+    maxAllowedRunsPerWindow: 3
+    windowSize: 15m
+- nodeCondition: AMDGPUPcieAer
+  workflowTemplate: default-template
+  validationTestsProfile:
+    framework: AGFHC
+    recipe: pcie_link_status
+    iterations: 1
+    stopOnFailure: true
+    timeoutSeconds: 4800
+  physicalActionNeeded: true
+  notifyRemediationMessage: 'Validate the PCIe links by running the following AGFHC command. Note if PCIe Link Speed Not Correct, or PCIe Link Width Not Correct, or if there are reported AER: device recovery failed in dmesg. /opt/amd/agfhc/agfhc -t pcie_link_statusVerify upstream devices (switches, root port) are working properly, by checking for error messages on the host. (See vendor diagnostics.) If there are host-related issues, resolve those and return to step 1. If there are no host-related issues, continue to step 3.Check the mechanical connection of upstream devices (switches, root port). See vendor instructions. If issues are found and corrected, return to step 1. If no issues are found, continue to step 4.Remove GPU tray from node. See vendor instructions.Confirm that all four screws on all eight OAMs are torqued as described in OAM Removal and Installation.Re-install the GPU tray into node. See vendor instructions.Repeat steps 1 and 2.If the problem still has not been resolved, then replace OAM (OAM location to be detected by OS/ System SEL-based monitoring). Send OS AER logs / System SEL event logs and dmesg with the RMA (see SA2 - RMA the Failing OAM).'
+  notifyTestFailureMessage: 'Remove the failing UBB assembly and return to AMD, along with the relevant failure details: at a minimum this should be the RF event that indicated the original fail, and if that RF event includes an additional data URI, the CPER and/or the decoded JSON from the CPER as pointed by the additional data.Install a new or known-good UBB assembly to the GPU tray.'
+  recoveryPolicy:
+    maxAllowedRunsPerWindow: 3
+    windowSize: 15m
+- nodeCondition: AMDGPUHardwareAssertionHwa
+  workflowTemplate: default-template
+  validationTestsProfile:
+    framework: AGFHC
+    recipe: all_lvl4
+    iterations: 1
+    stopOnFailure: true
+    timeoutSeconds: 4800
+  physicalActionNeeded: false
+  notifyRemediationMessage: Rerun the known failing workload.
+  notifyTestFailureMessage: 'Remove the failing OAM (see OAM Removal and Installation) and return to AMD, along with the relevant failure details: at a minimum this should be the RF event that indicated the original fail, and if that RF event includes an additional data URI, the CPER and/or the decoded JSON from the CPER as pointed by the additional data.Install a new or known-good OAM (see OAM Removal and Installation).'
+  recoveryPolicy:
+    maxAllowedRunsPerWindow: 3
+    windowSize: 15m
+- nodeCondition: AMDGPUOnDieEcc
+  workflowTemplate: default-template
+  validationTestsProfile:
+    framework: AGFHC
+    recipe: all_lvl4
+    iterations: 1
+    stopOnFailure: true
+    timeoutSeconds: 4800
+  physicalActionNeeded: true
+  notifyRemediationMessage: 'Remove the failing OAM (see OAM Removal and Installation) and return to AMD, along with the relevant failure details: at a minimum this should be the RF event that indicated the original fail, and if that RF event includes an additional data URI, the CPER and/or the decoded JSON from the CPER as pointed by the additional data.Install a new or known-good OAM (see OAM Removal and Installation).'
+  notifyTestFailureMessage: Check test run logs for next steps.
+  recoveryPolicy:
+    maxAllowedRunsPerWindow: 3
+    windowSize: 15m
+- nodeCondition: AMDGPUEndToEndCrc
+  workflowTemplate: default-template
+  validationTestsProfile:
+    framework: AGFHC
+    recipe: all_lvl4
+    iterations: 1
+    stopOnFailure: true
+    timeoutSeconds: 4800
+  physicalActionNeeded: true
+  notifyRemediationMessage: 'Remove the failing OAM (see OAM Removal and Installation) and return to AMD, along with the relevant failure details: at a minimum this should be the RF event that indicated the original fail, and if that RF event includes an additional data URI, the CPER and/or the decoded JSON from the CPER as pointed by the additional data.Install a new or known-good OAM (see OAM Removal and Installation).'
+  notifyTestFailureMessage: Check test run logs for next steps.
+  recoveryPolicy:
+    maxAllowedRunsPerWindow: 3
+    windowSize: 15m
+- nodeCondition: AMDGPUHplFailure
+  workflowTemplate: default-template
+  validationTestsProfile:
+    framework: AGFHC
+    recipe: rochpl_isolation
+    iterations: 1
+    stopOnFailure: true
+    timeoutSeconds: 4800
+  physicalActionNeeded: false
+  notifyRemediationMessage: ""
+  notifyTestFailureMessage: 'Remove the failing UBB assembly and return to AMD, along with the relevant failure details: at a minimum this should be the RF event that indicated the original fail, and if that RF event includes an additional data URI, the CPER and/or the decoded JSON from the CPER as pointed by the additional data.Install a new or known-good UBB assembly to the GPU tray.'
+  recoveryPolicy:
+    maxAllowedRunsPerWindow: 3
+    windowSize: 15m
+- nodeCondition: AMDGPUWafl
+  workflowTemplate: default-template
+  validationTestsProfile:
+    framework: AGFHC
+    recipe: all_lvl4
+    iterations: 1
+    stopOnFailure: true
+    timeoutSeconds: 4800
+  physicalActionNeeded: true
+  notifyRemediationMessage: Remove GPU tray from node.Confirm that all four screws on all eight OAMs are torqued as described in OAM Removal and Installation guideRe-install the GPU tray into node.
+  notifyTestFailureMessage: 'Remove the failing UBB assembly and return to AMD, along with the relevant failure details: at a minimum this should be the RF event that indicated the original fail, and if that RF event includes an additional data URI, the CPER and/or the decoded JSON from the CPER as pointed by the additional data.Install a new or known-good UBB assembly to the GPU tray.'
+  recoveryPolicy:
+    maxAllowedRunsPerWindow: 3
+    windowSize: 15m
+- nodeCondition: AMDGPUAccuracyCheckFailureAcf
+  workflowTemplate: default-template
+  validationTestsProfile:
+    framework: AGFHC
+    recipe: all_lvl4
+    iterations: 1
+    stopOnFailure: true
+    timeoutSeconds: 4800
+  physicalActionNeeded: true
+  notifyRemediationMessage: 'Remove the failing OAM (see OAM Removal and Installation) and return to AMD, along with the relevant failure details: at a minimum this should be the RF event that indicated the original fail, and if that RF event includes an additional data URI, the CPER and/or the decoded JSON from the CPER as pointed by the additional data.Install a new or known-good OAM (see OAM Removal and Installation).'
+  notifyTestFailureMessage: Check test run logs for next steps.
+  recoveryPolicy:
+    maxAllowedRunsPerWindow: 3
+    windowSize: 15m
+- nodeCondition: "AMDGPUUnhealthy"
+  workflowTemplate: "default-template"
+  validationTestsProfile:
+    framework: "AGFHC"
+    recipe: "all_lvl4"
+    iterations: 1
+    stopOnFailure: true
+    timeoutSeconds: 4800
+  physicalActionNeeded: false
+  notifyTestFailureMessage: Check test run logs for next steps.

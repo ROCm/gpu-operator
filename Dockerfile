@@ -63,6 +63,10 @@ COPY --from=builder /opt/app-root/src/helm-charts-openshift/crds/deviceconfig-cr
     /opt/app-root/src/helm-charts-openshift/charts/kmm/crds/nodemodulesconfig-crd.yaml \
     /opt/helm-charts-crds-openshift/
 
+RUN mkdir -p /remediation
+COPY --from=builder /opt/app-root/src/internal/controllers/remediation/configs /remediation/configs
+COPY --from=builder /opt/app-root/src/internal/controllers/remediation/scripts /remediation/scripts
+
 RUN microdnf update -y && \
     microdnf install -y shadow-utils jq && \
     microdnf clean all
