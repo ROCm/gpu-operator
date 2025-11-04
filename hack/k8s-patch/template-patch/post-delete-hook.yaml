@@ -83,6 +83,9 @@ spec:
               if kubectl get crds deviceconfigs.amd.com > /dev/null 2>&1; then
                 kubectl delete crds deviceconfigs.amd.com
               fi
+              if kubectl get crds remediationworkflowstatuses.amd.com > /dev/null 2>&1; then
+                kubectl delete crds remediationworkflowstatuses.amd.com
+              fi
               {{- if index .Values "node-feature-discovery" "enabled" }}
               if kubectl get crds nodefeaturegroups.nfd.k8s-sigs.io > /dev/null 2>&1; then
                 kubectl delete crds nodefeaturegroups.nfd.k8s-sigs.io

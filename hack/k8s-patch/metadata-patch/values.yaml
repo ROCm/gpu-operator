@@ -230,6 +230,8 @@ deviceConfig:
         maxUnavailable: 1
       # -- config manager tolerations
       configManagerTolerations: []
+    remediationWorkflow:
+      enable: false
 # AMD GPU operator controller related configs
 controllerManager:
   manager:

@@ -34,7 +34,7 @@ KMM_OPERATOR_IMG_NAME ?= $(DOCKER_REGISTRY)/kernel-module-management-operator
 #######################
 # Helm Charts variables
 YAML_FILES=bundle/manifests/amd-gpu-operator-node-metrics_rbac.authorization.k8s.io_v1_rolebinding.yaml bundle/manifests/amd-gpu-operator.clusterserviceversion.yaml bundle/manifests/amd-gpu-operator-node-labeller_rbac.authorization.k8s.io_v1_clusterrolebinding.yaml bundle/manifests/amd-gpu-operator-node-metrics_monitoring.coreos.com_v1_servicemonitor.yaml config/samples/amd.com_deviceconfigs.yaml config/manifests/bases/amd-gpu-operator.clusterserviceversion.yaml example/deviceconfig_example.yaml config/default/kustomization.yaml
-CRD_YAML_FILES = deviceconfig-crd.yaml
+CRD_YAML_FILES = deviceconfig-crd.yaml remediationworkflowstatus-crd.yaml
 K8S_KMM_CRD_YAML_FILES=module-crd.yaml nodemodulesconfig-crd.yaml
 OPENSHIFT_KMM_CRD_YAML_FILES=module-crd.yaml nodemodulesconfig-crd.yaml
 OPENSHIFT_CLUSTER_NFD_CRD_YAML_FILES=nodefeature-crd.yaml nodefeaturediscovery-crd.yaml nodefeaturerule-crd.yaml
@@ -592,6 +592,7 @@ helm-install-openshift:
 helm-uninstall-openshift:
 	echo "Deleting all CRs before uninstalling operator..."
 	${KUBECTL_CMD} delete deviceconfigs.amd.com -n kube-amd-gpu --all
+	${KUBECTL_CMD} delete remediationworkflowstatuses.amd.com -n kube-amd-gpu --all
 	${KUBECTL_CMD} delete nodefeaturediscoveries.nfd.openshift.io -n kube-amd-gpu --all
 	echo "Uninstalling operator..."
 	helm uninstall amd-gpu-operator -n kube-amd-gpu
@@ -602,6 +603,7 @@ helm-install-k8s:
 helm-uninstall-k8s:
 	echo "Deleting all device configs before uninstalling operator..."
 	${KUBECTL_CMD} delete deviceconfigs.amd.com -n kube-amd-gpu --all
+	${KUBECTL_CMD} delete remediationworkflowstatuses.amd.com -n kube-amd-gpu --all
 	echo "Uninstalling operator..."
 	helm uninstall amd-gpu-operator -n kube-amd-gpu
 

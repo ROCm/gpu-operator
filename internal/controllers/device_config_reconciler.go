@@ -162,6 +162,9 @@ func (r *DeviceConfigReconciler) init(ctx context.Context) {
 //+kubebuilder:rbac:groups=amd.com,resources=deviceconfigs,verbs=get;list;watch;create;patch;update
 //+kubebuilder:rbac:groups=amd.com,resources=deviceconfigs/status,verbs=get;patch;update
 //+kubebuilder:rbac:groups=amd.com,resources=deviceconfigs/finalizers,verbs=update
+//+kubebuilder:rbac:groups=amd.com,resources=remediationworkflowstatuses,verbs=get;list;watch;create;patch;update
+//+kubebuilder:rbac:groups=amd.com,resources=remediationworkflowstatuses/status,verbs=get;patch;update
+//+kubebuilder:rbac:groups=amd.com,resources=remediationworkflowstatuses/finalizers,verbs=update
 //+kubebuilder:rbac:groups=kmm.sigs.x-k8s.io,resources=modules,verbs=get;list;watch;create;patch;update;delete
 //+kubebuilder:rbac:groups=kmm.sigs.x-k8s.io,resources=modules/status,verbs=get;update;patch
 //+kubebuilder:rbac:groups=kmm.sigs.x-k8s.io,resources=modules/finalizers,verbs=get;update;watch
