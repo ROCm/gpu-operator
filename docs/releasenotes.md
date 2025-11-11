@@ -21,6 +21,8 @@ The AMD GPU Operator v1.4.1 release extends platform support to OpenShift v4.20 
 ### Fixes
   1. **Node Feature Discovery Rule Fix**
      * Fixed the PCI device ID for the Virtual Function (VF) of MI308X and MI300X-HF GPUs
+  2. **Helm Chart default DeviceConfig Fix**
+     * Fixed an issue where the Helm chart could not render the metrics exporter's pod resource API socket path in the default DeviceConfig when specified via `values.yaml` or the `--set` option.
 
 ## GPU Operator v1.4.0 Release Notes
 

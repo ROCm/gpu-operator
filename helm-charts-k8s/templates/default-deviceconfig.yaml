@@ -1,4 +1,3 @@
-
 {{- if or (and .Release.IsInstall .Values.crds.defaultCR.install) (and .Release.IsUpgrade .Values.crds.defaultCR.upgrade) }}
 {{- if and (hasKey .Values "deviceConfig") (hasKey .Values.deviceConfig "spec") }}
 apiVersion: amd.com/v1alpha1
@@ -27,6 +26,14 @@ spec:
 
     {{- with .driverType }}
     driverType: {{ . }}
+    {{- end }}
+
+    {{- if (hasKey . "useSourceImage") }}
+    useSourceImage: {{ .useSourceImage }}
+    {{- end }}
+
+    {{- with .amdgpuInstallerRepoURL }}
+    amdgpuInstallerRepoURL: {{ . }}
     {{- end }}
 
     {{- with .vfioConfig }}
@@ -221,6 +228,25 @@ spec:
       {{- toYaml . | nindent 6 }}
     {{- end }}
 
+    {{- with .podResourceAPISocketPath }}
+    podResourceAPISocketPath: {{ . }}
+    {{- end }}
+
+    {{- with .resource }}
+    resource:
+      {{- toYaml . | nindent 6 }}
+    {{- end }}
+
+    {{- with .podAnnotations }}
+    podAnnotations:
+      {{- toYaml . | nindent 6 }}
+    {{- end }}
+
+    {{- with .serviceAnnotations }}
+    serviceAnnotations:
+      {{- toYaml . | nindent 6 }}
+    {{- end }}
+
     {{- with .rbacConfig }}
     rbacConfig:
       {{- if (hasKey . "enable") }}
@@ -294,6 +320,10 @@ spec:
         {{- with .authorization }}
         authorization:
           {{- toYaml . | nindent 10 }}
+        {{- end }}
+
+        {{- with .bearerTokenFile }}
+        bearerTokenFile: {{ . }}
         {{- end }}
 
         {{- with .tlsConfig }}
@@ -396,7 +426,8 @@ spec:
     {{- end }}
 
     {{- with .conditionalWorkflows }}
-    conditionalWorkflows: {{ . }}
+    conditionalWorkflows:
+      {{- toYaml . | nindent 6 }}
     {{- end }}
 
     {{- with .ttlForFailedWorkflows }}
