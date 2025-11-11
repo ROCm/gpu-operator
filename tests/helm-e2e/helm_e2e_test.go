@@ -295,9 +295,11 @@ deviceConfig:
           name: publicKeySecret
       imageBuild:
         baseImageRegistry: quay.io
+        sourceImageRepo: custom.io/rocm/amdgpu-driver
         baseImageRegistryTLS:
           insecure: true
           insecureSkipTLSVerify: false
+      useSourceImage: true
       tolerations:
         - key: "example-key"
           operator: "Equal"
@@ -371,8 +373,10 @@ deviceConfig:
 							Name: "publicKeySecret",
 						},
 					},
+					UseSourceImage: &boolTrue,
 					ImageBuild: v1alpha1.ImageBuildSpec{
 						BaseImageRegistry: "quay.io",
+						SourceImageRepo:   "custom.io/rocm/amdgpu-driver",
 						BaseImageRegistryTLS: v1alpha1.RegistryTLS{
 							Insecure:              &boolTrue,
 							InsecureSkipTLSVerify: &boolFalse,
@@ -765,6 +769,19 @@ deviceConfig:
       imagePullPolicy: "Always"
       config:
         name: metricsConfig
+      podResourceAPISocketPath: /var/lib/kubelet/pod-resources-custom
+      resource:
+        limits:
+          cpu: "4"
+          memory: "8G"
+        requests:
+          cpu: "1"
+          memory: "1G"
+      podAnnotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "5001"
+      serviceAnnotations:
+        service.beta.kubernetes.io/aws-load-balancer-type: "nlb"
       tolerations:
         - key: "example-key"
           operator: "Equal"
@@ -811,6 +828,7 @@ deviceConfig:
             credentials:
               name: test
               key: test123
+          bearerTokenFile: /var/run/secrets/kubernetes.io/serviceaccount/token
           tlsConfig:
             keyFile: /etc/credential
 `,
@@ -829,16 +847,23 @@ deviceConfig:
 					Config: v1alpha1.MetricsConfig{
 						Name: "metricsConfig",
 					},
-					PodResourceAPISocketPath: "/var/lib/kubelet/pod-resources",
+					PodResourceAPISocketPath: "/var/lib/kubelet/pod-resources-custom",
 					Resource: &corev1.ResourceRequirements{
 						Limits: corev1.ResourceList{
-							corev1.ResourceCPU:    resource.MustParse("2"),
-							corev1.ResourceMemory: resource.MustParse("4G"),
+							corev1.ResourceCPU:    resource.MustParse("4"),
+							corev1.ResourceMemory: resource.MustParse("8G"),
 						},
 						Requests: corev1.ResourceList{
-							corev1.ResourceCPU:    resource.MustParse("500m"),
-							corev1.ResourceMemory: resource.MustParse("512M"),
+							corev1.ResourceCPU:    resource.MustParse("1"),
+							corev1.ResourceMemory: resource.MustParse("1G"),
 						},
+					},
+					PodAnnotations: map[string]string{
+						"prometheus.io/scrape": "true",
+						"prometheus.io/port":   "5001",
+					},
+					ServiceAnnotations: map[string]string{
+						"service.beta.kubernetes.io/aws-load-balancer-type": "nlb",
 					},
 					Tolerations: []corev1.Toleration{
 						{
@@ -908,6 +933,7 @@ deviceConfig:
 									Key: "test123",
 								},
 							},
+							BearerTokenFile: "/var/run/secrets/kubernetes.io/serviceaccount/token",
 							TLSConfig: &monitoringv1.TLSConfig{
 								KeyFile: "/etc/credential",
 							},
