@@ -11,6 +11,8 @@ The AMD GPU Operator v1.4.1 release extends platform support to OpenShift v4.20 
     - For Red Hat Enterprise Linux CoreOS (used by OpenShift), OpenShift will download source code and firmware from AMD provided [amdgpu-driver images](https://hub.docker.com/r/rocm/amdgpu-driver) into their [DriverToolKit](https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/specialized_hardware_and_driver_enablement/driver-toolkit) and directly build the kernel modules from source code without dependency on lots of RPM packages.
   - **Cluster Monitoring Enablement**
     - The v1.4.1 AMD GPU Operator automatically creates the RBAC resources required by the OpenShift [Cluster Monitoring stack](https://rhobs-handbook.netlify.app/products/openshiftmonitoring/collecting_metrics.md/#configuring-prometheus-to-scrape-metrics). This reduces one manual configuration steps when setting up the OpenShift monitoring stack to scrape metrics from the device metrics exporter.
+  - **Integration with OpenShift Cluster Observability Operator Accelerator Dashboard**
+    - Starting with v1.4.1, the AMD GPU Operator automatically creates a `PrometheusRule` that translates key metrics into formats compatible with the OpenShift Cluster Observability Operator's accelerator dashboard, providing an improved out-of-the-box experience.
 - **Device-Metrics-Exporter Enhancements**
   - **Enhanced Pod and Service Annotations**
     - Custom annotations can now be applied to exporter pods and services via the DeviceConfig CRD, providing greater flexibility in metadata management.
