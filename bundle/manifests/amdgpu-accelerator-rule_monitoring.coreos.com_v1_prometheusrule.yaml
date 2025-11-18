@@ -1,0 +1,45 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: amdgpu-accelerator-rule
+  labels:
+    app: amdgpu-metrics-exporter
+spec:
+  groups:
+  - name: amdgpu.accelerator.metrics
+    interval: 30s
+    rules:
+    - record: accelerator_gpu_utilization
+      expr: '{__name__=~".*gpu_gfx_activity$"}'
+      labels:
+        vendor: "amd"
+
+    - record: accelerator_memory_used_bytes
+      expr: '{__name__=~".*gpu_used_vram$"}'
+      labels:
+        vendor: "amd"
+
+    - record: accelerator_memory_total_bytes
+      expr: '{__name__=~".*gpu_total_vram$"}'
+      labels:
+        vendor: "amd"
+
+    - record: accelerator_power_usage_watts
+      expr: '{__name__=~".*gpu_power_usage$"}'
+      labels:
+        vendor: "amd"
+
+    - record: accelerator_temperature_celsius
+      expr: '{__name__=~".*gpu_junction_temperature$"}'
+      labels:
+        vendor: "amd"
+
+    - record: accelerator_sm_clock_hertz
+      expr: '{__name__=~".*gpu_clock$", clock_type=~"GPU_CLOCK_TYPE_SYSTEM|system"}'
+      labels:
+        vendor: "amd"
+
+    - record: accelerator_memory_clock_hertz
+      expr: '{__name__=~".*gpu_clock$", clock_type=~"GPU_CLOCK_TYPE_MEMORY|memory"}'
+      labels:
+        vendor: "amd"
