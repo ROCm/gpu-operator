@@ -1,10 +1,13 @@
 GPU Partitioning via DCM
 ========================
 
--  GPU on the node cannot be partitioned on the go, we need to bring down all daemonsets using the GPU resource before partitioning. Hence we need to taint the node and the partition.
+- GPU on the node cannot be partitioned on the go, we need to bring down all daemonsets using the GPU resource before partitioning. Hence we need to taint the node and the partition.
 - DCM pod comes with a toleration
     - `key: amd-dcm , value: up , Operator: Equal, effect: NoExecute `
     - User can specify additional tolerations if required
+- Avoid adding the `amd-dcm` toleration to the operands (`device plugin`, `node labeller`, `metrics exporter`, and `test runner`) daemonsets via the `DeviceConfig` spec. 
+    - This ensures operands restart automatically after partitioning completes, allowing them to detect updated GPU resources.
+    - If operands do not restart automatically, manually restart them after partitioning is complete.
 
 GPU Partitioning Workflow
 -------------------------
