@@ -138,7 +138,7 @@ func (s *E2ESuite) SetUpSuite(c *C) {
 	if err != nil {
 		c.Fatalf("Failed to create workflow client: %v", err)
 	}
-	s.wfClient = wfClient
+	s.wfClient = *wfClient
 
 	s.clusterType = utils.GetClusterType(config)
 

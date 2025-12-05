@@ -1,7 +1,7 @@
 set -e
 NODE_NAME="{{inputs.parameters.node_name}}"
-JOB_NAME="test-runner-manual-trigger-${NODE_NAME}"
-CM_NAME="manual-config-map-${NODE_NAME}"
+JOB_NAME="{{workflow.name}}-test-run"
+CM_NAME="{{workflow.name}}-test-configmap"
 FRAMEWORK="{{inputs.parameters.framework}}"
 RECIPE="{{inputs.parameters.recipe}}"
 ITERATIONS="{{inputs.parameters.iterations}}"
@@ -10,6 +10,9 @@ TIMEOUTSECONDS="{{inputs.parameters.timeoutSeconds}}"
 TESTRUNNERIMAGE="{{inputs.parameters.testRunnerImage}}"
 TESTRUNNERSA="{{inputs.parameters.testRunnerServiceAccount}}"
 NAMESPACE="{{inputs.parameters.namespace}}"
+INITCONTAINERIMAGE="{{inputs.parameters.initContainerImage}}"
+WFNAME="{{workflow.name}}"
+WFUID="{{workflow.uid}}"
 
 if [ -z "$FRAMEWORK" ] || [ -z "$RECIPE" ] || [ -z "$ITERATIONS" ] || [ -z "$STOPONFAILURE" ] || [ -z "$TIMEOUTSECONDS" ]; then
   echo "Validation profile incomplete, skipping configmap and job creation. Please enter framework, recipe, iterations, stopOnFailure, timeoutSeconds as per testrunner requirements"
@@ -25,6 +28,13 @@ kind: ConfigMap
 metadata:
   name: ${CM_NAME}
   namespace: ${NAMESPACE}
+  ownerReferences:
+  - apiVersion: argoproj.io/v1alpha1
+    kind: Workflow
+    name: ${WFNAME}
+    uid: ${WFUID}
+    blockOwnerDeletion: true
+    controller: true
 data:
   config.json: |
     {
@@ -38,9 +48,9 @@ data:
                     {
                       "Framework": "${FRAMEWORK}",
                       "Recipe": "${RECIPE}",
-                      "Iterations": "${ITERATIONS}",
-                      "StopOnFailure": "${STOPONFAILURE}",
-                      "TimeoutSeconds": "${TIMEOUTSECONDS}"
+                      "Iterations": ${ITERATIONS},
+                      "StopOnFailure": ${STOPONFAILURE},
+                      "TimeoutSeconds": ${TIMEOUTSECONDS}
                     }
                   ]
                 }
@@ -56,8 +66,14 @@ kind: Job
 metadata:
   name: ${JOB_NAME}
   namespace: ${NAMESPACE}
+  ownerReferences:
+    - apiVersion: argoproj.io/v1alpha1
+      kind: Workflow
+      name: ${WFNAME}
+      uid: ${WFUID}
+      blockOwnerDeletion: true
+      controller: true
 spec:
-  ttlSecondsAfterFinished: 120
   backoffLimit: 0
   template:
     spec:
@@ -85,6 +101,20 @@ spec:
             path: /var/log/amd-test-runner
             type: DirectoryOrCreate
           name: test-runner-volume
+        - name: host-sys
+          hostPath:
+            path: /sys
+            type: Directory
+      initContainers:
+        - name: driver-init
+          image: "${INITCONTAINERIMAGE}"
+          imagePullPolicy: IfNotPresent
+          command: ['sh', '-c', 'while [ ! -d /host-sys/class/kfd ] || [ ! -d /host-sys/module/amdgpu/drivers/ ]; do echo \"amdgpu driver is not loaded \"; sleep 2 ;done; echo \"amdgpu driver is loaded\"']
+          securityContext:
+            privileged: true
+          volumeMounts:
+            - name: host-sys
+              mountPath: /host-sys      
       containers:
         - name: amd-test-runner
           image: "${TESTRUNNERIMAGE}"
@@ -133,13 +163,18 @@ echo "Overall timeout for the job is set to $timeout seconds."
 echo "Waiting for Job $JOB_NAME to complete..."
 
 while true; do
-  job_status=$(kubectl get job "$JOB_NAME" -n "$NAMESPACE" -o jsonpath='{.status.conditions[0].type}' 2>/dev/null || true)
-  if [ "$job_status" = "Complete" ]; then
+  if ! kubectl get job "$JOB_NAME" -n "$NAMESPACE" &>/dev/null; then
+    echo "Error: Job $JOB_NAME is not found in namespace $NAMESPACE"
+    exit 1
+  fi
+  isComplete=$(kubectl get job "$JOB_NAME" -n "$NAMESPACE" -o jsonpath='{.status.conditions[?(@.type=="Complete")].status}')
+  isFailure=$(kubectl get job "$JOB_NAME" -n "$NAMESPACE" -o jsonpath='{.status.conditions[?(@.type=="Failed")].status}')
+  if [ "$isComplete" = "True" ]; then
     echo "Test runner job completed successfully."
 	kubectl logs -n $NAMESPACE job/$JOB_NAME
     echo "Detailed run report can be found at /var/log/amd-test-runner"
     exit 0
-  elif [ "$job_status" = "Failed" ]; then
+  elif [ "$isFailure" = "True" ]; then
     echo "Test runner job failed."
     kubectl logs -n $NAMESPACE job/$JOB_NAME
     echo "Detailed run report can be found at /var/log/amd-test-runner"

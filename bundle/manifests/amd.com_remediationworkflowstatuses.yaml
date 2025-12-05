@@ -23,8 +23,9 @@ spec:
   - name: v1alpha1
     schema:
       openAPIV3Schema:
-        description: RemediationWorkflowStatus keeps a record of recent remediation
-          workflow runs.
+        description: |-
+          RemediationWorkflowStatus keeps a record of recent remediation workflow runs.
+          We maintain this information to avoid re-running remediation workflows on nodes where a pre-defined threshold is crossed.
         properties:
           apiVersion:
             description: |-
@@ -55,6 +56,9 @@ spec:
                   type: object
                 type: array
               type: object
+            description: |-
+              Status field holds remediation workflow run history for each node and node condition
+              Key is node name. Value is a map with key as node condition and value as list of workflow metadata(workflow name and it's start time)
             type: object
         type: object
     served: true

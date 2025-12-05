@@ -355,12 +355,11 @@ func (mr *MockremediationMgrHelperAPIMockRecorder) getRecentRecoveryCount(nodeNa
 }
 
 // getRecoveryTrackerKey mocks base method.
-func (m *MockremediationMgrHelperAPI) getRecoveryTrackerKey(nodeName, nodeCondition string) (string, error) {
+func (m *MockremediationMgrHelperAPI) getRecoveryTrackerKey(nodeName, nodeCondition string) string {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "getRecoveryTrackerKey", nodeName, nodeCondition)
 	ret0, _ := ret[0].(string)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
+	return ret0
 }
 
 // getRecoveryTrackerKey indicates an expected call of getRecoveryTrackerKey.

@@ -78,9 +78,10 @@ const (
 	ForceResumeWorkflowLabelKey   = "operator.amd.com/gpu-force-resume-workflow"
 	ForceResumeWorkflowLabelValue = "true"
 	// Below is the label and value needed to be added to node to abort an ongoing workflow
-	AbortWorkflowLabelKey   = "operator.amd.com/gpu-abort-workflow"
-	AbortWorkflowLabelValue = "true"
-	RemediationFilesPath    = "/remediation"
+	AbortWorkflowLabelKey     = "operator.amd.com/gpu-abort-workflow"
+	AbortWorkflowLabelValue   = "true"
+	RemediationFilesPath      = "/remediation"
+	DefaultInitContainerImage = "busybox:1.36"
 )
 
 type RecoveryPolicyConfig struct {
@@ -289,7 +290,7 @@ type remediationMgrHelperAPI interface {
 	registerRecoveryAttempt(ctx context.Context, nodeName string, nodeCondition string, namespace string, wfName string) error
 	registerRecoveryAttemptInternal(nodeName string, nodeCondition string, namespace string, startTime time.Time) error
 	registerRecoveryAttemptToStatusCR(ctx context.Context, nodeName string, nodeCondition string, namespace string, wfName string, startTime time.Time) error
-	getRecoveryTrackerKey(nodeName string, nodeCondition string) (string, error)
+	getRecoveryTrackerKey(nodeName string, nodeCondition string) string
 	getMaxAllowedRunsPerWindow(recoveryPolicy *RecoveryPolicyConfig) int
 	getWindowSize(recoveryPolicy *RecoveryPolicyConfig) string
 	isRecoveryPolicyViolated(ctx context.Context, nodeName string, mapping *ConditionWorkflowMapping) bool
@@ -583,7 +584,7 @@ func (h *remediationMgrHelper) createDefaultWorkflowTemplate(ctx context.Context
 						{Steps: []workflowv1alpha1.WorkflowStep{{Name: "drain", Template: "drain"}}},
 						{Steps: []workflowv1alpha1.WorkflowStep{
 							{
-								Name:        "notifyBeforeSuspend",
+								Name:        "notifybeforesuspend",
 								TemplateRef: &workflowv1alpha1.TemplateRef{Name: "event-notify-template", Template: "notify"},
 								Arguments: workflowv1alpha1.Arguments{
 									Parameters: []workflowv1alpha1.Parameter{
@@ -600,7 +601,7 @@ func (h *remediationMgrHelper) createDefaultWorkflowTemplate(ctx context.Context
 						{Steps: []workflowv1alpha1.WorkflowStep{{Name: "test", Template: "test", ContinueOn: &workflowv1alpha1.ContinueOn{Failed: true}}}},
 						{Steps: []workflowv1alpha1.WorkflowStep{
 							{
-								Name:        "notifyGpuTestFailed",
+								Name:        "notifygputestfailed",
 								TemplateRef: &workflowv1alpha1.TemplateRef{Name: "event-notify-template", Template: "notify"},
 								Arguments: workflowv1alpha1.Arguments{
 									Parameters: []workflowv1alpha1.Parameter{
@@ -613,12 +614,12 @@ func (h *remediationMgrHelper) createDefaultWorkflowTemplate(ctx context.Context
 							},
 						},
 						},
-						{Steps: []workflowv1alpha1.WorkflowStep{{Name: "failWorkflow", Template: "failWorkflow", When: "{{steps.test.exitCode}} != 0"}}},
+						{Steps: []workflowv1alpha1.WorkflowStep{{Name: "failworkflow", Template: "failworkflow", When: "{{steps.test.exitCode}} != 0"}}},
 						{Steps: []workflowv1alpha1.WorkflowStep{{Name: "wait", Template: "wait", When: "{{steps.test.exitCode}} == 0"}}},
 						{Steps: []workflowv1alpha1.WorkflowStep{{Name: "untaint", Template: "untaint", When: "{{steps.test.exitCode}} == 0"}}},
 						{Steps: []workflowv1alpha1.WorkflowStep{
 							{
-								Name:        "notifyWorkflowSucceeded",
+								Name:        "notifyworkflowsucceeded",
 								TemplateRef: &workflowv1alpha1.TemplateRef{Name: "event-notify-template", Template: "notify"},
 								Arguments: workflowv1alpha1.Arguments{
 									Parameters: []workflowv1alpha1.Parameter{
@@ -723,6 +724,10 @@ containers:
 								Name:  "namespace",
 								Value: workflowv1alpha1.AnyStringPtr("{{workflow.parameters.namespace}}"),
 							},
+							{
+								Name:  "initContainerImage",
+								Value: workflowv1alpha1.AnyStringPtr("{{workflow.parameters.initContainerImage}}"),
+							},
 						},
 					},
 					Script: &workflowv1alpha1.ScriptTemplate{
@@ -765,7 +770,7 @@ containers:
 					},
 				},
 				{
-					Name: "failWorkflow",
+					Name: "failworkflow",
 					Script: &workflowv1alpha1.ScriptTemplate{
 						Source:    `echo "Failing workflow" && exit 1`,
 						Container: utilityContainer,
@@ -873,6 +878,11 @@ func (h *remediationMgrHelper) populateWorkflow(ctx context.Context, wfTemplate 
 		testrunnerImage = devConfig.Spec.RemediationWorkflow.TesterImage
 	}
 
+	initContainerImage := DefaultInitContainerImage
+	if devConfig.Spec.CommonConfig.InitContainerImage != "" {
+		initContainerImage = devConfig.Spec.CommonConfig.InitContainerImage
+	}
+
 	// Pass the args required to be used in the template
 	wf.Spec.Arguments = workflowv1alpha1.Arguments{
 		Parameters: []workflowv1alpha1.Parameter{
@@ -927,6 +937,10 @@ func (h *remediationMgrHelper) populateWorkflow(ctx context.Context, wfTemplate 
 			{
 				Name:  "notifySuccessMessage",
 				Value: workflowv1alpha1.AnyStringPtr(fmt.Sprintf("Remediation for node condition %s completed successfully on node %s", mapping.NodeCondition, nodeName)),
+			},
+			{
+				Name:  "initContainerImage",
+				Value: workflowv1alpha1.AnyStringPtr(initContainerImage),
 			},
 		},
 	}
@@ -1115,10 +1129,7 @@ func (h *remediationMgrHelper) getWorkflowUtilityImage(devConfig *amdv1alpha1.De
 
 func (h *remediationMgrHelper) getRecentRecoveryCount(nodeName string, nodeCondition string) int {
 	// get the length of the slice of attempts for the given node and condition
-	key, err := h.getRecoveryTrackerKey(nodeName, nodeCondition)
-	if err != nil {
-		return 0
-	}
+	key := h.getRecoveryTrackerKey(nodeName, nodeCondition)
 
 	attempts, ok := h.recoveryTracker.Load(key)
 	if !ok {
@@ -1132,10 +1143,7 @@ func (h *remediationMgrHelper) getRecentRecoveryCount(nodeName string, nodeCondi
 }
 
 func (h *remediationMgrHelper) dropOlderRecoveryAttemptsInternal(nodeName string, nodeCondition string, windowSize string) error {
-	key, err := h.getRecoveryTrackerKey(nodeName, nodeCondition)
-	if err != nil {
-		return fmt.Errorf("failed to get recovery tracker key: %w", err)
-	}
+	key := h.getRecoveryTrackerKey(nodeName, nodeCondition)
 
 	attempts, _ := h.recoveryTracker.LoadOrStore(key, []time.Time{})
 	if attemptsSlice, ok := attempts.([]time.Time); ok {
@@ -1265,10 +1273,7 @@ func (h *remediationMgrHelper) registerRecoveryAttemptToStatusCR(ctx context.Con
 }
 
 func (h *remediationMgrHelper) registerRecoveryAttemptInternal(nodeName string, nodeCondition string, namespace string, startTime time.Time) error {
-	key, err := h.getRecoveryTrackerKey(nodeName, nodeCondition)
-	if err != nil {
-		return fmt.Errorf("failed to get recovery tracker key: %w", err)
-	}
+	key := h.getRecoveryTrackerKey(nodeName, nodeCondition)
 
 	attempts, _ := h.recoveryTracker.LoadOrStore(key, []time.Time{})
 	if attemptsSlice, ok := attempts.([]time.Time); ok {
@@ -1281,9 +1286,8 @@ func (h *remediationMgrHelper) registerRecoveryAttemptInternal(nodeName string, 
 	return nil
 }
 
-func (h *remediationMgrHelper) getRecoveryTrackerKey(nodeName string, nodeCondition string) (string, error) {
-	key := fmt.Sprintf("%s-%s", nodeName, nodeCondition)
-	return key, nil
+func (h *remediationMgrHelper) getRecoveryTrackerKey(nodeName string, nodeCondition string) string {
+	return fmt.Sprintf("%s-%s", nodeName, nodeCondition)
 }
 
 func (h *remediationMgrHelper) getMaxAllowedRunsPerWindow(recoveryPolicy *RecoveryPolicyConfig) int {
@@ -1337,10 +1341,7 @@ func (h *remediationMgrHelper) syncInternalMapFromStatusCR(ctx context.Context, 
 
 	for nodeName, conditions := range wfStatus.Status {
 		for nodeCondition, attempts := range conditions {
-			key, err := h.getRecoveryTrackerKey(nodeName, nodeCondition)
-			if err != nil {
-				return fmt.Errorf("failed to get recovery tracker key: %w", err)
-			}
+			key := h.getRecoveryTrackerKey(nodeName, nodeCondition)
 
 			attemptTimes := make([]time.Time, len(attempts))
 			for i, attempt := range attempts {
