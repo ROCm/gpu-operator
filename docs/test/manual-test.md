@@ -253,6 +253,8 @@ spec:
       - resources:
           limits:
             amd.com/gpu: 8 # requesting all GPUs on the node
+          requests:
+            amd.com/gpu: 8 # requesting all GPUs on the node
         name: amd-test-runner
         image: docker.io/rocm/test-runner:v1.4.0
         imagePullPolicy: IfNotPresent
