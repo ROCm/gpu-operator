@@ -19,7 +19,7 @@ rules:
 - apiGroups: [""]
   resources: ["nodes/status"]
   verbs: ["patch"]
-- nonResourceURLs: ["/metrics", "/gpumetrics"]
+- nonResourceURLs: ["/metrics", "/gpumetrics", "/inbandraserrors"]
   verbs: ["get"]
 
 ---

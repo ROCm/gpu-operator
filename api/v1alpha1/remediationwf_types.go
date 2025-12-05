@@ -25,11 +25,14 @@ import (
 //+kubebuilder:subresource:status
 
 // RemediationWorkflowStatus keeps a record of recent remediation workflow runs.
+// We maintain this information to avoid re-running remediation workflows on nodes where a pre-defined threshold is crossed.
 // +operator-sdk:csv:customresourcedefinitions:displayName="RemediationWorkflowStatus",resources={{Module,v1beta1,modules.kmm.sigs.x-k8s.io},{Daemonset,v1,apps},{services,v1,core},{Pod,v1,core}}
 type RemediationWorkflowStatus struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
+	// Status field holds remediation workflow run history for each node and node condition
+	// Key is node name. Value is a map with key as node condition and value as list of workflow metadata(workflow name and it's start time)
 	Status map[string]map[string][]WorkflowMetadata `json:"status,omitempty"`
 }
 

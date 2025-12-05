@@ -36,6 +36,7 @@ var (
 	driverImageRepo               string
 	kubeVirtHostDevicePluginImage string
 	kubeVirtHostNodeLabellerImage string
+	utilsContainerImage           string
 )
 
 func init() {
@@ -96,5 +97,9 @@ func init() {
 	kubeVirtHostNodeLabellerImage, ok = os.LookupEnv("E2E_KUBEVIRT_NODE_LABELLER_IMAGE")
 	if !ok {
 		log.Fatalf("E2E_KUBEVIRT_NODE_LABELLER_IMAGE is not defined.")
+	}
+	utilsContainerImage, ok = os.LookupEnv("E2E_UTILS_CONTAINER_IMAGE")
+	if !ok {
+		log.Fatalf("E2E_UTILS_CONTAINER_IMAGE is not defined.")
 	}
 }

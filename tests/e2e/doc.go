@@ -28,7 +28,7 @@ import (
 type E2ESuite struct {
 	clientSet            *kubernetes.Clientset
 	dClient              *client.DeviceConfigClient
-	wfClient             workflowclient.Interface
+	wfClient             workflowclient.Clientset
 	cfgName              string
 	registry             string
 	helmChart            string

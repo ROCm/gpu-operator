@@ -17,7 +17,7 @@ involvedObject:
   kind: Node
   name: ${NODE_NAME}
   namespace: {{workflow.namespace}}
-message: ${NOTIFY_MESSAGE}
+message: '${NOTIFY_MESSAGE}'
 reason: AMDGPUUnhealthy
 reportingComponent: amd-gpu-node-remediation-workflow
 reportingInstance: amd-gpu-node-remediation-workflow
@@ -25,3 +25,4 @@ source:
   component: {{workflow.name}}
   host: ${NODE_NAME}
 type: Warning
+EOF
