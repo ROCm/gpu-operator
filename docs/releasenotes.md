@@ -17,6 +17,8 @@ The AMD GPU Operator v1.4.1 release extends platform support to OpenShift v4.20 
   - **Enhanced Pod and Service Annotations**
     - Custom annotations can now be applied to exporter pods and services via the DeviceConfig CRD, providing greater flexibility in metadata management.
 - **Test Runner Enhancements**
+  - **Level-Based and Partitioned GPU Test Recipe Support**
+    - Test runner now supports level-based test recipes and partitioned GPU test recipes, enabling more granular and flexible GPU testing scenarios.
   - **Enhanced Test Result Events**
     - Test runner Kubernetes events now include additional information such as pod UID and test framework name (e.g., RVS, AGFHC) as event labels, providing more comprehensive test run information for improved tracking and diagnostics.
 
