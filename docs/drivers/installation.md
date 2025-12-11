@@ -107,8 +107,10 @@ spec:
     # enable operator to install out-of-tree amdgpu kernel module
     enable: true
     # Specify the driver version by using ROCm version
-    version: "7.0"
-    # blacklist is required for installing out-of-tree amdgpu kernel module
+    # Starting from ROCm 7.1 the amdgpu version is using new versioning schema
+    # please refer to https://rocm.docs.amd.com/projects/install-on-linux/en/latest/reference/user-kernel-space-compat-matrix.html
+    version: "30.20.1"
+    # blacklist is required for installing out-of-tree amdgpu kernel module, this depends on spec.deviceplugin.enableNodeLabeller to work
     # Not working for OpenShift cluster. OpenShift users please use the Machine Config Operator (MCO) resource to configure amdgpu blacklist.
     # Example MCO resource is available at https://instinct.docs.amd.com/projects/gpu-operator/en/latest/installation/openshift-olmhtml#create-blacklist-for-installing-out-of-tree-kernel-module
     blacklist: true

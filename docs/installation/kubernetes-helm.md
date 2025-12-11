@@ -370,7 +370,9 @@ spec:
     imageRegistrySecret:
       name: mysecret
     # Specify the driver version by using ROCm version
-    version: "7.0"
+    # Starting from ROCm 7.1 the amdgpu version is using new versioning schema
+    # please refer to https://rocm.docs.amd.com/projects/install-on-linux/en/latest/reference/user-kernel-space-compat-matrix.html
+    version: "30.20.1"
 
   devicePlugin:
     devicePluginImage: rocm/k8s-device-plugin:latest
