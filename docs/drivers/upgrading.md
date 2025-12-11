@@ -47,6 +47,8 @@ metadata:
   namespace: kube-amd-gpu
 spec:
   driver:
+    # NOTE: Starting from ROCm 7.1 the amdgpu version is using new versioning schema
+    # please refer to https://rocm.docs.amd.com/projects/install-on-linux/en/latest/reference/user-kernel-space-compat-matrix.html
     version: 6.3.2
     enable: true
     upgradePolicy:

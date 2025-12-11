@@ -293,7 +293,9 @@ spec:
   driver:
     enable: true
     image: image-registry.openshift-image-registry.svc:5000/$MOD_NAMESPACE/amdgpu_kmod
-    version: 6.2.2
+    # NOTE: Starting from ROCm 7.1 the amdgpu version is using new versioning schema
+    # please refer to https://rocm.docs.amd.com/projects/install-on-linux/en/latest/reference/user-kernel-space-compat-matrix.html
+    version: 30.20.1
   selector:
     "feature.node.kubernetes.io/amd-gpu": "true"
 ```

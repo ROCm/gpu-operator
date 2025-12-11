@@ -201,7 +201,7 @@ Kubernetes: `>= 1.29.0-0`
 | deviceConfig.spec.driver.upgradePolicy.podDeletionPolicy.gracePeriodSeconds | int | `-1` | the time kubernetes waits for a pod to shut down gracefully after receiving a termination signal, zero means immediate, minus value means follow pod defined grace period |
 | deviceConfig.spec.driver.upgradePolicy.podDeletionPolicy.timeoutSeconds | int | `300` | the length of time in seconds to wait before giving up on pod deletion, zero means infinite |
 | deviceConfig.spec.driver.upgradePolicy.rebootRequired | bool | `true` | whether reboot each worker node or not during the driver upgrade |
-| deviceConfig.spec.driver.version | string | `"6.4"` | specify an out-of-tree driver version to install |
+| deviceConfig.spec.driver.version | string | `"30.20.1"` | specify an out-of-tree driver version to install |
 | deviceConfig.spec.metricsExporter.config | object | `{}` | name of the metrics exporter config map, e.g. {"name": "metricConfigMapName"} |
 | deviceConfig.spec.metricsExporter.enable | bool | `true` | enable / disable device metrics exporter |
 | deviceConfig.spec.metricsExporter.image | string | `"rocm/device-metrics-exporter:latest"` | metrics exporter image |

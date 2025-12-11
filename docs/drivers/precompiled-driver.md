@@ -311,6 +311,8 @@ spec:
     imageRegistrySecret:
       name: docker-auth
     # Driver version
+    # NOTE: Starting from ROCm 7.1 the amdgpu version is using new versioning schema
+    # please refer to https://rocm.docs.amd.com/projects/install-on-linux/en/latest/reference/user-kernel-space-compat-matrix.html
     version: "7.0"
 ```
 

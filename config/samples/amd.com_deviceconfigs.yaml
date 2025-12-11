@@ -21,7 +21,7 @@ spec:
     # Specify the driver version
     # when you need to upgrade the driver, just update this field
     # we will unload the old version driver and load the new version driver
-    version: "7.0"
+    version: "30.20.1"
 
   devicePlugin:
     # Specify the device plugin image

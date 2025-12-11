@@ -4,6 +4,11 @@
 
 The AMD GPU Operator v1.4.1 release extends platform support to OpenShift v4.20 and introduces the ability to build `amdgpu` kernel modules directly within air-gapped clusters.
 
+### Important Notice
+
+- **New AMDGPU Driver Versioning Scheme**  
+  - Starting with ROCm 7.1, the AMD GPU driver version numbering has diverged from the ROCm release version. The amdgpu driver now uses an independent versioning scheme (e.g., version 30.20 corresponds to ROCm 7.1). When specifying driver versions in the DeviceConfig CR `spec.driver.version`, users should reference the amdgpu driver version (e.g., "30.20") for ROCm 7.1 and later releases. For ROCm versions prior to 7.1, continue to use the ROCm version number (e.g., "6.4", "7.0"). Please refer to the [AMD ROCm documentation](https://rocm.docs.amd.com/projects/install-on-linux/en/latest/reference/user-kernel-space-compat-matrix.html) for the driver version that corresponds to your desired ROCm release. All published amdgpu driver versions are available at [Radeon Repository](https://repo.radeon.com/amdgpu/).
+
 ### Release Highlights
 - **OpenShift Platform Support Enhancements**
   - **Build Driver Images Directly within Disconnected OpenShift Clusters**

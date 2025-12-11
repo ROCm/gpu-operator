@@ -53,7 +53,7 @@ deviceConfig:
         # -- set to true to skip TLS validation for driver image repository
         insecureSkipTLSVerify: false
       # -- specify an out-of-tree driver version to install
-      version: "6.4"
+      version: "30.20.1"
       # -- specify the secrets to sign the out-of-tree kernel module inside driver image for secure boot, e.g. input private / public key secret {"keySecret":{"name":"privateKeySecret"},"certSecret":{"name":"publicKeySecret"}}
       imageSign: {}
       # -- configure the out-of-tree driver image build within the cluster. e.g. {"baseImageRegistry":"docker.io","baseImageRegistryTLS":{"baseImageRegistry":"docker.io","baseImageRegistryTLS":{"insecure":"false","insecureSkipTLSVerify":"false"}}}
