@@ -26,25 +26,19 @@ Here is an example `ImageSetConfiguration` for mirroring the required catalogs a
 ```
 
 ```yaml
+# oc-mirror --v2 compatible ImageSetConfiguration
 kind: ImageSetConfiguration
 apiVersion: mirror.openshift.io/v1alpha2
-storageConfig:
-  # Configured by users
-  # option 1: directly mirrored images into your mirror registry
-  #registry:
-  #  imageURL: <your mirror registry URL>/oc-mirror
-  # option 2: save all mirrored images into local filesystem
-  #local:
-  #  path: /path/to/local
-
 mirror:
   # in this file we use 4.19 as an example
   # please adjust the OpenShift version if needed
   platform:
     graph: true 
     channels:
+      # adjust the minor version and patch version if needed
       - name: stable-4.19
-        type: ocp
+        minVersion: 4.19.13
+        maxVersion: 4.19.13
 
   operators:
     - catalog: registry.redhat.io/redhat/redhat-operator-index:v4.19 # adjust the OpenShift version if needed
@@ -77,7 +71,7 @@ mirror:
     - name: registry.redhat.io/ubi9/ubi-minimal:latest
     - name: docker.io/rocm/gpu-operator:v1.3.1
     - name: docker.io/rocm/gpu-operator-utils:v1.3.1
-    - name: docker.io/library/busybox:1.36
+    - name: docker.io/busybox:1.36
     - name: docker.io/rocm/device-metrics-exporter:v1.3.1
     - name: docker.io/rocm/test-runner:v1.3.1
     - name: docker.io/rocm/device-config-manager:v1.3.1
