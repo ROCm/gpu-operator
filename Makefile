@@ -210,6 +210,13 @@ update-version:
 	sed -i '0,/version:/s|version:.*|version: ${PROJECT_VERSION}|' hack/k8s-patch/metadata-patch/Chart.yaml
 	sed -i -e 's|appVersion:.*$$|appVersion: "${PROJECT_VERSION}"|' hack/openshift-patch/metadata-patch/Chart.yaml
 	sed -i '0,/version:/s|version:.*|version: ${PROJECT_VERSION}|' hack/openshift-patch/metadata-patch/Chart.yaml
+	# updating project version in Dockerfile metadata
+	sed -i 's/release="[^"]*"/release="${PROJECT_VERSION}"/g' Dockerfile internal/utils_container/Dockerfile
+	sed -i 's/version="[^"]*"/version="${PROJECT_VERSION}"/g' Dockerfile internal/utils_container/Dockerfile
+	# updating default image tags in Go source files
+	sed -i 's|defaultConfigManagerImage.*=.*"docker.io/rocm/device-config-manager:[^"]*"|defaultConfigManagerImage = "docker.io/rocm/device-config-manager:${PROJECT_VERSION}"|' internal/configmanager/configmanager.go
+	sed -i 's|defaultMetricsExporterImage.*=.*"docker.io/rocm/device-metrics-exporter:[^"]*"|defaultMetricsExporterImage = "docker.io/rocm/device-metrics-exporter:${PROJECT_VERSION}"|' internal/metricsexporter/metricsexporter.go
+	sed -i 's|defaultTestRunnerImage.*=.*"docker.io/rocm/test-runner:[^"]*"|defaultTestRunnerImage = "docker.io/rocm/test-runner:${PROJECT_VERSION}"|' internal/testrunner/testrunner.go
 
 .PHONY: manifests
 manifests: controller-gen update-registry update-version ## Generate ClusterRole and CustomResourceDefinition objects.
