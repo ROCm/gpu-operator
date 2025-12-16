@@ -437,6 +437,10 @@ spec:
     {{- with .testerImage }}
     testerImage: {{ . }}
     {{- end }}
+
+    {{- with .maxParallelWorkflows }}
+    maxParallelWorkflows: {{ . }}
+    {{- end }}
   {{- end }}
 
 {{- end }}

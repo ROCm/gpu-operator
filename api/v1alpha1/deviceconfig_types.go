@@ -103,6 +103,11 @@ type RemediationWorkflowSpec struct {
 	// +optional
 	// +kubebuilder:validation:Pattern=`^([a-z0-9]+(?:[._-][a-z0-9]+)*(:[0-9]+)?)(/[a-z0-9]+(?:[._-][a-z0-9]+)*)*(?::[a-z0-9._-]+)?(?:@[a-zA-Z0-9]+:[a-f0-9]+)?$`
 	TesterImage string `json:"testerImage,omitempty"`
+
+	// MaxParallelWorkflows specifies limit on how many remediation workflows can be executed in parallel. 0 is the default value and it means no limit.
+	//+operator-sdk:csv:customresourcedefinitions:type=spec,displayName="MaxParallelWorkflows",xDescriptors={"urn:alm:descriptor:com.amd.deviceconfigs:maxParallelWorkflows"}
+	// +optional
+	MaxParallelWorkflows int `json:"maxParallelWorkflows"`
 }
 
 type RegistryTLS struct {

@@ -1394,6 +1394,11 @@ spec:
                       enable remediation workflows. disabled by default
                       enable if operator should automatically handle remediation of node incase of gpu issues
                     type: boolean
+                  maxParallelWorkflows:
+                    description: MaxParallelWorkflows specifies limit on how many
+                      remediation workflows can be executed in parallel. 0 is the
+                      default value and it means no limit.
+                    type: integer
                   testerImage:
                     description: Tester image used to run tests and verify if remediation
                       fixed the reported problem.
