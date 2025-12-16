@@ -231,7 +231,10 @@ deviceConfig:
       # -- config manager tolerations
       configManagerTolerations: []
     remediationWorkflow:
+      # -- enable/disable remediation workflow controller
       enable: false
+      # -- Set maximum number of remediation workflows that can run in parallel. Default is 0 which means no limit
+      maxParallelWorkflows: 0
 # AMD GPU operator controller related configs
 controllerManager:
   manager:

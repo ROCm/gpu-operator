@@ -709,6 +709,20 @@ func (mr *MockremediationMgrHelperAPIMockRecorder) syncInternalMapFromStatusCR(c
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "syncInternalMapFromStatusCR", reflect.TypeOf((*MockremediationMgrHelperAPI)(nil).syncInternalMapFromStatusCR), ctx, namespace)
 }
 
+// updateMaxParallelWorkflows mocks base method.
+func (m *MockremediationMgrHelperAPI) updateMaxParallelWorkflows(ctx context.Context, devConfig *v1alpha1.DeviceConfig) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "updateMaxParallelWorkflows", ctx, devConfig)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// updateMaxParallelWorkflows indicates an expected call of updateMaxParallelWorkflows.
+func (mr *MockremediationMgrHelperAPIMockRecorder) updateMaxParallelWorkflows(ctx, devConfig any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "updateMaxParallelWorkflows", reflect.TypeOf((*MockremediationMgrHelperAPI)(nil).updateMaxParallelWorkflows), ctx, devConfig)
+}
+
 // validateNodeConditions mocks base method.
 func (m *MockremediationMgrHelperAPI) validateNodeConditions(ctx context.Context, devConfig *v1alpha1.DeviceConfig, node *v1.Node, mappings map[string]ConditionWorkflowMapping) (ConditionWorkflowMapping, error) {
 	m.ctrl.T.Helper()

@@ -231,6 +231,8 @@ Kubernetes: `>= 1.29.0-0`
 | deviceConfig.spec.metricsExporter.tolerations | list | `[]` | metrics exporter tolerations |
 | deviceConfig.spec.metricsExporter.upgradePolicy.maxUnavailable | int | `1` | the maximum number of Pods that can be unavailable during the update process |
 | deviceConfig.spec.metricsExporter.upgradePolicy.upgradeStrategy | string | `"RollingUpdate"` | the type of daemonset upgrade, RollingUpdate or OnDelete |
+| deviceConfig.spec.remediationWorkflow.enable | bool | `false` | enable/disable remediation workflow controller |
+| deviceConfig.spec.remediationWorkflow.maxParallelWorkflows | int | `0` | Set maximum number of remediation workflows that can run in parallel. Default is 0 which means no limit |
 | deviceConfig.spec.selector | object | `{"feature.node.kubernetes.io/amd-gpu":"true"}` | Set node selector for the default DeviceConfig |
 | deviceConfig.spec.testRunner.config | object | `{}` | test runner config map, e.g. {"name": "myConfigMap"} |
 | deviceConfig.spec.testRunner.enable | bool | `false` | enable / disable test runner |

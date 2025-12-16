@@ -689,6 +689,13 @@ spec:
         path: remediationWorkflow.enable
         x-descriptors:
         - urn:alm:descriptor:com.amd.deviceconfigs:enable
+      - description: MaxParallelWorkflows specifies limit on how many remediation
+          workflows can be executed in parallel. 0 is the default value and it means
+          no limit.
+        displayName: MaxParallelWorkflows
+        path: remediationWorkflow.maxParallelWorkflows
+        x-descriptors:
+        - urn:alm:descriptor:com.amd.deviceconfigs:maxParallelWorkflows
       - description: Tester image used to run tests and verify if remediation fixed
           the reported problem.
         displayName: TesterImage

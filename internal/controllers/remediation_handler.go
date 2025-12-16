@@ -38,6 +38,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -51,6 +52,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
+	"k8s.io/client-go/util/retry"
 	"k8s.io/utils/ptr"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -78,10 +80,11 @@ const (
 	ForceResumeWorkflowLabelKey   = "operator.amd.com/gpu-force-resume-workflow"
 	ForceResumeWorkflowLabelValue = "true"
 	// Below is the label and value needed to be added to node to abort an ongoing workflow
-	AbortWorkflowLabelKey     = "operator.amd.com/gpu-abort-workflow"
-	AbortWorkflowLabelValue   = "true"
-	RemediationFilesPath      = "/remediation"
-	DefaultInitContainerImage = "busybox:1.36"
+	AbortWorkflowLabelKey           = "operator.amd.com/gpu-abort-workflow"
+	AbortWorkflowLabelValue         = "true"
+	RemediationFilesPath            = "/remediation"
+	DefaultInitContainerImage       = "busybox:1.36"
+	ArgoWorkflowControllerConfigMap = "workflow-controller-configmap"
 )
 
 type RecoveryPolicyConfig struct {
@@ -149,6 +152,11 @@ func (n *remediationMgr) HandleRemediation(ctx context.Context, devConfig *amdv1
 	var configMap *v1.ConfigMap
 	if configMap, err = n.helper.createDefaultObjects(ctx, devConfig); err != nil {
 		return res, err
+	}
+
+	// Update max parallel workflows based on DeviceConfig
+	if err := n.helper.updateMaxParallelWorkflows(ctx, devConfig); err != nil {
+		logger.Error(err, "Failed to update max parallel workflows, continuing with remediation")
 	}
 
 	// Clear any older recovery attempts from the status CR
@@ -306,14 +314,16 @@ type remediationMgrHelperAPI interface {
 	attemptResumeWorkflowOnNode(ctx context.Context, node *v1.Node, mapping ConditionWorkflowMapping, wf *workflowv1alpha1.Workflow)
 	handleSuspendedWorkflowsOnNode(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig, node *v1.Node, mapping ConditionWorkflowMapping, wf *workflowv1alpha1.Workflow) bool
 	getWorkflowTaskScriptSource(scriptFileName string) (string, error)
+	updateMaxParallelWorkflows(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig) error
 }
 
 type remediationMgrHelper struct {
-	client             client.Client
-	k8sInterface       kubernetes.Interface
-	recoveryTracker    *sync.Map
-	statusSynced       bool
-	serviceAccountName string
+	client               client.Client
+	k8sInterface         kubernetes.Interface
+	recoveryTracker      *sync.Map
+	statusSynced         bool
+	serviceAccountName   string
+	maxParallelWorkflows int
 }
 
 // Initialize remediation manager helper interface
@@ -835,6 +845,34 @@ func (h *remediationMgrHelper) createDefaultObjects(ctx context.Context, devConf
 	}
 
 	return cm, nil
+}
+
+func (h *remediationMgrHelper) updateMaxParallelWorkflows(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig) error {
+	logger := log.FromContext(ctx)
+	// Set maximum parallel workflows that can run simultaneously
+	if h.maxParallelWorkflows != devConfig.Spec.RemediationWorkflow.MaxParallelWorkflows {
+		err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
+			acm, err := h.getConfigMap(ctx, ArgoWorkflowControllerConfigMap, devConfig.Namespace)
+			if err != nil {
+				logger.Error(err, "Failed to fetch argo workflow controller configmap")
+				return err
+			}
+			if acm.Data == nil {
+				acm.Data = make(map[string]string)
+			}
+			// Update parallelism in Argo workflow controller configmap.
+			// https://github.com/argoproj/argo-workflows/blob/main/config/config.go#L69
+			acm.Data["parallelism"] = strconv.Itoa(devConfig.Spec.RemediationWorkflow.MaxParallelWorkflows)
+			return h.client.Update(ctx, acm)
+		})
+		if err != nil {
+			logger.Error(err, "Failed to update parallelism in argo workflow controller")
+			return err
+		}
+		h.maxParallelWorkflows = devConfig.Spec.RemediationWorkflow.MaxParallelWorkflows
+		logger.Info(fmt.Sprintf("Updated maximum parallel remediation workflows to %d", h.maxParallelWorkflows))
+	}
+	return nil
 }
 
 func (h *remediationMgrHelper) populateWorkflow(ctx context.Context, wfTemplate *workflowv1alpha1.WorkflowTemplate, mapping *ConditionWorkflowMapping, nodeName string, devConfig *amdv1alpha1.DeviceConfig) *workflowv1alpha1.Workflow {

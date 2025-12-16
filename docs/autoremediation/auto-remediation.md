@@ -130,6 +130,16 @@ The most common CR users will be using will be of this form which will use the `
     enable: true
 ```
 
+You can limit the number of nodes undergoing remediation simultaneously by setting the `maxParallelWorkflows` field in the Device Config custom resource. For example, to ensure no more than 5 nodes undergo remediation at the same time, configure the value as 5(as shown below). The default value is zero, which means there is no upper limit on the number of parallel workflows that can run simultaneously.
+
+```yaml
+  remediationWorkflow:
+    enable: true
+    maxParallelWorkflows: 5
+```
+
+When more workflows are triggered beyond the above workflow parallelism limit, the excess workflows are queued by the Argo workflow controller and enter a **Pending** state. They will remain in the queue until a running workflow finishes and a "slot" within the configured parallelism limit becomes available.
+
 ## Default Workflow Template
 
 Note: `default-template` will be created on the cluster by GPU-Operator 
