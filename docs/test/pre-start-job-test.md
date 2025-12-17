@@ -119,7 +119,7 @@ spec:
         name: test-runner-volume
       initContainers:
       - name: init-test-runner
-        image: docker.io/rocm/test-runner:v1.4.0
+        image: docker.io/rocm/test-runner:v1.4.1
         imagePullPolicy: IfNotPresent
         resources:
           requests:

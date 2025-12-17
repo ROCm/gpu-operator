@@ -238,7 +238,7 @@ Below is an example of a full DeviceConfig CR that can be used to install the AM
           amd.com/device-test-runner: "true" # Helpful for when you want to disable the test runner on specific nodes 
       configManager:
         enable: False # False by Default. Set to True to enable the config manager
-        image: "rocm/device-config-manager:v1.3.1" # image for the device-config-manager container
+        image: "rocm/device-config-manager:v1.4.1" # image for the device-config-manager container
         imagePullPolicy: IfNotPresent # image pull policy for config manager. Accepted values are Always, IfNotPresent, Never
         config: # specify configmap name which stores profile config info
           name: "config-manager-config"
