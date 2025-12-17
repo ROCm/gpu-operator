@@ -68,12 +68,12 @@ helm repo update
 # Perform helm upgrade
 helm upgrade amd-gpu-operator rocm/gpu-operator-charts \
   -n kube-amd-gpu \
-  --version=v1.4.0 \
+  --version=v1.4.1 \
   --debug
 ```
 
 * When upgrading a Helm chart, customized operator controller image URLs set in the older version's values.yaml (via `--set` or `-f values.yaml`) will persist due to default Helm behavior.
-* To ensure a successful upgrade, you must use the target version's operator image in the helm upgrade command. This is because upgrade hooks rely on the target version's images for CRD updates. For example, to upgrade to v1.4.0 when you already customized operator image URL in old version helm chart, use `--set` to ask helm for using correct version image for executing helm upgrade hooks:
+* To ensure a successful upgrade, you must use the target version's operator image in the helm upgrade command. This is because upgrade hooks rely on the target version's images for CRD updates. For example, to upgrade to v1.4.1 when you already customized operator image URL in old version helm chart, use `--set` to ask helm for using correct version image for executing helm upgrade hooks:
 
 ```bash
 # Fetch latest info from helm repo
@@ -81,10 +81,10 @@ helm repo update
 # Perform helm upgrade
 helm upgrade amd-gpu-operator rocm/gpu-operator-charts \
   -n kube-amd-gpu \
-  --version=v1.4.0 \
+  --version=v1.4.1 \
   --debug \
   --set controllerManager.manager.image.repository=docker.io/rocm/gpu-operator \
-  --set controllerManager.manager.image.tag=v1.4.0 
+  --set controllerManager.manager.image.tag=v1.4.1
 ```
 
 ```{note}

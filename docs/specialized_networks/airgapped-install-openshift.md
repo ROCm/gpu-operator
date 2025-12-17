@@ -62,19 +62,19 @@ mirror:
     - catalog: registry.redhat.io/redhat/certified-operator-index:v4.19 # adjust the OpenShift version if needed
       packages:
         - name: amd-gpu-operator
-          minVersion: "1.3.2" # adjust the version if needed
+          minVersion: "1.4.1" # adjust the version if needed
           channels:
             - name: alpha
   # adjust the image tags if needed
   additionalImages:
     - name: registry.redhat.io/ubi9/ubi:latest
     - name: registry.redhat.io/ubi9/ubi-minimal:latest
-    - name: docker.io/rocm/gpu-operator:v1.3.1
-    - name: docker.io/rocm/gpu-operator-utils:v1.3.1
+    - name: docker.io/rocm/gpu-operator:v1.4.1
+    - name: docker.io/rocm/gpu-operator-utils:v1.4.1
     - name: docker.io/busybox:1.36
-    - name: docker.io/rocm/device-metrics-exporter:v1.3.1
-    - name: docker.io/rocm/test-runner:v1.3.1
-    - name: docker.io/rocm/device-config-manager:v1.3.1
+    - name: docker.io/rocm/device-metrics-exporter:v1.4.1
+    - name: docker.io/rocm/test-runner:v1.4.1
+    - name: docker.io/rocm/device-config-manager:v1.4.1
     - name: docker.io/rocm/rocm-terminal:latest
     - name: docker.io/rocm/k8s-device-plugin:latest
     - name: docker.io/rocm/k8s-node-labeller:latest

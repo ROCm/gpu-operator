@@ -24,7 +24,7 @@ The Device Config Manager can be enabled by setting the `spec/configManager/enab
     enable: True
 
     # image for the device-config-manager container
-    image: "rocm/device-config-manager:v1.4.0"
+    image: "rocm/device-config-manager:v1.4.1"
 
     # image pull policy for config manager. Accepted values are Always, IfNotPresent, Never
     imagePullPolicy: IfNotPresent
