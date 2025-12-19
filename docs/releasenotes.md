@@ -2,7 +2,7 @@
 
 ## GPU Operator v1.4.1 Release Notes
 
-The AMD GPU Operator v1.4.1 release extends platform support to OpenShift v4.20 and introduces the ability to build `amdgpu` kernel modules directly within air-gapped clusters.
+The AMD GPU Operator v1.4.1 release extends platform support to OpenShift v4.20 and Debian 12, and introduces the ability to build `amdgpu` kernel modules directly within air-gapped OpenShift clusters.
 
 ### Important Notice
 
@@ -32,6 +32,14 @@ The AMD GPU Operator v1.4.1 release extends platform support to OpenShift v4.20 
      * Fixed the PCI device ID for the Virtual Function (VF) of MI308X and MI300X-HF GPUs
   2. **Helm Chart default DeviceConfig Fix**
      * Fixed an issue where the Helm chart could not render the metrics exporter's pod resource API socket path in the default DeviceConfig when specified via `values.yaml` or the `--set` option.
+
+### Known Limitations
+
+- **Test Runner**
+  - RVS-generated `result.json` files may contain redundant brackets at the end for newly introduced level-based recipes in v1.4.1, resulting in invalid JSON schema.
+- **Device Config Manager**
+  - Memory partition operations may occasionally fail due to leaked device handlers that prevent the amdgpu driver from being unloaded when applying a new memory partition profile. This issue has been observed on Debian 12 with MI325X GPU when using the v1.4.1 Device Config Manager.
+  - **Workaround:** Reboot the affected worker nodes and retry the partitioning operation.
 
 ## GPU Operator v1.4.0 Release Notes
 
