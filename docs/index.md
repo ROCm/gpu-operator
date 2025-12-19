@@ -40,12 +40,17 @@ Below is a matrix of supported Operating systems and the corresponding Kubernete
   <tbody>
     <tr style="background-color: white; color: black;">
       <td style="background-color: #2c2c2c; color: white; border: 1px solid grey;">Ubuntu 22.04 LTS</td>
-      <td style="border: 1px solid grey;">1.29—1.33</td>
+      <td style="border: 1px solid grey;">1.29-1.34</td>
       <td style="border: 1px solid grey;"></td>
     </tr>
     <tr style="background-color: lightgrey; color: black;">
       <td style="background-color: #2c2c2c; color: white; border: 1px solid grey;">Ubuntu 24.04 LTS</td>
-      <td style="border: 1px solid grey;">1.29—1.33</td>
+      <td style="border: 1px solid grey;">1.29-1.34</td>
+      <td style="border: 1px solid grey;"></td>
+    </tr>
+    <tr style="background-color: lightgrey; color: black;">
+      <td style="background-color: #2c2c2c; color: white; border: 1px solid grey;">Debian 12</td>
+      <td style="border: 1px solid grey;">1.29-1.34 (driver management not supported)</td>
       <td style="border: 1px solid grey;"></td>
     </tr>
     <tr style="background-color: white; color: black;">
