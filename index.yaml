@@ -2,8 +2,44 @@ apiVersion: v1
 entries:
   gpu-operator-charts:
   - apiVersion: v2
+    appVersion: v1.4.1
+    created: "2025-12-20T03:06:59.908009867Z"
+    dependencies:
+    - condition: node-feature-discovery.enabled
+      name: node-feature-discovery
+      repository: https://kubernetes-sigs.github.io/node-feature-discovery/charts
+      version: v0.16.1
+    - condition: kmm.enabled
+      name: kmm
+      repository: file://./charts/kmm
+      version: v1.0.0
+    description: AMD GPU Operator simplifies the deployment and management of AMD
+      Instinct GPU accelerators within Kubernetes clusters.
+    digest: 128d86b9c11f59bb91d7df7c7e6a8ddc17457e7ccd54f252285a41efe9ff9737
+    home: https://github.com/ROCm/gpu-operator
+    icon: https://raw.githubusercontent.com/ROCm/k8s-device-plugin/master/helm/logo.png
+    keywords:
+    - kubernetes
+    - cluster
+    - hardware
+    - amd
+    - gpu
+    - ai
+    - deep learning
+    - monitoring
+    kubeVersion: '>= 1.29.0-0'
+    maintainers:
+    - name: Yan Sun <Yan.Sun3@amd.com>
+    name: gpu-operator-charts
+    sources:
+    - https://github.com/ROCm/gpu-operator
+    type: application
+    urls:
+    - https://rocm.github.io/gpu-operator/charts/gpu-operator-charts-v1.4.1.tgz
+    version: v1.4.1
+  - apiVersion: v2
     appVersion: v1.4.0
-    created: "2025-10-04T03:48:13.98025428Z"
+    created: "2025-12-20T03:06:59.892261921Z"
     dependencies:
     - condition: node-feature-discovery.enabled
       name: node-feature-discovery
@@ -39,7 +75,7 @@ entries:
     version: v1.4.0
   - apiVersion: v2
     appVersion: v1.4.0-beta.0
-    created: "2025-10-04T03:48:13.970845359Z"
+    created: "2025-12-20T03:06:59.876183616Z"
     dependencies:
     - condition: node-feature-discovery.enabled
       name: node-feature-discovery
@@ -75,7 +111,7 @@ entries:
     version: v1.4.0-beta.0
   - apiVersion: v2
     appVersion: v1.3.1
-    created: "2025-10-04T03:48:13.961018717Z"
+    created: "2025-12-20T03:06:59.866915902Z"
     dependencies:
     - condition: node-feature-discovery.enabled
       name: node-feature-discovery
@@ -111,7 +147,7 @@ entries:
     version: v1.3.1
   - apiVersion: v2
     appVersion: v1.3.0
-    created: "2025-10-04T03:48:13.950043788Z"
+    created: "2025-12-20T03:06:59.851855146Z"
     dependencies:
     - condition: node-feature-discovery.enabled
       name: node-feature-discovery
@@ -147,7 +183,7 @@ entries:
     version: v1.3.0
   - apiVersion: v2
     appVersion: v1.2.2
-    created: "2025-10-04T03:48:13.93465101Z"
+    created: "2025-12-20T03:06:59.844101088Z"
     dependencies:
     - condition: node-feature-discovery.enabled
       name: node-feature-discovery
@@ -183,7 +219,7 @@ entries:
     version: v1.2.2
   - apiVersion: v2
     appVersion: v1.2.1
-    created: "2025-10-04T03:48:13.928017099Z"
+    created: "2025-12-20T03:06:59.837913065Z"
     dependencies:
     - condition: node-feature-discovery.enabled
       name: node-feature-discovery
@@ -219,7 +255,7 @@ entries:
     version: v1.2.1
   - apiVersion: v2
     appVersion: v1.2.0
-    created: "2025-10-04T03:48:13.920254208Z"
+    created: "2025-12-20T03:06:59.830843992Z"
     dependencies:
     - condition: node-feature-discovery.enabled
       name: node-feature-discovery
@@ -255,7 +291,7 @@ entries:
     version: v1.2.0
   - apiVersion: v2
     appVersion: v1.1.0
-    created: "2025-10-04T03:48:13.907588244Z"
+    created: "2025-12-20T03:06:59.823911602Z"
     dependencies:
     - condition: node-feature-discovery.enabled
       name: node-feature-discovery
@@ -291,7 +327,7 @@ entries:
     version: v1.1.0
   - apiVersion: v2
     appVersion: v1.0.0
-    created: "2025-10-04T03:48:13.899614716Z"
+    created: "2025-12-20T03:06:59.811233775Z"
     dependencies:
     - condition: node-feature-discovery.enabled
       name: node-feature-discovery
@@ -325,4 +361,4 @@ entries:
     urls:
     - https://rocm.github.io/gpu-operator/charts/gpu-operator-charts-v1.0.0.tgz
     version: v1.0.0
-generated: "2025-10-04T03:48:13.885907888Z"
+generated: "2025-12-20T03:06:59.80287141Z"
