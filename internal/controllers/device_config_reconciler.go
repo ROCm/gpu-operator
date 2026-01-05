@@ -605,11 +605,19 @@ func (dcrh *deviceConfigReconcilerHelper) buildDeviceConfigNodeStatus(ctx contex
 				// push their status back to DeviceConfig
 				if module.Namespace == devConfig.Namespace &&
 					module.Name == devConfig.Name {
+					// if the DeviceConfig is not managing drivers, remove the driver status information
+					// need to remove this redundant info to unblock a known issue https://github.com/ROCm/gpu-operator/issues/403
+					// the driver management is disabled but there is probability that dirver status get stuck in Install-In-Progress
+					nodeStatus := amdv1alpha1.UpgradeStateEmpty
+					if utils.ShouldUseKMM(devConfig) {
+						// only assign node driver status value when DeviceConfig is managing drivers
+						nodeStatus = dcrh.upgradeMgrHandler.GetNodeStatus(node.Name)
+					}
 					devConfig.Status.NodeModuleStatus[node.Name] = amdv1alpha1.ModuleStatus{
 						ContainerImage:     module.Config.ContainerImage,
 						KernelVersion:      module.Config.KernelVersion,
 						LastTransitionTime: module.LastTransitionTime.String(),
-						Status:             dcrh.upgradeMgrHandler.GetNodeStatus(node.Name),
+						Status:             nodeStatus,
 						UpgradeStartTime:   upgradeStartTime,
 						BootId:             bootId,
 					}

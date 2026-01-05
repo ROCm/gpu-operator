@@ -21,7 +21,7 @@ metadata:
               "imageRegistrySecret": {
                 "name": "docker-auth"
               },
-              "version": "7.0"
+              "version": "30.20.1"
             },
             "selector": {
               "feature.node.kubernetes.io/amd-gpu": "true"
