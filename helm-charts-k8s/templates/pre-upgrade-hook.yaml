@@ -93,7 +93,7 @@ spec:
               echo "$deviceconfigs" | jq .
 
               # Check if any UpgradeState is in the blocked states
-              blocked_states='["Upgrade-Not-Started", "Upgrade-Started", "Install-In-Progress", "Upgrade-In-Progress"]'
+              blocked_states='["Upgrade-Not-Started", "Upgrade-Started", "Upgrade-In-Progress"]'
               if echo "$deviceconfigs" | jq --argjson blocked_states "$blocked_states" -e '
                   .items[] |
                   .status.nodeModuleStatus // {} |

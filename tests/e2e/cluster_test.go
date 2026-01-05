@@ -3140,9 +3140,9 @@ func (s *E2ESuite) TestPreUpgradeHookFailure(c *C) {
 	}
 
 	if s.openshift {
-		devCfg.Spec.Driver.Version = "el9-6.1.0"
+		devCfg.Spec.Driver.Version = "30.20.1"
 	} else {
-		devCfg.Spec.Driver.Version = "6.1.0"
+		devCfg.Spec.Driver.Version = "30.20.1"
 	}
 	s.patchDriversVersion(devCfg, c)
 	s.verifyDeviceConfigStatus(devCfg, c)
