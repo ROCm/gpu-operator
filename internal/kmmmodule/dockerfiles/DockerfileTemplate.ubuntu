@@ -29,7 +29,7 @@ RUN apt-get update && apt-get install -y amdgpu-dkms
 
 RUN depmod ${KERNEL_FULL_VERSION}
 
-FROM ubuntu:$$VERSION
+FROM $$BASEIMG_REGISTRY/ubuntu:$$VERSION
 
 ARG KERNEL_FULL_VERSION
 

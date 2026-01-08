@@ -1,4 +1,4 @@
-FROM ubuntu:$$VERSION AS builder
+FROM $$BASEIMG_REGISTRY/ubuntu:$$VERSION AS builder
 
 ARG KERNEL_FULL_VERSION
 
@@ -23,7 +23,7 @@ RUN wget https://github.com/amd/MxGPU-Virtualization/releases/download/mainline%
 
 RUN depmod ${KERNEL_FULL_VERSION}
 
-FROM ubuntu:$$VERSION
+FROM $$BASEIMG_REGISTRY/ubuntu:$$VERSION
 
 ARG KERNEL_FULL_VERSION
 
