@@ -122,6 +122,9 @@ func (s *E2ESuite) getDeviceConfig(c *C) *v1alpha1.DeviceConfig {
 				Port:     5001,
 			},
 			Selector: map[string]string{"feature.node.kubernetes.io/amd-gpu": "true"},
+			CommonConfig: v1alpha1.CommonConfigSpec{
+				InitContainerImage: initContainerImage,
+			},
 		},
 	}
 	insecure := true

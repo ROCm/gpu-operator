@@ -19,6 +19,7 @@ package client
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 
 	"github.com/ROCm/gpu-operator/api/v1alpha1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -373,6 +374,94 @@ func (c *deviceConfigsClient) Delete(name string) (*v1alpha1.DeviceConfig, error
 		Namespace(c.ns).
 		Resource("deviceConfigs").
 		Body(&v1alpha1.DeviceConfig{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: name,
+			},
+		}).
+		Do(context.TODO()).
+		Into(&result)
+
+	return &result, err
+}
+
+type RemediationWorkflowStatusClient struct {
+	restClient rest.Interface
+}
+
+func NewWfStatusClient(c *rest.Config) (*RemediationWorkflowStatusClient, error) {
+	config := *c
+	config.ContentConfig.GroupVersion = &v1alpha1.GroupVersion
+	config.APIPath = "/apis"
+	config.NegotiatedSerializer = scheme.Codecs.WithoutConversion()
+	config.UserAgent = rest.DefaultKubernetesUserAgent()
+
+	client, err := rest.RESTClientFor(&config)
+	if err != nil {
+		return nil, err
+	}
+
+	return &RemediationWorkflowStatusClient{restClient: client}, nil
+}
+
+func (c *RemediationWorkflowStatusClient) Create(rwfstatus *v1alpha1.RemediationWorkflowStatus) (*v1alpha1.RemediationWorkflowStatus, error) {
+	result := v1alpha1.RemediationWorkflowStatus{}
+	rwfstatus.TypeMeta = metav1.TypeMeta{
+		Kind:       "RemediationWorkflowStatus",
+		APIVersion: "amd.com/v1alpha1",
+	}
+	err := c.restClient.
+		Post().
+		Namespace(rwfstatus.Namespace).
+		Resource("remediationworkflowstatuses").
+		Body(rwfstatus).
+		Do(context.TODO()).
+		Into(&result)
+	return &result, err
+}
+
+func (c *RemediationWorkflowStatusClient) Update(rwfstatus *v1alpha1.RemediationWorkflowStatus) (*v1alpha1.RemediationWorkflowStatus, error) {
+	result := v1alpha1.RemediationWorkflowStatus{}
+	rwfstatus.TypeMeta = metav1.TypeMeta{
+		Kind:       "RemediationWorkflowStatus",
+		APIVersion: "amd.com/v1alpha1",
+	}
+	err := c.restClient.
+		Put().
+		Namespace(rwfstatus.Namespace).
+		Resource("remediationworkflowstatuses").
+		Name(rwfstatus.Name).
+		SubResource("status").
+		Body(rwfstatus).
+		Do(context.TODO()).
+		Into(&result)
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to update status: %w", err)
+	}
+
+	return &result, err
+}
+
+func (c *RemediationWorkflowStatusClient) Get(name, namespace string) (*v1alpha1.RemediationWorkflowStatus, error) {
+	result := v1alpha1.RemediationWorkflowStatus{}
+	err := c.restClient.
+		Get().
+		Namespace(namespace).
+		Resource("remediationworkflowstatuses").
+		Name(name).
+		Do(context.TODO()).
+		Into(&result)
+
+	return &result, err
+}
+
+func (c *RemediationWorkflowStatusClient) Delete(name string, namespace string) (*v1alpha1.RemediationWorkflowStatus, error) {
+	result := v1alpha1.RemediationWorkflowStatus{}
+	err := c.restClient.
+		Delete().
+		Namespace(namespace).
+		Resource("remediationworkflowstatuses").
+		Body(&v1alpha1.RemediationWorkflowStatus{
 			ObjectMeta: metav1.ObjectMeta{
 				Name: name,
 			},

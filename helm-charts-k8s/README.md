@@ -13,6 +13,7 @@ AMD GPU Operator simplifies the deployment and management of AMD Instinct GPU ac
 * AMD GPU Operator Controller
 * K8s Device Plugin
 * K8s Node Labeller
+* Device Config Manager
 * Device Metrics Exporter
 * Device Test Runner
 * Node Feature Discovery Operator
@@ -24,6 +25,7 @@ AMD GPU Operator simplifies the deployment and management of AMD Instinct GPU ac
 * Comprehensive metrics collection and export
 * Easy deployment of AMD GPU device plugin for Kubernetes
 * Automated labeling of nodes with AMD GPU capabilities
+* GPU partitioning configuration and management via Device Config Manager
 * Compatibility with standard Kubernetes environments
 * Efficient GPU resource allocation for containerized workloads
 * GPU health monitoring and troubleshooting  

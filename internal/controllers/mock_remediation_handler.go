@@ -569,20 +569,6 @@ func (mr *MockremediationMgrHelperAPIMockRecorder) isRemediationDisabled(ctx, de
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "isRemediationDisabled", reflect.TypeOf((*MockremediationMgrHelperAPI)(nil).isRemediationDisabled), ctx, devConfig)
 }
 
-// isStatusSynced mocks base method.
-func (m *MockremediationMgrHelperAPI) isStatusSynced(ctx context.Context) bool {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "isStatusSynced", ctx)
-	ret0, _ := ret[0].(bool)
-	return ret0
-}
-
-// isStatusSynced indicates an expected call of isStatusSynced.
-func (mr *MockremediationMgrHelperAPIMockRecorder) isStatusSynced(ctx any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "isStatusSynced", reflect.TypeOf((*MockremediationMgrHelperAPI)(nil).isStatusSynced), ctx)
-}
-
 // isWorkflowSchedulableOnNode mocks base method.
 func (m *MockremediationMgrHelperAPI) isWorkflowSchedulableOnNode(ctx context.Context, devConfig *v1alpha1.DeviceConfig, node *v1.Node, mapping ConditionWorkflowMapping) bool {
 	m.ctrl.T.Helper()
