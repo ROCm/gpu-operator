@@ -17,6 +17,11 @@ data:
           "type": "AMDGPUHardwareAssertionHwa",
           "reason": "AMDGPUIsUp",
           "message": "AMDGPU is up"
+        },
+        {
+          "type": "AMDGPUDeviceInternalError",
+          "reason": "AMDGPUIsUp",
+          "message": "AMDGPU is up"
         }
       ],
       "rules": [
@@ -31,6 +36,20 @@ data:
             "-s=CPER_SEVERITY_FATAL",
             "--afid=30",
             "-t=-1"
+          ],
+          "timeout": "15s"
+        },
+        {
+          "type": "permanent",
+          "condition": "AMDGPUDeviceInternalError",
+          "reason": "AMDGPU Device Internal Error",
+          "path": "/var/lib/amd-metrics-exporter/amdgpuhealth",
+          "args": [
+            "query",
+            "inband-ras-errors",
+            "-s=CPER_SEVERITY_FATAL",
+            "--afid=25",
+            "-t=0"
           ],
           "timeout": "15s"
         }

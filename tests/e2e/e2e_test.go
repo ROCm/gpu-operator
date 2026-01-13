@@ -108,6 +108,12 @@ func (s *E2ESuite) SetUpSuite(c *C) {
 	}
 	s.dClient = dcCli
 
+	wfstatusClient, err := client.NewWfStatusClient(config)
+	if err != nil {
+		c.Fatalf("Error: %v", err.Error())
+	}
+	s.wfStatusClient = wfstatusClient
+
 	err = apiextv1.AddToScheme(scheme.Scheme)
 	if err != nil {
 		c.Fatalf("Error: %v", err.Error())

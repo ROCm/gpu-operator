@@ -49,7 +49,7 @@ data:
             "inband-ras-errors",
             "-s=CPER_SEVERITY_FATAL",
             "--afid=25",
-            "-t=0"
+            "-t=-1"
           ],
           "timeout": "15s"
         }

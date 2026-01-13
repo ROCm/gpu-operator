@@ -165,14 +165,11 @@ func (n *remediationMgr) HandleRemediation(ctx context.Context, devConfig *amdv1
 		return res, err
 	}
 
-	// If statusSynced is false, we need to populate the internal map from the status CR
-	if !n.helper.isStatusSynced(ctx) {
-		if err := n.helper.syncInternalMapFromStatusCR(ctx, devConfig.Namespace); err != nil {
-			logger.Error(err, "Failed to sync internal map from status CR")
-			return res, err
-		}
-		logger.Info("Internal map synced from status CR successfully")
+	if err := n.helper.syncInternalMapFromStatusCR(ctx, devConfig.Namespace); err != nil {
+		logger.Error(err, "Failed to sync internal map from status CR")
+		return res, err
 	}
+	logger.Info("Internal map synced from status CR successfully")
 
 	var mappingsList []ConditionWorkflowMapping
 	if err = yaml.Unmarshal([]byte(configMap.Data["workflow"]), &mappingsList); err != nil {
@@ -304,7 +301,6 @@ type remediationMgrHelperAPI interface {
 	isRecoveryPolicyViolated(ctx context.Context, nodeName string, mapping *ConditionWorkflowMapping) bool
 	canResumeWorkflowOnNode(ctx context.Context, node *v1.Node, mapping *ConditionWorkflowMapping) bool
 	syncInternalMapFromStatusCR(ctx context.Context, namespace string) error
-	isStatusSynced(ctx context.Context) bool
 	isNodeLabelledForForceResume(ctx context.Context, node *v1.Node) bool
 	removeForceResumeWorkflowLabelFromNode(ctx context.Context, node *v1.Node) error
 	isNodeLabelledForAbortWorkflow(node *v1.Node) bool
@@ -321,7 +317,6 @@ type remediationMgrHelper struct {
 	client               client.Client
 	k8sInterface         kubernetes.Interface
 	recoveryTracker      *sync.Map
-	statusSynced         bool
 	serviceAccountName   string
 	maxParallelWorkflows int
 }
@@ -332,7 +327,6 @@ func newRemediationMgrHelperHandler(client client.Client, k8sInterface kubernete
 		client:          client,
 		k8sInterface:    k8sInterface,
 		recoveryTracker: new(sync.Map),
-		statusSynced:    false,
 	}
 }
 
@@ -1057,6 +1051,12 @@ func (h *remediationMgrHelper) isWorkflowSchedulableOnNode(ctx context.Context, 
 		logger.Info(fmt.Sprintf("Driver Install/Upgrade is in progress, skipping creation of workflow on node %s", node.Name))
 		return false
 	}
+
+	// if same node condition remediation workflow has crossed max threshold, skip the node
+	if h.isRecoveryPolicyViolated(ctx, node.Name, &mapping) {
+		logger.Info(fmt.Sprintf("Max remediation attempts reached for node %s on condition %s, skipping creation of workflow", node.Name, mapping.NodeCondition))
+		return false
+	}
 	return true
 }
 
@@ -1372,10 +1372,7 @@ func (h *remediationMgrHelper) syncInternalMapFromStatusCR(ctx context.Context, 
 		return fmt.Errorf("failed to get remediation workflow status: %w", err)
 	}
 
-	if wfStatus.Status == nil {
-		h.statusSynced = true
-		return nil // Nothing to sync
-	}
+	h.recoveryTracker = new(sync.Map)
 
 	for nodeName, conditions := range wfStatus.Status {
 		for nodeCondition, attempts := range conditions {
@@ -1393,12 +1390,7 @@ func (h *remediationMgrHelper) syncInternalMapFromStatusCR(ctx context.Context, 
 		}
 	}
 
-	h.statusSynced = true
 	return nil
-}
-
-func (h *remediationMgrHelper) isStatusSynced(ctx context.Context) bool {
-	return h.statusSynced
 }
 
 func (h *remediationMgrHelper) isRecoveryPolicyViolated(ctx context.Context, nodeName string, mapping *ConditionWorkflowMapping) bool {

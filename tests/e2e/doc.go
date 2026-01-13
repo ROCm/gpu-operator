@@ -42,4 +42,5 @@ type E2ESuite struct {
 	monClient            monitoringClient.Interface
 	apiClientSet         *apiextClient.Clientset
 	framework            string
+	wfStatusClient       *client.RemediationWorkflowStatusClient
 }
