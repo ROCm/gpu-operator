@@ -40,6 +40,8 @@ The AMD GPU Operator v1.4.1 release extends platform support to OpenShift v4.20 
 - **Device Config Manager**
   - Memory partition operations may occasionally fail due to leaked device handlers that prevent the amdgpu driver from being unloaded when applying a new memory partition profile. This issue has been observed on Debian 12 with MI325X GPU when using the v1.4.1 Device Config Manager.
   - **Workaround:** Reboot the affected worker nodes and retry the partitioning operation.
+- **Device Plugin**
+  - A regression was introduced in ROCm 7.0.1 corresponded amdgpu-dkms driver that may cause incorrect reporting of the total number of CPX partitioned GPUs. Users running Device Plugin images with versions earlier than 1.31.0.9 may be affected by this issue. To resolve this, please either re-pull the latest Device Plugin image or upgrade to Device Plugin version 1.31.0.9 or later.
 
 ## GPU Operator v1.4.0 Release Notes
 
