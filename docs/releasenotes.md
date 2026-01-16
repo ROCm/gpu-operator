@@ -32,6 +32,10 @@ The AMD GPU Operator v1.4.1 release extends platform support to OpenShift v4.20 
      * Fixed the PCI device ID for the Virtual Function (VF) of MI308X and MI300X-HF GPUs
   2. **Helm Chart default DeviceConfig Fix**
      * Fixed an issue where the Helm chart could not render the metrics exporter's pod resource API socket path in the default DeviceConfig when specified via `values.yaml` or the `--set` option.
+  3. **Device plugin partition count reporting issue**
+     * A regression introduced in ROCm 7.0.1 causes the device plugin to incorrectly report the number of GPU partitions. This issue has been resolved in the latest device plugin release.If you encounter this issue in your deployment, choose one of the following solutions:
+     * Update to the latest image - Pull the latest device plugin image from Docker Hub. Restart the device plugin DaemonSet to apply the changes
+     * Use a specific version - Update your deployment to use the device plugin image tag 1.31.0.9 instead of latest. Restart the device plugin DaemonSet
 
 ### Known Limitations
 
