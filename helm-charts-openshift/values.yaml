@@ -75,8 +75,11 @@ metricsExporter:
 deviceConfig:
   spec:
     metricsExporter:
-      image: rocm/device-metrics-exporter:latest
+      image: docker.io/rocm/device-metrics-exporter:latest
     configManager:
-      image: rocm/device-config-manager:latest
+      image: docker.io/rocm/device-config-manager:latest
     testRunner:
-      image: rocm/test-runner:latest
+      image: docker.io/rocm/test-runner:latest
+    commonConfig:
+      utilsContainer:
+        image: docker.io/rocm/gpu-operator-utils:latest
