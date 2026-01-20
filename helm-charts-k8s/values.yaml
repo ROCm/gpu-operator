@@ -88,7 +88,7 @@ deviceConfig:
       initContainerImage: busybox:1.36
       utilsContainer:
         # -- gpu operator utility container image
-        image: docker.io/rocm/gpu-operator-utils:v1.4.0
+        image: docker.io/rocm/gpu-operator-utils:latest
         # -- utility container image pull policy
         imagePullPolicy: IfNotPresent
         # -- utility container image pull secret, e.g. {"name": "mySecretName"}
@@ -129,7 +129,7 @@ deviceConfig:
       # -- external port for pulling metrics from outside the cluster for NodePort service, in the range 30000-32767 (assigned automatically by default)
       nodePort: 32500
       # -- metrics exporter image
-      image: rocm/device-metrics-exporter:latest
+      image: docker.io/rocm/device-metrics-exporter:latest
       # -- metrics exporter image pull policy
       imagePullPolicy: "IfNotPresent"
       # -- name of the metrics exporter config map, e.g. {"name": "metricConfigMapName"}
@@ -187,7 +187,7 @@ deviceConfig:
       # -- enable / disable test runner
       enable: false
       # -- test runner image
-      image: rocm/test-runner:latest
+      image: docker.io/rocm/test-runner:latest
       # -- test runner image pull policy
       imagePullPolicy: "IfNotPresent"
       # -- test runner config map, e.g. {"name": "myConfigMap"}
@@ -214,7 +214,7 @@ deviceConfig:
       # -- enable/disable the config manager 
       enable: false
       # -- config manager image
-      image: rocm/device-config-manager:latest
+      image: docker.io/rocm/device-config-manager:latest
       # -- image pull policy for config manager image
       imagePullPolicy: IfNotPresent
       # -- image pull secret for config manager image, e.g. {"name": "myPullSecret"}
