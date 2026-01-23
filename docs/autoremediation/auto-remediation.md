@@ -1,204 +1,227 @@
-# Auto Remediation of GPU nodes using Argo Workflows
+# Auto Remediation of GPU nodes
 
-The GPU Operator supports remediation of GPU worker nodes that have moved into an unhealthy state due to GPU problems by triggering a workflow (set of steps) which attempts to remediate the issue. To achieve this, the GPU Operator makes use of Argo Workflows and its workflow templates. Argo Workflows is a popular open-source workflow engine for Kubernetes. It is lightweight and scalable. The GPU Operator, as part of its helm installation, installs the following:
+The GPU Operator provides automatic remediation for GPU worker nodes that become unhealthy due to GPU-related issues. When such problems are detected, the operator triggers a workflow—a series of automated steps designed to restore the node to a healthy state. This functionality is powered by Argo Workflows, a lightweight and scalable open-source workflow engine for Kubernetes. Through the DeviceConfig Custom Resource, the GPU Operator offers extensive customization options for configuring remediation behavior.
 
-1) Argo workflow controller as a k8s deployment
-2) Argo CRDs for defining workflow templates and workflos
+## Auto-Remediation Workflow Overview
 
-GPU Operator installs Argo v3.6.5
+The following diagram illustrates the end-to-end flow of automatic remediation:
 
-The source yaml to install it is present here: https://github.com/argoproj/argo-workflows/releases/download/v3.6.5/install.yaml
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                           GPU Worker Node                                    │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                               │
+│  ┌────────────────────────┐                                                  │
+│  │ Device Metrics         │                                                  │
+│  │ Exporter               │  Reports inband-RAS errors                       │
+│  └───────────┬────────────┘                                                  │
+│              │                                                                │
+│              ▼                                                                │
+│  ┌────────────────────────┐                                                  │
+│  │ Node Problem           │  Queries for inband-RAS errors                   │
+│  │ Detector (NPD)         │  and marks node condition as True                │
+│  └───────────┬────────────┘                                                  │
+│              │                                                                │
+└──────────────┼────────────────────────────────────────────────────────────────┘
+               │
+               │ Node condition status update
+               ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                         Controller Node                                      │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                               │
+│  ┌────────────────────────┐                                                  │
+│  │ GPU Operator           │  Observes node error conditions                  │
+│  │                        │                                                  │
+│  └───────────┬────────────┘                                                  │
+│              │                                                                │
+│              ▼                                                                │
+│  ┌────────────────────────┐                                                  │
+│  │ Argo Workflow          │  Triggers remediation workflow                   │
+│  │ Controller             │  for the affected node                           │
+│  └────────────────────────┘                                                  │
+│              │                                                                │
+└──────────────┼────────────────────────────────────────────────────────────────┘
+               │
+               │ Executes remediation steps
+               ▼
+        Affected GPU Worker Node
+```
 
-It has been modified to fit the requirements of this feature. For example, the workflow server is not necessary, so it doesn't get deployed as part of the 
-GPU Operator-packaged argo installation
+The Node Problem Detector (NPD) maintains a unique node condition for each error type, enabling users to configure different remediation actions tailored to specific error conditions.
 
-## About Workflows and Workflow Templates
+> **Note:** The GPU Operator prevents multiple concurrent workflows on the same node. When a node is tainted and a workflow is already executing, no additional workflows will be triggered on that node until the current workflow completes.
 
-The workflow controller is responsible for running a workflow and managing its lifecycle. 
+## Pre-requisites
 
-Argo workflows by default uses Kubernetes API Server(etcd) as its database. Once a workflow is triggered, the controller maintains the running state of the workflow and persists in the database. In case workflow controller restarts in between, we still have the state.  
+Automatic node remediation requires the following components to be enabled and running on the cluster:
 
-A typical workflow refers a workflow template. A workflow template can either be used to define a specific work, or it can be used to orchestrate a workflow. Each task within a workflow is run inside a container.
+1. **Device Metrics Exporter** - Reports unhealthy metrics and inband-RAS errors that are used to detect faulty GPUs.
+2. **Node Problem Detector (NPD)** - An open-source Kubernetes component that runs on all nodes to identify node issues and report them to upstream controllers in the Kubernetes management stack. For more information about NPD configuration, see the [NPD documentation](../npd/node-problem-detector.md).
 
-Creating a `workflow-template` on the cluster will store the template with its steps in k8s apiserver (etcd) but not trigger any action. 
-Creating a `workflow` which invokes a `workflow-template` will store the workflow in k8s apiserver(etcd) and also trigger the actual steps in the template. 
-GPU Operator creates the `workflow` which invokes the `workflow-template` to trigger remediation 
+## Installation
 
-## Configuration to be handled by the User
+The GPU Operator Helm installation includes the following Argo Workflows components:
 
--> Toggling `RemediationWorkflow.Enable` to True. 
+1. Argo workflow controller (deployed as a Kubernetes deployment)
+2. Argo CRDs for defining workflow templates and workflows
 
--> NPD daemonset is relied upon to verify that the issue is fixed during the workflow run. Hence, user needs to add this toleration to NPD daemonset so that it can continue to be scheduled during the workflow run:
+The GPU Operator installs Argo Workflows v3.6.5, using a [customized installation YAML](https://github.com/argoproj/argo-workflows/releases/download/v3.6.5/install.yaml) tailored for auto-remediation requirements. This customization excludes components not needed for remediation, such as the Argo workflow server. For more information about Argo Workflows concepts, refer to the [official documentation](https://argo-workflows.readthedocs.io/en/release-3.6/workflow-concepts/).
+
+> **Note:** By default, auto-remediation components (workflow controller and CRDs) are installed during Helm deployment. To disable the installation of these components, use the following Helm flag:
+> 
+> ```bash
+> --set remediation.enabled=false
+> ```
+
+## Configuration and customization
+
+### Device Config configuration
+
+The DeviceConfig Custom Resource includes a `RemediationWorkflowSpec` section for configuring and customizing the auto-remediation feature:
+
+```yaml
+type RemediationWorkflowSpec struct {
+	Enable *bool
+
+	ConditionalWorkflows *v1.LocalObjectReference
+
+	TtlForFailedWorkflows int
+
+	TesterImage string
+
+	MaxParallelWorkflows int
+}
+```
+
+**Enable** - Controls whether automatic node remediation is enabled. Set this field to `true` to activate the auto-remediation feature in the cluster.
+
+**ConditionalWorkflows** - References a ConfigMap that contains mappings between node conditions and their corresponding remediation workflows. The GPU Operator automatically creates a `default-conditional-workflow-mappings` ConfigMap with predefined mappings. Users can either modify this default ConfigMap or create their own custom ConfigMap. If left empty, the default ConfigMap will be used automatically. More about the ConfigMap in [below section](auto-remediation.md#remediation-workflow-configmap).
+
+> **Note:** The `default-conditional-workflow-mappings` ConfigMap is created automatically by the GPU Operator.
+
+**TtlForFailedWorkflows** - Specifies the time-to-live (in hours) for failed workflow objects and their associated pods. Failed workflows are retained temporarily to allow inspection and troubleshooting. After the configured time period elapses, the failed workflow resources are automatically cleaned up. Default value is 24 hours.
+
+**TesterImage** - Specifies the container image for executing GPU validation tests during remediation workflows. This image must align with `Spec.TestRunner.Image` specifications and runs test suites to verify GPU health after remediation completion. If unspecified, the default image is `docker.io/rocm/test-runner:v1.4.1`.
+
+> **Note:** The default image supports only RVS test execution. For AGFHC test framework support within workflows, contact your AMD representative to obtain access to the AGFHC-enabled test runner image.
+
+**MaxParallelWorkflows** - Limits the maximum number of remediation workflows that can execute concurrently across the cluster. This setting helps maintain minimum node availability by preventing excessive simultaneous remediation operations. A value of zero (default) means no limit is enforced.
+
+When the number of triggered workflows exceeds this limit, additional workflows are queued by the Argo workflow controller in a **Pending** state. Queued workflows remain pending until an active workflow completes, freeing a slot within the configured parallelism limit.
+
+**Spec.CommonConfig.UtilsContainer** - Remediation workflow uses a utility image for executing the steps. Specify the utility image in `Spec.CommonConfig.UtilsContainer` section of Device Config. If the UtilsContainer section is not specified, default image used is `docker.io/rocm/gpu-operator-utils:latest`
+
+### Other Configuration options:
+
+**NPD Configuration** - NPD configuration is explained in more detail [here](../npd/node-problem-detector.md). The Node Problem Detector (NPD) DaemonSet must continue running during workflow execution to verify issue resolution. Add the following toleration to the NPD DaemonSet:
 
   `amd-gpu-unhealthy:NoSchedule op=Exists`
 
-GPU Operator will handle adding this toleration for in-house components like KMM, metrics-exporter which should stay running during the workflow run
+The GPU Operator automatically applies this toleration to internal components such as KMM and metrics-exporter, ensuring they continue running during workflow execution.
 
--> Remediation workflow uses a utility image for executing the steps. Specify the utility image in `Spec.CommonConfig.UtilsContainer` section of Device Config. If the UtilsContainer section is not specified, default image used is `docker.io/rocm/gpu-operator-utils:latest`
+**Failed Workflow Handling** - If a remediation workflow fails, the affected node remains in a tainted state. To manually restore the node to a schedulable state for workloads, remove the taint using the following command:
 
--> Specify the test runner image in field `RemediationWorkflow.TesterImage`. The image can be one of the images supported by `Spec.TestRunner.Image`. This image is used to test the GPUs after the remediation process is performed. If the field is not specified, default image used is `rocm/test-runner:agfhc-latest`.
+  ```bash
+  kubectl taint node <node-name> amd-gpu-unhealthy:NoSchedule-
+  ```
 
--> If a workflow runs and fails, the node will remain in tainted state. If the user wants to go ahead and make the node schedulable again for workloads, the node should be untainted with:
-  `kubectl taint node <node-name> amd-gpu-unhealthy:NoSchedule-`
+## Remediation Workflow ConfigMap
 
-## How Workflows are triggered
+The AMD GPU Operator automatically generates a default ConfigMap (`default-conditional-workflow-mappings`) derived from the latest AMD Service Action Guide. This ConfigMap establishes mappings between unique error codes (AFID) and their associated remediation workflows. Each mapping entry defines the error type, the workflow template to invoke for remediation, and workflow-specific parameters. The default ConfigMap is available in the [GPU Operator repository](https://github.com/ROCm/gpu-operator/blob/main/internal/controllers/remediation/configs/default-configmap.yaml) and includes all node conditions managed by the Operator by default.
 
-Node problem detector (NPD) can set the node conditions by listening to GPU health reported by device metrics exporter periodically. 
-GPU-Operator keeps monitoring the node conditions periodically and creates appropriate workflow based on the node condition status moving to `True`. For example, the below node condition would mean node is in a bad state: 
+### Example Error Mapping Section
 
-```yaml
-  - lastHeartbeatTime: "2025-08-04T08:56:04Z"
-    lastTransitionTime: "2025-08-04T08:56:04Z"
-    reason: "Temperature Threshold Exceeded"
-    status: "True"
-    type: AMDGPUUnhealthy
-```
-
-When the status of the node condition is `False`, it means that node condition is currently fine and in good state. 
-These are the new fields introduced under the RemediationWorkflow field in the DeviceConfig CR:
+The following example demonstrates a complete error mapping configuration:
 
 ```yaml
-    type RemediationWorkflowSpec struct {
-        // enable remediation workflows. disabled by default
-        // enable if operator should automatically handle remediation of node incase of gpu issues
-        //+operator-sdk:csv:customresourcedefinitions:type=spec,displayName="Enable",xDescriptors={"urn:alm:descriptor:com.amd.deviceconfigs:enable"}
-        Enable *bool `json:"enable,omitempty"`
-
-        // Name of the ConfigMap that holds condition-to-workflow mappings.
-        //+operator-sdk:csv:customresourcedefinitions:type=spec,displayName="ConditionalWorkflows",xDescriptors={"urn:alm:descriptor:com.amd.deviceconfigs:conditionalWorkflows"}
-        ConditionalWorkflows *v1.LocalObjectReference `json:"conditionalWorkflows,omitempty"`
-
-        // Time to live for argo workflow object and its pods for a failed workflow in hours. By default, it is set to 24 hours
-        //+operator-sdk:csv:customresourcedefinitions:type=spec,displayName="TtlForFailedWorkflows",xDescriptors={"urn:alm:descriptor:com.amd.deviceconfigs:ttlForFailedWorkflows"}
-        // +kubebuilder:default:=24
-        TtlForFailedWorkflows int `json:"ttlForFailedWorkflows,omitempty"`
-    }
-``` 
-The mappings are present in the configmap referenced by the ConditionalWorkflows field. 
-GPU-Operator will create the `default-conditional-workflow-mappings` configmap on the cluster with some default mappings. The user can modify them if required and can add more mappings as well. If the user wants to use this default configmap, then they may leave the `RemediationWorkflow.ConditionalWorkflows` field empty in the CR. The user can also come up with their own configmap and mention the name of the configmap under `RemediationWorkflow.ConditionalWorkflows` if they do not want to use the default `default-conditional-workflow-mappings` configmap.
-
-Note: `default-conditional-workflow-mappings` will be created on the cluster by GPU-Operator 
-
-```yaml
-apiVersion: v1
-kind: ConfigMap
-data:
-  workflow: |-
-    - nodeCondition: "AMDGPUUnhealthy"
-      workflowTemplate: "default-template"
-      notifyMessage: "notification message for admin(if any) to take manual remediation action"
-      validationTestsProfile:
-        framework: "AGFHC"
-        recipe: "all_lvl4"
-        iterations: 1
-        stopOnFailure: true
-        timeoutSeconds: 4800
-```
-
-`NodeCondition` field refers to the node condition that the user wants the Operator to watch for and to trigger remediation workflow.
-
-`WorkflowTemplate` will use the default-template in most cases which is discussed below. If user wants to use his own workflow template for a certain node condition, he can create the template in the cluster and mention the name of the template in this field but the recommended way is to let Operator handle it through the default-template.
-
-`notifyMessage` contains remediation instructions for the admin in case the node problem requires manual action. Workflow will trigger a Kubernetes event with the content of **notifyMessage** to alert the admin.
-
-`validationTestsProfile` field refers to the AGFHC/RVS test-profile to be run by the workflow to verify that the problem is fixed. The test-profile will be passed onto testrunner for it to be run.
-
-```yaml
+- nodeCondition: AMDGPUXgmi
+  workflowTemplate: default-template
   validationTestsProfile:
-    framework: "AGFHC"
-    recipe: "all_lvl4"
+    framework: AGFHC
+    recipe: all_lvl4
     iterations: 1
     stopOnFailure: true
-    timeoutSeconds: 4800`
- ```
-
-If a user would like to run a testsuite as part of the workflow, these fields under `validationTestsProfile` are mandatory and they correspond to the fields of the same in the [Test Runner Documentation](../test/manual-test.md)
-
-`physicalActionNeeded` field refers to the physical action the user has to take for certain conditions that will not be fixed by a reboot. The action will be mentioned for each of those conditions in the `default-conditional-workflow-mappings`. For conditions where reboot fixes the issue, this field will be left empty. 
-
-This integration works on the basis that NPD applies different node conditions for different critical errors. 
-
-Note: Operator ensures that when a node is tainted and a workflow is already running, we don’t trigger any new workflows on the node.
-
-## Enable auto remediation
-
-To enable this feature, the user needs to toggle `RemediationWorkflow.Enable` to true in the Device Config CR. It is disabled by default.
-The most common CR users will be using will be of this form which will use the `default-conditional-workflow-mappings` for ConditionalWorkflows field unless the user wants to create their own configmap.
-
-```yaml
-  remediationWorkflow:
-    enable: true
+    timeoutSeconds: 4800
+  physicalActionNeeded: true
+  notifyRemediationMessage: Remove GPU tray from node.Confirm that all four screws on all eight OAMs are torqued as described in OAM Removal and Installation guideRe-install the GPU tray into node.
+  notifyTestFailureMessage: 'Remove the failing UBB assembly and return to AMD, along with the relevant failure details: at a minimum this should be the RF event that indicated the original fail, and if that RF event includes an additional data URI, the CPER and/or the decoded JSON from the CPER as pointed by the additional data.Install a new or known-good UBB assembly to the GPU tray.'
+  recoveryPolicy:
+    maxAllowedRunsPerWindow: 3
+    windowSize: 15m
 ```
 
-You can limit the number of nodes undergoing remediation simultaneously by setting the `maxParallelWorkflows` field in the Device Config custom resource. For example, to ensure no more than 5 nodes undergo remediation at the same time, configure the value as 5(as shown below). The default value is zero, which means there is no upper limit on the number of parallel workflows that can run simultaneously.
+### ConfigMap Field Descriptions
 
-```yaml
-  remediationWorkflow:
-    enable: true
-    maxParallelWorkflows: 5
-```
+**nodeCondition** - Specifies a unique description for an error code (AFID). This value must match the corresponding node condition defined in the Node Problem Detector (NPD) configuration.
 
-When more workflows are triggered beyond the above workflow parallelism limit, the excess workflows are queued by the Argo workflow controller and enter a **Pending** state. They will remain in the queue until a running workflow finishes and a "slot" within the configured parallelism limit becomes available.
+**workflowTemplate** - Defines the Argo Workflows template to execute for this specific error condition. The `default-template` is used by default and provides comprehensive remediation steps (detailed below). While users can create and reference custom Argo workflow templates in the cluster, it is recommended to use the operator-managed `default-template` for consistency and maintainability.
+
+**validationTestsProfile** - Specifies the test framework and test suite to execute for validating GPU health after remediation. Supported frameworks include AGFHC and RVS. All fields under `validationTestsProfile` are mandatory and correspond to the parameters documented in the [Test Runner Documentation](../test/manual-test.md).
+
+**physicalActionNeeded** - Indicates whether manual physical intervention is required on the node (e.g., RMA of faulty GPU, hardware inspection, etc.). Specific actions are detailed in the `notifyRemediationMessage` field for each error condition. For issues resolved by a reboot, this field is set to `false`.
+
+**notifyRemediationMessage** - Provides detailed instructions for physical or manual actions when `physicalActionNeeded` is `true`. This message guides administrators through the required remediation steps to resolve the fault.
+
+**notifyTestFailureMessage** - Contains instructions to be displayed when validation tests fail after remediation attempts. This message typically includes escalation procedures and diagnostic information requirements.
+
+**recoveryPolicy** - Defines limits on remediation attempts to prevent excessive recovery cycles. Includes `maxAllowedRunsPerWindow` (maximum retry attempts) and `windowSize` (time window for counting attempts). When exceeded, the workflow pauses for manual intervention.
 
 ## Default Workflow Template
 
-Note: `default-template` will be created on the cluster by GPU-Operator 
+> **Note:** The `default-template` is automatically created on the cluster by the GPU Operator.
 
+The `default-template` workflow performs the following remediation steps: 
 
-`default-template` will perform the following steps: 
+1. **Taint Node** - Apply taint with `key = "AMD_GPU_Unhealthy", op = equal, value = node_condition, effect = noSchedule` to prevent new workload scheduling.
 
-1. Taint the node with `key = "AMD_GPU_Unhealthy”, op = equal, value = node_condition, effect = noSchedule `
+2. **Drain Workloads** - Evict all pods utilizing AMD GPUs from the affected node.
 
-2. Drain workloads/pods that are using AMD GPUs 
+3. **Notify Administrator** - Send notification if manual intervention is required for the detected issue.
 
-3. Notify admin/user if manual intervention is required
+4. **Suspend Workflow** - Pause workflow execution pending manual intervention or automatic resumption based on configured policies.
 
-4. Suspend workflow
+5. **Reboot Node** - Perform node reboot to clear transient errors and reinitialize GPU hardware.
 
-5. Reboot the node 
+6. **Validate GPUs** - Execute AGFHC/RVS validation tests to confirm GPU health after reboot.
 
-6. Run AGFHC/RVS tests to verify the GPUs are healthy post reboot. 
+7. **Verify Condition** - Confirm that the triggering node condition has been resolved (status changed to False).
 
-7. Verify that the node condition has become False 
+8. **Remove Taint** - Remove the node taint to restore GPU availability for workload scheduling.
 
-8. Un-taint the node and this will make the GPUs available for scheduling again. 
+Each workflow step is executed as a separate Kubernetes pod. For advanced use cases, users can create custom workflow templates using the Argo CRDs available on the cluster and reference them in the ConfigMap.
 
-For each step in the workflow template, a pod is spun up that performs the task.
-For the case when user wants to create his own template, the argo CRDs are present on the cluster and the user can create any workflow template and refer it in the config-map.
+While most workflow steps are self-explanatory, Steps 3, 4, and 6 require additional clarification.
 
-Most steps in the default-template are self-explanatory. However, there are some details to be known about Step 2, 3 and 6 
+### Workflow Step 3: Physical Intervention Check 
 
-## Workflow Step 2: Check if physical intervention is required 
+According to the AMD service action guide, certain GPU issues require physical intervention (e.g., checking wiring, securing screws, retorquing connections). When such conditions are detected, the workflow generates a Kubernetes event to notify the administrator of the required physical action before suspending at this step. The specific physical action for each node condition is defined in the `physicalActionNeeded` field within the corresponding ConfigMap mapping.
 
-As per AMD service action guide, many problems require user to intervene physically (checking wiring, screws, retorquing, etc.). The workflow, as per this, will raise a k8s event to suggest the physical action required to the user in such cases before suspending the workflow in step3. If a physical action is needed for a certain node condition, it will be present in the `physicalActionNeeded` field in the configmap mapping corresponding to that node condition. 
+This step enables administrators to identify nodes awaiting physical intervention. After completing the necessary physical repairs, administrators can resume the workflow for validation using the label described in Workflow Step 4.
 
-The benefit of having this step is that admin can see which node is waiting for physical intervention. Once he fixes it physically, he can simply resume the workflow for validation using the label mentioned in Workflow Step3. 
+### Workflow Step 4: Workflow Suspension and Resumption
 
-## Workflow Step 3: Suspend/Resume the Workflow
+The GPU Operator determines whether to automatically resume the workflow after it pauses in Step 4. This pause accommodates scenarios requiring manual intervention. The workflow may remain suspended in two primary cases:
 
-The GPU-Operator determines whether to resume the workflow after it has been paused in Step 2. This pause provides an opportunity for users to perform necessary manual actions. There are two primary scenarios where user intervention may be required:
-
-1. **Excessive Node Remediation:**  
-	Users can define a `RecoveryPolicy` in the `ConditionalWorkflowMappings` ConfigMap, specifying the maximum number of recovery attempts allowed within a given time window. If a node exceeds this limit, the workflow remains paused.
+1. **Excessive Remediation Attempts:**  
+	When a `RecoveryPolicy` is configured in the `ConditionalWorkflowMappings` ConfigMap, it defines the maximum remediation attempts allowed within a specified time window. Nodes exceeding this threshold will have their workflows paused indefinitely until manual resumption.
 2. **Physical Action Required:**
-	If a physical action is specified for a workflow in the `ConditionalWorkflowMappings` ConfigMap, the node will pause at this step, allowing the user to perform the required action. The user is also notified via an event.
+	When a physical action is specified for a workflow in the `ConditionalWorkflowMappings` ConfigMap, the workflow pauses at this step, allowing administrators to perform the required maintenance. A notification event is generated to alert the user.
 
-If neither of these conditions apply, the workflow will automatically resume from this step.
+If neither condition applies, the workflow automatically resumes without manual intervention.
 
-### Resuming a paused workflow
-Whenever the user is satisfied that the workflow can be resumed, they can add the label `operator.amd.com/gpu-force-resume-workflow=true` to the relevant node. The operator will detect this label and resume the workflow.
+#### Resuming a Paused Workflow
 
-To abort the workflow, label the node with `operator.amd.com/gpu-abort-workflow=true`. The node will remain in a tainted state for manual intervention. If remediation is no longer desired, this label provides the option to delete the workflow while the node is paused.
+To resume a suspended workflow, apply the label `operator.amd.com/gpu-force-resume-workflow=true` to the affected node. The operator detects this label and resumes workflow execution.
 
-## Workflow Step 6: Run AGFHC/RVS tests
- 
--> The user will mention the test-profile to pass to test runner to run in the configmap for each condition under `validationTestsProfile`
+To abort the workflow entirely, apply the label `operator.amd.com/gpu-abort-workflow=true` to the node. This keeps the node in a tainted state for manual remediation. This option is useful when automatic remediation is no longer desired and the workflow should be deleted while paused.
 
--> The workflow step will ensure that a k8s job is created which spins up a test runner container which picks up that test-profile to run as part of this step.  
+### Workflow Step 6: GPU Validation Testing
 
--> The test results will be checked by the workflow step and will ensure that the workflow moves ahead only if the tests pass. If the tests fail, the workflow will fail.
+This step executes comprehensive GPU health validation tests using the test runner:
 
-#### **Notes**
-During helm installation of GPU Operator, by default, installation of remediation components like workflow controller and crds is enabled. If the admin does not require this auto remediation feature and would like to disable the installation of these components, they can simply pass this flag during the helm installation:
+- **Test Profile Configuration:** The test profile for each node condition is specified in the `validationTestsProfile` field within the ConfigMap.
 
-  `--set remediation.enabled=false`
+- **Test Execution:** The workflow creates a Kubernetes Job that launches a test runner container. This container retrieves and executes the specified test profile.
+
+- **Result Verification:** The workflow evaluates test results and only proceeds if all tests pass successfully. If any test fails, the entire workflow terminates with a failure status.
