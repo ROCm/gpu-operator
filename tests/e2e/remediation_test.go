@@ -98,6 +98,7 @@ func (s *E2ESuite) populateDeviceConfig(c *C) *v1alpha1.DeviceConfig {
 	devCfg := s.getDeviceConfig(c)
 	devCfg.Spec.Driver.Enable = &driverEnable
 	devCfg.Spec.RemediationWorkflow.Enable = &remediationEnable
+	devCfg.Spec.RemediationWorkflow.TesterImage = agfhcTestRunnerImage
 	devCfg.Spec.MetricsExporter.Enable = &remediationEnable
 	devCfg.Spec.MetricsExporter.Image = exporterImage
 	devCfg.Spec.MetricsExporter.ImagePullPolicy = "Always"
