@@ -276,7 +276,7 @@ To check the full spec of `DeviceConfig` definition run `kubectl get crds device
 |-----------|-------------|-------------|
 | `enable` | set to true for installing out-of-tree driver, <br>set it to false then operator will skip driver install <br>and directly use inbox / pre-installed driver | `true` |
 | `blacklist` | set to true then operator will init node labeller daemonset <br>to add `amdgpu` into selected worker nodes modprobe blacklist,<br> set to false then operator will remove `amdgpu` <br>from selected nodes' modprobe blacklist | `false` |
-| `version` | ROCm driver version (e.g., "6.2.2")<br>[See ROCm Versions](https://rocm.docs.amd.com/en/latest/release/versions.html) | Ubuntu: `6.1.3`<br>CoresOS: `6.2.2` |
+| `version` | amdgpu driver version (e.g., "6.2.2")<br>[See ROCm Versions](https://rocm.docs.amd.com/en/latest/release/versions.html) | Ubuntu: `6.1.3`<br>CoresOS: `6.2.2` |
 | `image` | Registry URL and repository (without tag) <br>*Note: Operator manages tags automatically* | Vanilla k8s: `image-registry:5000/$MOD_NAMESPACE/amdgpu_kmod`<br>OpenShift: `image-registry.openshift-image-registry.svc:5000/$MOD_NAMESPACE/amdgpu_kmod` |
 | `imageRegistrySecret.name` | Name of registry credentials secret<br> to pull/push driver image | |
 | `imageRegistryTLS.insecure` | If true, check if the container image<br> already exists using plain HTTP | `false` |
