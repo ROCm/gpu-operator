@@ -108,6 +108,22 @@ type RemediationWorkflowSpec struct {
 	//+operator-sdk:csv:customresourcedefinitions:type=spec,displayName="MaxParallelWorkflows",xDescriptors={"urn:alm:descriptor:com.amd.deviceconfigs:maxParallelWorkflows"}
 	// +optional
 	MaxParallelWorkflows int `json:"maxParallelWorkflows"`
+
+	// Node Remediation taints are custom taints that we can apply on the node to specify that the node is undergoing remediation or needs attention by the administrator.
+	// If user does not specify any taints, the operator will apply a taint with key "amd-gpu-unhealthy" and effect "NoSchedule" to the node under remediation.
+	//+operator-sdk:csv:customresourcedefinitions:type=spec,displayName="NodeRemediationTaints",xDescriptors={"urn:alm:descriptor:com.amd.deviceconfigs:nodeRemediationTaints"}
+	// +optional
+	NodeRemediationTaints []v1.Taint `json:"nodeRemediationTaints,omitempty"`
+
+	// Node Remediation labels are custom labels that we can apply on the node to specify that the node is undergoing remediation or needs attention by the administrator.
+	//+operator-sdk:csv:customresourcedefinitions:type=spec,displayName="NodeRemediationLabels",xDescriptors={"urn:alm:descriptor:com.amd.deviceconfigs:nodeRemediationLabels"}
+	// +optional
+	NodeRemediationLabels map[string]string `json:"nodeRemediationLabels,omitempty"`
+
+	// Node drain policy during remediation workflow execution
+	//+operator-sdk:csv:customresourcedefinitions:type=spec,displayName="NodeDrainPolicy",xDescriptors={"urn:alm:descriptor:com.amd.deviceconfigs:nodeDrainPolicy"}
+	// +optional
+	NodeDrainPolicy *DrainSpec `json:"nodeDrainPolicy,omitempty"`
 }
 
 type RegistryTLS struct {
@@ -319,6 +335,14 @@ type DrainSpec struct {
 	// +optional
 	// +kubebuilder:default:=-1
 	GracePeriodSeconds int `json:"gracePeriodSeconds,omitempty"`
+	// IgnoreDaemonSets indicates whether to ignore DaemonSet-managed pods
+	// +optional
+	// +kubebuilder:default:=true
+	IgnoreDaemonSets *bool `json:"ignoreDaemonSets,omitempty"`
+	// IgnoreNamespaces is the list of namespaces to ignore during node drain operation.
+	// This is useful to avoid draining pods from critical namespaces like 'kube-system', etc.
+	// +optional
+	IgnoreNamespaces []string `json:"ignoreNamespaces,omitempty"`
 }
 
 type PodDeletionSpec struct {

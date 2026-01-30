@@ -91,6 +91,12 @@ type RemediationWorkflowSpec struct {
 	TesterImage string
 
 	MaxParallelWorkflows int
+
+  NodeRemediationLabels map[string]string
+
+  NodeRemediationTaints []v1.Taint
+
+  NodeDrainPolicy *DrainSpec
 }
 ```
 
@@ -110,7 +116,27 @@ type RemediationWorkflowSpec struct {
 
 When the number of triggered workflows exceeds this limit, additional workflows are queued by the Argo workflow controller in a **Pending** state. Queued workflows remain pending until an active workflow completes, freeing a slot within the configured parallelism limit.
 
+**NodeRemediationLabels** - Defines custom labels to be applied to nodes during automatic remediation workflows. These labels persist throughout the remediation process and can be used for monitoring, tracking, or applying custom policies.
+
+**NodeRemediationTaints** - Specifies custom taints to be applied to nodes during the remediation process. If no taints are specified, the Operator applies the default taint `amd-gpu-unhealthy:NoSchedule` to prevent workload scheduling on the affected node.
+
+**NodeDrainPolicy** - Configures the pod eviction behavior when draining workloads from nodes during the remediation process. This policy controls how pods are removed, including timeout settings, grace periods, and namespace exclusions. See the [Node Drain Policy Configuration](#node-drain-policy-configuration) section below for detailed field descriptions.
+
 **Spec.CommonConfig.UtilsContainer** - Remediation workflow uses a utility image for executing the steps. Specify the utility image in `Spec.CommonConfig.UtilsContainer` section of Device Config. If the UtilsContainer section is not specified, default image used is `docker.io/rocm/gpu-operator-utils:latest`
+
+#### Node Drain Policy Configuration
+
+The `NodeDrainPolicy` field accepts a `DrainSpec` object with the following configurable parameters:
+
+**Force** - Enables forced draining of pods that do not respond to standard termination signals. When set to `true`, pods that cannot be evicted gracefully will be forcibly removed. Default value is `false`.
+
+**TimeoutSeconds** - Specifies the maximum time in seconds to wait for the drain operation to complete before giving up. A value of zero means infinite timeout, allowing the drain operation to continue indefinitely. Default value is `300` seconds (5 minutes).
+
+**GracePeriodSeconds** - Defines the grace period in seconds that Kubernetes allows for a pod to shut down gracefully after receiving a termination signal. This value overrides the pod's configured `terminationGracePeriodSeconds`. A value of `-1` uses each pod's own grace period setting. Default value is `-1`.
+
+**IgnoreDaemonSets** - When set to `true`, DaemonSet-managed pods are excluded from the drain operation. This is typically desired since DaemonSets are designed to run on all nodes and will automatically reschedule on the same node. Default value is `true`.
+
+**IgnoreNamespaces** - Defines a list of namespaces to exclude from pod eviction during the drain operation. Pods running in these namespaces will remain on the node, allowing critical infrastructure components to continue operating throughout the remediation process. By default, the following namespaces are excluded: `kube-system`, `cert-manager`, and the GPU Operator's namespace.
 
 ### Other Configuration options:
 
@@ -173,33 +199,37 @@ The following example demonstrates a complete error mapping configuration:
 
 The `default-template` workflow performs the following remediation steps: 
 
-1. **Taint Node** - Apply taint with `key = "AMD_GPU_Unhealthy", op = equal, value = node_condition, effect = noSchedule` to prevent new workload scheduling.
+1. **Label Node** - Applies custom labels to the node as specified in the `NodeRemediationLabels` field of the DeviceConfig Custom Resource. If no labels are configured, this step is skipped and the workflow proceeds to the next step.
 
-2. **Drain Workloads** - Evict all pods utilizing AMD GPUs from the affected node.
+2. **Taint Node** - Apply taint with `key = "AMD_GPU_Unhealthy", op = equal, value = node_condition, effect = noSchedule` to prevent new workload scheduling.
 
-3. **Notify Administrator** - Send notification if manual intervention is required for the detected issue.
+3. **Drain Workloads** - Evict all pods utilizing AMD GPUs from the affected node.
 
-4. **Suspend Workflow** - Pause workflow execution pending manual intervention or automatic resumption based on configured policies.
+4. **Notify Administrator** - Send notification if manual intervention is required for the detected issue.
 
-5. **Reboot Node** - Perform node reboot to clear transient errors and reinitialize GPU hardware.
+5. **Suspend Workflow** - Pause workflow execution pending manual intervention or automatic resumption based on configured policies.
 
-6. **Validate GPUs** - Execute AGFHC/RVS validation tests to confirm GPU health after reboot.
+6. **Reboot Node** - Perform node reboot to clear transient errors and reinitialize GPU hardware.
 
-7. **Verify Condition** - Confirm that the triggering node condition has been resolved (status changed to False).
+7. **Validate GPUs** - Execute AGFHC/RVS validation tests to confirm GPU health after reboot.
 
-8. **Remove Taint** - Remove the node taint to restore GPU availability for workload scheduling.
+8. **Verify Condition** - Confirm that the triggering node condition has been resolved (status changed to False).
+
+9. **Remove Taint** - Remove the node taint to restore GPU availability for workload scheduling.
+
+10. **Remove Labels** - Removes all custom labels that were applied to the node in Step 1, restoring the node to its original label state.
 
 Each workflow step is executed as a separate Kubernetes pod. For advanced use cases, users can create custom workflow templates using the Argo CRDs available on the cluster and reference them in the ConfigMap.
 
-While most workflow steps are self-explanatory, Steps 3, 4, and 6 require additional clarification.
+While most workflow steps are self-explanatory, Steps 4, 5, and 7 require additional clarification.
 
-### Workflow Step 3: Physical Intervention Check 
+### Workflow Step 4: Physical Intervention Check 
 
 According to the AMD service action guide, certain GPU issues require physical intervention (e.g., checking wiring, securing screws, retorquing connections). When such conditions are detected, the workflow generates a Kubernetes event to notify the administrator of the required physical action before suspending at this step. The specific physical action for each node condition is defined in the `physicalActionNeeded` field within the corresponding ConfigMap mapping.
 
 This step enables administrators to identify nodes awaiting physical intervention. After completing the necessary physical repairs, administrators can resume the workflow for validation using the label described in Workflow Step 4.
 
-### Workflow Step 4: Workflow Suspension and Resumption
+### Workflow Step 5: Workflow Suspension and Resumption
 
 The GPU Operator determines whether to automatically resume the workflow after it pauses in Step 4. This pause accommodates scenarios requiring manual intervention. The workflow may remain suspended in two primary cases:
 
@@ -216,7 +246,7 @@ To resume a suspended workflow, apply the label `operator.amd.com/gpu-force-resu
 
 To abort the workflow entirely, apply the label `operator.amd.com/gpu-abort-workflow=true` to the node. This keeps the node in a tainted state for manual remediation. This option is useful when automatic remediation is no longer desired and the workflow should be deleted while paused.
 
-### Workflow Step 6: GPU Validation Testing
+### Workflow Step 7: GPU Validation Testing
 
 This step executes comprehensive GPU health validation tests using the test runner:
 

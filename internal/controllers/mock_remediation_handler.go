@@ -126,6 +126,18 @@ func (mr *MockremediationMgrHelperAPIMockRecorder) abortWorkflow(ctx, workflow a
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "abortWorkflow", reflect.TypeOf((*MockremediationMgrHelperAPI)(nil).abortWorkflow), ctx, workflow)
 }
 
+// applyTolerationsToWorkflow mocks base method.
+func (m *MockremediationMgrHelperAPI) applyTolerationsToWorkflow(wf *v1alpha10.Workflow, devConfig *v1alpha1.DeviceConfig, nodeCondition string) {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "applyTolerationsToWorkflow", wf, devConfig, nodeCondition)
+}
+
+// applyTolerationsToWorkflow indicates an expected call of applyTolerationsToWorkflow.
+func (mr *MockremediationMgrHelperAPIMockRecorder) applyTolerationsToWorkflow(wf, devConfig, nodeCondition any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "applyTolerationsToWorkflow", reflect.TypeOf((*MockremediationMgrHelperAPI)(nil).applyTolerationsToWorkflow), wf, devConfig, nodeCondition)
+}
+
 // attemptAbortWorkflowOnNode mocks base method.
 func (m *MockremediationMgrHelperAPI) attemptAbortWorkflowOnNode(ctx context.Context, node *v1.Node, wf *v1alpha10.Workflow) (bool, error) {
 	m.ctrl.T.Helper()
@@ -168,17 +180,17 @@ func (mr *MockremediationMgrHelperAPIMockRecorder) canResumeWorkflowOnNode(ctx, 
 }
 
 // checkIfTaintExists mocks base method.
-func (m *MockremediationMgrHelperAPI) checkIfTaintExists(node *v1.Node, targetTaint v1.Taint) bool {
+func (m *MockremediationMgrHelperAPI) checkIfTaintExists(node *v1.Node, devConfig *v1alpha1.DeviceConfig, nodeCondition string) bool {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "checkIfTaintExists", node, targetTaint)
+	ret := m.ctrl.Call(m, "checkIfTaintExists", node, devConfig, nodeCondition)
 	ret0, _ := ret[0].(bool)
 	return ret0
 }
 
 // checkIfTaintExists indicates an expected call of checkIfTaintExists.
-func (mr *MockremediationMgrHelperAPIMockRecorder) checkIfTaintExists(node, targetTaint any) *gomock.Call {
+func (mr *MockremediationMgrHelperAPIMockRecorder) checkIfTaintExists(node, devConfig, nodeCondition any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "checkIfTaintExists", reflect.TypeOf((*MockremediationMgrHelperAPI)(nil).checkIfTaintExists), node, targetTaint)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "checkIfTaintExists", reflect.TypeOf((*MockremediationMgrHelperAPI)(nil).checkIfTaintExists), node, devConfig, nodeCondition)
 }
 
 // createDefaultConfigMap mocks base method.
@@ -338,6 +350,34 @@ func (m *MockremediationMgrHelperAPI) getMaxAllowedRunsPerWindow(recoveryPolicy 
 func (mr *MockremediationMgrHelperAPIMockRecorder) getMaxAllowedRunsPerWindow(recoveryPolicy any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "getMaxAllowedRunsPerWindow", reflect.TypeOf((*MockremediationMgrHelperAPI)(nil).getMaxAllowedRunsPerWindow), recoveryPolicy)
+}
+
+// getNodeLabelsFromCR mocks base method.
+func (m *MockremediationMgrHelperAPI) getNodeLabelsFromCR(ctx context.Context, devConfig *v1alpha1.DeviceConfig) []string {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "getNodeLabelsFromCR", ctx, devConfig)
+	ret0, _ := ret[0].([]string)
+	return ret0
+}
+
+// getNodeLabelsFromCR indicates an expected call of getNodeLabelsFromCR.
+func (mr *MockremediationMgrHelperAPIMockRecorder) getNodeLabelsFromCR(ctx, devConfig any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "getNodeLabelsFromCR", reflect.TypeOf((*MockremediationMgrHelperAPI)(nil).getNodeLabelsFromCR), ctx, devConfig)
+}
+
+// getNodeTaints mocks base method.
+func (m *MockremediationMgrHelperAPI) getNodeTaints(ctx context.Context, devConfig *v1alpha1.DeviceConfig, nodeCondition string) []string {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "getNodeTaints", ctx, devConfig, nodeCondition)
+	ret0, _ := ret[0].([]string)
+	return ret0
+}
+
+// getNodeTaints indicates an expected call of getNodeTaints.
+func (mr *MockremediationMgrHelperAPIMockRecorder) getNodeTaints(ctx, devConfig, nodeCondition any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "getNodeTaints", reflect.TypeOf((*MockremediationMgrHelperAPI)(nil).getNodeTaints), ctx, devConfig, nodeCondition)
 }
 
 // getRecentRecoveryCount mocks base method.

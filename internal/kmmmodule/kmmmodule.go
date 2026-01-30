@@ -556,12 +556,25 @@ func setKMMModuleLoader(ctx context.Context, mod *kmmv1beta1.Module, devConfig *
 			Value:    "up",
 			Operator: v1.TolerationOpEqual,
 		},
-		v1.Toleration{
+	)
+
+	// Add tolerations to support running of kmm module loader during auto node remediation
+	if len(devConfig.Spec.RemediationWorkflow.NodeRemediationTaints) > 0 {
+		for _, taint := range devConfig.Spec.RemediationWorkflow.NodeRemediationTaints {
+			mod.Spec.Tolerations = append(mod.Spec.Tolerations, v1.Toleration{
+				Key:      taint.Key,
+				Operator: v1.TolerationOpExists,
+				Effect:   taint.Effect,
+			})
+		}
+	} else {
+		// Default toleration in case no custom taints are specified
+		mod.Spec.Tolerations = append(mod.Spec.Tolerations, v1.Toleration{
 			Key:      "amd-gpu-unhealthy",
 			Operator: v1.TolerationOpExists,
 			Effect:   v1.TaintEffectNoSchedule,
-		},
-	)
+		})
+	}
 	return nil
 }
 

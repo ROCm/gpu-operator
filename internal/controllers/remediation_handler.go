@@ -34,6 +34,7 @@ package controllers
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -272,7 +273,7 @@ type remediationMgrHelperAPI interface {
 	isRemediationDisabled(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig) (bool, error)
 	resumeSuspendedWorkflow(ctx context.Context, wfName, namespace string) error
 	isDriverUpgradeInProgress(devCfg *amdv1alpha1.DeviceConfig, node *v1.Node) bool
-	checkIfTaintExists(node *v1.Node, targetTaint v1.Taint) bool
+	checkIfTaintExists(node *v1.Node, devConfig *amdv1alpha1.DeviceConfig, nodeCondition string) bool
 	getWorkflowList(ctx context.Context, namespace string) (*workflowv1alpha1.WorkflowList, error)
 	getWorkflowTemplate(ctx context.Context, workflowTemplateName, namespace string) (*workflowv1alpha1.WorkflowTemplate, error)
 	getConfigMap(ctx context.Context, configmapName string, namespace string) (*v1.ConfigMap, error)
@@ -311,6 +312,9 @@ type remediationMgrHelperAPI interface {
 	handleSuspendedWorkflowsOnNode(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig, node *v1.Node, mapping ConditionWorkflowMapping, wf *workflowv1alpha1.Workflow) bool
 	getWorkflowTaskScriptSource(scriptFileName string) (string, error)
 	updateMaxParallelWorkflows(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig) error
+	getNodeLabelsFromCR(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig) []string
+	getNodeTaints(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig, nodeCondition string) []string
+	applyTolerationsToWorkflow(wf *workflowv1alpha1.Workflow, devConfig *amdv1alpha1.DeviceConfig, nodeCondition string)
 }
 
 type remediationMgrHelper struct {
@@ -427,10 +431,21 @@ func (h *remediationMgrHelper) isDriverUpgradeInProgress(devCfg *amdv1alpha1.Dev
 	return false
 }
 
-func (h *remediationMgrHelper) checkIfTaintExists(node *v1.Node, targetTaint v1.Taint) bool {
+func (h *remediationMgrHelper) checkIfTaintExists(node *v1.Node, devConfig *amdv1alpha1.DeviceConfig, nodeCondition string) bool {
+	taints := make([]v1.Taint, 0)
+	if len(devConfig.Spec.RemediationWorkflow.NodeRemediationTaints) > 0 {
+		taints = devConfig.Spec.RemediationWorkflow.NodeRemediationTaints
+	} else {
+		taints = append(taints, v1.Taint{
+			Key:    RemediationTaintKey,
+			Effect: v1.TaintEffectNoSchedule,
+		})
+	}
 	for _, t := range node.Spec.Taints {
-		if t.Key == targetTaint.Key && t.Effect == targetTaint.Effect {
-			return true
+		for _, targetTaint := range taints {
+			if t.Key == targetTaint.Key && t.Effect == targetTaint.Effect {
+				return true
+			}
 		}
 	}
 	return false
@@ -572,6 +587,14 @@ func (h *remediationMgrHelper) createDefaultWorkflowTemplate(ctx context.Context
 	if err != nil {
 		return nil, err
 	}
+	applyLabelsSrc, err := h.getWorkflowTaskScriptSource("applylabels.sh")
+	if err != nil {
+		return nil, err
+	}
+	removeLabelsSrc, err := h.getWorkflowTaskScriptSource("removelabels.sh")
+	if err != nil {
+		return nil, err
+	}
 
 	template := &workflowv1alpha1.WorkflowTemplate{
 		ObjectMeta: metav1.ObjectMeta{
@@ -584,6 +607,7 @@ func (h *remediationMgrHelper) createDefaultWorkflowTemplate(ctx context.Context
 				{
 					Name: "inbuilt",
 					Steps: []workflowv1alpha1.ParallelSteps{
+						{Steps: []workflowv1alpha1.WorkflowStep{{Name: "applylabels", Template: "applylabels"}}},
 						{Steps: []workflowv1alpha1.WorkflowStep{{Name: "taint", Template: "taint"}}},
 						{Steps: []workflowv1alpha1.WorkflowStep{{Name: "drain", Template: "drain"}}},
 						{Steps: []workflowv1alpha1.WorkflowStep{
@@ -618,6 +642,7 @@ func (h *remediationMgrHelper) createDefaultWorkflowTemplate(ctx context.Context
 							},
 						},
 						},
+						{Steps: []workflowv1alpha1.WorkflowStep{{Name: "failurecleanup", Template: "removelabels", When: "{{steps.test.exitCode}} != 0"}}},
 						{Steps: []workflowv1alpha1.WorkflowStep{{Name: "failworkflow", Template: "failworkflow", When: "{{steps.test.exitCode}} != 0"}}},
 						{Steps: []workflowv1alpha1.WorkflowStep{{Name: "wait", Template: "wait", When: "{{steps.test.exitCode}} == 0"}}},
 						{Steps: []workflowv1alpha1.WorkflowStep{{Name: "untaint", Template: "untaint", When: "{{steps.test.exitCode}} == 0"}}},
@@ -636,6 +661,7 @@ func (h *remediationMgrHelper) createDefaultWorkflowTemplate(ctx context.Context
 							},
 						},
 						},
+						{Steps: []workflowv1alpha1.WorkflowStep{{Name: "successcleanup", Template: "removelabels", When: "{{steps.test.exitCode}} == 0"}}},
 					},
 				},
 				{
@@ -780,6 +806,40 @@ containers:
 						Container: utilityContainer,
 					},
 				},
+				{
+					Name: "applylabels",
+					Inputs: workflowv1alpha1.Inputs{
+						Parameters: []workflowv1alpha1.Parameter{
+							{
+								Name:  "node_name",
+								Value: workflowv1alpha1.AnyStringPtr("{{workflow.parameters.node_name}}"),
+							},
+							{
+								Name:  "labels",
+								Value: workflowv1alpha1.AnyStringPtr("{{workflow.parameters.labels}}"),
+							},
+						},
+					},
+					Script: &workflowv1alpha1.ScriptTemplate{
+						Source:    applyLabelsSrc,
+						Container: utilityContainer,
+					},
+				},
+				{
+					Name: "removelabels",
+					Inputs: workflowv1alpha1.Inputs{
+						Parameters: []workflowv1alpha1.Parameter{
+							{
+								Name:  "node_name",
+								Value: workflowv1alpha1.AnyStringPtr("{{workflow.parameters.node_name}}"),
+							},
+						},
+					},
+					Script: &workflowv1alpha1.ScriptTemplate{
+						Source:    removeLabelsSrc,
+						Container: utilityContainer,
+					},
+				},
 			},
 		},
 	}
@@ -891,18 +951,9 @@ func (h *remediationMgrHelper) populateWorkflow(ctx context.Context, wfTemplate 
 			wf.Spec.Templates[i].NodeSelector = map[string]string{}
 		}
 		wf.Spec.Templates[i].NodeSelector["kubernetes.io/hostname"] = nodeName
-
-		toleration := v1.Toleration{
-			Key:      RemediationTaintKey,
-			Operator: v1.TolerationOpExists,
-			Effect:   v1.TaintEffectNoSchedule,
-		}
-
-		if wf.Spec.Templates[i].Tolerations == nil {
-			wf.Spec.Templates[i].Tolerations = []v1.Toleration{}
-		}
-		wf.Spec.Templates[i].Tolerations = append(wf.Spec.Templates[i].Tolerations, toleration)
 	}
+	// apply tolerations based on node taints
+	h.applyTolerationsToWorkflow(wf, devConfig, mapping.NodeCondition)
 
 	testrunnerImage := DefaultTestRunnerImage
 
@@ -913,6 +964,35 @@ func (h *remediationMgrHelper) populateWorkflow(ctx context.Context, wfTemplate 
 	initContainerImage := DefaultInitContainerImage
 	if devConfig.Spec.CommonConfig.InitContainerImage != "" {
 		initContainerImage = devConfig.Spec.CommonConfig.InitContainerImage
+	}
+
+	nodeLabels := h.getNodeLabelsFromCR(ctx, devConfig)
+	labelsJSONBytes, err := json.Marshal(nodeLabels)
+	if err != nil {
+		labelsJSONBytes = []byte("[]")
+	}
+
+	nodeTaints := h.getNodeTaints(ctx, devConfig, mapping.NodeCondition)
+	taintsJSONBytes, err := json.Marshal(nodeTaints)
+	if err != nil {
+		taintsJSONBytes = []byte("[]")
+	}
+
+	drainPolicy := devConfig.Spec.RemediationWorkflow.NodeDrainPolicy
+	if drainPolicy == nil {
+		// Set default drain policy if not specified
+		drainPolicy = &amdv1alpha1.DrainSpec{
+			Force:              ptr.To(true),
+			IgnoreDaemonSets:   ptr.To(true),
+			TimeoutSeconds:     300,
+			GracePeriodSeconds: -1,
+			IgnoreNamespaces:   []string{"kube-system", "cert-manager", devConfig.Namespace},
+		}
+	}
+
+	drainPolicyJSONBytes, err := json.Marshal(drainPolicy)
+	if err != nil {
+		drainPolicyJSONBytes = []byte("{}")
 	}
 
 	// Pass the args required to be used in the template
@@ -974,11 +1054,22 @@ func (h *remediationMgrHelper) populateWorkflow(ctx context.Context, wfTemplate 
 				Name:  "initContainerImage",
 				Value: workflowv1alpha1.AnyStringPtr(initContainerImage),
 			},
+			{
+				Name:  "node_labels",
+				Value: workflowv1alpha1.AnyStringPtr(string(labelsJSONBytes)),
+			},
+			{
+				Name:  "node_taints",
+				Value: workflowv1alpha1.AnyStringPtr(string(taintsJSONBytes)),
+			},
+			{
+				Name:  "drain_policy",
+				Value: workflowv1alpha1.AnyStringPtr(string(drainPolicyJSONBytes)),
+			},
 		},
 	}
 
 	return wf
-
 }
 
 func (h *remediationMgrHelper) createWorkflow(ctx context.Context, workflow *workflowv1alpha1.Workflow) error {
@@ -1041,7 +1132,7 @@ func (h *remediationMgrHelper) isWorkflowSchedulableOnNode(ctx context.Context, 
 	}
 
 	// If taint already exists, skip the node
-	if hasTaint := h.checkIfTaintExists(node, taint); hasTaint {
+	if hasTaint := h.checkIfTaintExists(node, devConfig, mapping.NodeCondition); hasTaint {
 		logger.Info(fmt.Sprintf("Taint %s already present on node %s, skipping creation of workflow", taint.Key, node.Name))
 		return false
 	}
@@ -1483,4 +1574,55 @@ func (h *remediationMgrHelper) abortWorkflow(ctx context.Context, wf *workflowv1
 
 	logger.Info(fmt.Sprintf("Workflow %s aborted successfully", wf.Name))
 	return nil
+}
+
+func (h *remediationMgrHelper) getNodeLabelsFromCR(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig) []string {
+	nodeLabels := make([]string, 0)
+	for key, value := range devConfig.Spec.RemediationWorkflow.NodeRemediationLabels {
+		nodeLabels = append(nodeLabels, fmt.Sprintf("%s=%s", key, value))
+	}
+	return nodeLabels
+}
+
+func (h *remediationMgrHelper) getNodeTaintsFromCR(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig) []string {
+	taints := make([]string, 0)
+	for _, taint := range devConfig.Spec.RemediationWorkflow.NodeRemediationTaints {
+		taints = append(taints, fmt.Sprintf("%s=%s:%s", taint.Key, taint.Value, taint.Effect))
+	}
+	return taints
+}
+
+// getNodeTaints returns the list of taints to be applied to the node during remediation.
+// If no user configured taints are found in the DeviceConfig CR, it returns a default taint.
+func (h *remediationMgrHelper) getNodeTaints(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig, nodeCondition string) []string {
+	taints := h.getNodeTaintsFromCR(ctx, devConfig)
+	if len(taints) == 0 {
+		taints = append(taints, fmt.Sprintf("%s=%s:%s", RemediationTaintKey, nodeCondition, v1.TaintEffectNoSchedule))
+	}
+	return taints
+}
+
+func (h *remediationMgrHelper) applyTolerationsToWorkflow(wf *workflowv1alpha1.Workflow, devConfig *amdv1alpha1.DeviceConfig, nodeCondition string) {
+	taints := make([]v1.Taint, 0)
+	if len(devConfig.Spec.RemediationWorkflow.NodeRemediationTaints) > 0 {
+		taints = devConfig.Spec.RemediationWorkflow.NodeRemediationTaints
+	} else {
+		taints = append(taints, v1.Taint{
+			Key:    RemediationTaintKey,
+			Value:  nodeCondition,
+			Effect: v1.TaintEffectNoSchedule,
+		})
+	}
+	for i := range wf.Spec.Templates {
+		if wf.Spec.Templates[i].Tolerations == nil {
+			wf.Spec.Templates[i].Tolerations = []v1.Toleration{}
+		}
+		for _, taint := range taints {
+			wf.Spec.Templates[i].Tolerations = append(wf.Spec.Templates[i].Tolerations, v1.Toleration{
+				Key:      taint.Key,
+				Operator: v1.TolerationOpExists,
+				Effect:   taint.Effect,
+			})
+		}
+	}
 }

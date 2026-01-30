@@ -477,17 +477,27 @@ func (nl *metricsExporter) SetMetricsExporterAsDesired(ds *appsv1.DaemonSet, dev
 	} else {
 		ds.Spec.Template.Spec.Tolerations = nil
 	}
-	// Add tolerations for the node unhealthy conditions
-	gpuUnhealthyTolerations := []v1.Toleration{
-		{
+
+	// Add tolerations to support running of metrics exporter during auto node remediation
+	if len(devConfig.Spec.RemediationWorkflow.NodeRemediationTaints) > 0 {
+		for _, taint := range devConfig.Spec.RemediationWorkflow.NodeRemediationTaints {
+			toleration := v1.Toleration{
+				Key:      taint.Key,
+				Operator: v1.TolerationOpExists,
+				Effect:   taint.Effect,
+			}
+			ds.Spec.Template.Spec.Tolerations = append(ds.Spec.Template.Spec.Tolerations, toleration)
+		}
+	} else {
+		// Default toleration in case no custom taints are specified
+		ds.Spec.Template.Spec.Tolerations = append(ds.Spec.Template.Spec.Tolerations, v1.Toleration{
 			Key:      "amd-gpu-unhealthy",
 			Operator: v1.TolerationOpExists,
 			Effect:   v1.TaintEffectNoSchedule,
-		},
+		})
 	}
-	ds.Spec.Template.Spec.Tolerations = append(ds.Spec.Template.Spec.Tolerations, gpuUnhealthyTolerations...)
-	return controllerutil.SetControllerReference(devConfig, ds, nl.scheme)
 
+	return controllerutil.SetControllerReference(devConfig, ds, nl.scheme)
 }
 
 func (nl *metricsExporter) SetMetricsServiceAsDesired(svc *v1.Service, devConfig *amdv1alpha1.DeviceConfig) error {
