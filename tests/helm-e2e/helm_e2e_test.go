@@ -326,6 +326,7 @@ deviceConfig:
           timeoutSeconds: 600
           # -- the time kubernetes waits for a pod to shut down gracefully after receiving a termination signal, zero means immediate, minus value means follow pod defined grace period
           gracePeriodSeconds: -2
+          ignoreDaemonSets: true
         podDeletionPolicy:
           # -- whether force deletion is allowed or not
           force: false
@@ -404,6 +405,7 @@ deviceConfig:
 							Force:              &boolFalse,
 							TimeoutSeconds:     600,
 							GracePeriodSeconds: -2,
+							IgnoreDaemonSets:   &boolTrue,
 						},
 						PodDeletionPolicy: &v1alpha1.PodDeletionSpec{
 							Force:              &boolFalse,
