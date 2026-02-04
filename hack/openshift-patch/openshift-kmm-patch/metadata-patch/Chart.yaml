@@ -1,8 +1,0 @@
-apiVersion: v2
-name: kmm
-description: A Helm chart for deploying Kernel Module Management for AMD GPU Operator
-type: application
-
-kubeVersion: ">= 1.18.0-0"
-version: v1.0.0
-appVersion: "v20240618-v2.1.1"
