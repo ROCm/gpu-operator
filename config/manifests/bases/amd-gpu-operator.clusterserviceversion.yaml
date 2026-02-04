@@ -724,7 +724,8 @@ spec:
         x-descriptors:
         - urn:alm:descriptor:com.amd.deviceconfigs:testerImage
       - description: Time to live for argo workflow object and its pods for a failed
-          workflow in hours. By default, it is set to 24 hours
+          workflow. Accepts duration strings like "30s", "4h", "24h". By default,
+          it is set to 24h
         displayName: TtlForFailedWorkflows
         path: remediationWorkflow.ttlForFailedWorkflows
         x-descriptors:

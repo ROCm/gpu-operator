@@ -103,6 +103,7 @@ type ConditionWorkflowMapping struct {
 	NotifyRemediationMessage string                 `json:"notifyRemediationMessage" yaml:"notifyRemediationMessage"`
 	NotifyTestFailureMessage string                 `json:"notifyTestFailureMessage" yaml:"notifyTestFailureMessage"`
 	RecoveryPolicy           RecoveryPolicyConfig   `json:"recoveryPolicy" yaml:"recoveryPolicy"`
+	SkipRebootStep           bool                   `json:"skipRebootStep" yaml:"skipRebootStep"`
 }
 
 type ValidationTestsProfile struct {
@@ -625,7 +626,7 @@ func (h *remediationMgrHelper) createDefaultWorkflowTemplate(ctx context.Context
 						},
 						},
 						{Steps: []workflowv1alpha1.WorkflowStep{{Name: "suspend", Template: "suspend"}}},
-						{Steps: []workflowv1alpha1.WorkflowStep{{Name: "reboot", Template: "reboot", ContinueOn: &workflowv1alpha1.ContinueOn{Failed: true}}}},
+						{Steps: []workflowv1alpha1.WorkflowStep{{Name: "reboot", Template: "reboot", ContinueOn: &workflowv1alpha1.ContinueOn{Failed: true}, When: "{{workflow.parameters.skipRebootStep}} == 'false'"}}},
 						{Steps: []workflowv1alpha1.WorkflowStep{{Name: "test", Template: "test", ContinueOn: &workflowv1alpha1.ContinueOn{Failed: true}}}},
 						{Steps: []workflowv1alpha1.WorkflowStep{
 							{
@@ -940,8 +941,12 @@ func (h *remediationMgrHelper) populateWorkflow(ctx context.Context, wfTemplate 
 
 	wf.Spec.Entrypoint = wfTemplate.Spec.Entrypoint
 	wf.Spec.ServiceAccountName = h.getServiceAccountName(ctx, devConfig)
-	ttlHours := devConfig.Spec.RemediationWorkflow.TtlForFailedWorkflows
-	ttlSeconds := int32(ttlHours * 3600)
+	ttlDuration, err := time.ParseDuration(devConfig.Spec.RemediationWorkflow.TtlForFailedWorkflows)
+	if err != nil {
+		log.FromContext(ctx).Error(err, "Failed to parse TTL duration, using default of 24h")
+		ttlDuration = 24 * time.Hour
+	}
+	ttlSeconds := int32(ttlDuration.Seconds())
 	wf.Spec.TTLStrategy = &workflowv1alpha1.TTLStrategy{
 		SecondsAfterCompletion: &ttlSeconds,
 	}
@@ -1065,6 +1070,10 @@ func (h *remediationMgrHelper) populateWorkflow(ctx context.Context, wfTemplate 
 			{
 				Name:  "drain_policy",
 				Value: workflowv1alpha1.AnyStringPtr(string(drainPolicyJSONBytes)),
+			},
+			{
+				Name:  "skipRebootStep",
+				Value: workflowv1alpha1.AnyStringPtr(mapping.SkipRebootStep),
 			},
 		},
 	}

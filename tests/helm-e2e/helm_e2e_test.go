@@ -971,7 +971,7 @@ deviceConfig:
       enable: true
       conditionalWorkflows:
         name: "conditional-workflows-configmap"
-      ttlForFailedWorkflows: 36
+      ttlForFailedWorkflows: 36h
       testerImage: "test.io/test/remediation-workflow-tester:v1.3.0"
 `,
 			extraArgs:            []string{"-f", tmpValuesYamlPath, "--set", "crds.defaultCR.upgrade=true"},
@@ -984,7 +984,7 @@ deviceConfig:
 					ConditionalWorkflows: &corev1.LocalObjectReference{
 						Name: "conditional-workflows-configmap",
 					},
-					TtlForFailedWorkflows: 36,
+					TtlForFailedWorkflows: "36h",
 					TesterImage:           "test.io/test/remediation-workflow-tester:v1.3.0",
 				},
 			},
