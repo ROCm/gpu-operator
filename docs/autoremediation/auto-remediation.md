@@ -106,7 +106,7 @@ type RemediationWorkflowSpec struct {
 
 > **Note:** The `default-conditional-workflow-mappings` ConfigMap is created automatically by the GPU Operator.
 
-**TtlForFailedWorkflows** - Specifies the time-to-live (in hours) for failed workflow objects and their associated pods. Failed workflows are retained temporarily to allow inspection and troubleshooting. After the configured time period elapses, the failed workflow resources are automatically cleaned up. Default value is 24 hours.
+**TtlForFailedWorkflows** - Defines the time-to-live (TTL) duration for retaining failed workflow objects and their associated pods before automatic cleanup. This field accepts a duration string in standard formats (e.g., "24h", "30m", "1h30m"). Retaining failed workflows allows for post-mortem analysis and troubleshooting. Once the specified duration expires, the workflow resources are automatically garbage collected by the system. The default retention period is 24 hours.
 
 **TesterImage** - Specifies the container image for executing GPU validation tests during remediation workflows. This image must align with `Spec.TestRunner.Image` specifications and runs test suites to verify GPU health after remediation completion. If unspecified, the default image is `docker.io/rocm/test-runner:v1.4.1`.
 
@@ -192,6 +192,8 @@ The following example demonstrates a complete error mapping configuration:
 **notifyTestFailureMessage** - Contains instructions to be displayed when validation tests fail after remediation attempts. This message typically includes escalation procedures and diagnostic information requirements.
 
 **recoveryPolicy** - Defines limits on remediation attempts to prevent excessive recovery cycles. Includes `maxAllowedRunsPerWindow` (maximum retry attempts) and `windowSize` (time window for counting attempts). When exceeded, the workflow pauses for manual intervention.
+
+**skipRebootStep** - Controls whether the node reboot step is executed during the remediation workflow. The default workflow template includes an automatic reboot step to reinitialize GPU hardware after performing the recommended remediation actions. Set this field to `true` to skip the reboot step when the node has already been rebooted manually as part of the remediation process or when a reboot is not desired for the specific error condition. Default value is `false`.
 
 ## Default Workflow Template
 

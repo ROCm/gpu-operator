@@ -93,10 +93,11 @@ type RemediationWorkflowSpec struct {
 	//+operator-sdk:csv:customresourcedefinitions:type=spec,displayName="ConditionalWorkflows",xDescriptors={"urn:alm:descriptor:com.amd.deviceconfigs:conditionalWorkflows"}
 	ConditionalWorkflows *v1.LocalObjectReference `json:"conditionalWorkflows,omitempty"`
 
-	// Time to live for argo workflow object and its pods for a failed workflow in hours. By default, it is set to 24 hours
+	// Time to live for argo workflow object and its pods for a failed workflow. Accepts duration strings like "30s", "4h", "24h". By default, it is set to 24h
 	//+operator-sdk:csv:customresourcedefinitions:type=spec,displayName="TtlForFailedWorkflows",xDescriptors={"urn:alm:descriptor:com.amd.deviceconfigs:ttlForFailedWorkflows"}
-	// +kubebuilder:default:=24
-	TtlForFailedWorkflows int `json:"ttlForFailedWorkflows,omitempty"`
+	// +kubebuilder:default:="24h"
+	// +kubebuilder:validation:Pattern=`^([0-9]+(\.[0-9]+)?(ns|us|µs|ms|s|m|h))+$`
+	TtlForFailedWorkflows string `json:"ttlForFailedWorkflows,omitempty"`
 
 	// Tester image used to run tests and verify if remediation fixed the reported problem.
 	//+operator-sdk:csv:customresourcedefinitions:type=spec,displayName="TesterImage",xDescriptors={"urn:alm:descriptor:com.amd.deviceconfigs:testerImage"}
