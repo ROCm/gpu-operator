@@ -6,42 +6,42 @@ The GPU Operator provides automatic remediation for GPU worker nodes that become
 
 The following diagram illustrates the end-to-end flow of automatic remediation:
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│                           GPU Worker Node                                    │
+│                           GPU Worker Node                                   │
 ├─────────────────────────────────────────────────────────────────────────────┤
-│                                                                               │
-│  ┌────────────────────────┐                                                  │
-│  │ Device Metrics         │                                                  │
-│  │ Exporter               │  Reports inband-RAS errors                       │
-│  └───────────┬────────────┘                                                  │
-│              │                                                                │
-│              ▼                                                                │
-│  ┌────────────────────────┐                                                  │
-│  │ Node Problem           │  Queries for inband-RAS errors                   │
-│  │ Detector (NPD)         │  and marks node condition as True                │
-│  └───────────┬────────────┘                                                  │
-│              │                                                                │
-└──────────────┼────────────────────────────────────────────────────────────────┘
+│                                                                             │
+│  ┌────────────────────────┐                                                 │
+│  │ Device Metrics         │                                                 │
+│  │ Exporter               │  Reports inband-RAS errors                      │
+│  └───────────┬────────────┘                                                 │
+│              │                                                              │
+│              ▼                                                              │
+│  ┌────────────────────────┐                                                 │
+│  │ Node Problem           │  Queries for inband-RAS errors                  │
+│  │ Detector (NPD)         │  and marks node condition as True               │
+│  └───────────┬────────────┘                                                 │
+│              │                                                              │
+└──────────────┼──────────────────────────────────────────────────────────────┘
                │
                │ Node condition status update
                ▼
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│                         Controller Node                                      │
+│                         Controller Node                                     │
 ├─────────────────────────────────────────────────────────────────────────────┤
-│                                                                               │
-│  ┌────────────────────────┐                                                  │
-│  │ GPU Operator           │  Observes node error conditions                  │
-│  │                        │                                                  │
-│  └───────────┬────────────┘                                                  │
-│              │                                                                │
-│              ▼                                                                │
-│  ┌────────────────────────┐                                                  │
-│  │ Argo Workflow          │  Triggers remediation workflow                   │
-│  │ Controller             │  for the affected node                           │
-│  └────────────────────────┘                                                  │
-│              │                                                                │
-└──────────────┼────────────────────────────────────────────────────────────────┘
+│                                                                             │
+│  ┌────────────────────────┐                                                 │
+│  │ GPU Operator           │  Observes node error conditions                 │
+│  │                        │                                                 │
+│  └───────────┬────────────┘                                                 │
+│              │                                                              │
+│              ▼                                                              │
+│  ┌────────────────────────┐                                                 │
+│  │ Argo Workflow          │  Triggers remediation workflow                  │
+│  │ Controller             │  for the affected node                          │
+│  └────────────────────────┘                                                 │
+│              │                                                              │
+└──────────────┼──────────────────────────────────────────────────────────────┘
                │
                │ Executes remediation steps
                ▼
@@ -69,7 +69,7 @@ The GPU Operator Helm installation includes the following Argo Workflows compone
 The GPU Operator installs Argo Workflows v3.6.5, using a [customized installation YAML](https://github.com/argoproj/argo-workflows/releases/download/v3.6.5/install.yaml) tailored for auto-remediation requirements. This customization excludes components not needed for remediation, such as the Argo workflow server. For more information about Argo Workflows concepts, refer to the [official documentation](https://argo-workflows.readthedocs.io/en/release-3.6/workflow-concepts/).
 
 > **Note:** By default, auto-remediation components (workflow controller and CRDs) are installed during Helm deployment. To disable the installation of these components, use the following Helm flag:
-> 
+>
 > ```bash
 > --set remediation.enabled=false
 > ```
@@ -80,17 +80,17 @@ The GPU Operator installs Argo Workflows v3.6.5, using a [customized installatio
 
 The DeviceConfig Custom Resource includes a `RemediationWorkflowSpec` section for configuring and customizing the auto-remediation feature:
 
-```yaml
+```golang
 type RemediationWorkflowSpec struct {
-	Enable *bool
+  Enable *bool
 
-	ConditionalWorkflows *v1.LocalObjectReference
+  ConditionalWorkflows *v1.LocalObjectReference
 
-	TtlForFailedWorkflows int
+  TtlForFailedWorkflows int
 
-	TesterImage string
+  TesterImage string
 
-	MaxParallelWorkflows int
+  MaxParallelWorkflows int
 
   NodeRemediationLabels map[string]string
 
@@ -138,9 +138,9 @@ The `NodeDrainPolicy` field accepts a `DrainSpec` object with the following conf
 
 **IgnoreNamespaces** - Defines a list of namespaces to exclude from pod eviction during the drain operation. Pods running in these namespaces will remain on the node, allowing critical infrastructure components to continue operating throughout the remediation process. By default, the following namespaces are excluded: `kube-system`, `cert-manager`, and the GPU Operator's namespace.
 
-### Other Configuration options:
+### Other Configuration options
 
-**NPD Configuration** - NPD configuration is explained in more detail [here](../npd/node-problem-detector.md). The Node Problem Detector (NPD) DaemonSet must continue running during workflow execution to verify issue resolution. Add the following toleration to the NPD DaemonSet:
+**NPD Configuration** - NPD configuration is explained in more detail [in this section](../npd/node-problem-detector.md). The Node Problem Detector (NPD) DaemonSet must continue running during workflow execution to verify issue resolution. Add the following toleration to the NPD DaemonSet:
 
   `amd-gpu-unhealthy:NoSchedule op=Exists`
 
@@ -197,7 +197,7 @@ The following example demonstrates a complete error mapping configuration:
 
 > **Note:** The `default-template` is automatically created on the cluster by the GPU Operator.
 
-The `default-template` workflow performs the following remediation steps: 
+The `default-template` workflow performs the following remediation steps:
 
 1. **Label Node** - Applies custom labels to the node as specified in the `NodeRemediationLabels` field of the DeviceConfig Custom Resource. If no labels are configured, this step is skipped and the workflow proceeds to the next step.
 
@@ -223,7 +223,7 @@ Each workflow step is executed as a separate Kubernetes pod. For advanced use ca
 
 While most workflow steps are self-explanatory, Steps 4, 5, and 7 require additional clarification.
 
-### Workflow Step 4: Physical Intervention Check 
+### Workflow Step 4: Physical Intervention Check
 
 According to the AMD service action guide, certain GPU issues require physical intervention (e.g., checking wiring, securing screws, retorquing connections). When such conditions are detected, the workflow generates a Kubernetes event to notify the administrator of the required physical action before suspending at this step. The specific physical action for each node condition is defined in the `physicalActionNeeded` field within the corresponding ConfigMap mapping.
 
@@ -233,10 +233,10 @@ This step enables administrators to identify nodes awaiting physical interventio
 
 The GPU Operator determines whether to automatically resume the workflow after it pauses in Step 4. This pause accommodates scenarios requiring manual intervention. The workflow may remain suspended in two primary cases:
 
-1. **Excessive Remediation Attempts:**  
-	When a `RecoveryPolicy` is configured in the `ConditionalWorkflowMappings` ConfigMap, it defines the maximum remediation attempts allowed within a specified time window. Nodes exceeding this threshold will have their workflows paused indefinitely until manual resumption.
+1. **Excessive Remediation Attempts:**
+   When a `RecoveryPolicy` is configured in the `ConditionalWorkflowMappings` ConfigMap, it defines the maximum remediation attempts allowed within a specified time window. Nodes exceeding this threshold will have their workflows paused indefinitely until manual resumption.
 2. **Physical Action Required:**
-	When a physical action is specified for a workflow in the `ConditionalWorkflowMappings` ConfigMap, the workflow pauses at this step, allowing administrators to perform the required maintenance. A notification event is generated to alert the user.
+   When a physical action is specified for a workflow in the `ConditionalWorkflowMappings` ConfigMap, the workflow pauses at this step, allowing administrators to perform the required maintenance. A notification event is generated to alert the user.
 
 If neither condition applies, the workflow automatically resumes without manual intervention.
 

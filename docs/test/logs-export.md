@@ -27,8 +27,9 @@ Alternatively secrets can be created using kubectl CLI command without base64 en
 
 For AWS S3, the secret captures user [access key](https://aws.amazon.com/blogs/security/wheres-my-secret-access-key) information and AWS region of bucket.
 The secret should include the following keys:​
-- `aws_access_key_id`: Your AWS access key ID​
-- `aws_secret_access_key`: Your AWS secret access key​
+
+- `aws_access_key_id`: Your AWS access key ID
+- `aws_secret_access_key`: Your AWS secret access key
 - `aws_region`: The AWS region where your S3 bucket resides
 
 Example:

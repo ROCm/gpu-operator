@@ -83,20 +83,19 @@ Installation Options
 > It is strongly recommended to use AMD-optimized KMM images included in the operator release. This is not required when installing the GPU Operator on Red Hat OpenShift.
 
 ### 3. Install Custom Resource
+
 After the installation of AMD GPU Operator:
-  * By default there will be a default `DeviceConfig` installed. If you are using default `DeviceConfig`, you can modify the default `DeviceConfig` to adjust the config for your own use case. `kubectl edit deviceconfigs -n kube-amd-gpu default`
-  * If you installed without default `DeviceConfig` (either by using `--set crds.defaultCR.install=false` or installing a chart prior to v1.3.0), you need to create the `DeviceConfig` custom resource in order to trigger the operator start to work. By preparing the `DeviceConfig` in the YAML file, you can create the resouce by running ```kubectl apply -f deviceconfigs.yaml```.
-  * For custom resource definition and more detailed information, please refer to [Custom Resource Installation Guide](https://dcgpu.docs.amd.com/projects/gpu-operator/en/latest/installation/kubernetes-helm.html#install-custom-resource).
 
-  * Potential Failures with default `DeviceConfig`: 
-
-    a. Operand pods are stuck in ```Init:0/1``` state: It means your GPU worker doesn't have inbox GPU driver loaded. We suggest check the [Driver Installation Guide]([./drivers/installation.md](https://instinct.docs.amd.com/projects/gpu-operator/en/latest/drivers/installation.html#driver-installation-guide)) then modify the default `DeviceConfig` to ask Operator to install the out-of-tree GPU driver for your worker nodes.
+* By default there will be a default `DeviceConfig` installed. If you are using default `DeviceConfig`, you can modify the default `DeviceConfig` to adjust the config for your own use case. `kubectl edit deviceconfigs -n kube-amd-gpu default`
+* If you installed without default `DeviceConfig` (either by using `--set crds.defaultCR.install=false` or installing a chart prior to v1.3.0), you need to create the `DeviceConfig` custom resource in order to trigger the operator start to work. By preparing the `DeviceConfig` in the YAML file, you can create the resouce by running ```kubectl apply -f deviceconfigs.yaml```.
+* For custom resource definition and more detailed information, please refer to [Custom Resource Installation Guide](https://dcgpu.docs.amd.com/projects/gpu-operator/en/latest/installation/kubernetes-helm.html#install-custom-resource).
+* Potential Failures with default `DeviceConfig`:
+  a. Operand pods are stuck in ```Init:0/1``` state: It means your GPU worker doesn't have inbox GPU driver loaded. We suggest check the [Driver Installation Guide]([./drivers/installation.md](https://instinct.docs.amd.com/projects/gpu-operator/en/latest/drivers/installation.html#driver-installation-guide)) then modify the default `DeviceConfig` to ask Operator to install the out-of-tree GPU driver for your worker nodes.
   `kubectl edit deviceconfigs -n kube-amd-gpu default`
-
-    b. No operand pods showed up: It is possible that default `DeviceConfig` selector `feature.node.kubernetes.io/amd-gpu: "true"` cannot find any matched node.
-      * Check node label `kubectl get node -oyaml | grep -e "amd-gpu:" -e "amd-vgpu:"`
-      * If you are using GPU in the VM, you may need to change the default `DeviceConfig` selector to `feature.node.kubernetes.io/amd-vgpu: "true"`
-      * You can always customize the node selector of the `DeviceConfig`.
+  b. No operand pods showed up: It is possible that default `DeviceConfig` selector `feature.node.kubernetes.io/amd-gpu: "true"` cannot find any matched node.
+  * Check node label `kubectl get node -oyaml | grep -e "amd-gpu:" -e "amd-vgpu:"`
+  * If you are using GPU in the VM, you may need to change the default `DeviceConfig` selector to `feature.node.kubernetes.io/amd-vgpu: "true"`
+  * You can always customize the node selector of the `DeviceConfig`.
 
 ### Grafana Dashboards
 

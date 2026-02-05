@@ -56,7 +56,8 @@ information.
      amd.com/gpu:        1
    ```
 
-### GPU Health Status : Unhealthy
+### GPU Health Status: Unhealthy
+
 The GPU health status if reported as "Unhealthy" on any node, makes the GPU unavailable for k8s jobs, any job requesting AMD GPU will not be scheduled in unhealthy GPU, but if any job is already scheduled will not be evicted when the GPU transitions from Healthy -> Unhealthy. If there are no job assciated with the GPU and a new request for GPU on unhealthy is created on K8s, the Job will be pending state and will not be allowed to run on an unhealthy GPU.
 
 This will reduce the number of Allocatable entries on the node by the total number of unhealthy GPU reported on that node.

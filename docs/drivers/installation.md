@@ -162,9 +162,11 @@ spec:
 ```
 
 ```{note}
-As for the configuration in `spec.driver.imageBuild`:
-1. If the base OS image or source image is hosted in a registry that requires pull secrets to pull those images, you need to use `spec.driver.imageRegistrySecret` to inject the pull secret.
-2. `spec.driver.imageRegistrySecret` was originally designed for providing secret to pull/push image to the repository specified in `spec.driver.image`, if unfortunately the base image and source image requires different secret to pull, please combine the access information into one single Kubernetes secret.
+When configuring `spec.driver.imageBuild`, consider the following registry authentication requirements:
+
+1. **Single Secret for Multiple Registries**: If your base OS image or source image is hosted in a registry requiring pull secrets, use `spec.driver.imageRegistrySecret` to inject credentials. This secret was originally designed for the repository in `spec.driver.image`, but can be combined to support multiple registries.
+
+2. **Combining Multiple Registry Credentials**: If base and source images require different secrets, combine them into a single Kubernetes secret:
 
     ```bash
     REGISTRY1=https://index.docker.io/v1/
@@ -176,12 +178,12 @@ As for the configuration in `spec.driver.imageBuild`:
     cat > config.json <<EOF
     {
       "auths": {
-        "${REGISTRY1}": {
-          "auth": "$(echo -n "${USER1}:${PWD1}" | base64 -w0)"
-        },
-        "${REGISTRY2}": {
-          "auth": "$(echo -n "${USER2}:${PWD2}" | base64 -w0)"
-        }
+      "${REGISTRY1}": {
+      "auth": "$(echo -n "${USER1}:${PWD1}" | base64 -w0)"
+      },
+      "${REGISTRY2}": {
+      "auth": "$(echo -n "${USER2}:${PWD2}" | base64 -w0)"
+      }
       }
     }
     EOF
@@ -193,14 +195,14 @@ As for the configuration in `spec.driver.imageBuild`:
       --from-file=.dockerconfigjson=config.json
     ```
 
-3. For OpenShift users, if you are using OpenShift internal image registry to pull/push compiled driver image while at the same time need another secret to pull the base image or source image, please combine another secret with the OpenShift internal builder secret, so that the single secret could be able to pull/push compiled driver image + pull the base/source image.
+3. **OpenShift Internal Registry**: For OpenShift users using the internal image registry to pull/push compiled driver images while needing another secret for base/source images, combine credentials with the OpenShift internal builder secret:
 
     ```bash
     #!/bin/bash
     set -e
     NS=openshift-amd-gpu
     REGISTRY1=https://index.docker.io/v1/
-    USER1=my-username-1    # put registry username here 
+    USER1=my-username-1    # put registry username here
     PWD1=my-password-1     # put registry password or token here
     SECRET_NAME=mysecret   # change this to desired secret name
 
@@ -215,7 +217,7 @@ As for the configuration in `spec.driver.imageBuild`:
       name: builder-token
       namespace: ${NS}
       annotations:
-        kubernetes.io/service-account.name: builder
+      kubernetes.io/service-account.name: builder
     type: kubernetes.io/service-account-token
     EOF
 
@@ -231,15 +233,15 @@ As for the configuration in `spec.driver.imageBuild`:
     cat > config.json <<EOF
     {
       "auths": {
-        "image-registry.openshift-image-registry.svc:5000": {
-          "auth": "$(echo -n "<token>:$(echo $BUILDER_TOKEN | base64 -d)" | base64 -w0)"
-        },
-        "image-registry.openshift-image-registry.svc.cluster.local:5000": {
-          "auth": "$(echo -n "<token>:$(echo $BUILDER_TOKEN | base64 -d)" | base64 -w0)"
-        },
-        "${REGISTRY1}": {
-          "auth": "$(echo -n "${USER1}:${PWD1}" | base64 -w0)"
-        }
+      "image-registry.openshift-image-registry.svc:5000": {
+      "auth": "$(echo -n "<token>:$(echo $BUILDER_TOKEN | base64 -d)" | base64 -w0)"
+      },
+      "image-registry.openshift-image-registry.svc.cluster.local:5000": {
+      "auth": "$(echo -n "<token>:$(echo $BUILDER_TOKEN | base64 -d)" | base64 -w0)"
+      },
+      "${REGISTRY1}": {
+      "auth": "$(echo -n "${USER1}:${PWD1}" | base64 -w0)"
+      }
       }
     }
     EOF
@@ -253,9 +255,7 @@ As for the configuration in `spec.driver.imageBuild`:
 
     echo "✅ Secret '${SECRET_NAME}' created and ready."
     ```
-
 ```
-
 
 #### Configuration Reference
 
@@ -265,55 +265,55 @@ To check the full spec of `DeviceConfig` definition run `kubectl get crds device
 
 #### `metadata` Parameters
 
-| Parameter | Description |
-|-----------|-------------|
-| `name` | Unique identifier for the resource |
-| `namespace` | Namespace where the operator is running |
+| Parameter   | Description                                  |
+| ----------- | -------------------------------------------- |
+| `name`      | Unique identifier for the resource           |
+| `namespace` | Namespace where the operator is running      |
 
 #### `spec.driver` Parameters
 
-| Parameter | Description | Default |
-|-----------|-------------|-------------|
-| `enable` | set to true for installing out-of-tree driver, <br>set it to false then operator will skip driver install <br>and directly use inbox / pre-installed driver | `true` |
-| `blacklist` | set to true then operator will init node labeller daemonset <br>to add `amdgpu` into selected worker nodes modprobe blacklist,<br> set to false then operator will remove `amdgpu` <br>from selected nodes' modprobe blacklist | `false` |
-| `version` | ROCm driver version (e.g., "6.2.2")<br>[See ROCm Versions](https://rocm.docs.amd.com/en/latest/release/versions.html) | Ubuntu: `6.1.3`<br>CoresOS: `6.2.2` |
-| `image` | Registry URL and repository (without tag) <br>*Note: Operator manages tags automatically* | Vanilla k8s: `image-registry:5000/$MOD_NAMESPACE/amdgpu_kmod`<br>OpenShift: `image-registry.openshift-image-registry.svc:5000/$MOD_NAMESPACE/amdgpu_kmod` |
-| `imageRegistrySecret.name` | Name of registry credentials secret<br> to pull/push driver image | |
-| `imageRegistryTLS.insecure` | If true, check if the container image<br> already exists using plain HTTP | `false` |
-| `imageRegistryTLS.insecureSkipTLSVerify` | If true, skip any TLS server certificate validation | `false` |
-| `imageSign.keySecret` | secret name of the private key<br> used to sign kernel modules after image building in cluster<br>see [secure boot](./secure-boot) doc for instructions to create the secret | |
-| `imageSign.certSecret` | secret name of the public key<br> used to sign kernel modules after image building in cluster<br>see [secure boot](./secure-boot) doc for instructions to create the secret | |
-| `tolerations` | List of tolerations that will be set for KMM module object and its components like build pod and worker pod | |
-| `imageBuild.baseImageRegistry` | registry to host base OS image, e.g. when using Ubuntu 22.04 worker node with specified baseImageRegistry `docker.io` the operator will use base image from `docker.io/ubuntu:22.04`  | `docker.io` |
-| `imageBuild.baseImageRegistryTLS.insecure` | If true, check if the container image<br> already exists using plain HTTP | `false` |
-| `imageBuild.baseImageRegistryTLS.insecureSkipTLSVerify` | If true, skip any TLS server certificate validation | `false` |
-| `imageBuild.sourceImageRepo` | (Currently only applied to OpenShift) Image repository to host amdgpu source code image, operator will auto determine the image tag based on users system and `spec.driver.version`. E.g. for building driver from ROCm 7.0 + RHEL 9.6 + default source image repo, the image would be `docker.io/rocm/amdgpu-driver:coreos-9.6-7.0` | `docker.io/rocm/amdgpu-driver` |
+| Parameter                                               | Description                                                                                                                                                                                                                                         | Default                                                                                                                                                   |
+|---------------------------------------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `enable`                                                | Set to true for installing out-of-tree driver.<br>Set to false to skip driver install and use inbox/pre-installed driver.                                                                                                                           | `true`                                                                                                                                                    |
+| `blacklist`                                             | Set to true to have the operator init the node labeller DaemonSet and add `amdgpu` to the selected worker nodes' modprobe blacklist.<br>Set to false to remove `amdgpu` from the selected nodes' modprobe blacklist.                                | `false`                                                                                                                                                   |
+| `version`                                               | ROCm driver version (e.g., "6.2.2").<br>See ROCm Versions: https://rocm.docs.amd.com/en/latest/release/versions.html                                                                                                                                | Ubuntu: `6.1.3`<br>CoreOS: `6.2.2`                                                                                                                        |
+| `image`                                                 | Registry URL and repository (without tag).<br>Note: Operator manages tags automatically.                                                                                                                                                            | Vanilla k8s: `image-registry:5000/$MOD_NAMESPACE/amdgpu_kmod`<br>OpenShift: `image-registry.openshift-image-registry.svc:5000/$MOD_NAMESPACE/amdgpu_kmod` |
+| `imageRegistrySecret.name`                              | Name of registry credentials secret to pull/push driver image.                                                                                                                                                                                      |                                                                                                                                                           |
+| `imageRegistryTLS.insecure`                             | If true, check if the container image already exists using plain HTTP.                                                                                                                                                                              | `false`                                                                                                                                                   |
+| `imageRegistryTLS.insecureSkipTLSVerify`                | If true, skip any TLS server certificate validation.                                                                                                                                                                                                | `false`                                                                                                                                                   |
+| `imageSign.keySecret`                                   | Secret name of the private key used to sign kernel modules after image building in cluster.<br>See secure boot doc for instructions to create the secret: `./secure-boot`.                                                                          |                                                                                                                                                           |
+| `imageSign.certSecret`                                  | Secret name of the public key used to sign kernel modules after image building in cluster.<br>See secure boot doc for instructions to create the secret: `./secure-boot`.                                                                           |                                                                                                                                                           |
+| `tolerations`                                           | List of tolerations that will be set for KMM Module object and components like build pod and worker pod.                                                                                                                                            |                                                                                                                                                           |
+| `imageBuild.baseImageRegistry`                          | Registry hosting the base OS image.<br>Example: With Ubuntu 22.04 worker node and `docker.io`, the operator uses `docker.io/ubuntu:22.04` as base image.                                                                                            | `docker.io`                                                                                                                                               |
+| `imageBuild.baseImageRegistryTLS.insecure`              | If true, check if the container image already exists using plain HTTP.                                                                                                                                                                              | `false`                                                                                                                                                   |
+| `imageBuild.baseImageRegistryTLS.insecureSkipTLSVerify` | If true, skip any TLS server certificate validation.                                                                                                                                                                                                | `false`                                                                                                                                                   |
+| `imageBuild.sourceImageRepo`                            | (OpenShift only) Image repository hosting the amdgpu source code image. The operator determines the image tag based on the system and `spec.driver.version`.<br>Example: ROCm 7.0 + RHEL 9.6 → `docker.io/rocm/amdgpu-driver:coreos-9.6-7.0`.       | `docker.io/rocm/amdgpu-driver`                                                                                                                            |
 
 #### `spec.devicePlugin` Parameters
 
-| Parameter | Description | Default |
-|-----------|-------------|---------|
-| `devicePluginImage` | AMD GPU device plugin image | `rocm/k8s-device-plugin:latest` |
-| `nodeLabellerImage` | Node labeller image | `rocm/k8s-device-plugin:labeller-latest` |
-| `imageRegistrySecret.name` | Name of registry credentials secret<br> to pull device plugin / node labeller image | |
-| `enableNodeLabeller` | enable / disable node labeller | `true` |
+| Parameter                       | Description                                                                         | Default                                  |
+|---------------------------------|-------------------------------------------------------------------------------------|------------------------------------------|
+| `devicePluginImage`             | AMD GPU device plugin image                                                         | `rocm/k8s-device-plugin:latest`          |
+| `nodeLabellerImage`             | Node labeller image                                                                 | `rocm/k8s-device-plugin:labeller-latest` |
+| `imageRegistrySecret.name`      | Name of registry credentials secret<br> to pull device plugin / node labeller image |                                          |
+| `enableNodeLabeller`            | enable / disable node labeller                                                      | `true`                                   |
 
 #### `spec.metricsExporter` Parameters
 
 | Parameter | Description | Default |
-|-----------|-------------|---------|
+| --------- | ----------- | ------- |
 | `enable` | Enable/disable metrics exporter | `false` |
 | `imageRegistrySecret.name` | Name of registry credentials secret<br> to pull metrics exporter image | |
 | `serviceType` | Service type for metrics endpoint <br>Options: "ClusterIP" or "NodePort" | `ClusterIP` |
-| `port` | clsuter IP's internal service port<br> for reaching the metrics endpoint | `5000` |
+| `port` | cluster IP's internal service port<br> for reaching the metrics endpoint | `5000` |
 | `nodePort` | Port number when using NodePort service type | automatically assigned |
 | `selector` | select which nodes to enable metrics exporter | same as `spec.selector` |
 
 #### `spec.selector` Parameters
 
-| Parameter | Description | Default |
-|-----------|-------------|---------|
-| `selector` | Labels to select nodes for driver installation | `feature.node.kubernetes.io/amd-gpu: "true"` |
+| Parameter  | Description                                     | Default                                         |
+|------------|-------------------------------------------------|-------------------------------------------------|
+| `selector` | Labels to select nodes for driver installation +| `feature.node.kubernetes.io/amd-gpu: "true"`    |
 
 ### Registry Secret Configuration
 

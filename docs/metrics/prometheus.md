@@ -7,6 +7,7 @@ Prometheus integration is managed via the **ServiceMonitor** configuration in th
 ## Prerequisites
 
 Before enabling Prometheus integration, ensure you have:
+
 - A running instance of the Prometheus Operator in your Kubernetes cluster.
 - The Device Metrics Exporter enabled in your GPU Operator deployment.
 - Properly configured kube-rbac-proxy in the DeviceConfig CR if the exporter endpoint is protected (Optional).
@@ -72,18 +73,19 @@ metricsExporter:
 - **bearerTokenFile**: (Deprecated) Path to a file containing the bearer token for authentication. Retained for legacy use case. Use authorization block instead to pass tokens.
 - **authorization**: Configures token-based authorization. Reference to the token stored in a Kubernetes Secret
 - **tlsConfig**: Configures TLS for secure connections:
-    - **insecureSkipVerify**: When true, skips certificate verification (not recommended for production)
-    - **serverName**: Server name used for certificate validation
-    - **ca**: ConfigMap containing the CA certificate for server verification
-    - **cert**: Secret containing the client certificate for mTLS
-    - **keySecret**: Secret containing the client key for mTLS
-    - **caFile/certFile/keyFile**: File equivalents for certificates/keys mounted in Prometheus pod.
+  - **insecureSkipVerify**: When true, skips certificate verification (not recommended for production)
+  - **serverName**: Server name used for certificate validation
+  - **ca**: ConfigMap containing the CA certificate for server verification
+  - **cert**: Secret containing the client certificate for mTLS
+  - **keySecret**: Secret containing the client key for mTLS
+  - **caFile/certFile/keyFile**: File equivalents for certificates/keys mounted in Prometheus pod.
 
 These options allow secure metrics collection from AMD Device Metrics Exporter endpoints that are protected by the kube-rbac-proxy sidecar for authentication/authorization.
 
 ## Accessing Metrics with Prometheus
 
 Upon applying the DeviceConfig with the correct settings, the GPU Operator automatically:
+
 - Deploys the ServiceMonitor resource in the GPU Operator namespace.
 - Sets the required labels and namespace selectors in ServiecMonitor CR for Prometheus discovery.
 
@@ -98,16 +100,17 @@ These selectors help Prometheus identify the correct ServiceMonitor to use in th
 
 The [ROCm/device-metrics-exporter](https://github.com/ROCm/device-metrics-exporter/tree/main/grafana) repository includes Grafana dashboards designed to visualize the exported metrics, particularly focusing on job-level or pod-level GPU usage. More details can be found in [Device Metrics Exporter Grafana](https://instinct.docs.amd.com/projects/device-metrics-exporter/en/main/integrations/prometheus-grafana.html#prometheus-and-grafana-integration). These dashboards rely on specific labels exported by the metrics exporter, such as:
 
-*   `pod`: The name of the kubernetes workload Pod currently utilizing the GPU.
-*   `job_id`: An identifier for the slurm job associated with the workload.
+- `pod`: The name of the kubernetes workload Pod currently utilizing the GPU.
+- `job_id`: An identifier for the slurm job associated with the workload.
 
 ### The `pod` Label Conflict
 
 When Prometheus scrapes targets defined by a `ServiceMonitor`, it automatically attaches labels to the metrics based on the target's metadata. One such label is `pod`, which identifies the Pod being scraped (in this case, the metrics exporter Pod itself).
 
 This creates a conflict:
-1.  **Exporter Metric Label:** `pod="<workload-pod-name>"` (Indicates the actual GPU user)
-2.  **Prometheus Target Label:** `pod="<metrics-exporter-pod-name>"` (Indicates the source of the metric)
+
+1. **Exporter Metric Label:** `pod="<workload-pod-name>"` (Indicates the actual GPU user)
+2. **Prometheus Target Label:** `pod="<metrics-exporter-pod-name>"` (Indicates the source of the metric)
 
 ### Solution 1: `honorLabels: true` (Default)
 

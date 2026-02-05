@@ -111,7 +111,7 @@ oc get pods -n openshift-image-registry
 
 Create an NFD custom resource to detect AMD GPU hardware, based on different deployment scenarios you need to choose creating `NodeFeatureDiscovery` or `NodeFeatureRule`.
 
-* If your OpenShift cluster doesn't have `NodeFeatureDiscovery` deployed
+- If your OpenShift cluster doesn't have `NodeFeatureDiscovery` deployed
 
 Please create the ```NodeFeatureDiscovery``` under the namespace where NFD operator is running:
 
@@ -190,7 +190,7 @@ spec:
                     ]}
 ```
 
-* If your OpenShift cluster already has `NodeFeatureDiscovery` deployed
+- If your OpenShift cluster already has `NodeFeatureDiscovery` deployed
 
 You can alternatively create a namespaced `NodeFeatureRule` custom resource to avoid modifying `NodeFeatureDiscovery` which could possibly interrupt the existing node label.
 
@@ -301,6 +301,7 @@ spec:
 ```
 
 Things to note:
+
 1. By default, there is no need to specify the image field in CR for Openshift. Default will be used which is: image-registry.openshift-image-registry.svc:5000/$MOD_NAMESPACE/amdgpu_kmod
 
 2. If users specify image, $MOD_NAMESPACE can be a place holder , KMM Operator can automatically translate it to the namespace
@@ -331,7 +332,7 @@ oc get node -o json | grep amd.com
 
 In order to enable the OpenShift native cluster monitoring stack to scrape metrics from metrics exporter, please:
 
-* Label the namespace with OpenShift specific cluster monitoring label
+- Label the namespace with OpenShift specific cluster monitoring label
 
 For example if AMD GPU Operator was deployed in namespace `openshift-amd-gpu`:
 
@@ -339,7 +340,7 @@ For example if AMD GPU Operator was deployed in namespace `openshift-amd-gpu`:
 oc label namespace openshift-amd-gpu openshift.io/cluster-monitoring="true"
 ```
 
-* Enable the metrics exporter and configure the `serviceMonitor` in `DeviceConfig`
+- Enable the metrics exporter and configure the `serviceMonitor` in `DeviceConfig`
 
 For example:
 
@@ -357,9 +358,9 @@ spec:
 
 After applying this configuration, verify the metrics are being collected:
 
-* Navigate to the OpenShift web console
-* Go to **Observe** → **Targets** to confirm the metrics target is active
-* Go to **Observe** → **Metrics** to query AMD GPU metrics
+- Navigate to the OpenShift web console
+- Go to **Observe** → **Targets** to confirm the metrics target is active
+- Go to **Observe** → **Metrics** to query AMD GPU metrics
 
 ## Uninstallation
 

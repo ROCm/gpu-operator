@@ -51,5 +51,4 @@ Test recipes are available for GPUs with specific partition profiles. To use a p
 | `--parallel`, `-p` | Enables or Disables parallel execution across multiple GPUs, this will help accelerate the RVS tests. | By default if this option is not specified the test won't execute in parallel. Use `-p` or `-p true` to enable parallel execution or use `-p false` to disable the parallel execution. |
 | `--debug`, `-d` | Specify the debug level for the output log. The range is 0-5 with 5 being the highest verbose level.| Example: Use `-d 5` to get the highest level debug output. |
 
-
 For more information of test recipe details and explanation, please check [RVS official documentation](https://rocm.docs.amd.com/projects/ROCmValidationSuite/en/latest/conceptual/rvs-modules.html).

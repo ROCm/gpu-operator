@@ -2,15 +2,11 @@ name: Linting
 
 on:
   push:
-    branches: 
-    - develop
+    branches:
     - main
-    - staging
   pull_request:
-    branches: 
-    - develop
+    branches:
     - main
-    - staging
 
 jobs:
   call-workflow-passing-data:

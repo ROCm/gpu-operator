@@ -22,18 +22,16 @@ KMM determines the appropriate driver image based on the combination of:
 KMM looks for driver images based on tags, the controller will use these methods to determine the image tag:
 
 1. Parse the node's `osImage` field to determine the OS and version `kubectl get node -oyaml | grep -i osImage`:
-
-| osImage | OS | version |
-|---------|-----------|-------------------|
-| `Ubuntu 24.04.1 LTS` | `Ubuntu` | `24.04` |
-| `Red Hat Enterprise Linux CoreOS 9.6.20250916-0 (Plow)` | `coreos` | `9.6` |
-
 2. Read the node's `kernelVersion` field to determine to kernel version `kubectl get node -oyaml | grep -i kernelVersion`.
 3. Read user configured amdgpu driver version from `DeviceConfig` field `spec.driver.version`.
 
+| osImage | OS | version |
+| --------- | ----------- | ------------------- |
+| `Ubuntu 24.04.1 LTS` | `Ubuntu` | `24.04` |
+| `Red Hat Enterprise Linux CoreOS 9.6.20250916-0 (Plow)` | `coreos` | `9.6` |
 
 | OS | Tag Format | Example Image Tag |
-|----|------------|-------------------|
+| ---- | ------------ | ------------------- |
 | `ubuntu` | `ubuntu-<OS version>-<kernel>-<driver version>` | `ubuntu-22.04-6.8.0-40-generic-6.1.3` |
 | `coreos` | `coreos-<OS version>-<kernel>-<driver version>` | `coreos-9.6-5.14.0-427.28.1.el9_4.x86_64-6.2.2` |
 
@@ -47,9 +45,9 @@ When a DeviceConfig is created with driver management enabled (`spec.driver.enab
 
 ### Ubuntu
 
-Follow these image build steps to get a pre-compiled driver images, make sure your system matched with [ROCm required Linux system requirement](https://rocm.docs.amd.com/projects/install-on-linux/en/latest/reference/system-requirements.html).  
+Follow these image build steps to get a pre-compiled driver images, make sure your system matched with [ROCm required Linux system requirement](https://rocm.docs.amd.com/projects/install-on-linux/en/latest/reference/system-requirements.html).
 
-1. Prepare the Dockerfile
+#### Step 1: Prepare the Dockerfile
 
 ```dockerfile
 ARG OS_VERSION
@@ -112,7 +110,7 @@ Build Steps Explanation:
     - Kernel modules: `/opt/lib/modules/${KERNEL_FULL_VERSION}/`
     - Firmware files: `/firmwareDir/updates/amdgpu/`
 
-2. Trigger the build with the Dockerfile 
+#### Step 2: Trigger the build with the Dockerfile
 
 Make sure the build node has the same OS and kernel with your production nodes.
 
@@ -130,7 +128,7 @@ docker build \
   -t registry.example.com/amdgpu-driver:ubuntu-${VERSION_ID}-$(uname -r)-${AMDGPU_VERSION} .
 ```
 
-3. Push to the image to a registry
+#### Step 3: Push to the image to a registry
 
 ```bash
 docker push registry.example.com/amdgpu-driver:ubuntu-${VERSION_ID}-$(uname -r)-${AMDGPU_VERSION}
@@ -140,19 +138,20 @@ docker push registry.example.com/amdgpu-driver:ubuntu-${VERSION_ID}-$(uname -r)-
 
 Follow these image build steps to get a pre-compiled driver images for OpenShift cluster, make sure your RHEL version and driver version matched with [ROCm required Linux system requirement](https://rocm.docs.amd.com/projects/install-on-linux/en/latest/reference/system-requirements.html).
 
-1. Collect System Information
+#### Step 1: Collect System Information
 
 Please collect system information from OpenShift build node before configuring the build process:
 
-* kernel version: `uname -r`
-* kernel compatible OpenShift DriverToolkit image: `oc adm release info --image-for driver-toolkit`
+- kernel version: `uname -r`
+- kernel compatible OpenShift DriverToolkit image: `oc adm release info --image-for driver-toolkit`
 
-2. Prepare image registry:
+#### Step 2: Prepare image registry
 
 Please decide where you want to push your pre-compiled driver image:
 
-  * Case 1: Use OpenShift internal registry:
-    * Enable internal registry (skip this step if you already enabled registry):
+- Case 1: Use OpenShift internal registry:
+  - Enable internal registry (skip this step if you already enabled registry):
+
     ```bash
     oc patch configs.imageregistry.operator.openshift.io cluster --type merge \
       --patch '{"spec":{"storage":{"emptyDir":{}}}}'
@@ -161,35 +160,40 @@ Please decide where you want to push your pre-compiled driver image:
     # make sure the image registry pods are running
     oc get pods -n openshift-image-registry
     ```
-    * Create ImageStream
+
+  - Create ImageStream
+
     ```bash
     oc create imagestream amdgpu_kmod
     ```
-  * Case 2: Use external image registry:
-    * Create secret to push image if required:
+
+- Case 2: Use external image registry:
+  - Create secret to push image if required:
+
     ```bash
     kubectl create secret docker-registry docker-auth \
       --docker-server=registry.example.com \
       --docker-username=xxx \
       --docker-password=xxx
     ```
-3. Create OpenShift `BuildConfig`
+
+#### Step 3: Create OpenShift `BuildConfig`
 
 Please create the following YAML file, the full example is assuming you are using OpenShift internal image registry and build config will be saved in default namespace.
 
-* If you want to configure the build in other namespace, please change the namespace accordingly in the example steps.
-* If you want to use other image registry, please replace the `spec.output` part with this:
+- If you want to configure the build in other namespace, please change the namespace accordingly in the example steps.
+- If you want to use other image registry, please replace the `spec.output` part with this:
 
-```yaml
-spec:
-  output:
-    pushSecret:
-      name: docker-auth
-    to:
-      kind: DockerImage
-      # follow the Image Tag Format section to get your image ta
-      name: registry.example.com/amdgpu_kmod:coreos-9.6-5.14.0-570.45.1.el9_6.x86_64-7.0
-```
+    ```yaml
+    spec:
+      output:
+        pushSecret:
+          name: docker-auth
+        to:
+          kind: DockerImage
+          # follow the Image Tag Format section to get your image ta
+          name: registry.example.com/amdgpu_kmod:coreos-9.6-5.14.0-570.45.1.el9_6.x86_64-7.0
+    ```
 
 Full example:
 
@@ -274,22 +278,22 @@ spec:
       COPY --from=builder /lib/firmware/updates/amdgpu /firmwareDir/updates/amdgpu
 ```
 
-4. Trigger driver image build
+#### Step 4: Trigger driver image build
 
-* Option 1 - Web Console:
-  * Login to OpenShift web console with username and password
-  * Select `Builds` then select `BuildConfigs` in the navigation bar
-  * Click `Create BuildConfig` then select YAML view, copy over the YAML file created in last step
-  * Select the `BuildConfig` in the list, click `Actions` then select `Start Build`
-  * Select `Builds` in the current `BuildConfig` page, a new build should be triggered and in running status.
-  * Wait for it to be completed, you can also monitor the progress in `Logs` section, in the end it should show push is successful.
-  * Delete the `BuildConfig` if needed.
-* Option 2 - Command Line Interface (CLI):
-  * Create the `BuildConfig` by using the YAML file created in the last step: `oc apply -f build-config.yaml`
-  * Start the build: `oc start-build amd-gpu-operator-build`
-  * Check the build status: `oc get build` and `oc get pods | grep build`
-  * Wait for it to complete, the logs should show that push is successful
-  * Delete the `BuildConfig` if needed: `oc delete -f build-config.yaml`
+- Option 1 - Web Console:
+  - Login to OpenShift web console with username and password
+  - Select `Builds` then select `BuildConfigs` in the navigation bar
+  - Click `Create BuildConfig` then select YAML view, copy over the YAML file created in last step
+  - Select the `BuildConfig` in the list, click `Actions` then select `Start Build`
+  - Select `Builds` in the current `BuildConfig` page, a new build should be triggered and in running status.
+  - Wait for it to be completed, you can also monitor the progress in `Logs` section, in the end it should show push is successful.
+  - Delete the `BuildConfig` if needed.
+- Option 2 - Command Line Interface (CLI):
+  - Create the `BuildConfig` by using the YAML file created in the last step: `oc apply -f build-config.yaml`
+  - Start the build: `oc start-build amd-gpu-operator-build`
+  - Check the build status: `oc get build` and `oc get pods | grep build`
+  - Wait for it to complete, the logs should show that push is successful
+  - Delete the `BuildConfig` if needed: `oc delete -f build-config.yaml`
 
 ## Using Pre-compiled Images
 
@@ -328,4 +332,4 @@ kubectl create secret docker-registry docker-auth \
   --docker-password=xxx
 ```
 
-- if you are hosting driver images in DockerHub, you don't need to specify the parameter ```--docker-server```
+- if you are hosting driver images in DockerHub, you don't need to specify the parameter `--docker-server`

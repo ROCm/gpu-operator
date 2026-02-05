@@ -5,10 +5,12 @@
 The Device Config Manager (DCM) is a component of the GPU Operator that is used to handle the configuration of AMD Instinct GPUs, specifically in regards to GPU partitioning. In the future, DCM will also be expanded to handle the configuration of AMD's AI-NIC. Like other GPU Operator components DCM runs as a daemonset on each GPU node in your cluster. DCM can be enabled via the GPU Operator's custom resource called "DeviceConfig". The current goal of the Device Config Manager is to handle the configuration and implementation of GPU partitioning on your Kubernetes cluster, allowing for partitioning modes to be set on each GPU Node based on partition profiles that you specify via a Kubernetes config-map.
 
 ## Supported Platforms
-  - Ubuntu 22.04, Ubuntu 24.04
+
+- Ubuntu 22.04, Ubuntu 24.04
 
 ## ROCM version
-  - ROCM 6.3, ROCM 6.4
+
+- ROCM 6.3, ROCM 6.4
 
 ## GPU Partition Overview
 

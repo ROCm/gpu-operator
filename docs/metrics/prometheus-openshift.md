@@ -4,11 +4,12 @@ The AMD GPU Operator integrates with Prometheus to enable monitoring of GPU metr
 
 Prometheus integration is managed via the **ServiceMonitor** configuration in the DeviceConfig Custom Resource (CR). When enabled, the operator automatically creates a ServiceMonitor tailored to the metrics exported by the Device Metrics Exporter. The integration supports various authentication and authorization methods, including Bearer Tokens and mutual TLS (mTLS), providing flexibility to accommodate different security requirements.
 
-Openshift has its own integrated Prometheus instances which we will utilize instead of a separate operator that vanilla k8s environments would utilize. Additionally, Openshift natively supports Perses for dashboards instead of grafana which is supported with our vanilla k8s deployment guide. 
+Openshift has its own integrated Prometheus instances which we will utilize instead of a separate operator that vanilla k8s environments would utilize. Additionally, Openshift natively supports Perses for dashboards instead of grafana which is supported with our vanilla k8s deployment guide.
 
 ## Prerequisites
 
 Before enabling Prometheus integration, ensure you have:
+
 - Ensure you have enabled and configured the openshift-user-workload-monitoring
 - Have labeled the kube-amd-gpu namespace with `openshift.io/cluster-monitoring=true`
 - The Device Metrics Exporter enabled in your GPU Operator deployment.
@@ -80,18 +81,19 @@ metricsExporter:
 - **bearerTokenFile**: (Deprecated) Path to a file containing the bearer token for authentication. Retained for legacy use case. Use authorization block instead to pass tokens.
 - **authorization**: Configures token-based authorization. Reference to the token stored in a Kubernetes Secret
 - **tlsConfig**: Configures TLS for secure connections:
-    - **insecureSkipVerify**: When true, skips certificate verification (not recommended for production)
-    - **serverName**: Server name used for certificate validation
-    - **ca**: ConfigMap containing the CA certificate for server verification
-    - **cert**: Secret containing the client certificate for mTLS
-    - **keySecret**: Secret containing the client key for mTLS
-    - **caFile/certFile/keyFile**: File equivalents for certificates/keys mounted in Prometheus pod.
+  - **insecureSkipVerify**: When true, skips certificate verification (not recommended for production)
+  - **serverName**: Server name used for certificate validation
+  - **ca**: ConfigMap containing the CA certificate for server verification
+  - **cert**: Secret containing the client certificate for mTLS
+  - **keySecret**: Secret containing the client key for mTLS
+  - **caFile/certFile/keyFile**: File equivalents for certificates/keys mounted in Prometheus pod.
 
 These options allow secure metrics collection from AMD Device Metrics Exporter endpoints that are protected by the kube-rbac-proxy sidecar for authentication/authorization.
 
 ## Accessing Metrics with Openshift integrated Prometheus
 
 Upon applying the DeviceConfig with the correct settings, the GPU Operator automatically:
+
 - Deploys the ServiceMonitor resource in the GPU Operator namespace.
 - Sets the required labels and namespace selectors in ServiceMonitor CR for Prometheus discovery.
 
@@ -108,8 +110,9 @@ TODO
 When Prometheus scrapes targets defined by a `ServiceMonitor`, it automatically attaches labels to the metrics based on the target's metadata. One such label is `pod`, which identifies the Pod being scraped (in this case, the metrics exporter Pod itself).
 
 This creates a conflict:
-1.  **Exporter Metric Label:** `pod="<workload-pod-name>"` (Indicates the actual GPU user)
-2.  **Prometheus Target Label:** `pod="<metrics-exporter-pod-name>"` (Indicates the source of the metric)
+
+1. **Exporter Metric Label:** `pod="<workload-pod-name>"` (Indicates the actual GPU user)
+2. **Prometheus Target Label:** `pod="<metrics-exporter-pod-name>"` (Indicates the source of the metric)
 
 ### Solution 1: `honorLabels: true` (Default)
 
