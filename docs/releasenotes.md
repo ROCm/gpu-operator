@@ -10,9 +10,10 @@ The AMD GPU Operator v1.4.1 release extends platform support to OpenShift v4.20 
   - Starting with ROCm 7.1, the AMD GPU driver version numbering has diverged from the ROCm release version. The amdgpu driver now uses an independent versioning scheme (e.g., version 30.20 corresponds to ROCm 7.1). When specifying driver versions in the DeviceConfig CR `spec.driver.version`, users should reference the amdgpu driver version (e.g., "30.20") for ROCm 7.1 and later releases. For ROCm versions prior to 7.1, continue to use the ROCm version number (e.g., "6.4", "7.0"). Please refer to the [AMD ROCm documentation](https://rocm.docs.amd.com/projects/install-on-linux/en/latest/reference/user-kernel-space-compat-matrix.html) for the driver version that corresponds to your desired ROCm release. All published amdgpu driver versions are available at [Radeon Repository](https://repo.radeon.com/amdgpu/).
 
 ### Release Highlights
+
 - **OpenShift Platform Support Enhancements**
   - **Build Driver Images Directly within Disconnected OpenShift Clusters**
-    - Starting from v1.4.1, the AMD GPU Operator supports building driver kernel modules directly within disconnected OpenShift clusters. 
+    - Starting from v1.4.1, the AMD GPU Operator supports building driver kernel modules directly within disconnected OpenShift clusters.
     - For Red Hat Enterprise Linux CoreOS (used by OpenShift), OpenShift will download source code and firmware from AMD provided [amdgpu-driver images](https://hub.docker.com/r/rocm/amdgpu-driver) into their [DriverToolKit](https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/specialized_hardware_and_driver_enablement/driver-toolkit) and directly build the kernel modules from source code without dependency on lots of RPM packages.
   - **Cluster Monitoring Enablement**
     - The v1.4.1 AMD GPU Operator automatically creates the RBAC resources required by the OpenShift [Cluster Monitoring stack](https://rhobs-handbook.netlify.app/products/openshiftmonitoring/collecting_metrics.md/#configuring-prometheus-to-scrape-metrics). This reduces one manual configuration steps when setting up the OpenShift monitoring stack to scrape metrics from the device metrics exporter.
@@ -28,10 +29,11 @@ The AMD GPU Operator v1.4.1 release extends platform support to OpenShift v4.20 
     - Test runner Kubernetes events now include additional information such as pod UID and test framework name (e.g., RVS, AGFHC) as event labels, providing more comprehensive test run information for improved tracking and diagnostics.
 
 ### Fixes
+
   1. **Node Feature Discovery Rule Fix**
-     * Fixed the PCI device ID for the Virtual Function (VF) of MI308X and MI300X-HF GPUs
+     - Fixed the PCI device ID for the Virtual Function (VF) of MI308X and MI300X-HF GPUs
   2. **Helm Chart default DeviceConfig Fix**
-     * Fixed an issue where the Helm chart could not render the metrics exporter's pod resource API socket path in the default DeviceConfig when specified via `values.yaml` or the `--set` option.
+     - Fixed an issue where the Helm chart could not render the metrics exporter's pod resource API socket path in the default DeviceConfig when specified via `values.yaml` or the `--set` option.
 
 ### Known Limitations
 
@@ -81,21 +83,23 @@ The AMD GPU Operator v1.4.0 adds MI35X platform support and updates all managed 
       - GPU_JPEG_BUSY_INSTANTANEOUS
       - GPU_VCN_BUSY_INSTANTANEOUS
   
-
 ### Platform Support
- - Validated for vanilla kubernetes 1.32, 1.33
+
+- Validated for vanilla kubernetes 1.32, 1.33
 
 ### Fixes
+
   1. **Failed to load GPU Operator managed amdgpu kernel module on Ubuntu 24.04**
-     * When users are using GPU Operator to build and manage the amdgpu kernel module, it may fail on the Ubuntu 24.04 worker nodes if the node doesn't have `linux-modules-extra-$(uname -r)` installed.
-     * This issue was fixed by this release, `linux-modules-extra-$(uname -r)` won't be required to be installed on the worker node.
+     - When users are using GPU Operator to build and manage the amdgpu kernel module, it may fail on the Ubuntu 24.04 worker nodes if the node doesn't have `linux-modules-extra-$(uname -r)` installed.
+     - This issue was fixed by this release, `linux-modules-extra-$(uname -r)` won't be required to be installed on the worker node.
   2. **Improved Test Runner Result Handling**
-     * Previously, if some test cases in a recipe were skipped while others passed, the test runner would incorrectly mark the entire recipe as failed.
-     * Now, the test runner marks the recipe as passed if at least some test cases pass. If all test cases are skipped, the recipe is marked as skipped.
+     - Previously, if some test cases in a recipe were skipped while others passed, the test runner would incorrectly mark the entire recipe as failed.
+     - Now, the test runner marks the recipe as passed if at least some test cases pass. If all test cases are skipped, the recipe is marked as skipped.
   3. **Device Config Manager keeps retrying and waiting for unsupported memory partition type**
-     * This issue has been fixed, currently if users provide unsupported memory partitions for the GPU model, DMC would immediately fail the workflow and won't keep retrying on unsupported memory partition.
+     - This issue has been fixed, currently if users provide unsupported memory partitions for the GPU model, DMC would immediately fail the workflow and won't keep retrying on unsupported memory partition.
 
 ### Known Limitations
+>
 > **Note:** All current and historical limitations for the GPU Operator, including their latest statuses and any associated workarounds or fixes, are tracked in the following documentation page: [Known Issues and Limitations](https://instinct.docs.amd.com/projects/gpu-operator/en/latest/knownlimitations.html).  
    Please refer to this page regularly for the most up-to-date information.
 
@@ -142,7 +146,7 @@ The AMD GPU Operator v1.3.1 release extends platform support to OpenShift v4.19 
 
   1. **Test Runner pod restart failure with a GPU partition profile change**
     - Previously in v1.3.0 when users disabled test runner that cut down the ongoing test, then enabled it again with an underlying GPU partition profile change, the test runner would possibly fail to restart due to the device ID change caused by partition profile change.
-    - This has been fixed in v1.3.1 release. 
+    - This has been fixed in v1.3.1 release.
 
   2. **Device Config Manager memory partition failure when the driver was installed by Kernel Module Management (KMM) Operator**
     -  Previously in v1.3.0 if users worker nodes have no inbox/pre-installed amdgpu driver (ROCm 6.4+) and users install the driver via the KMM operator, the memory partition configuration on Device Config Manager would fail
@@ -185,7 +189,7 @@ The AMD GPU Operator v1.3.0 release introduces new features, most notably of whi
 
 ### Known Limitations
 
-- The Device Config Manager is currently only supported on Kubernetes. We will be adding a Debian package to support bare metal installations in the next release of DCM. For the time being 
+- The Device Config Manager is currently only supported on Kubernetes. We will be adding a Debian package to support bare metal installations in the next release of DCM. For the time being
 
 1. **The Device Config Manager requires running a docker container if you wish to run it in standalone mode (without Kubernetes).**
 
@@ -241,7 +245,7 @@ The AMD GPU Operator v1.2.2 release introduces new features to support Device Me
    - *Root Cause*:
      - When node labeller pod launched it will remove all node labels within `amd.com` and `beta.amd.com` from current node then post the labels managed by itself.
      - When operator is executing the reconcile function, the removal of `DevicePlugin` or will remove all node labels under `amd.com` or `beta.amd.com` domain even if they are not managed by node labeller.
-   - *Resolution*: This issue has been fixed in v1.2.2 for both operator and node labeller side. Users can upgrade to v1.2.2 operator helm chart and use latest node labeller image then only node labeller managed labels will be auto removed. Other users defined labels under `amd.com` or `beta.amd.com` won't be auto removed by operator or node labeller. 
+   - *Resolution*: This issue has been fixed in v1.2.2 for both operator and node labeller side. Users can upgrade to v1.2.2 operator helm chart and use latest node labeller image then only node labeller managed labels will be auto removed. Other users defined labels under `amd.com` or `beta.amd.com` won't be auto removed by operator or node labeller.
 
 3. **During automatic driver upgrade nodes can get stuck in reboot-in-progress**
    - *Issue*: When users upgrade the driver version by using `DeviceConfig` automatic upgrade feature with `spec.driver.upgradePolicy.enable=true` and `spec.driver.upgradePolicy.rebootRequired=true`, some nodes may get stuck at reboot-in-progress state.
@@ -493,28 +497,28 @@ Not Applicable as this is the initial release.
 
 1. **GPU operator driver installs only DKMS package**
 
-  - *Impact:* Applications which require ROCM packages will need to install respective packages.
-  - *Affected Configurations:* All configurations
-  - *Workaround:* None as this is the intended behaviour
+- *Impact:* Applications which require ROCM packages will need to install respective packages.
+- *Affected Configurations:* All configurations
+- *Workaround:* None as this is the intended behaviour
 
-2. **When Using Operator to install amdgpu 6.1.3/6.2 a reboot is required to complete install**
+1. **When Using Operator to install amdgpu 6.1.3/6.2 a reboot is required to complete install**
 
     - *Impact:* Node requires a reboot when upgrade is initiated due to ROCm bug. Driver install failures may be seen in dmesg
     - *Affected configurations:* Nodes with driver version >= ROCm 6.2.x
     - *Workaround:* Reboot the nodes upgraded manually to finish the driver install. This has been fixed in ROCm 6.3+
 
-3. **GPU Operator unable to install amdgpu driver if existing driver is already installed**
+2. **GPU Operator unable to install amdgpu driver if existing driver is already installed**
 
     - *Impact:* Driver install will fail if amdgpu in-box Driver is present/already installed
     - *Affected Configurations:* All configurations
     - *Workaround:* When installing the amdgpu drivers using the GPU Operator, worker nodes should have amdgpu blacklisted or amdgpu drivers should not be pre-installed on the node. [Blacklist in-box driver](https://instinct.docs.amd.com/projects/gpu-operator/en/release-v1.0.0/drivers/installation.html#blacklist-inbox-driver) so that it is not loaded or remove the pre-installed driver
 
-4. **When GPU Operator is used in SKIP driver install mode, if amdgpu module is removed with device plugin installed it will not reflect active GPU available on the server**
+3. **When GPU Operator is used in SKIP driver install mode, if amdgpu module is removed with device plugin installed it will not reflect active GPU available on the server**
     - *Impact:* Scheduling Workloads will have impact as it will scheduled on nodes which does have active GPU.
     - *Affected Configurations:* All configurations
     - *Workaround:* Restart the Device plugin pod deployed.
 
-5. **Worker nodes where Kernel needs to be upgraded needs to taken out of the cluster and readded with Operator installed**
+4. **Worker nodes where Kernel needs to be upgraded needs to taken out of the cluster and readded with Operator installed**
    - *Impact:* Node upgrade will not proceed automatically and requires manual intervention
    - *Affected Configurations:* All configurations
    - *Workaround:* Manually mark the node as unschedulable, preventing new pods from being scheduled on it, by cordoning it off:
@@ -523,7 +527,7 @@ Not Applicable as this is the initial release.
     kubectl cordon <node-name>
     ```
 
-6. **When GPU Operator is installed with Exporter enabled, upgrade of driver is blocked as exporter is actively using the amdgpu module**
+5. **When GPU Operator is installed with Exporter enabled, upgrade of driver is blocked as exporter is actively using the amdgpu module**
    - *Impact:* Driver upgrade is blocked
    - *Affected Configurations:* All configurations
    - *Workaround:* Disable the Metrics Exporter on specific node to allow driver upgrade as follows:

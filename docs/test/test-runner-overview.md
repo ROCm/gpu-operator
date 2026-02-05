@@ -10,7 +10,7 @@ The test runner component offers hardware validation, diagnostics and benchmarki
 
 - Reporting test results as Kubernetes events
 
-Under the hood the Device Test runner leverages the ROCm Validation Suite (RVS) and AMD GPU Field Health Check (AGFHC) toolkit to run any number of tests including GPU stress tests, PCIE bandwidth benchmarks, memory tests, and longer burn-in tests if so desired. 
+Under the hood the Device Test runner leverages the ROCm Validation Suite (RVS) and AMD GPU Field Health Check (AGFHC) toolkit to run any number of tests including GPU stress tests, PCIE bandwidth benchmarks, memory tests, and longer burn-in tests if so desired.
 
 ```{note}
 1. The [public test runner image](https://hub.docker.com/r/rocm/test-runner) only supports executing RVS test.

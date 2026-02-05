@@ -63,6 +63,7 @@ kubectl create configmap my-client-ca --from-file=ca.crt=path/to/ca.crt -n kube-
 ## DeviceConfig Configuration Examples
 
 Token-Based Authorization:
+
 ```yaml
 metricsExporter:
   rbacConfig:
@@ -74,6 +75,7 @@ metricsExporter:
 ```
 
 mTLS with Certificate based RBAC Authorization:
+
 ```yaml
 metricsExporter:
   rbacConfig:
@@ -86,6 +88,7 @@ metricsExporter:
 ```
 
 mTLS with Static Authorization:
+
 ```yaml
 metricsExporter:
   rbacConfig:

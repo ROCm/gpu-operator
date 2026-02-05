@@ -11,6 +11,7 @@ Device Plugin has allocator package where we can define multiple policies on how
 ### Best-effort Allocation Policy
 
 Currently we use ```best-effort``` policy as the default allocation policy. This policy choses GPUs based on topology of the GPUs to ensure optimal affinity and better performance. During initialization phase, Device Plugin calculates a score for every pair of GPUs and stores it in memory. This score is calculated based on below criteria:
+
 - Type of connectivity link between the pair. Most common AMD GPU deployments use either XGMI or PCIE links to connect the GPUs. ```XGMI``` connectivity offers better performance than PCIE connectivity. The score assigned for a pair connected using XGMI is lower than that of a pair connected using PCIE(lower score is better)
 - [NUMA affinity](https://rocm.blogs.amd.com/software-tools-optimization/affinity/part-1/README.html) of the GPU pair. GPU pair that is part of same NUMA domain get lower score than pair from different NUMA domains.
 - For scenarios that involve partitioned GPUs, partitions from same GPU are assigned better score than partitions from different GPUs.

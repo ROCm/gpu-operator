@@ -1,3 +1,4 @@
+<!-- markdownlint-disable MD029 -->
 # Node Problem Detector Integration
 
 Node-problem-detector(NPD) aims to make various node problems visible to the upstream layers in the cluster management stack. It is a daemon that runs on each node, detects node problems and reports them to apiserver. NPD can be extended to detect AMD GPU problems.
@@ -13,7 +14,8 @@ Custom plugin monitor is a plugin mechanism for node-problem-detector. It will e
 Exit codes 0, 1, and 2 are used for plugin monitor. Exit code 0 is treated as working state. Exit code 1 is treated as problem state. Exit code 2 is used for any unknown error. When plugin monitor detects exit code 1, it sets NodeCondition based on the rules defined in custom plugin monitor config file
 
 ## Node-Problem-Detector Integration
-We provide a small utility, `amdgpuhealth`, queries various AMD GPU metrics from `device-metrics-exporter` and `Prometheus` endpoint. Based on user-configured thresholds, it determines if any AMD GPU is in problem state. NPD custom plugin monitor can invoke this program at configurable intervals to monitor various metrics and assess overall health of AMD GPUs. 
+
+We provide a small utility, `amdgpuhealth`, queries various AMD GPU metrics from `device-metrics-exporter` and `Prometheus` endpoint. Based on user-configured thresholds, it determines if any AMD GPU is in problem state. NPD custom plugin monitor can invoke this program at configurable intervals to monitor various metrics and assess overall health of AMD GPUs.
 
 The utility `amdgpuhealth` is packaged with device-metrics-exporter docker image and will be copied to host path `/var/lib/amd-metrics-exporter`. NPD needs to mount this host path to be able to use the utility via custom plugin monitor.
 
@@ -28,6 +30,7 @@ Example usage of amdgpuhealth CLI:
 In the above examples, the program queries either a counter or gauge metric. You can define a threshold for each metric. If the reported AMD GPU metric value exceeds the threshold, `amdgpuhealth` prints an error message to standard output and exits with code 1. The NPD plugin uses this exit code and output to update the node condition's status and message respectively, indicating problem with AMD GPU.
 
 Example custom plugin monitor config:
+
 ```json
 {
   "plugin": "custom",
@@ -71,8 +74,8 @@ Example custom plugin monitor config:
         "gauge-metric",
         "-m=GPUMetricField_GPU_EDGE_TEMPERATURE",
         "-t=100",
-	"-d=1h",
-	"--prometheus-endpoint=http://localhost:9090"
+        "-d=1h",
+        "--prometheus-endpoint=http://localhost:9090"
       ],
       "timeout": "10s"
     }
@@ -92,13 +95,13 @@ If your AMD Device Metrics Exporter or Prometheus endpoints require token-based 
 
 You can create a Kubernetes Secret to store the token for the AMD Device Metrics Exporter endpoint in two ways:
 
-**From a file:**
+- From a file:
 
 ```bash
 kubectl create secret generic -n <NPD_NAMESPACE> amd-exporter-auth-token --from-file=token=<path-to-token-file>
 ```
 
-**From a string literal**
+- From a string literal:
 
 ```bash
 kubectl create secret genreic -n <NPD_NAMESPACE> amd-exporter-auth-token --from-literal=token=<your-auth-token>
@@ -118,25 +121,24 @@ Mount this secret as a volume in your NPD deployment yaml. The same path must be
         "counter-metric",
         "-m=GPU_ECC_UNCORRECT_UMC",
         "-t=1",
-	"--exporter-bearer-token=<token-mount-path>"
+        "--exporter-bearer-token=<token-mount-path>"
       ],
       "timeout": "10s"
     }
 ]
 ```
 
-
 2. **Creating a Authorization token Secret for Prometheus endpoint:**
 
 Similarly create secret for Prometheus endpoint. This will be needed for gauge metrics
 
-**From a file**
+- From a file:
 
 ```bash
 kubectl create secret generic -n <NPD_NAMESPACE> prometheus-auth-token --from-file=token=<path-to-token-file>
 ```
 
-**From a string literal**
+- From a string literal:
 
 ```bash
 kubectl create secret genreic -n <NPD_NAMESPACE> prometheus-auth-token --from-literal=token=<your-auth-token>
@@ -172,6 +174,7 @@ For TLS, NPD needs to have server endpoint's Root CA certificate to authenticate
 1. **Creating Secret for AMD Device Metrics Exporter endpoint Root CA**
 
 Please make sure the key in the secret is set to `ca.crt`
+
 ```bash
 kubectl create secret generic -n <NPD_NAMESPACE> amd-exporter-rootca --from-file=ca.crt=<path-to-ca-cert>
 ```
@@ -226,7 +229,7 @@ Mount this secret as a volume in your NPD deployment yaml. Pass the mount path i
 
 For mTLS, NPD needs to have a certificate and it's corresponding private key. Certificate information can be stored as Kubernetes TLS Secret and mounted as colume in the NPD pod.
 
-1. **Creating Secret for NPD identity certificate**
+3. **Creating Secret for NPD identity certificate**
 
 Please make sure you use the keys `tls.crt` and `tls.key` for certificate and key respectively
 
@@ -249,7 +252,7 @@ Mount the secret as a volume in your NPD deployment yaml. Pass the mount path as
         "-m=GPU_ECC_UNCORRECT_UMC",
         "-t=1",
         "--exporter-root-ca=<rootca-mount-path>",
-	"--client-cert=<client-cert-mount-path>"
+        "--client-cert=<client-cert-mount-path>"
       ],
       "timeout": "10s"
     },
@@ -264,7 +267,7 @@ Mount the secret as a volume in your NPD deployment yaml. Pass the mount path as
         "-m=GPUMetricField_GPU_EDGE_TEMPERATURE",
         "-t=100",
         "--prometheus-root-ca=<rootca-mount-path>/ca.crt",
-	"--client-cert=<client-cert-mount-path>"
+        "--client-cert=<client-cert-mount-path>"
       ],
       "timeout": "10s"
     }

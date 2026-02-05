@@ -36,8 +36,8 @@ All pods should be in the `Running` state. Resolve any issues such as restarts o
 * ```pre-upgrade-check```: The AMD GPU Operator includes a **pre-upgrade** hook that prevents upgrades if any **driver upgrades** are active. This ensures stability by blocking the upgrade when the operator is actively managing driver installations.
 * ```upgrade-crd```: This hook helps users to patch the new version Custom Resource Definition (CRD) to the helm deployment. Helm by default doesn't support automatic upgrade of CRD so we implemented this hook for auto-upgrade the CRDs.
 
-- **Manual Driver Upgrades in KMM:** Manual driver upgrades initiated by users through KMM are allowed but not recommended during an operator upgrade.
-- **Skipping the Hook:** If necessary, you can bypass the pre-upgrade hook (not recommended) by adding ```--no-hooks```, you would have to manually use new version's CRD to upgrade then in cluster.
+* **Manual Driver Upgrades in KMM:** Manual driver upgrades initiated by users through KMM are allowed but not recommended during an operator upgrade.
+* **Skipping the Hook:** If necessary, you can bypass the pre-upgrade hook (not recommended) by adding ```--no-hooks```, you would have to manually use new version's CRD to upgrade then in cluster.
 
 #### Error Scenario
 
@@ -120,9 +120,9 @@ kubectl get deviceconfigs -n kube-amd-gpu -oyaml
 
 #### **Notes**
 
-- Avoid upgrading during active driver upgrades initiated by the operator.
-- Use `--no-hooks` only if necessary and after assessing the potential impact.
-- For additional troubleshooting, check operator logs:
+* Avoid upgrading during active driver upgrades initiated by the operator.
+* Use `--no-hooks` only if necessary and after assessing the potential impact.
+* For additional troubleshooting, check operator logs:
 
   ```bash
   kubectl logs -n kube-amd-gpu amd-gpu-operator-controller-manager-848455579d-p6hlm

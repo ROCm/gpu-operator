@@ -28,9 +28,9 @@ helm repo add bitnami https://charts.bitnami.com/bitnami
 helm repo add jetstack https://charts.jetstack.io
 helm repo update
 helm install cert-manager jetstack/cert-manager \
-	--namespace cert-manager --create-namespace --set crds.enabled=true
+  --namespace cert-manager --create-namespace --set crds.enabled=true
 helm install prometheus prometheus-community/kube-prometheus-stack \
-	--namespace prometheus --create-namespace --set installCRDs=true
+  --namespace prometheus --create-namespace --set installCRDs=true
 ```
 
 ## Installing Slinky Operator
@@ -61,7 +61,6 @@ You will need to build a Slurm docker image to be used for the Slurm compute nod
 - the base image is using the `rocm/pytorch-training:v25.4` image which already has ROCm and PyTorch installed
 - the `COPY patches/ patches/` line has been commented out as there are currently no patches to be applied
 - the `COPY --from=build /tmp/*.deb /tmp/` has also been commented out as there are no .deb files to copy
-
 
 ## Installing Slurm Cluster
 

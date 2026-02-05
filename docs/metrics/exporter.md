@@ -27,7 +27,6 @@
 | 6.4.x        | 6.12.12        | v1.3.0                 | MI3xx        |
 | 6.4.x        | 6.12.12        | v1.3.0.1               | MI2xx, MI3xx |
 
-
 ## Configure metrics exporter
 
 To start the Device Metrics Exporter along with the GPU Operator configure  the ``` spec/metricsExporter/enable ``` field in deviceconfig Custom Resource(CR) to enable/disable metrics exporter

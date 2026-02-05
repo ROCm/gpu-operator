@@ -141,8 +141,8 @@ The following are considered during the automatic upgrade process
 
 If it is observed that the upgrade status is in failed state for a specific node, the user can debug the node, fix it and then add this label to the node to restart upgrade on it. The upgrade state will be reset and it can be tracked as it was before
 
-  - Command:   `kubectl label node <nodename> operator.amd.com/gpu-driver-upgrade-state=upgrade-required`
-  - Label:     `operator.amd.com/gpu-driver-upgrade-state: upgrade-required`
+- Command:   `kubectl label node <nodename> operator.amd.com/gpu-driver-upgrade-state=upgrade-required`
+- Label:     `operator.amd.com/gpu-driver-upgrade-state: upgrade-required`
 
 ## 2. Manual Upgrade Process
 

@@ -1,3 +1,4 @@
+<!-- markdownlint-disable MD029 -->
 # KubeVirt Integration
 
 ## Overview
@@ -23,55 +24,65 @@ The AMD GPU Operator now supports integration with [**KubeVirt**](https://kubevi
 
 You need to set up System BIOS to enable the virtualization related features. For example, sample System BIOS settings will look like this (depending on vendor and BIOS version):
 
-* SR-IOV Support: Enable this option in the Advanced → PCI Subsystem Settings page.
+- SR-IOV Support: Enable this option in the Advanced → PCI Subsystem Settings page.
 
-* Above 4G Decoding: Enable this option in the Advanced → PCI Subsystem Settings page.
+- Above 4G Decoding: Enable this option in the Advanced → PCI Subsystem Settings page.
 
-* PCIe ARI Support: Enable this option in the Advanced → PCI Subsystem Settings page.
+- PCIe ARI Support: Enable this option in the Advanced → PCI Subsystem Settings page.
 
-* IOMMU: Enable this option in the Advanced → NB Configuration page.
+- IOMMU: Enable this option in the Advanced → NB Configuration page.
 
-* ACS Enabled: Enable this option in the Advanced → NB Configuration page.
+- ACS Enabled: Enable this option in the Advanced → NB Configuration page.
 
 ### GRUB Config Update
 
-* Edit GRUB Configuration File:
+- Edit GRUB Configuration File:
 Use a text editor to modify the /etc/default/grub file (Following example uses “nano” text editor). Open the terminal and run the following command:
+
 ```bash
 sudo nano /etc/default/grub
 ```
 
-* Modify the `GRUB_CMDLINE_LINUX` Line:
+- Modify the `GRUB_CMDLINE_LINUX` Line:
 Look for the line that begins with `GRUB_CMDLINE_LINUX`. Modify it to include following parameters, :
+
 ```bash
 GRUB_CMDLINE_LINUX="modprobe.blacklist=amdgpu iommu=on amd_iommu=on"
 ```
+
 If there are already parameters in the quotes, append your new parameters separated by spaces.
+
 ```{note}
 Note: In case host machine is running Intel CPU, replace `amd_iommu` with `intel_iommu`.
 ```
 
-* After modifying the configuration file, you need to update the GRUB settings by running the following command:
+- After modifying the configuration file, you need to update the GRUB settings by running the following command:
+
 ```bash
 sudo update-grub
 ```  
 
-* Reboot Your System:
+- Reboot Your System:
 For the changes to take effect, reboot your system using the following command:
+
 ```bash
 sudo reboot
 ```
 
-* Verifying changes:
+- Verifying changes:
 After the system reboots, confirm that the GRUB parameters were applied successfully by running:
+
 ```bash
 cat /proc/cmdline
 ```
+
 When you run the command above, you should see a line that includes:
+
 ```bash
 modprobe.blacklist=amdgpu iommu=on amd_iommu=on  
 ```
-This indicates that your changes have been applied correctly. 
+
+This indicates that your changes have been applied correctly.
 
 ## Configure KubeVirt
 
@@ -81,6 +92,7 @@ After properly installing the KubeVirt, there will be a KubeVirt custom resource
 2. Add the PF or VF PCI device information to the host devices permitted list.
 
 For example, in order to add MI300X VF:
+
 ```yaml
 $ kubectl get kubevirt -n kubevirt kubevirt -oyaml
 apiVersion: kubevirt.io/v1
@@ -113,6 +125,7 @@ In order to bring up guest VM with VF based GPU-Passthrough, [AMD MxGPU GIM Driv
 If you already prepared the GPU hosts with GIM driver pre-installed and want to directly use it, you don't have to ask AMD GPU Operator to install it for you:
 
 1. Disable the out-of-tree driver management in `DeviceConfig`:
+
 ```yaml
 spec:
   driver:
@@ -120,6 +133,7 @@ spec:
 ```
 
 2. Make sure the AMD GPU VF on your host is already bound to `vfio-pci` kernel module.
+
 ```bash
 $ lspci -nnk | grep 1002 -A 3
 85:00.0 Processing accelerators [1200]: Advanced Micro Devices, Inc. [AMD/ATI] Aqua Vanjaram [Instinct MI300X] [1002:74a1]
@@ -133,6 +147,7 @@ $ lspci -nnk | grep 1002 -A 3
 ```
 
 3. Verify that the VF has been advertised as a resource by device plugin:
+
 ```yaml
 $ kubectl get node <your worker node name> -oyaml | grep -i allocatable -A 5
   allocatable:
@@ -144,6 +159,7 @@ $ kubectl get node <your worker node name> -oyaml | grep -i allocatable -A 5
 If you don't have GIM driver installed on the GPU hosts, AMD GPU Operator can help you install the out-of-tree GIM kernel module to your hosts and automatically bind the VF devices to the `vfio-pci` kernel module to make it ready for passthrough:
 
 1. Enable the out-of-tree driver management in `DeviceConfig`:
+
 ```yaml
 spec:
   driver:
@@ -177,6 +193,7 @@ spec:
 ```
 
 2. Verify that the worker node is labeled with proper driver type and vfio ready labels:
+
 ```yaml
 $ kubectl get node <your worker node name> -oyaml | grep operator.amd
     gpu.operator.amd.com/kube-amd-gpu.test-deviceconfig.driver: vf-passthrough
@@ -184,6 +201,7 @@ $ kubectl get node <your worker node name> -oyaml | grep operator.amd
 ```
 
 3. Verify that the AMD GPU VF on your host is bound to `vfio-pci` kernel module.
+
 ```bash
 $ lspci -nnk | grep 1002 -A 3
 85:00.0 Processing accelerators [1200]: Advanced Micro Devices, Inc. [AMD/ATI] Aqua Vanjaram [Instinct MI300X] [1002:74a1]
@@ -197,6 +215,7 @@ $ lspci -nnk | grep 1002 -A 3
 ```
 
 4. Verify that the VF has been advertised as a resource by device plugin:
+
 ```yaml
 $ kubectl get node <your worker node name> -oyaml | grep -i allocatable -A 5
   allocatable:
@@ -212,6 +231,7 @@ In order to bring up guest VM with PF based GPU-Passthrough, you don't have to i
 If you are using your own method to manage the PF device and it is already bound with `vfio-pci`, please:
 
 1. Disable the driver management of AMD GPU Operator:
+
 ```yaml
 spec:
   driver:
@@ -219,6 +239,7 @@ spec:
 ```
 
 2. Verify that the AMD GPU PF on your host is already bound to `vfio-pci` kernel module.
+
 ```bash
 $ lspci -nnk | grep 1002 -A 3
 85:00.0 Processing accelerators [1200]: Advanced Micro Devices, Inc. [AMD/ATI] Aqua Vanjaram [Instinct MI300X] [1002:74a1]
@@ -228,6 +249,7 @@ $ lspci -nnk | grep 1002 -A 3
 ```
 
 3. Verify that the PF has been advertised as a resource by device plugin:
+
 ```yaml
 $ kubectl get node <your worker node name> -oyaml | grep -i allocatable -A 5
   allocatable:
@@ -235,9 +257,11 @@ $ kubectl get node <your worker node name> -oyaml | grep -i allocatable -A 5
 ```
 
 #### Use AMD GPU Operator to manage PF-Passthrough vfio binding
+
 The AMD GPU Operator can help you bind the AMD GPU PF device to the `vfio-pci` kernel module on all the selected GPU hosts:
 
 1. Configure the `DeviceConfig` custom resource to use PF-Passthrough:
+
 ```yaml
 spec:
   driver:
@@ -256,6 +280,7 @@ spec:
 ```
 
 2. Verify that the worker node is labeled with proper driver type and vfio ready labels:
+
 ```yaml
 $ kubectl get node <your worker node name> -oyaml | grep operator.amd
     gpu.operator.amd.com/kube-amd-gpu.test-deviceconfig.driver: pf-passthrough
@@ -263,6 +288,7 @@ $ kubectl get node <your worker node name> -oyaml | grep operator.amd
 ```
 
 3. Verify that the AMD GPU PF on your host is bound to `vfio-pci` kernel module.
+
 ```bash
 $ lspci -nnk | grep 1002 -A 3
 85:00.0 Processing accelerators [1200]: Advanced Micro Devices, Inc. [AMD/ATI] Aqua Vanjaram [Instinct MI300X] [1002:74a1]
@@ -272,12 +298,12 @@ $ lspci -nnk | grep 1002 -A 3
 ```
 
 4. Verify that the PF has been advertised as a resource by device plugin:
+
 ```yaml
 $ kubectl get node <your worker node name> -oyaml | grep -i allocatable -A 5
   allocatable:
     amd.com/gpu: "1"
 ```
-
 
 ## GPU Operator Components
 
@@ -305,6 +331,7 @@ Similar to the Device Plugin, the Node Labeler can auto-detect the operational m
 Key labels for PF and VF passthrough modes are listed below. Placeholders like `<PF_DEVICE_ID>`, `<VF_DEVICE_ID>`, `<COUNT>`, and `<GIM_DRIVER_VERSION>` represent actual device IDs (e.g., `74a1`, `74b5`), device counts, and GIM driver versions (e.g., `8.1.0.K`) respectively.
 
 **PF Passthrough Mode Labels:**
+
 - `amd.com/gpu.mode=pf-passthrough`
 - `beta.amd.com/gpu.mode=pf-passthrough`
 - `amd.com/gpu.device-id=<PF_DEVICE_ID>`
@@ -312,6 +339,7 @@ Key labels for PF and VF passthrough modes are listed below. Placeholders like `
 - `beta.amd.com/gpu.device-id.<PF_DEVICE_ID>=<COUNT>`
 
 **VF Passthrough Mode Labels:**
+
 - `amd.com/gpu.mode=vf-passthrough`
 - `beta.amd.com/gpu.mode=vf-passthrough`
 - `amd.com/gpu.device-id=<VF_DEVICE_ID>`

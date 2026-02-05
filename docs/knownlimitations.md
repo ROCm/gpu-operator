@@ -27,12 +27,7 @@
 5. **Worker nodes where Kernel needs to be upgraded needs to taken out of the cluster and readded with Operator installed**
    - ***Impact:*** Node upgrade will not proceed automatically and requires manual intervention
    - ***Affected Configurations:*** All configurations
-   - ***Workaround:*** Manually mark the node as unschedulable, preventing new pods from being scheduled on it, by cordoning it off:
-
-    ```bash
-    kubectl cordon <node-name>
-    ```
-
+   - ***Workaround:*** Manually mark the node as unschedulable, preventing new pods from being scheduled on it, by cordoning it off: `kubectl cordon <node-name>`.
 </br></br>
 
 6. **Due to issue with KMM 2.2 deletion of DeviceConfig Custom Resource gets stuck in Red Hat OpenShift**

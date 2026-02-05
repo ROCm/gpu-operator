@@ -9,6 +9,7 @@ The RVS test recipes in the Test Runner are not compatible with partitioned GPUs
 ```
 
 ## Use Case 1 - GPU is unhealthy on the node
+
 When any GPU on a specific worker node is unhealthy, you can manually trigger a test / benchmark run on that worker node to check more details on the unhealthy state by mounting the AMD device related files or folders (`/dev/dri` and `/dev/kfd`) into the test runner container.
 
 The test job requires RBAC config to grant the test runner access to export events and add node labels to the cluster. Here is an example of configuring the RBAC and Job resources:
@@ -153,6 +154,7 @@ spec:
 ```
 
 ## Use Case 2 - GPUs are healthy on the node
+
 When all GPUs on a worker node are healthy, you can manually trigger a benchmark test by requesting GPU resources (`amd.com/gpu`) on that node, rather than mounting device files or folders. If other GPU workloads are running and resources are unavailable, the system will wait until enough resources are free before starting the test.
 
 The test job requires RBAC config to grant the test runner access to export events and add node labels to the cluster. Here is an example of configuring the RBAC and Job resources:
@@ -292,6 +294,7 @@ spec:
 When test is running:
 
 ```bash
+
 $ kubectl get job
 NAME                         STATUS    COMPLETIONS   DURATION   AGE
 test-runner-manual-trigger   Running   0/1           31s        31s
@@ -304,6 +307,7 @@ test-runner-manual-trigger-fnvhn   1/1     Running   0          65s
 When test is completed:
 
 ```bash
+
 $ kubectl get job
 NAME                         STATUS     COMPLETIONS   DURATION   AGE
 test-runner-manual-trigger   Complete   1/1           6m10s      7m21s
@@ -462,6 +466,7 @@ spec:
 When the job gets scheduled, the CronJob resource will show active jobs and the job and pod resources will be created.
 
 ```bash
+
 $ kubectl get cronjob
 NAME                                           SCHEDULE     TIMEZONE   SUSPEND   ACTIVE   LAST SCHEDULE   AGE
 test-runner-manual-trigger-cron-job-midnight   0 0 * * *   <none>     False     1        2s              86s
@@ -476,13 +481,17 @@ test-runner-manual-trigger-cron-job-midnight-28936820-kkqnj   1/1     Running   
 ```
 
 ## Check test running node labels
+
 When the test is ongoing the corresponding label will be added to the node resource: ```"testrunner.amd.com.gpu_health_check.gst_single": "running"```, the test running label will be removed once the test completed.
 
 ## Check test result
+
 Once the test run finishes, the Job's ```Status``` field captures the test run result. If the test run is successful, the status is marked as **Complete**. In case of failure, status is marked as **Failed**.
 
 ## Check test result event
+
 The test runner generated event can be found from Job resource defined namespace. The event contains more granular details about the test run. It can be used to gather more information in case of failure.
+
 ```bash
 $ kubectl get events -n kube-amd-gpu
 LAST SEEN   TYPE      REASON                    OBJECT                                            MESSAGE
@@ -492,6 +501,7 @@ LAST SEEN   TYPE      REASON                    OBJECT                          
 More detailed information about test result events can be found in [this section](./auto-unhealthy-device-test.md#check-test-result-event).
 
 ## Advanced Configuration - ConfigMap
+
 You can create a config map to customize the test trigger and recipe configs. For the example config map and explanation please check [this section](./auto-unhealthy-device-test.md#advanced-configuration---configmap).
 
 After creating the config map, you can specify the volume and volume mount to mount the config map into test runner container.

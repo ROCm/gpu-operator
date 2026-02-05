@@ -61,7 +61,6 @@ Below is a matrix of supported Operating systems and the corresponding Kubernete
   </tbody>
 </table>
 
-
 Please refer to the [ROCM documentation](https://rocm.docs.amd.com/en/latest/compatibility/compatibility-matrix.html) for the compatibility matrix for the AMD GPU DKMS driver.
 
 ## Prerequisites

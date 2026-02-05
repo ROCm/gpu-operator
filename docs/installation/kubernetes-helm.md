@@ -303,9 +303,10 @@ helm upgrade amd-gpu-operator amd/gpu-operator-helm \
 ## Install Custom Resource
 
 After the installation of AMD GPU Operator:
-  * If you are using default `DeviceConfig`, you can modify the default `DeviceConfig` to adjust the config for your own use case. `kubectl edit deviceconfigs -n kube-amd-gpu default`
-  * If you installed without default `DeviceConfig` (either by using `--set crds.defaultCR.install=false` or installing a chart prior to v1.3.0), you need to create the `DeviceConfig` custom resource in order to trigger the operator start to work. By preparing the `DeviceConfig` in the YAML file, you can create the resouce by running ```kubectl apply -f deviceconfigs.yaml```.
-  * For custom resource definition and more detailed information, please refer to [Custom Resource Installation Guide](../drivers/installation). Here are some examples for common deployment scenarios.
+
+- If you are using default `DeviceConfig`, you can modify the default `DeviceConfig` to adjust the config for your own use case. `kubectl edit deviceconfigs -n kube-amd-gpu default`
+- If you installed without default `DeviceConfig` (either by using `--set crds.defaultCR.install=false` or installing a chart prior to v1.3.0), you need to create the `DeviceConfig` custom resource in order to trigger the operator start to work. By preparing the `DeviceConfig` in the YAML file, you can create the resouce by running ```kubectl apply -f deviceconfigs.yaml```.
+- For custom resource definition and more detailed information, please refer to [Custom Resource Installation Guide](../drivers/installation). Here are some examples for common deployment scenarios.
 
 ### Inbox or Pre-Installed AMD GPU Drivers
 

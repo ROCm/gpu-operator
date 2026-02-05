@@ -309,6 +309,7 @@ Config map explanation:
   * DeviceIDs (Only works for ```manual``` and ```pre-start-job-check``` test trigger):
 
     List of string for GPU 0-indexed ID. A selector to filter which GPU would run the test. For example, if there are 2 GPUs the GPU ID would be 0 and 1. To select GPU0 to run the test only, please configure the DeviceIDs:
+
     ```yaml
     {
       "Recipe": "gst_single",
