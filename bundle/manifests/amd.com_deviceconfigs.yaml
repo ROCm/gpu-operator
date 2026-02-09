@@ -256,6 +256,9 @@ spec:
                           type: string
                       type: object
                     type: array
+                  enableDevicePlugin:
+                    description: enable Device Plugin, disabled by default
+                    type: boolean
                   enableNodeLabeller:
                     default: true
                     description: enable or disable the node labeller
@@ -337,6 +340,102 @@ spec:
                   upgradePolicy:
                     description: upgrade policy for device plugin and node labeller
                       daemons
+                    properties:
+                      maxUnavailable:
+                        default: 1
+                        description: MaxUnavailable specifies the maximum number of
+                          Pods that can be unavailable during the update process.
+                          Applicable for RollingUpdate only. Default value is 1.
+                        format: int32
+                        type: integer
+                      upgradeStrategy:
+                        description: UpgradeStrategy specifies the type of the DaemonSet
+                          update. Valid values are "RollingUpdate" (default) or "OnDelete".
+                        enum:
+                        - RollingUpdate
+                        - OnDelete
+                        type: string
+                    type: object
+                type: object
+              draDriver:
+                description: dra driver
+                properties:
+                  cmdLineArguments:
+                    additionalProperties:
+                      type: string
+                    description: arguments is used to pass supported flags and their
+                      values while starting DRA driver daemonset
+                    type: object
+                  enable:
+                    description: enable DRA driver, disabled by default
+                    type: boolean
+                  image:
+                    description: DRA driver image
+                    pattern: ^([a-z0-9]+(?:[._-][a-z0-9]+)*(:[0-9]+)?)(/[a-z0-9]+(?:[._-][a-z0-9]+)*)*(?::[a-z0-9._-]+)?(?:@[a-zA-Z0-9]+:[a-f0-9]+)?$
+                    type: string
+                  imagePullPolicy:
+                    description: image pull policy for DRA driver
+                    enum:
+                    - Always
+                    - IfNotPresent
+                    - Never
+                    type: string
+                  imageRegistrySecret:
+                    description: DRA driver image registry secret used to pull/push
+                      images
+                    properties:
+                      name:
+                        default: ""
+                        description: |-
+                          Name of the referent.
+                          This field is effectively required, but due to backwards compatibility is
+                          allowed to be empty. Instances of this type with an empty value here are
+                          almost certainly wrong.
+                          More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                        type: string
+                    type: object
+                    x-kubernetes-map-type: atomic
+                  tolerations:
+                    description: tolerations for the DRA driver DaemonSet
+                    items:
+                      description: |-
+                        The pod this Toleration is attached to tolerates any taint that matches
+                        the triple <key,value,effect> using the matching operator <operator>.
+                      properties:
+                        effect:
+                          description: |-
+                            Effect indicates the taint effect to match. Empty means match all taint effects.
+                            When specified, allowed values are NoSchedule, PreferNoSchedule and NoExecute.
+                          type: string
+                        key:
+                          description: |-
+                            Key is the taint key that the toleration applies to. Empty means match all taint keys.
+                            If the key is empty, operator must be Exists; this combination means to match all values and all keys.
+                          type: string
+                        operator:
+                          description: |-
+                            Operator represents a key's relationship to the value.
+                            Valid operators are Exists and Equal. Defaults to Equal.
+                            Exists is equivalent to wildcard for value, so that a pod can
+                            tolerate all taints of a particular category.
+                          type: string
+                        tolerationSeconds:
+                          description: |-
+                            TolerationSeconds represents the period of time the toleration (which must be
+                            of effect NoExecute, otherwise this field is ignored) tolerates the taint. By default,
+                            it is not set, which means tolerate the taint forever (do not evict). Zero and
+                            negative values will be treated as 0 (evict immediately) by the system.
+                          format: int64
+                          type: integer
+                        value:
+                          description: |-
+                            Value is the taint value the toleration matches to.
+                            If the operator is Exists, the value should be empty, otherwise just a regular string.
+                          type: string
+                      type: object
+                    type: array
+                  upgradePolicy:
+                    description: upgrade policy for DRA driver daemon
                     properties:
                       maxUnavailable:
                         default: 1
