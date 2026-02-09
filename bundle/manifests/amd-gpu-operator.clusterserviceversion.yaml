@@ -196,6 +196,11 @@ spec:
         path: devicePlugin.devicePluginTolerations
         x-descriptors:
         - urn:alm:descriptor:com.amd.deviceconfigs:devicePluginTolerations
+      - description: enable Device Plugin, disabled by default
+        displayName: EnableDevicePlugin
+        path: devicePlugin.enableDevicePlugin
+        x-descriptors:
+        - urn:alm:descriptor:com.amd.deviceconfigs:enableDevicePlugin
       - description: enable or disable the node labeller
         displayName: EnableNodeLabeller
         path: devicePlugin.enableNodeLabeller
@@ -247,6 +252,60 @@ spec:
           values are "RollingUpdate" (default) or "OnDelete".
         displayName: UpgradeStrategy
         path: devicePlugin.upgradePolicy.upgradeStrategy
+        x-descriptors:
+        - urn:alm:descriptor:com.amd.deviceconfigs:upgradeStrategy
+      - description: dra driver
+        displayName: DRADriver
+        path: draDriver
+        x-descriptors:
+        - urn:alm:descriptor:com.amd.deviceconfigs:draDriver
+      - description: arguments is used to pass supported flags and their values while
+          starting DRA driver daemonset
+        displayName: DRADriverArguments
+        path: draDriver.cmdLineArguments
+        x-descriptors:
+        - urn:alm:descriptor:com.amd.deviceconfigs:cmdLineArguments
+      - description: enable DRA driver, disabled by default
+        displayName: Enable
+        path: draDriver.enable
+        x-descriptors:
+        - urn:alm:descriptor:com.amd.deviceconfigs:enable
+      - description: DRA driver image
+        displayName: Image
+        path: draDriver.image
+        x-descriptors:
+        - urn:alm:descriptor:com.amd.deviceconfigs:image
+      - description: image pull policy for DRA driver
+        displayName: ImagePullPolicy
+        path: draDriver.imagePullPolicy
+        x-descriptors:
+        - urn:alm:descriptor:com.amd.deviceconfigs:imagePullPolicy
+      - description: DRA driver image registry secret used to pull/push images
+        displayName: ImageRegistrySecret
+        path: draDriver.imageRegistrySecret
+        x-descriptors:
+        - urn:alm:descriptor:com.amd.deviceconfigs:imageRegistrySecret
+      - description: tolerations for the DRA driver DaemonSet
+        displayName: Tolerations
+        path: draDriver.tolerations
+        x-descriptors:
+        - urn:alm:descriptor:com.amd.deviceconfigs:tolerations
+      - description: upgrade policy for DRA driver daemon
+        displayName: UpgradePolicy
+        path: draDriver.upgradePolicy
+        x-descriptors:
+        - urn:alm:descriptor:com.amd.deviceconfigs:upgradePolicy
+      - description: MaxUnavailable specifies the maximum number of Pods that can
+          be unavailable during the update process. Applicable for RollingUpdate only.
+          Default value is 1.
+        displayName: MaxUnavailable
+        path: draDriver.upgradePolicy.maxUnavailable
+        x-descriptors:
+        - urn:alm:descriptor:com.amd.deviceconfigs:maxUnavailable
+      - description: UpgradeStrategy specifies the type of the DaemonSet update. Valid
+          values are "RollingUpdate" (default) or "OnDelete".
+        displayName: UpgradeStrategy
+        path: draDriver.upgradePolicy.upgradeStrategy
         x-descriptors:
         - urn:alm:descriptor:com.amd.deviceconfigs:upgradeStrategy
       - description: driver

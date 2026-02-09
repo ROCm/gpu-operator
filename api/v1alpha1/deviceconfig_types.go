@@ -61,6 +61,11 @@ type DeviceConfigSpec struct {
 	// +optional
 	DevicePlugin DevicePluginSpec `json:"devicePlugin,omitempty"`
 
+	// dra driver
+	//+operator-sdk:csv:customresourcedefinitions:type=spec,displayName="DRADriver",xDescriptors={"urn:alm:descriptor:com.amd.deviceconfigs:draDriver"}
+	// +optional
+	DRADriver DRADriverSpec `json:"draDriver,omitempty"`
+
 	// test runner
 	//+operator-sdk:csv:customresourcedefinitions:type=spec,displayName="TestRunner",xDescriptors={"urn:alm:descriptor:com.amd.deviceconfigs:testRunner"}
 	// +optional
@@ -371,7 +376,51 @@ type PodDeletionSpec struct {
 	GracePeriodSeconds int `json:"gracePeriodSeconds,omitempty"`
 }
 
+type DRADriverSpec struct {
+	// enable DRA driver, disabled by default
+	//+operator-sdk:csv:customresourcedefinitions:type=spec,displayName="Enable",xDescriptors={"urn:alm:descriptor:com.amd.deviceconfigs:enable"}
+	// +optional
+	Enable *bool `json:"enable,omitempty"`
+
+	// DRA driver image
+	//+operator-sdk:csv:customresourcedefinitions:type=spec,displayName="Image",xDescriptors={"urn:alm:descriptor:com.amd.deviceconfigs:image"}
+	// +optional
+	// +kubebuilder:validation:Pattern=`^([a-z0-9]+(?:[._-][a-z0-9]+)*(:[0-9]+)?)(/[a-z0-9]+(?:[._-][a-z0-9]+)*)*(?::[a-z0-9._-]+)?(?:@[a-zA-Z0-9]+:[a-f0-9]+)?$`
+	Image string `json:"image,omitempty"`
+
+	// image pull policy for DRA driver
+	//+operator-sdk:csv:customresourcedefinitions:type=spec,displayName="ImagePullPolicy",xDescriptors={"urn:alm:descriptor:com.amd.deviceconfigs:imagePullPolicy"}
+	// +kubebuilder:validation:Enum=Always;IfNotPresent;Never
+	// +optional
+	ImagePullPolicy string `json:"imagePullPolicy,omitempty"`
+
+	// tolerations for the DRA driver DaemonSet
+	//+operator-sdk:csv:customresourcedefinitions:type=spec,displayName="Tolerations",xDescriptors={"urn:alm:descriptor:com.amd.deviceconfigs:tolerations"}
+	// +optional
+	Tolerations []v1.Toleration `json:"tolerations,omitempty"`
+
+	// DRA driver image registry secret used to pull/push images
+	//+operator-sdk:csv:customresourcedefinitions:type=spec,displayName="ImageRegistrySecret",xDescriptors={"urn:alm:descriptor:com.amd.deviceconfigs:imageRegistrySecret"}
+	// +optional
+	ImageRegistrySecret *v1.LocalObjectReference `json:"imageRegistrySecret,omitempty"`
+
+	// upgrade policy for DRA driver daemon
+	//+operator-sdk:csv:customresourcedefinitions:type=spec,displayName="UpgradePolicy",xDescriptors={"urn:alm:descriptor:com.amd.deviceconfigs:upgradePolicy"}
+	// +optional
+	UpgradePolicy *DaemonSetUpgradeSpec `json:"upgradePolicy,omitempty"`
+
+	// arguments is used to pass supported flags and their values while starting DRA driver daemonset
+	//+operator-sdk:csv:customresourcedefinitions:type=spec,displayName="DRADriverArguments",xDescriptors={"urn:alm:descriptor:com.amd.deviceconfigs:cmdLineArguments"}
+	// +optional
+	CmdLineArguments map[string]string `json:"cmdLineArguments,omitempty"`
+}
+
 type DevicePluginSpec struct {
+	// enable Device Plugin, disabled by default
+	//+operator-sdk:csv:customresourcedefinitions:type=spec,displayName="EnableDevicePlugin",xDescriptors={"urn:alm:descriptor:com.amd.deviceconfigs:enableDevicePlugin"}
+	// +optional
+	EnableDevicePlugin *bool `json:"enableDevicePlugin,omitempty"`
+
 	// device plugin image
 	//+operator-sdk:csv:customresourcedefinitions:type=spec,displayName="DevicePluginImage",xDescriptors={"urn:alm:descriptor:com.amd.deviceconfigs:devicePluginImage"}
 	// +optional
