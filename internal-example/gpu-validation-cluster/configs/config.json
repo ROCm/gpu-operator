@@ -1,0 +1,43 @@
+{
+  "global": {
+    "image-pull-secrets": []
+  },
+  "in-cluster-registry": {
+    "image": "docker.io/library/registry:2",
+    "namespace": "registry",
+    "nodePort": 32321
+  },
+  "cert-manager": {
+    "version": "v1.19.2",
+    "repo": "oci://quay.io/jetstack/charts/cert-manager",
+    "namespace": "cert-manager"
+  },
+  "amd-gpu-operator": {
+    "version": "v1.4.1",
+    "repo": "https://rocm.github.io/gpu-operator",
+    "chart": "rocm/gpu-operator-charts",
+    "namespace": "kube-amd-gpu",
+    "install-amdgpu-driver": false,
+    "driver-version": "30.30",
+    "node-selector": {
+      "feature.node.kubernetes.io/amd-gpu": "true"
+    }
+  },
+  "network-operator": {
+    "version": "v1.0.0",
+    "repo": "https://rocm.github.io/network-operator",
+    "chart": "rocm-network/network-operator-charts",
+    "namespace": "kube-amd-network",
+    "install-ionic-driver": false,
+    "driver-version": "1.117.5-a-56",
+    "node-selector": {
+      "feature.node.kubernetes.io/amd-nic": "true"
+    }
+  },
+  "cluster-validation-framework": {
+    "install-cvf": true,
+    "mpi-operator": {
+      "version": "v0.4.0"
+    }
+  }
+}
