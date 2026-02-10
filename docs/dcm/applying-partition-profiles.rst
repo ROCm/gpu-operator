@@ -19,8 +19,8 @@ GPU Partitioning Workflow
 Setting GPU Partitioning
 -------------------------
 
-1. Add tolerations to all deployments in kube-system namespace
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+1. Add tolerations to all deployments and daemonsets in kube-system namespace
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Since tainting a node will bring down all pods/daemonsets, we need to add toleration to the Kubernetes system pods to prevent them from getting evicted. Pods in the system namespace are responsible for things like DNS, networking, proxy and the overall proper functioning of your node.
 
@@ -33,6 +33,16 @@ Here we are patching all the deployments in the `kube-system` namespace with the
       .. code-block:: bash
 
          kubectl get deployments -n kube-system -o json | jq -r '.items[] | .metadata.name' | xargs -I {} kubectl patch deployment {} -n kube-system --type='json' -p='[{"op": "add", "path": "/spec/template/spec/tolerations", "value": [{"key": "amd-dcm", "operator": "Equal", "value": "up", "effect": "NoExecute"}]}]'
+
+We also need to patch all the daemonsets in the `kube-system` namespace to prevent CNI (e.g., Cilium) malfunction:
+
+.. tab-set::
+
+   .. tab-item:: Kubernetes
+
+      .. code-block:: bash
+
+         kubectl get daemonsets -n kube-system -o json | jq -r '.items[] | .metadata.name' | xargs -I {} kubectl patch daemonsets {} -n kube-system --type='json' -p='[{"op": "add", "path": "/spec/template/spec/tolerations", "value": [{"key": "amd-dcm", "operator": "Equal", "value": "up", "effect": "NoExecute"}]}]'
 
 ..    .. tab-item:: OpenShift
 
@@ -56,7 +66,37 @@ The above command is convenient as it adds the required tolerations all with a s
 2. Create DCM Profile ConfigMap
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Next you will need to create the Device Config Mangaer ConfigMap that specifies the different partitioning profiles you would like to set. Refer to the [Device Config Mangaer ConfigMap](../dcm/device-config-manager-configmap.html#configmap) page for more details on how to create the DCM ConfigMap. 
+Next you will need to create the Device Config Mangaer ConfigMap that specifies the different partitioning profiles you would like to set. Refer to the [Device Config Mangaer ConfigMap](../dcm/device-config-manager-configmap.html#configmap) page for more details on how to create the DCM ConfigMap.
+
+Before creating your partition profiles, ensure you use the correct compute and memory partition combinations for your GPU model. For detailed information on supported partition profiles by GPU model, refer to the `AMD GPU Partitioning documentation <https://instinct.docs.amd.com/projects/amdgpu-docs/en/latest/gpu-partitioning/index.html>`_.
+
+**Checking Supported Partitions on Your System**
+
+You can verify the supported compute and memory partition modes directly on your GPU node by checking the sysfs files. SSH into your node and run the following commands:
+
+.. code-block:: bash
+
+   # Check available compute partitions (e.g., SPX, DPX, QPX, CPX)
+   cat /sys/module/amdgpu/drivers/pci\:amdgpu/<bdf>/available_compute_partition
+
+   # Check available memory partitions (e.g., NPS1, NPS2, NPS4, NPS8)
+   cat /sys/module/amdgpu/drivers/pci\:amdgpu/<bdf>/available_memory_partition
+
+Replace ``<bdf>`` with your GPU's PCI bus/device/function identifier (e.g., ``0000:87:00.0``). You can find the available BDFs by listing the directory contents:
+
+.. code-block:: bash
+
+   ls /sys/module/amdgpu/drivers/pci\:amdgpu/
+
+Example output:
+
+.. code-block:: bash
+
+   $ cat /sys/module/amdgpu/drivers/pci\:amdgpu/0000\:87\:00.0/available_compute_partition
+   SPX, DPX, QPX, CPX
+   
+   $ cat /sys/module/amdgpu/drivers/pci\:amdgpu/0000\:87\:00.0/available_memory_partition
+   NPS1, NPS4, NPS8
 
 Below is an example of how to create the `config-manager-config.yaml` file that has the following 2 profiles:
 
@@ -124,6 +164,35 @@ Now apply the DCM ConfigMap to your cluster
 
 ..             oc apply -f config-manager-config.yaml
 
+After creating the ConfigMap, you need to associate it with the Device Config Manager by updating the DeviceConfig Custom Resource (CR)
+
+.. code-block:: yaml
+
+    configManager:
+      # To enable/disable the config manager, enable to partition
+      enable: True
+
+      # image for the device-config-manager container
+      image: "rocm/device-config-manager:v1.4.0"
+
+      # image pull policy for config manager. Accepted values are Always, IfNotPresent, Never
+      imagePullPolicy: IfNotPresent
+
+      # specify configmap name which stores profile config info
+      config: 
+        name: "config-manager-config"
+
+      # OPTIONAL
+      # toleration field for dcm pod to bypass nodes with specific taints
+      configManagerTolerations:
+        - key: "key1"
+          operator: "Equal" 
+          value: "value1"
+          effect: "NoExecute"
+
+.. note::
+   The ConfigMap name is of type ``string``. Ensure you change the ``spec/configManager/config/name`` to match the name of the config map you created (in this example, ``config-manager-config``). The Device-Config-Manager pod needs a ConfigMap to be present or else the pod does not come up.
+
 3. Add Taint to node
 ~~~~~~~~~~~~~~~~~~~~
 
@@ -181,11 +250,23 @@ You can also confirm that the label got applied by checking the node:
 5. Verify GPU partitioning
 ~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Connect to the node in your cluster via SSH and run amd-smi to confirm you now see the new partitions:
+Use kubectl exec to run amd-smi inside the Device Config Manager pod to confirm you now see the new partitions:
 
-.. code-block:: bash
+.. tab-set::
 
-    amd-smi list
+   .. tab-item:: Kubernetes
+
+      .. code-block:: bash
+
+            kubectl exec -n kube-amd-gpu -it [dcm-pod-name] -- amd-smi list
+
+..    .. tab-item:: OpenShift
+
+..       .. code-block:: bash
+
+..             oc exec -n kube-amd-gpu -it [dcm-pod-name] -- amd-smi list
+
+Replace ``[dcm-pod-name]`` with the actual name of your Device Config Manager pod (e.g., ``gpu-operator-device-config-manager-hn9rb``).
 
 6. Remove Taint from the node
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -209,6 +290,8 @@ Remove the taint from the node to restart all previous workloads and allow the n
 Reverting back to SPX (no partitions)
 -------------------------------------
 
+To revert a node back to SPX mode (no partitions), apply the ``spx-profile`` label to the node:
+
 .. tab-set::
 
    .. tab-item:: Kubernetes
@@ -224,7 +307,9 @@ Reverting back to SPX (no partitions)
 ..             oc label node [nodename] dcm.amd.com/gpu-config-profile=spx-profile --overwrite
 
 Removing Partition Profile label
---------------------------------
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+To completely remove the partition profile label from a node:
 
 .. tab-set::
 
@@ -241,7 +326,9 @@ Removing Partition Profile label
 ..             oc label node [nodename] dcm.amd.com/gpu-config-profile-
 
 Removing DCM tolerations from all daemonsets in kube-system namespace
----------------------------------------------------------------------
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+After completing partitioning operations, you can remove the DCM tolerations that were added to the kube-system namespace:
 
 .. tab-set::
 
