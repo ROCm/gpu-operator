@@ -1196,6 +1196,7 @@ spec:
           - get
           - list
           - update
+          - watch
         - apiGroups:
           - ""
           resources:
