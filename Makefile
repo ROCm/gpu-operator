@@ -14,6 +14,7 @@ PROJECT_VERSION ?= v1.4.0
 TOP_DIR = $(PWD)
 GOFLAGS := "-mod=mod"
 GIT_COMMIT ?= $(shell git rev-parse --short HEAD)
+CONTAINER_TOOL ?= docker
 DOCKER_REGISTRY ?= docker.io/rocm
 IMAGE_NAME ?= gpu-operator
 IMAGE_TAG_BASE ?= $(DOCKER_REGISTRY)/$(IMAGE_NAME)
@@ -110,7 +111,8 @@ ENVTEST_K8S_VERSION = 1.23
 # Options are set to exit when a recipe line exits non-zero or a piped command fails.
 SHELL = /usr/bin/env bash -o pipefail
 .SHELLFLAGS = -ec
-DOCKER_GID := $(shell stat -c '%g' /var/run/docker.sock)
+DOCKER_SOCKET_FILE ?= /var/run/docker.sock
+DOCKER_GID := $(shell stat -c '%g' $(DOCKER_SOCKET_FILE))
 USER_UID := $(shell id -u)
 USER_GID := $(shell id -g)
 DOCKER_BUILDER_TAG := v1.2
@@ -132,7 +134,7 @@ HTML_DIR := $(BUILD_DIR)/html
 .PHONY: default
 default: docker-build-env ## Quick start to build everything from docker shell container.
 	@echo "Starting a shell in the Docker build container..."
-	@docker run --rm -it --privileged \
+	@$(CONTAINER_TOOL) run --rm -it --privileged \
 	    --network host \
 		--name gpu-operator-build \
 		-e "USER_NAME=$(shell whoami)" \
@@ -141,7 +143,7 @@ default: docker-build-env ## Quick start to build everything from docker shell c
 		-v $(CURDIR):/gpu-operator \
 		-v $(CURDIR):/home/$(shell whoami)/go/src/github.com/ROCm/gpu-operator \
 		-v $(HOME)/.ssh:/home/$(shell whoami)/.ssh \
-		-v /var/run/docker.sock:/var/run/docker.sock \
+		-v $(DOCKER_SOCKET_FILE):/var/run/docker.sock \
 		-w $(CONTAINER_WORKDIR) \
 		$(DOCKER_BUILDER_IMAGE) \
 		'bash -ic "source ~/.bashrc && cd /gpu-operator && git config --global --add safe.directory /gpu-operator && make all && GOFLAGS=-mod=mod go run tools/build/copyright/main.go && make fmt"'
@@ -149,7 +151,7 @@ default: docker-build-env ## Quick start to build everything from docker shell c
 .PHONY: docker/shell
 docker/shell: docker-build-env ## Bring up and attach to a container that has dev environment configured.
 	@echo "Starting a shell in the Docker build container..."
-	@docker run --rm -it --privileged \
+	@$(CONTAINER_TOOL) run --rm -it --privileged \
 		--name gpu-operator-build \
 		-e "USER_NAME=$(shell whoami)" \
 		-e "USER_UID=$(shell id -u)" \
@@ -157,7 +159,7 @@ docker/shell: docker-build-env ## Bring up and attach to a container that has de
 		-v $(CURDIR):/gpu-operator \
 		-v $(CURDIR):/home/$(shell whoami)/go/src/github.com/ROCm/gpu-operator \
 		-v $(HOME)/.ssh:/home/$(shell whoami)/.ssh \
-		-v /var/run/docker.sock:/var/run/docker.sock \
+		-v $(DOCKER_SOCKET_FILE):/var/run/docker.sock \
 		-w $(CONTAINER_WORKDIR) \
 		$(DOCKER_BUILDER_IMAGE) \
 		"cd /gpu-operator && git config --global --add safe.directory /gpu-operator && bash"
@@ -289,15 +291,15 @@ manager: $(shell find -name "*.go") go.mod go.sum  ## Build manager binary.
 
 .PHONY: docker-build
 docker-build: ## Build docker image with the manager.
-	DOCKER_BUILDKIT=1 docker build -t $(IMG) --label HOURLY_TAG=$(HOURLY_TAG_LABEL) --build-arg TARGET=manager --build-arg GOLANG_BASE_IMG=$(GOLANG_BASE_IMG) .
+	DOCKER_BUILDKIT=1 $(CONTAINER_TOOL) build -t $(IMG) --label HOURLY_TAG=$(HOURLY_TAG_LABEL) --build-arg TARGET=manager --build-arg GOLANG_BASE_IMG=$(GOLANG_BASE_IMG) .
 
 .PHONY: docker-push
 docker-push: ## Push docker image with the manager.
-	docker push $(IMG)
+	$(CONTAINER_TOOL) push $(IMG)
 
 .PHONY: docker-save
 docker-save: ## Save the container image with the manager.
-	docker save $(IMG) | gzip > $(DOCKER_CONTAINER_IMG).tar.gz
+	$(CONTAINER_TOOL) save $(IMG) | gzip > $(DOCKER_CONTAINER_IMG).tar.gz
 
 .PHONY: docker-build-utils
 docker-build-utils: ## Build docker image for utils container.
@@ -315,13 +317,13 @@ docker-save-utils: ## Save the utils container image as tar.gz.
 docker-build-env: ## Build the docker shell container.
 	@echo "Building the Docker environment..."
 	@if [ -n $(INSECURE_REGISTRY) ]; then \
-    docker build \
+    $(CONTAINER_TOOL) build \
         -t $(DOCKER_BUILDER_IMAGE) \
         --build-arg BUILD_BASE_IMG=$(BUILD_BASE_IMG) \
         --build-arg INSECURE_REGISTRY=$(INSECURE_REGISTRY) \
         -f Dockerfile.build .; \
 	else \
-		docker build \
+		$(CONTAINER_TOOL) build \
 			-t $(DOCKER_BUILDER_IMAGE) \
 			--build-arg BUILD_BASE_IMG=$(BUILD_BASE_IMG) \
 			-f Dockerfile.build .; \
@@ -373,7 +375,7 @@ bundle-build: operator-sdk manifests kustomize ## OpenShift Build OLM bundle.
 		     KUBECTL_CMD=${KUBECTL_CMD} ./hack/generate-bundle
 	cp $(shell pwd)/hack/openshift-patch/olm-bundle-patch/*.yaml $(shell pwd)/bundle/manifests/
 	${OPERATOR_SDK} bundle validate ./bundle
-	docker build -f bundle.Dockerfile -t $(BUNDLE_IMG) .
+	$(CONTAINER_TOOL) build -f bundle.Dockerfile -t $(BUNDLE_IMG) .
 
 .PHONY: dep-docs
 dep-docs:
@@ -507,11 +509,11 @@ operator-sdk:
 
 .PHONY: bundle-push
 bundle-push:
-	docker push $(BUNDLE_IMG)
+	$(CONTAINER_TOOL) push $(BUNDLE_IMG)
 
 .PHONY: bundle-save
 bundle-save:
-	docker save $(BUNDLE_IMG) | gzip > $(IMAGE_NAME)-olm-bundle.tar.gz
+	$(CONTAINER_TOOL) save $(BUNDLE_IMG) | gzip > $(IMAGE_NAME)-olm-bundle.tar.gz
 
 .PHONY: bundle-scorecard-test
 bundle-scorecard-test:
