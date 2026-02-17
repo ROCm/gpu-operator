@@ -969,7 +969,7 @@ deviceConfig:
       devicePluginImagePullPolicy: Always
     remediationWorkflow:
       enable: true
-      conditionalWorkflows:
+      config:
         name: "conditional-workflows-configmap"
       ttlForFailedWorkflows: 36h
       testerImage: "test.io/test/remediation-workflow-tester:v1.3.0"
@@ -981,7 +981,7 @@ deviceConfig:
 			expectSpec: &v1alpha1.DeviceConfigSpec{
 				RemediationWorkflow: v1alpha1.RemediationWorkflowSpec{
 					Enable: &boolTrue,
-					ConditionalWorkflows: &corev1.LocalObjectReference{
+					Config: &corev1.LocalObjectReference{
 						Name: "conditional-workflows-configmap",
 					},
 					TtlForFailedWorkflows: "36h",

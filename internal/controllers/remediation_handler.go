@@ -254,8 +254,8 @@ func (n *remediationMgr) HandleDelete(ctx context.Context, deviceConfig *amdv1al
 	}
 
 	var cfgMapName string
-	if deviceConfig.Spec.RemediationWorkflow.ConditionalWorkflows != nil {
-		cfgMapName = deviceConfig.Spec.RemediationWorkflow.ConditionalWorkflows.Name
+	if deviceConfig.Spec.RemediationWorkflow.Config != nil {
+		cfgMapName = deviceConfig.Spec.RemediationWorkflow.Config.Name
 	} else {
 		cfgMapName = deviceConfig.Name + "-" + DefaultConfigMapSuffix
 	}
@@ -856,15 +856,15 @@ func (h *remediationMgrHelper) createDefaultObjects(ctx context.Context, devConf
 
 	logger := log.FromContext(ctx)
 	var cfgMapName string
-	if devConfig.Spec.RemediationWorkflow.ConditionalWorkflows != nil {
-		cfgMapName = devConfig.Spec.RemediationWorkflow.ConditionalWorkflows.Name
+	if devConfig.Spec.RemediationWorkflow.Config != nil {
+		cfgMapName = devConfig.Spec.RemediationWorkflow.Config.Name
 	} else {
 		cfgMapName = devConfig.Name + "-" + DefaultConfigMapSuffix
 	}
 	// Create default configmap if required
 	cm, err := h.getConfigMap(ctx, cfgMapName, devConfig.Namespace)
 	if err != nil {
-		if devConfig.Spec.RemediationWorkflow.ConditionalWorkflows == nil {
+		if devConfig.Spec.RemediationWorkflow.Config == nil {
 			cm, err = h.createDefaultConfigMap(ctx, cfgMapName, devConfig.Namespace)
 			if err != nil {
 				logger.Error(err, "Failed to create default configmap")

@@ -1386,7 +1386,7 @@ spec:
               remediationWorkflow:
                 description: remediation workflow
                 properties:
-                  conditionalWorkflows:
+                  config:
                     description: Name of the ConfigMap that holds condition-to-workflow
                       mappings.
                     properties:

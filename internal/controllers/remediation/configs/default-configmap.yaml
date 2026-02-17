@@ -320,11 +320,11 @@
   recoveryPolicy:
     maxAllowedRunsPerWindow: 3
     windowSize: 15m
-- nodeCondition: "AMDGPUUnhealthy"
-  workflowTemplate: "default-template"
+- nodeCondition: AMDGPUUnhealthy
+  workflowTemplate: default-template
   validationTestsProfile:
-    framework: "AGFHC"
-    recipe: "all_lvl4"
+    framework: AGFHC
+    recipe: all_lvl4
     iterations: 1
     stopOnFailure: true
     timeoutSeconds: 4800

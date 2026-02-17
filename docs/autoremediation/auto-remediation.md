@@ -80,29 +80,79 @@ The GPU Operator installs Argo Workflows v3.6.5, using a [customized installatio
 
 The DeviceConfig Custom Resource includes a `RemediationWorkflowSpec` section for configuring and customizing the auto-remediation feature:
 
-```golang
-type RemediationWorkflowSpec struct {
-  Enable *bool
+```yaml
+remediationWorkflow:
+  # Enable auto node remediation feature for AMD GPU Operator. Disabled by default.
+  # Set to true to activate automatic remediation workflows when GPU issues are detected.
+  enable: true
 
-  ConditionalWorkflows *v1.LocalObjectReference
+  # ConfigMap containing mappings between node conditions and remediation workflows.
+  # If not specified, the operator uses the default 'default-conditional-workflow-mappings' ConfigMap.
+  # The ConfigMap defines which workflow template to execute for each specific error condition.
+  config:
+    name: configmapName
 
-  TtlForFailedWorkflows int
+  # Time-to-live duration for retaining failed workflow objects and pods before cleanup.
+  # Accepts duration strings like "5h", "24h", "30m", "1h30m". Default is 24 hours.
+  # Retaining failed workflows allows for post-mortem analysis and troubleshooting.
+  ttlForFailedWorkflows: 5h
 
-  TesterImage string
+  # Container image used for executing GPU validation tests during remediation workflows.
+  # This image runs test suites to verify GPU health after remediation completes.
+  # Default image supports only RVS tests. Contact AMD for AGFHC-enabled test runner.
+  testerImage: docker.io/rocm/test-runner:v1.4.1
 
-  MaxParallelWorkflows int
+  # Maximum number of remediation workflows that can execute concurrently across the cluster.
+  # Helps maintain minimum node availability by preventing excessive simultaneous remediations.
+  # A value of 0 (default) means no limit is enforced. Excess workflows are queued as Pending.
+  maxParallelWorkflows: 0
 
-  NodeRemediationLabels map[string]string
+  # Custom taints to apply to nodes during the remediation process.
+  # If not specified, the operator applies the default taint 'amd-gpu-unhealthy:NoSchedule'.
+  # Taints prevent new workload scheduling on affected nodes during remediation.
+  nodeRemediationTaints:
+    - key:       # Taint key (e.g., 'amd-gpu-unhealthy')
+      value:     # Taint value (e.g., specific error condition)
+      effect:    # Taint effect (e.g., 'NoSchedule', 'NoExecute', 'PreferNoSchedule')
 
-  NodeRemediationTaints []v1.Taint
+  # Custom labels to apply to nodes during automatic remediation workflows.
+  # These labels persist throughout the remediation process and can be used for
+  # monitoring, tracking, or applying custom policies.
+  nodeRemediationLabels:
+    label-one-key: label-one-val
+    label-two-key: label-two-val
 
-  NodeDrainPolicy *DrainSpec
-}
+  # Configuration for pod eviction behavior when draining workloads from nodes.
+  # Controls how pods are removed during remediation, including timeouts, grace periods,
+  # and namespace exclusions to protect critical infrastructure.
+  nodeDrainPolicy:
+    # Enable forced draining of pods that do not respond to standard termination signals.
+    # When true, pods that cannot be evicted gracefully will be forcibly removed.
+    force: false
+
+    # Maximum time in seconds to wait for the drain operation to complete.
+    # A value of 0 means infinite timeout. Default is 300 seconds (5 minutes).
+    timeoutSeconds: 300
+
+    # Grace period in seconds for pods to shut down gracefully after termination signal.
+    # Overrides each pod's terminationGracePeriodSeconds. Use -1 to respect pod settings.
+    gracePeriodSeconds: 60
+
+    # When true, DaemonSet-managed pods are excluded from the drain operation.
+    # DaemonSets are designed to run on all nodes and will automatically reschedule.
+    ignoreDaemonSets: true
+
+    # List of namespaces to exclude from pod eviction during drain operation.
+    # Pods in these namespaces remain on the node, allowing critical infrastructure
+    # components to continue operating throughout the remediation process.
+    ignoreNamespaces:
+      - kube-system
+      - cert-manager
 ```
 
 **Enable** - Controls whether automatic node remediation is enabled. Set this field to `true` to activate the auto-remediation feature in the cluster.
 
-**ConditionalWorkflows** - References a ConfigMap that contains mappings between node conditions and their corresponding remediation workflows. The GPU Operator automatically creates a `default-conditional-workflow-mappings` ConfigMap with predefined mappings. Users can either modify this default ConfigMap or create their own custom ConfigMap. If left empty, the default ConfigMap will be used automatically. More about the ConfigMap in [below section](auto-remediation.md#remediation-workflow-configmap).
+**Config** - References a ConfigMap that contains mappings between node conditions and their corresponding remediation workflows. The GPU Operator automatically creates a `default-conditional-workflow-mappings` ConfigMap with predefined mappings. Users can either modify this default ConfigMap or create their own custom ConfigMap. If left empty, the default ConfigMap will be used automatically. More about the ConfigMap in [below section](auto-remediation.md#remediation-workflow-configmap).
 
 > **Note:** The `default-conditional-workflow-mappings` ConfigMap is created automatically by the GPU Operator.
 

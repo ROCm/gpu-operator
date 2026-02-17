@@ -743,8 +743,8 @@ func (in *RemediationWorkflowSpec) DeepCopyInto(out *RemediationWorkflowSpec) {
 		*out = new(bool)
 		**out = **in
 	}
-	if in.ConditionalWorkflows != nil {
-		in, out := &in.ConditionalWorkflows, &out.ConditionalWorkflows
+	if in.Config != nil {
+		in, out := &in.Config, &out.Config
 		*out = new(v1.LocalObjectReference)
 		**out = **in
 	}
