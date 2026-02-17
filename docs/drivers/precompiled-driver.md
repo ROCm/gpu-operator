@@ -89,10 +89,7 @@ ARG KERNEL_FULL_VERSION
 RUN apt-get update && apt-get install -y kmod
 
 # Set up module directory structure
-RUN mkdir -p /opt/lib/modules/${KERNEL_FULL_VERSION}/updates/dkms/
-COPY --from=builder /lib/modules/${KERNEL_FULL_VERSION}/updates/dkms/amd* /opt/lib/modules/${KERNEL_FULL_VERSION}/updates/dkms/
-COPY --from=builder /lib/modules/${KERNEL_FULL_VERSION}/modules.* /opt/lib/modules/${KERNEL_FULL_VERSION}/
-COPY --from=builder /lib/modules/${KERNEL_FULL_VERSION}/kernel /opt/lib/modules/${KERNEL_FULL_VERSION}/kernel
+COPY --from=builder /lib/modules/${KERNEL_FULL_VERSION}/ /opt/lib/modules/${KERNEL_FULL_VERSION}/
 
 # Set up firmware directory
 RUN mkdir -p /firmwareDir/updates/amdgpu
