@@ -90,8 +90,8 @@ type RemediationWorkflowSpec struct {
 	Enable *bool `json:"enable,omitempty"`
 
 	// Name of the ConfigMap that holds condition-to-workflow mappings.
-	//+operator-sdk:csv:customresourcedefinitions:type=spec,displayName="ConditionalWorkflows",xDescriptors={"urn:alm:descriptor:com.amd.deviceconfigs:conditionalWorkflows"}
-	ConditionalWorkflows *v1.LocalObjectReference `json:"conditionalWorkflows,omitempty"`
+	//+operator-sdk:csv:customresourcedefinitions:type=spec,displayName="Config",xDescriptors={"urn:alm:descriptor:com.amd.deviceconfigs:config"}
+	Config *v1.LocalObjectReference `json:"config,omitempty"`
 
 	// Time to live for argo workflow object and its pods for a failed workflow. Accepts duration strings like "30s", "4h", "24h". By default, it is set to 24h
 	//+operator-sdk:csv:customresourcedefinitions:type=spec,displayName="TtlForFailedWorkflows",xDescriptors={"urn:alm:descriptor:com.amd.deviceconfigs:ttlForFailedWorkflows"}

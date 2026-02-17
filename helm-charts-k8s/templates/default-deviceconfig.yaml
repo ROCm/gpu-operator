@@ -425,8 +425,8 @@ spec:
     enable: {{ .enable }}
     {{- end }}
 
-    {{- with .conditionalWorkflows }}
-    conditionalWorkflows:
+    {{- with .config }}
+    config:
       {{- toYaml . | nindent 6 }}
     {{- end }}
 

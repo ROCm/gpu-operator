@@ -708,10 +708,10 @@ spec:
         x-descriptors:
         - urn:alm:descriptor:com.amd.deviceconfigs:remediationWorkflow
       - description: Name of the ConfigMap that holds condition-to-workflow mappings.
-        displayName: ConditionalWorkflows
-        path: remediationWorkflow.conditionalWorkflows
+        displayName: Config
+        path: remediationWorkflow.config
         x-descriptors:
-        - urn:alm:descriptor:com.amd.deviceconfigs:conditionalWorkflows
+        - urn:alm:descriptor:com.amd.deviceconfigs:config
       - description: enable remediation workflows. disabled by default enable if operator
           should automatically handle remediation of node incase of gpu issues
         displayName: Enable
