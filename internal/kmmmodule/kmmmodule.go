@@ -719,8 +719,15 @@ func getKM(devConfig *amdv1alpha1.DeviceConfig, node v1.Node, inTreeModuleToRemo
 		)
 	}
 
+	// trim suffix "+" to handle the dirty build kernel version
+	// e.g., "5.15.0-76-generic+"
+	// on KMM side it is trimming the suffix "+" to read kernel mapping
+	// here we need to also trim the suffix "+"
+	// to make sure the kernel version in node info matches the kernel mapping in KMM
+	kernelLiteral := strings.TrimSuffix(node.Status.NodeInfo.KernelVersion, "+")
+
 	return kmmv1beta1.KernelMapping{
-		Literal:              node.Status.NodeInfo.KernelVersion,
+		Literal:              kernelLiteral,
 		ContainerImage:       driversImage,
 		InTreeModuleToRemove: inTreeModuleToRemove,
 		Build:                kmmBuild,
