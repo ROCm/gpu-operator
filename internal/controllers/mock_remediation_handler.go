@@ -154,29 +154,29 @@ func (mr *MockremediationMgrHelperAPIMockRecorder) attemptAbortWorkflowOnNode(ct
 }
 
 // attemptResumeWorkflowOnNode mocks base method.
-func (m *MockremediationMgrHelperAPI) attemptResumeWorkflowOnNode(ctx context.Context, node *v1.Node, mapping ConditionWorkflowMapping, wf *v1alpha10.Workflow) {
+func (m *MockremediationMgrHelperAPI) attemptResumeWorkflowOnNode(ctx context.Context, node *v1.Node, mapping ConditionWorkflowMapping, wf *v1alpha10.Workflow, stageName string) {
 	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "attemptResumeWorkflowOnNode", ctx, node, mapping, wf)
+	m.ctrl.Call(m, "attemptResumeWorkflowOnNode", ctx, node, mapping, wf, stageName)
 }
 
 // attemptResumeWorkflowOnNode indicates an expected call of attemptResumeWorkflowOnNode.
-func (mr *MockremediationMgrHelperAPIMockRecorder) attemptResumeWorkflowOnNode(ctx, node, mapping, wf any) *gomock.Call {
+func (mr *MockremediationMgrHelperAPIMockRecorder) attemptResumeWorkflowOnNode(ctx, node, mapping, wf, stageName any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "attemptResumeWorkflowOnNode", reflect.TypeOf((*MockremediationMgrHelperAPI)(nil).attemptResumeWorkflowOnNode), ctx, node, mapping, wf)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "attemptResumeWorkflowOnNode", reflect.TypeOf((*MockremediationMgrHelperAPI)(nil).attemptResumeWorkflowOnNode), ctx, node, mapping, wf, stageName)
 }
 
 // canResumeWorkflowOnNode mocks base method.
-func (m *MockremediationMgrHelperAPI) canResumeWorkflowOnNode(ctx context.Context, node *v1.Node, mapping *ConditionWorkflowMapping) bool {
+func (m *MockremediationMgrHelperAPI) canResumeWorkflowOnNode(ctx context.Context, node *v1.Node, mapping *ConditionWorkflowMapping, stageName string) bool {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "canResumeWorkflowOnNode", ctx, node, mapping)
+	ret := m.ctrl.Call(m, "canResumeWorkflowOnNode", ctx, node, mapping, stageName)
 	ret0, _ := ret[0].(bool)
 	return ret0
 }
 
 // canResumeWorkflowOnNode indicates an expected call of canResumeWorkflowOnNode.
-func (mr *MockremediationMgrHelperAPIMockRecorder) canResumeWorkflowOnNode(ctx, node, mapping any) *gomock.Call {
+func (mr *MockremediationMgrHelperAPIMockRecorder) canResumeWorkflowOnNode(ctx, node, mapping, stageName any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "canResumeWorkflowOnNode", reflect.TypeOf((*MockremediationMgrHelperAPI)(nil).canResumeWorkflowOnNode), ctx, node, mapping)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "canResumeWorkflowOnNode", reflect.TypeOf((*MockremediationMgrHelperAPI)(nil).canResumeWorkflowOnNode), ctx, node, mapping, stageName)
 }
 
 // checkIfTaintExists mocks base method.

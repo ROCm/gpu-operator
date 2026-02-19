@@ -125,6 +125,15 @@ type RemediationWorkflowSpec struct {
 	//+operator-sdk:csv:customresourcedefinitions:type=spec,displayName="NodeDrainPolicy",xDescriptors={"urn:alm:descriptor:com.amd.deviceconfigs:nodeDrainPolicy"}
 	// +optional
 	NodeDrainPolicy *DrainSpec `json:"nodeDrainPolicy,omitempty"`
+
+	// AutoStartWorkflow specifies the behavior of the remediation workflow. Default value is true.
+	// If true, remediation workflow will be automatically started when the node condition matches.
+	// If false, remediation workflow will be in suspended state when the node condition matches and needs to be manually started by the user.
+	// This field gives users more control and flexibility on when to start the remediation workflow.
+	// Default value is set to true if not specified and the remediation workflow automatically starts when the node condition matches.
+	//+operator-sdk:csv:customresourcedefinitions:type=spec,displayName="AutoStartWorkflow",xDescriptors={"urn:alm:descriptor:com.amd.deviceconfigs:autoStartWorkflow"}
+	// +kubebuilder:default:=true
+	AutoStartWorkflow *bool `json:"autoStartWorkflow,omitempty"`
 }
 
 type RegistryTLS struct {

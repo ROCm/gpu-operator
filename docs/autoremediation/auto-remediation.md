@@ -148,6 +148,13 @@ remediationWorkflow:
     ignoreNamespaces:
       - kube-system
       - cert-manager
+
+  # AutoStartWorkflow specifies the behavior of the remediation workflow. Default value is true.
+  # If true, remediation workflow will be automatically started when the node condition matches.
+  # If false, remediation workflow will be in suspended state when the node condition matches and needs to be manually started by the user.
+  # This field gives users more control and flexibility on when to start the remediation workflow.
+  # Default value is set to true if not specified and the remediation workflow automatically starts when the node condition matches.
+  autoStartWorkflow: true
 ```
 
 **Enable** - Controls whether automatic node remediation is enabled. Set this field to `true` to activate the auto-remediation feature in the cluster.
@@ -171,6 +178,8 @@ When the number of triggered workflows exceeds this limit, additional workflows 
 **NodeRemediationTaints** - Specifies custom taints to be applied to nodes during the remediation process. If no taints are specified, the Operator applies the default taint `amd-gpu-unhealthy:NoSchedule` to prevent workload scheduling on the affected node.
 
 **NodeDrainPolicy** - Configures the pod eviction behavior when draining workloads from nodes during the remediation process. This policy controls how pods are removed, including timeout settings, grace periods, and namespace exclusions. See the [Node Drain Policy Configuration](#node-drain-policy-configuration) section below for detailed field descriptions.
+
+**AutoStartWorkflow** - Specifies the behavior of the remediation workflow. Default value is `true`. If `true`, the remediation workflow is automatically started when the node condition matches. If `false`, the remediation workflow remains in a suspended state when the node condition matches and must be manually started by the user. To resume the workflow at a later point, refer to the [resume workflow section](#resuming-a-paused-workflow)
 
 **Spec.CommonConfig.UtilsContainer** - Remediation workflow uses a utility image for executing the steps. Specify the utility image in `Spec.CommonConfig.UtilsContainer` section of Device Config. If the UtilsContainer section is not specified, default image used is `docker.io/rocm/gpu-operator-utils:latest`
 

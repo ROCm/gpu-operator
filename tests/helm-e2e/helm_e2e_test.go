@@ -973,6 +973,7 @@ deviceConfig:
         name: "conditional-workflows-configmap"
       ttlForFailedWorkflows: 36h
       testerImage: "test.io/test/remediation-workflow-tester:v1.3.0"
+      autoStartWorkflow: true
 `,
 			extraArgs:            []string{"-f", tmpValuesYamlPath, "--set", "crds.defaultCR.upgrade=true"},
 			helmFunc:             s.upgradeHelmChart,
@@ -986,6 +987,7 @@ deviceConfig:
 					},
 					TtlForFailedWorkflows: "36h",
 					TesterImage:           "test.io/test/remediation-workflow-tester:v1.3.0",
+					AutoStartWorkflow:     &boolTrue,
 				},
 			},
 			verifyFunc: s.verifyRemediationWorkflow,
