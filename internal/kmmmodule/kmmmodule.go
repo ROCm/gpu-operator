@@ -280,6 +280,9 @@ func resolveDockerfile(cmName string, devConfig *amdv1alpha1.DeviceConfig) (stri
 				dockerfileTemplate = dockerfileTemplateCoreOSFromSrcImage
 			}
 		}
+       case "almalinux":
+	// change when Alma would be fully supported
+		dockerfileTemplate= dockerfileTemplateCoreOSFromSrcImage
 	// FIX ME
 	// add the RHEL back when it is fully supported
 	/*case "rhel":
@@ -779,6 +782,7 @@ var cmNameMappers = map[string]func(fullImageStr string) string{
 	"rhel":    rhelCMNameMapper,
 	"red hat": rhelCMNameMapper,
 	"redhat":  rhelCMNameMapper,
+	"almalinux": almaCMNameMapper,
 }
 
 func rhelCMNameMapper(osImageStr string) string {
@@ -810,6 +814,15 @@ func ubuntuCMNameMapper(osImageStr string) string {
 	versionSplits := strings.Split(version, ".")
 	trimmedVersion := strings.Join(versionSplits[:2], ".")
 	return fmt.Sprintf("%s-%s", os, trimmedVersion)
+}
+
+func almaCMNameMapper(osImageStr string) string {
+       re := regexp.MustCompile(`(\d+\.\d+)`)
+       matches := re.FindStringSubmatch(osImageStr)
+       if len(matches) > 1 {
+               return fmt.Sprintf("%s-%s", "almalinux", matches[1])
+       }
+       return "almalinux-" + osImageStr
 }
 
 func GetK8SNodes(ctx context.Context, cli client.Client, labelSelector labels.Selector) (*v1.NodeList, error) {
