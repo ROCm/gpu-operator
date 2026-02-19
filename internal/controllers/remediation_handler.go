@@ -301,7 +301,7 @@ type remediationMgrHelperAPI interface {
 	getMaxAllowedRunsPerWindow(recoveryPolicy *RecoveryPolicyConfig) int
 	getWindowSize(recoveryPolicy *RecoveryPolicyConfig) string
 	isRecoveryPolicyViolated(ctx context.Context, nodeName string, mapping *ConditionWorkflowMapping) bool
-	canResumeWorkflowOnNode(ctx context.Context, node *v1.Node, mapping *ConditionWorkflowMapping) bool
+	canResumeWorkflowOnNode(ctx context.Context, node *v1.Node, mapping *ConditionWorkflowMapping, stageName string) bool
 	syncInternalMapFromStatusCR(ctx context.Context, namespace string) error
 	isNodeLabelledForForceResume(ctx context.Context, node *v1.Node) bool
 	removeForceResumeWorkflowLabelFromNode(ctx context.Context, node *v1.Node) error
@@ -309,7 +309,7 @@ type remediationMgrHelperAPI interface {
 	removeAbortWorkflowLabelFromNode(ctx context.Context, node *v1.Node) error
 	abortWorkflow(ctx context.Context, workflow *workflowv1alpha1.Workflow) error
 	attemptAbortWorkflowOnNode(ctx context.Context, node *v1.Node, wf *workflowv1alpha1.Workflow) (bool, error)
-	attemptResumeWorkflowOnNode(ctx context.Context, node *v1.Node, mapping ConditionWorkflowMapping, wf *workflowv1alpha1.Workflow)
+	attemptResumeWorkflowOnNode(ctx context.Context, node *v1.Node, mapping ConditionWorkflowMapping, wf *workflowv1alpha1.Workflow, stageName string)
 	handleSuspendedWorkflowsOnNode(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig, node *v1.Node, mapping ConditionWorkflowMapping, wf *workflowv1alpha1.Workflow) bool
 	getWorkflowTaskScriptSource(scriptFileName string) (string, error)
 	updateMaxParallelWorkflows(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig) error
@@ -608,6 +608,7 @@ func (h *remediationMgrHelper) createDefaultWorkflowTemplate(ctx context.Context
 				{
 					Name: "inbuilt",
 					Steps: []workflowv1alpha1.ParallelSteps{
+						{Steps: []workflowv1alpha1.WorkflowStep{{Name: "autostart", Template: "suspend", When: "{{workflow.parameters.auto_start}} == 'false'"}}}, // If auto start is disabled, workflow will be created in suspended state and needs to be manually resumed by user
 						{Steps: []workflowv1alpha1.WorkflowStep{{Name: "applylabels", Template: "applylabels"}}},
 						{Steps: []workflowv1alpha1.WorkflowStep{{Name: "taint", Template: "taint"}}},
 						{Steps: []workflowv1alpha1.WorkflowStep{{Name: "drain", Template: "drain"}}},
@@ -1075,6 +1076,10 @@ func (h *remediationMgrHelper) populateWorkflow(ctx context.Context, wfTemplate 
 				Name:  "skipRebootStep",
 				Value: workflowv1alpha1.AnyStringPtr(mapping.SkipRebootStep),
 			},
+			{
+				Name:  "auto_start",
+				Value: workflowv1alpha1.AnyStringPtr(strconv.FormatBool(*devConfig.Spec.RemediationWorkflow.AutoStartWorkflow)),
+			},
 		},
 	}
 
@@ -1203,7 +1208,7 @@ func (h *remediationMgrHelper) handleSuspendedWorkflowsOnNode(ctx context.Contex
 			}
 
 			// Check if the workflow can be resumed, and attempt resume
-			h.attemptResumeWorkflowOnNode(ctx, node, mapping, wf)
+			h.attemptResumeWorkflowOnNode(ctx, node, mapping, wf, wfStage.DisplayName)
 			// irrespective of whether it was resumed or not, return false to avoid creating a new workflow
 			return false
 		}
@@ -1229,10 +1234,10 @@ func (h *remediationMgrHelper) attemptAbortWorkflowOnNode(ctx context.Context, n
 	return canAbort, nil
 }
 
-func (h *remediationMgrHelper) attemptResumeWorkflowOnNode(ctx context.Context, node *v1.Node, mapping ConditionWorkflowMapping, wf *workflowv1alpha1.Workflow) {
+func (h *remediationMgrHelper) attemptResumeWorkflowOnNode(ctx context.Context, node *v1.Node, mapping ConditionWorkflowMapping, wf *workflowv1alpha1.Workflow, stageName string) {
 	logger := log.FromContext(ctx)
 	// Check if the workflow can be resumed
-	canResume := h.canResumeWorkflowOnNode(ctx, node, &mapping)
+	canResume := h.canResumeWorkflowOnNode(ctx, node, &mapping, stageName)
 	if canResume {
 		logger.Info(fmt.Sprintf("Attempting to resume suspended workflow %q on node %q.", wf.Name, node.Name))
 		if err := h.resumeSuspendedWorkflow(ctx, wf.Name, wf.Namespace); err != nil {
@@ -1529,7 +1534,7 @@ func (h *remediationMgrHelper) removeForceResumeWorkflowLabelFromNode(ctx contex
 	return nil
 }
 
-func (h *remediationMgrHelper) canResumeWorkflowOnNode(ctx context.Context, node *v1.Node, mapping *ConditionWorkflowMapping) bool {
+func (h *remediationMgrHelper) canResumeWorkflowOnNode(ctx context.Context, node *v1.Node, mapping *ConditionWorkflowMapping, stageName string) bool {
 	logger := log.FromContext(ctx)
 
 	// Check if the recovery policy is violated, if so, do not allow resumption
@@ -1540,7 +1545,7 @@ func (h *remediationMgrHelper) canResumeWorkflowOnNode(ctx context.Context, node
 	}
 
 	// if no physical action is needed, allow resumption of workflow
-	if !mapping.PhysicalActionNeeded {
+	if !mapping.PhysicalActionNeeded && stageName != "autostart" {
 		return true
 	}
 

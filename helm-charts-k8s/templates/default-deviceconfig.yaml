@@ -441,6 +441,25 @@ spec:
     {{- with .maxParallelWorkflows }}
     maxParallelWorkflows: {{ . }}
     {{- end }}
+
+    {{- with .nodeRemediationLabels }}
+    nodeRemediationLabels:
+      {{- toYaml . | nindent 6 }}
+    {{- end }}
+
+    {{- with .nodeRemediationTaints }}
+    nodeRemediationTaints:
+      {{- toYaml . | nindent 6 }}
+    {{- end }}
+
+    {{- with .nodeDrainPolicy }}
+    nodeDrainPolicy:
+      {{- toYaml . | nindent 6 }}
+    {{- end }}
+
+    {{- with .autoStartWorkflow }}
+    autoStartWorkflow: {{ . }}
+    {{- end }}
   {{- end }}
 
 {{- end }}
