@@ -224,7 +224,19 @@ spec:
             kubectl apply -f /opt/helm-charts-crds-k8s/module-crd.yaml
             kubectl apply -f /opt/helm-charts-crds-k8s/nodemodulesconfig-crd.yaml
             {{- end }}
+            {{- if .Values.remediation.enabled }}
             kubectl apply -f /opt/helm-charts-crds-k8s/remediationworkflowstatus-crd.yaml
+              {{- if .Values.remediation.installCRDs }}
+            kubectl apply -f /opt/helm-charts-crds-k8s/clusterworkflowtemplate-crd.yaml
+            kubectl apply -f /opt/helm-charts-crds-k8s/cronworkflow-crd.yaml
+            kubectl apply -f /opt/helm-charts-crds-k8s/workflowartifactgctask-crd.yaml
+            kubectl apply -f /opt/helm-charts-crds-k8s/workflow-crd.yaml
+            kubectl apply -f /opt/helm-charts-crds-k8s/workfloweventbinding-crd.yaml
+            kubectl apply -f /opt/helm-charts-crds-k8s/workflowtaskresult-crd.yaml
+            kubectl apply -f /opt/helm-charts-crds-k8s/workflowtaskset-crd.yaml
+            kubectl apply -f /opt/helm-charts-crds-k8s/workflowtemplate-crd.yaml
+              {{- end }}
+            {{- end }}
       restartPolicy: OnFailure
 {{- end }}
 # Run helm upgrade with --no-hooks to bypass the pre-upgrade hook

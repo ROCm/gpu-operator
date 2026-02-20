@@ -49,8 +49,10 @@ import (
 	amdv1alpha1 "github.com/ROCm/gpu-operator/api/v1alpha1"
 
 	workflowv1alpha1 "github.com/argoproj/argo-workflows/v3/pkg/apis/workflow/v1alpha1"
+	appsv1 "k8s.io/api/apps/v1"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/util/retry"
@@ -85,7 +87,9 @@ const (
 	AbortWorkflowLabelValue         = "true"
 	RemediationFilesPath            = "/remediation"
 	DefaultInitContainerImage       = "busybox:1.36"
-	ArgoWorkflowControllerConfigMap = "workflow-controller-configmap"
+	ArgoWorkflowControllerConfigMap = "amd-gpu-operator-workflow-controller-config"
+	ArgoWorkflowInstaceIDLabelKey   = "workflows.argoproj.io/controller-instanceid"
+	ArgoWorkflowInstaceIDLabelValue = "amd-gpu-operator-remediation-workflow"
 )
 
 type RecoveryPolicyConfig struct {
@@ -212,6 +216,10 @@ func (n *remediationMgr) HandleRemediation(ctx context.Context, devConfig *amdv1
 		// Populate Workflow Object
 		wf := n.helper.populateWorkflow(ctx, wfTemplate, &mapping, node.Name, devConfig)
 
+		// Handle custom taints present in Device config.
+		// this needs to be done before creating the workflow as taints are applied as part of workflow execution and if there are custom taints defined, those need to be added to workflow tolerations as well
+		n.helper.handleDeviceConfigChanges(ctx, devConfig)
+
 		// Create Workflow
 		if err := n.helper.createWorkflow(ctx, wf); err != nil {
 			logger.Error(err, fmt.Sprintf("Failed to create remediation workflow %s on node %s", mapping.WorkflowTemplate, node.Name))
@@ -316,6 +324,12 @@ type remediationMgrHelperAPI interface {
 	getNodeLabelsFromCR(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig) []string
 	getNodeTaints(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig, nodeCondition string) []string
 	applyTolerationsToWorkflow(wf *workflowv1alpha1.Workflow, devConfig *amdv1alpha1.DeviceConfig, nodeCondition string)
+	handleDeviceConfigChanges(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig)
+	updateCustomTolerations(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig) error
+	updateCustomTolerationsCache(devConfig *amdv1alpha1.DeviceConfig)
+	updateCustomTolerationsOnDeployment(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig, deploymentSelector labels.Selector, tolerations []v1.Toleration) error
+	updateCustomTolerationsOnDaemonset(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig, daemonsetLabelSelector labels.Selector, tolerations []v1.Toleration) error
+	customTaintsChanged(devConfig *amdv1alpha1.DeviceConfig) bool
 }
 
 type remediationMgrHelper struct {
@@ -324,14 +338,16 @@ type remediationMgrHelper struct {
 	recoveryTracker      *sync.Map
 	serviceAccountName   string
 	maxParallelWorkflows int
+	tolerationsCache     *sync.Map
 }
 
 // Initialize remediation manager helper interface
 func newRemediationMgrHelperHandler(client client.Client, k8sInterface kubernetes.Interface) remediationMgrHelperAPI {
 	return &remediationMgrHelper{
-		client:          client,
-		k8sInterface:    k8sInterface,
-		recoveryTracker: new(sync.Map),
+		client:           client,
+		k8sInterface:     k8sInterface,
+		recoveryTracker:  new(sync.Map),
+		tolerationsCache: new(sync.Map),
 	}
 }
 
@@ -533,6 +549,12 @@ func (h *remediationMgrHelper) createDefaultWorkflowTemplate(ctx context.Context
 		return nil, err
 	}
 
+	instanceIDMeta := workflowv1alpha1.Metadata{
+		Labels: map[string]string{
+			ArgoWorkflowInstaceIDLabelKey: ArgoWorkflowInstaceIDLabelValue,
+		},
+	}
+
 	notifyTemplate := &workflowv1alpha1.WorkflowTemplate{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "event-notify-template",
@@ -542,7 +564,8 @@ func (h *remediationMgrHelper) createDefaultWorkflowTemplate(ctx context.Context
 			Entrypoint: "notify",
 			Templates: []workflowv1alpha1.Template{
 				{
-					Name: "notify",
+					Name:     "notify",
+					Metadata: instanceIDMeta,
 					Inputs: workflowv1alpha1.Inputs{
 						Parameters: []workflowv1alpha1.Parameter{
 							{
@@ -606,7 +629,8 @@ func (h *remediationMgrHelper) createDefaultWorkflowTemplate(ctx context.Context
 			Entrypoint: "inbuilt",
 			Templates: []workflowv1alpha1.Template{
 				{
-					Name: "inbuilt",
+					Name:     "inbuilt",
+					Metadata: instanceIDMeta,
 					Steps: []workflowv1alpha1.ParallelSteps{
 						{Steps: []workflowv1alpha1.WorkflowStep{{Name: "autostart", Template: "suspend", When: "{{workflow.parameters.auto_start}} == 'false'"}}}, // If auto start is disabled, workflow will be created in suspended state and needs to be manually resumed by user
 						{Steps: []workflowv1alpha1.WorkflowStep{{Name: "applylabels", Template: "applylabels"}}},
@@ -667,7 +691,8 @@ func (h *remediationMgrHelper) createDefaultWorkflowTemplate(ctx context.Context
 					},
 				},
 				{
-					Name: "taint",
+					Name:     "taint",
+					Metadata: instanceIDMeta,
 					Inputs: workflowv1alpha1.Inputs{
 						Parameters: []workflowv1alpha1.Parameter{
 							{
@@ -686,11 +711,13 @@ func (h *remediationMgrHelper) createDefaultWorkflowTemplate(ctx context.Context
 					},
 				},
 				{
-					Name:    "suspend",
-					Suspend: &workflowv1alpha1.SuspendTemplate{},
+					Name:     "suspend",
+					Metadata: instanceIDMeta,
+					Suspend:  &workflowv1alpha1.SuspendTemplate{},
 				},
 				{
-					Name: "drain",
+					Name:     "drain",
+					Metadata: instanceIDMeta,
 					Inputs: workflowv1alpha1.Inputs{
 						Parameters: []workflowv1alpha1.Parameter{
 							{
@@ -706,6 +733,7 @@ func (h *remediationMgrHelper) createDefaultWorkflowTemplate(ctx context.Context
 				},
 				{
 					Name:      "reboot",
+					Metadata:  instanceIDMeta,
 					Container: &rebootContainer,
 					PodSpecPatch: `
 hostPID: true
@@ -717,7 +745,8 @@ containers:
 `,
 				},
 				{
-					Name: "test",
+					Name:     "test",
+					Metadata: instanceIDMeta,
 					Inputs: workflowv1alpha1.Inputs{
 						Parameters: []workflowv1alpha1.Parameter{
 							{
@@ -768,7 +797,8 @@ containers:
 					},
 				},
 				{
-					Name: "wait",
+					Name:     "wait",
+					Metadata: instanceIDMeta,
 					Inputs: workflowv1alpha1.Inputs{
 						Parameters: []workflowv1alpha1.Parameter{
 							{
@@ -787,7 +817,8 @@ containers:
 					},
 				},
 				{
-					Name: "untaint",
+					Name:     "untaint",
+					Metadata: instanceIDMeta,
 					Inputs: workflowv1alpha1.Inputs{
 						Parameters: []workflowv1alpha1.Parameter{
 							{
@@ -802,14 +833,16 @@ containers:
 					},
 				},
 				{
-					Name: "failworkflow",
+					Name:     "failworkflow",
+					Metadata: instanceIDMeta,
 					Script: &workflowv1alpha1.ScriptTemplate{
 						Source:    `echo "Failing workflow" && exit 1`,
 						Container: utilityContainer,
 					},
 				},
 				{
-					Name: "applylabels",
+					Name:     "applylabels",
+					Metadata: instanceIDMeta,
 					Inputs: workflowv1alpha1.Inputs{
 						Parameters: []workflowv1alpha1.Parameter{
 							{
@@ -828,7 +861,8 @@ containers:
 					},
 				},
 				{
-					Name: "removelabels",
+					Name:     "removelabels",
+					Metadata: instanceIDMeta,
 					Inputs: workflowv1alpha1.Inputs{
 						Parameters: []workflowv1alpha1.Parameter{
 							{
@@ -918,7 +952,7 @@ func (h *remediationMgrHelper) updateMaxParallelWorkflows(ctx context.Context, d
 			}
 			// Update parallelism in Argo workflow controller configmap.
 			// https://github.com/argoproj/argo-workflows/blob/main/config/config.go#L69
-			acm.Data["parallelism"] = strconv.Itoa(devConfig.Spec.RemediationWorkflow.MaxParallelWorkflows)
+			acm.Data["namespaceParallelism"] = strconv.Itoa(devConfig.Spec.RemediationWorkflow.MaxParallelWorkflows)
 			return h.client.Update(ctx, acm)
 		})
 		if err != nil {
@@ -936,6 +970,9 @@ func (h *remediationMgrHelper) populateWorkflow(ctx context.Context, wfTemplate 
 		ObjectMeta: metav1.ObjectMeta{
 			GenerateName: fmt.Sprintf("%s-%s-", nodeName, mapping.WorkflowTemplate),
 			Namespace:    devConfig.Namespace,
+			Labels: map[string]string{
+				ArgoWorkflowInstaceIDLabelKey: ArgoWorkflowInstaceIDLabelValue,
+			},
 		},
 		Spec: *wfTemplate.Spec.DeepCopy(),
 	}
@@ -1637,6 +1674,165 @@ func (h *remediationMgrHelper) applyTolerationsToWorkflow(wf *workflowv1alpha1.W
 				Operator: v1.TolerationOpExists,
 				Effect:   taint.Effect,
 			})
+		}
+	}
+}
+
+func (h *remediationMgrHelper) customTaintsChanged(devConfig *amdv1alpha1.DeviceConfig) bool {
+	if len(devConfig.Spec.RemediationWorkflow.NodeRemediationTaints) > 0 {
+		for _, taint := range devConfig.Spec.RemediationWorkflow.NodeRemediationTaints {
+			if val, ok := h.tolerationsCache.Load(taint.Key); !ok || taint.Value != val.(string) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func getTolerations(devConfig *amdv1alpha1.DeviceConfig, controller bool) []v1.Toleration {
+	tolerations := make([]v1.Toleration, 0)
+	//add default remediation taint
+	tolerations = append(tolerations, v1.Toleration{
+		Key:      RemediationTaintKey,
+		Operator: v1.TolerationOpExists,
+		Effect:   v1.TaintEffectNoSchedule,
+	})
+	//add tolerations for user configured taints
+	for _, taint := range devConfig.Spec.RemediationWorkflow.NodeRemediationTaints {
+		tolerations = append(tolerations, v1.Toleration{
+			Key:      taint.Key,
+			Operator: v1.TolerationOpExists,
+			Effect:   taint.Effect,
+		})
+	}
+	if controller {
+		controllerTolerations := []v1.Toleration{
+			v1.Toleration{
+				Key:      "amd-gpu-driver-upgrade",
+				Value:    "true",
+				Operator: v1.TolerationOpEqual,
+				Effect:   v1.TaintEffectNoSchedule,
+			},
+			v1.Toleration{
+				Key:      "amd-dcm",
+				Value:    "up",
+				Operator: v1.TolerationOpEqual,
+			},
+		}
+		tolerations = append(tolerations, controllerTolerations...)
+	}
+
+	return tolerations
+}
+
+func (h *remediationMgrHelper) updateCustomTolerationsOnDeployment(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig, deploymentSelector labels.Selector, tolerations []v1.Toleration) error {
+	logger := log.FromContext(ctx)
+
+	err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
+		deploymentList := &appsv1.DeploymentList{}
+		err := h.client.List(ctx, deploymentList, &client.ListOptions{Namespace: devConfig.Namespace, LabelSelector: deploymentSelector})
+		if err != nil {
+			logger.Error(err, fmt.Sprintf("Failed to list deployments for given selector: %v", deploymentSelector))
+			return err
+		}
+		if len(deploymentList.Items) > 0 {
+			for i := range deploymentList.Items {
+				deploymentList.Items[i].Spec.Template.Spec.Tolerations = tolerations
+				err = h.client.Update(ctx, &deploymentList.Items[i])
+				if err != nil {
+					return err
+				}
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		logger.Error(err, fmt.Sprintf("Failed to update tolerations in deployment with selector: %v", deploymentSelector))
+	} else {
+		logger.Info(fmt.Sprintf("Updated tolerations in deployment with selector: %v successfully", deploymentSelector))
+	}
+	return err
+}
+
+func (h *remediationMgrHelper) updateCustomTolerationsOnDaemonset(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig, daemonsetLabelSelector labels.Selector, tolerations []v1.Toleration) error {
+	logger := log.FromContext(ctx)
+
+	err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
+		daemonsetList := &appsv1.DaemonSetList{}
+		err := h.client.List(ctx, daemonsetList, &client.ListOptions{Namespace: devConfig.Namespace, LabelSelector: daemonsetLabelSelector})
+		if err != nil {
+			logger.Error(err, fmt.Sprintf("Failed to list daemonsets for given selector: %v", daemonsetLabelSelector))
+			return err
+		}
+		if len(daemonsetList.Items) > 0 {
+			for i := range daemonsetList.Items {
+				daemonsetList.Items[i].Spec.Template.Spec.Tolerations = tolerations
+				err = h.client.Update(ctx, &daemonsetList.Items[i])
+				if err != nil {
+					return err
+				}
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		logger.Error(err, fmt.Sprintf("Failed to update tolerations in daemonset with selector: %v", daemonsetLabelSelector))
+	} else {
+		logger.Info(fmt.Sprintf("Updated tolerations in daemonset with selector: %v successfully", daemonsetLabelSelector))
+	}
+
+	return err
+}
+
+func (h *remediationMgrHelper) updateCustomTolerationsCache(devConfig *amdv1alpha1.DeviceConfig) {
+	// sync in-memory cache
+	h.tolerationsCache = new(sync.Map)
+	h.tolerationsCache.Store(RemediationTaintKey, string(v1.TaintEffectNoSchedule))
+	for _, taint := range devConfig.Spec.RemediationWorkflow.NodeRemediationTaints {
+		h.tolerationsCache.Store(taint.Key, string(taint.Effect))
+	}
+}
+
+func (h *remediationMgrHelper) updateCustomTolerations(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig) error {
+	logger := log.FromContext(ctx)
+	tolerations := getTolerations(devConfig, false)
+	controllerTolerations := getTolerations(devConfig, true)
+
+	wfControllerSelector := labels.SelectorFromSet(map[string]string{
+		"app": "amd-gpu-operator-workflow-controller",
+	})
+	controllerSelector := labels.SelectorFromSet(map[string]string{
+		"control-plane": "controller-manager",
+	})
+	daemonsetLabelSelector := labels.SelectorFromSet(map[string]string{
+		"app.kubernetes.io/name": "node-feature-discovery",
+		"role":                   "worker",
+	})
+	allUpdatesSuccessful := true
+	err := h.updateCustomTolerationsOnDeployment(ctx, devConfig, wfControllerSelector, tolerations)
+	if err != nil {
+		allUpdatesSuccessful = false
+	}
+	err = h.updateCustomTolerationsOnDeployment(ctx, devConfig, controllerSelector, controllerTolerations)
+	if err != nil {
+		allUpdatesSuccessful = false
+	}
+	err = h.updateCustomTolerationsOnDaemonset(ctx, devConfig, daemonsetLabelSelector, tolerations)
+	if err != nil {
+		allUpdatesSuccessful = false
+	}
+	if allUpdatesSuccessful {
+		h.updateCustomTolerationsCache(devConfig)
+	}
+	logger.Info("Updated custom tolerations successfully")
+	return nil
+}
+
+func (h *remediationMgrHelper) handleDeviceConfigChanges(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig) {
+	logger := log.FromContext(ctx)
+	if h.customTaintsChanged(devConfig) {
+		if err := h.updateCustomTolerations(ctx, devConfig); err != nil {
+			logger.Error(err, "Failed to update custom tolerations")
 		}
 	}
 }

@@ -5,8 +5,8 @@ dependencies:
 - name: kmm
   repository: file://./charts/kmm
   version: v1.0.0
-- name: remediation-controller
-  repository: file://./charts/remediation
+- name: remediation-crds
+  repository: file://./charts/remediation-crds
   version: v1.0.0
-digest: sha256:41fa6a6232514acebf6abdcb1bccaf087e134b9f413b8fa33a7fec1f58a99e07
-generated: "2026-02-01T12:58:13.380331409Z"
+digest: sha256:4c6b1f3224839e54d1523759be597d20ca2fc6508eb17fda2992a95a00e1fd70
+generated: "2026-02-23T09:27:25.914887646Z"

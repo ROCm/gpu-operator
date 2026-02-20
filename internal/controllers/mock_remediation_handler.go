@@ -33,6 +33,7 @@ import (
 	v1alpha10 "github.com/argoproj/argo-workflows/v3/pkg/apis/workflow/v1alpha1"
 	gomock "go.uber.org/mock/gomock"
 	v1 "k8s.io/api/core/v1"
+	labels "k8s.io/apimachinery/pkg/labels"
 	controllerruntime "sigs.k8s.io/controller-runtime"
 )
 
@@ -265,6 +266,20 @@ func (m *MockremediationMgrHelperAPI) createWorkflow(ctx context.Context, workfl
 func (mr *MockremediationMgrHelperAPIMockRecorder) createWorkflow(ctx, workflow any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "createWorkflow", reflect.TypeOf((*MockremediationMgrHelperAPI)(nil).createWorkflow), ctx, workflow)
+}
+
+// customTaintsChanged mocks base method.
+func (m *MockremediationMgrHelperAPI) customTaintsChanged(devConfig *v1alpha1.DeviceConfig) bool {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "customTaintsChanged", devConfig)
+	ret0, _ := ret[0].(bool)
+	return ret0
+}
+
+// customTaintsChanged indicates an expected call of customTaintsChanged.
+func (mr *MockremediationMgrHelperAPIMockRecorder) customTaintsChanged(devConfig any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "customTaintsChanged", reflect.TypeOf((*MockremediationMgrHelperAPI)(nil).customTaintsChanged), devConfig)
 }
 
 // deleteConfigMap mocks base method.
@@ -510,6 +525,18 @@ func (mr *MockremediationMgrHelperAPIMockRecorder) getWorkflowUtilityImage(devCo
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "getWorkflowUtilityImage", reflect.TypeOf((*MockremediationMgrHelperAPI)(nil).getWorkflowUtilityImage), devConfig)
 }
 
+// handleDeviceConfigChanges mocks base method.
+func (m *MockremediationMgrHelperAPI) handleDeviceConfigChanges(ctx context.Context, devConfig *v1alpha1.DeviceConfig) {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "handleDeviceConfigChanges", ctx, devConfig)
+}
+
+// handleDeviceConfigChanges indicates an expected call of handleDeviceConfigChanges.
+func (mr *MockremediationMgrHelperAPIMockRecorder) handleDeviceConfigChanges(ctx, devConfig any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "handleDeviceConfigChanges", reflect.TypeOf((*MockremediationMgrHelperAPI)(nil).handleDeviceConfigChanges), ctx, devConfig)
+}
+
 // handleExistingWorkflowsOnNode mocks base method.
 func (m *MockremediationMgrHelperAPI) handleExistingWorkflowsOnNode(ctx context.Context, devConfig *v1alpha1.DeviceConfig, node *v1.Node, mapping ConditionWorkflowMapping) bool {
 	m.ctrl.T.Helper()
@@ -733,6 +760,60 @@ func (m *MockremediationMgrHelperAPI) syncInternalMapFromStatusCR(ctx context.Co
 func (mr *MockremediationMgrHelperAPIMockRecorder) syncInternalMapFromStatusCR(ctx, namespace any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "syncInternalMapFromStatusCR", reflect.TypeOf((*MockremediationMgrHelperAPI)(nil).syncInternalMapFromStatusCR), ctx, namespace)
+}
+
+// updateCustomTolerations mocks base method.
+func (m *MockremediationMgrHelperAPI) updateCustomTolerations(ctx context.Context, devConfig *v1alpha1.DeviceConfig) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "updateCustomTolerations", ctx, devConfig)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// updateCustomTolerations indicates an expected call of updateCustomTolerations.
+func (mr *MockremediationMgrHelperAPIMockRecorder) updateCustomTolerations(ctx, devConfig any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "updateCustomTolerations", reflect.TypeOf((*MockremediationMgrHelperAPI)(nil).updateCustomTolerations), ctx, devConfig)
+}
+
+// updateCustomTolerationsCache mocks base method.
+func (m *MockremediationMgrHelperAPI) updateCustomTolerationsCache(devConfig *v1alpha1.DeviceConfig) {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "updateCustomTolerationsCache", devConfig)
+}
+
+// updateCustomTolerationsCache indicates an expected call of updateCustomTolerationsCache.
+func (mr *MockremediationMgrHelperAPIMockRecorder) updateCustomTolerationsCache(devConfig any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "updateCustomTolerationsCache", reflect.TypeOf((*MockremediationMgrHelperAPI)(nil).updateCustomTolerationsCache), devConfig)
+}
+
+// updateCustomTolerationsOnDaemonset mocks base method.
+func (m *MockremediationMgrHelperAPI) updateCustomTolerationsOnDaemonset(ctx context.Context, devConfig *v1alpha1.DeviceConfig, daemonsetLabelSelector labels.Selector, tolerations []v1.Toleration) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "updateCustomTolerationsOnDaemonset", ctx, devConfig, daemonsetLabelSelector, tolerations)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// updateCustomTolerationsOnDaemonset indicates an expected call of updateCustomTolerationsOnDaemonset.
+func (mr *MockremediationMgrHelperAPIMockRecorder) updateCustomTolerationsOnDaemonset(ctx, devConfig, daemonsetLabelSelector, tolerations any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "updateCustomTolerationsOnDaemonset", reflect.TypeOf((*MockremediationMgrHelperAPI)(nil).updateCustomTolerationsOnDaemonset), ctx, devConfig, daemonsetLabelSelector, tolerations)
+}
+
+// updateCustomTolerationsOnDeployment mocks base method.
+func (m *MockremediationMgrHelperAPI) updateCustomTolerationsOnDeployment(ctx context.Context, devConfig *v1alpha1.DeviceConfig, deploymentSelector labels.Selector, tolerations []v1.Toleration) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "updateCustomTolerationsOnDeployment", ctx, devConfig, deploymentSelector, tolerations)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// updateCustomTolerationsOnDeployment indicates an expected call of updateCustomTolerationsOnDeployment.
+func (mr *MockremediationMgrHelperAPIMockRecorder) updateCustomTolerationsOnDeployment(ctx, devConfig, deploymentSelector, tolerations any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "updateCustomTolerationsOnDeployment", reflect.TypeOf((*MockremediationMgrHelperAPI)(nil).updateCustomTolerationsOnDeployment), ctx, devConfig, deploymentSelector, tolerations)
 }
 
 // updateMaxParallelWorkflows mocks base method.

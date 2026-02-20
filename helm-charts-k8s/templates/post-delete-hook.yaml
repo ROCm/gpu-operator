@@ -83,9 +83,37 @@ spec:
               if kubectl get crds deviceconfigs.amd.com > /dev/null 2>&1; then
                 kubectl delete crds deviceconfigs.amd.com
               fi
+              {{- if .Values.remediation.enabled }}
               if kubectl get crds remediationworkflowstatuses.amd.com > /dev/null 2>&1; then
                 kubectl delete crds remediationworkflowstatuses.amd.com
               fi
+              {{- end }}
+              {{- if and .Values.remediation.enabled .Values.remediation.installCRDs }}
+              if kubectl get crds clusterworkflowtemplates.argoproj.io > /dev/null 2>&1; then
+                kubectl delete crds clusterworkflowtemplates.argoproj.io
+              fi
+              if kubectl get crds cronworkflows.argoproj.io > /dev/null 2>&1; then
+                kubectl delete crds cronworkflows.argoproj.io
+              fi
+              if kubectl get crds workflows.argoproj.io > /dev/null 2>&1; then
+                kubectl delete crds workflows.argoproj.io
+              fi
+              if kubectl get crds workflowartifactgctasks.argoproj.io > /dev/null 2>&1; then
+                kubectl delete crds workflowartifactgctasks.argoproj.io
+              fi
+              if kubectl get crds workfloweventbindings.argoproj.io > /dev/null 2>&1; then
+                kubectl delete crds workfloweventbindings.argoproj.io
+              fi
+              if kubectl get crds workflowtaskresults.argoproj.io > /dev/null 2>&1; then
+                kubectl delete crds workflowtaskresults.argoproj.io
+              fi
+              if kubectl get crds workflowtasksets.argoproj.io > /dev/null 2>&1; then
+                kubectl delete crds workflowtasksets.argoproj.io
+              fi
+              if kubectl get crds workflowtemplates.argoproj.io > /dev/null 2>&1; then
+                kubectl delete crds workflowtemplates.argoproj.io
+              fi
+              {{- end }}
               {{- if index .Values "node-feature-discovery" "enabled" }}
               if kubectl get crds nodefeaturegroups.nfd.k8s-sigs.io > /dev/null 2>&1; then
                 kubectl delete crds nodefeaturegroups.nfd.k8s-sigs.io
