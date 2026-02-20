@@ -48,6 +48,7 @@ YAML_FILES=bundle/manifests/amd-gpu-operator-node-metrics_rbac.authorization.k8s
 CRD_YAML_FILES = deviceconfig-crd.yaml remediationworkflowstatus-crd.yaml
 K8S_KMM_CRD_YAML_FILES=module-crd.yaml nodemodulesconfig-crd.yaml
 DEFAULT_VALUES_FILES=helm-charts-k8s/values.yaml hack/k8s-patch/metadata-patch/values.yaml
+REMEDIATION_CRD_YAML_FILES=clusterworkflowtemplate-crd.yaml cronworkflow-crd.yaml workflowartifactgctask-crd.yaml workflow-crd.yaml workfloweventbinding-crd.yaml workflowtaskresult-crd.yaml workflowtaskset-crd.yaml workflowtemplate-crd.yaml
 
 GPU_OPERATOR_CHART ?= $(shell pwd)/helm-charts-k8s/gpu-operator-helm-k8s-$(PROJECT_VERSION).tgz
 KUBECTL_CMD ?= kubectl
@@ -68,8 +69,12 @@ ifdef SKIP_INSTALL_DEFAULT_CR
 	SKIP_INSTALL_DEFAULT_CR_CMD=--set crds.defaultCR.install=false
 endif
 
-ifdef SKIP_REMEDIATION_CONTROLLER
-	SKIP_REMEDIATION_CONTROLLER_CMD=--set remediation.enabled=false
+ifdef SKIP_REMEDIATION
+	SKIP_REMEDIATION_CMD=--set remediation.enabled=false
+endif
+
+ifdef SKIP_REMEDIATION_CRDS
+	SKIP_REMEDIATION_CRDS_CMD=--set remediation.installCRDs=false
 endif
 
 #################################
@@ -332,7 +337,7 @@ helm: ## Build helm charts for Kubernetes.
 	$(MAKE) helm-k8s
 
 .PHONY: helm-k8s
-helm-k8s: helmify manifests kustomize clean-helm gen-kmm-charts
+helm-k8s: helmify manifests kustomize clean-helm gen-kmm-charts gen-remediation-charts
 	$(KUSTOMIZE) build config/default | $(HELMIFY) helm-charts-k8s
 	# Patching k8s helm chart metadata
 	cp $(shell pwd)/hack/k8s-patch/metadata-patch/*.yaml $(shell pwd)/helm-charts-k8s/
@@ -345,9 +350,7 @@ helm-k8s: helmify manifests kustomize clean-helm gen-kmm-charts
 	# Patching k8s helm chart kmm subchart
 	cp $(shell pwd)/hack/k8s-patch/k8s-kmm-patch/metadata-patch/*.yaml $(shell pwd)/helm-charts-k8s/charts/kmm/
 	cp $(shell pwd)/hack/k8s-patch/k8s-kmm-patch/template-patch/*.yaml $(shell pwd)/helm-charts-k8s/charts/kmm/templates/
-	mkdir -p $(shell pwd)/helm-charts-k8s/charts/remediation/templates
-	cp $(shell pwd)/hack/k8s-patch/k8s-remediation-patch/metadata-patch/*.yaml $(shell pwd)/helm-charts-k8s/charts/remediation/
-	cp $(shell pwd)/hack/k8s-patch/k8s-remediation-patch/template-patch/*.yaml $(shell pwd)/helm-charts-k8s/charts/remediation/templates/
+	cp $(shell pwd)/hack/k8s-patch/k8s-remediation-patch/metadata-patch/*.yaml $(shell pwd)/helm-charts-k8s/charts/remediation-crds/
 	cd $(shell pwd)/helm-charts-k8s; helm dependency update; helm lint .; cd ..;
 	mkdir $(shell pwd)/helm-charts-k8s/crds
 	echo "moving crd yaml files to crds folder"
@@ -585,7 +588,15 @@ endif
 		rm helm-charts-k8s/charts/kmm/templates/$$file; \
 	done
 
-cert-manager-install: ## Deploy cert-manager.
+gen-remediation-charts:
+	$(KUSTOMIZE) build $(shell pwd)/hack/k8s-patch/k8s-remediation-patch | $(HELMIFY) helm-charts-k8s/charts/remediation-crds
+	mkdir -p helm-charts-k8s/charts/remediation-crds/crds
+	@for file in $(REMEDIATION_CRD_YAML_FILES); do \
+		helm template amd-gpu helm-charts-k8s/charts/remediation-crds -s templates/$$file > helm-charts-k8s/charts/remediation-crds/crds/$$file; \
+		rm helm-charts-k8s/charts/remediation-crds/templates/$$file; \
+	done
+
+cert-manager-install:
 	helm repo add jetstack https://charts.jetstack.io --force-update
 	helm install cert-manager jetstack/cert-manager --namespace cert-manager --create-namespace --version v1.15.1 --set crds.enabled=true
 

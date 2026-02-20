@@ -23,6 +23,11 @@ kmm:
 remediation:
   # -- Set to true/false to enable/disable the installation of remediation workflow controller
   enabled: true
+  # -- Set to true/false to enable/disable the installation of Argo CRDs used by the remediation workflow controller
+  installCRDs: true
+  # -- Set the controller image for remediation workflow controller deployment
+  controller:
+    image: "quay.io/argoproj/workflow-controller:v3.6.5"
 # -- Default NFD rule will detect amd gpu based on pci vendor ID
 installdefaultNFDRule: true
 # -- CRD will be patched as pre-upgrade/pre-rollback hook when doing helm upgrade/rollback to current helm chart

@@ -54,6 +54,14 @@ COPY --from=builder /opt/app-root/src/helm-charts-k8s/crds/deviceconfig-crd.yaml
     /opt/app-root/src/helm-charts-k8s/charts/node-feature-discovery/crds/nfd-api-crds.yaml \
     /opt/app-root/src/helm-charts-k8s/charts/kmm/crds/module-crd.yaml \
     /opt/app-root/src/helm-charts-k8s/charts/kmm/crds/nodemodulesconfig-crd.yaml \
+    /opt/app-root/src/helm-charts-k8s/charts/remediation-crds/crds/clusterworkflowtemplate-crd.yaml \
+    /opt/app-root/src/helm-charts-k8s/charts/remediation-crds/crds/cronworkflow-crd.yaml \
+    /opt/app-root/src/helm-charts-k8s/charts/remediation-crds/crds/workflowartifactgctask-crd.yaml \
+    /opt/app-root/src/helm-charts-k8s/charts/remediation-crds/crds/workflow-crd.yaml \
+    /opt/app-root/src/helm-charts-k8s/charts/remediation-crds/crds/workfloweventbinding-crd.yaml \
+    /opt/app-root/src/helm-charts-k8s/charts/remediation-crds/crds/workflowtaskresult-crd.yaml \
+    /opt/app-root/src/helm-charts-k8s/charts/remediation-crds/crds/workflowtaskset-crd.yaml \
+    /opt/app-root/src/helm-charts-k8s/charts/remediation-crds/crds/workflowtemplate-crd.yaml \
     /opt/helm-charts-crds-k8s/
 
 RUN mkdir -p /remediation

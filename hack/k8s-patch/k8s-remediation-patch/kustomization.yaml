@@ -1,0 +1,18 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - crds/argoproj.io_clusterworkflowtemplates.yaml
+  - crds/argoproj.io_cronworkflows.yaml
+  - crds/argoproj.io_workflowartifactgctasks.yaml
+  - crds/argoproj.io_workfloweventbindings.yaml
+  - crds/argoproj.io_workflows.yaml
+  - crds/argoproj.io_workflowtaskresults.yaml
+  - crds/argoproj.io_workflowtasksets.yaml
+  - crds/argoproj.io_workflowtemplates.yaml
+
+labels:
+- pairs:
+    app.kubernetes.io/component: remediation
+    app.kubernetes.io/name: remediation
+    app.kubernetes.io/part-of: remediation
