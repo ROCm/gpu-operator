@@ -1198,6 +1198,32 @@ spec:
           verbs:
           - get
           - update
+        - apiGroups:
+          - argoproj.io
+          resources:
+          - '*'
+          verbs:
+          - '*'
+        - apiGroups:
+          - batch
+          resources:
+          - jobs
+          verbs:
+          - '*'
+        - apiGroups:
+          - ""
+          resources:
+          - pods/log
+          verbs:
+          - '*'
+        - apiGroups:
+          - ""
+          resources:
+          - serviceaccounts
+          verbs:
+          - get
+          - list
+          - watch
         serviceAccountName: amd-gpu-operator-controller-manager
       - rules:
         - apiGroups:

@@ -703,6 +703,10 @@ func (h *remediationMgrHelper) createDefaultWorkflowTemplate(ctx context.Context
 								Name:  "node_name",
 								Value: workflowv1alpha1.AnyStringPtr("{{workflow.parameters.node_name}}"),
 							},
+							{
+								Name:  "node_taints",
+								Value: workflowv1alpha1.AnyStringPtr("{{workflow.parameters.node_taints}}"),
+							},
 						},
 					},
 					Script: &workflowv1alpha1.ScriptTemplate{
@@ -723,6 +727,10 @@ func (h *remediationMgrHelper) createDefaultWorkflowTemplate(ctx context.Context
 							{
 								Name:  "node_name",
 								Value: workflowv1alpha1.AnyStringPtr("{{workflow.parameters.node_name}}"),
+							},
+							{
+								Name:  "drain_policy",
+								Value: workflowv1alpha1.AnyStringPtr("{{workflow.parameters.drain_policy}}"),
 							},
 						},
 					},
@@ -825,6 +833,10 @@ containers:
 								Name:  "node_name",
 								Value: workflowv1alpha1.AnyStringPtr("{{workflow.parameters.node_name}}"),
 							},
+							{
+								Name:  "node_taints",
+								Value: workflowv1alpha1.AnyStringPtr("{{workflow.parameters.node_taints}}"),
+							},
 						},
 					},
 					Script: &workflowv1alpha1.ScriptTemplate{
@@ -850,8 +862,8 @@ containers:
 								Value: workflowv1alpha1.AnyStringPtr("{{workflow.parameters.node_name}}"),
 							},
 							{
-								Name:  "labels",
-								Value: workflowv1alpha1.AnyStringPtr("{{workflow.parameters.labels}}"),
+								Name:  "node_labels",
+								Value: workflowv1alpha1.AnyStringPtr("{{workflow.parameters.node_labels}}"),
 							},
 						},
 					},
@@ -868,6 +880,10 @@ containers:
 							{
 								Name:  "node_name",
 								Value: workflowv1alpha1.AnyStringPtr("{{workflow.parameters.node_name}}"),
+							},
+							{
+								Name:  "node_labels",
+								Value: workflowv1alpha1.AnyStringPtr("{{workflow.parameters.node_labels}}"),
 							},
 						},
 					},

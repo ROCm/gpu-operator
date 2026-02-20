@@ -59,7 +59,11 @@ Automatic node remediation requires the following components to be enabled and r
 1. **Device Metrics Exporter** - Reports unhealthy metrics and inband-RAS errors that are used to detect faulty GPUs.
 2. **Node Problem Detector (NPD)** - An open-source Kubernetes component that runs on all nodes to identify node issues and report them to upstream controllers in the Kubernetes management stack. For more information about NPD configuration, see the [NPD documentation](../npd/node-problem-detector.md).
 
-## Installation
+   ```{note}
+   **For OpenShift users:** Please refer to the [NPD Installation section](../npd/node-problem-detector.md#node-problem-detector-installation) for specific instructions on installing NPD in OpenShift clusters.
+   ```
+
+## Installation - Vanilla Kubernetes
 
 The GPU Operator Helm installation includes the following Argo Workflows components:
 
@@ -79,6 +83,36 @@ The GPU Operator installs Argo Workflows v3.6.5, using a [customized installatio
 > ```bash
 > --set remediation.enabled=false
 > ```
+
+## Installation - OpenShift
+
+For OpenShift users: To use the auto remediation feature, additonal steps are required to install Argo Workflows to the OpenShift cluster, which requires special consideration:
+
+  1. **If using OpenShift AI Operator with CRD `DataScienceCluster`:** Argo Workflows are possibly already deployed by the OpenShift AI Operator, if the Custom Resource Definition (CRD) like workflows.argoproj.io is already existing, no additional installation is needed.
+
+  2. **If not using OpenShift AI Operator:** Follow these steps to install Argo Workflows on your OpenShift cluster:
+
+      a. Install CRDs (must be executed separately due to CRD size):
+
+        ```bash
+        oc apply --server-side --force-conflicts -k "https://github.com/argoproj/argo-workflows/manifests/base/crds/full?ref=v3.7.10"
+        ```
+
+      b. Add the Argo Helm repository:
+
+        ```bash
+        helm repo add argo https://argoproj.github.io/argo-helm --force-update
+        ```
+
+      c. Install Argo Workflows using Helm:
+
+        ```bash
+        helm install argo-workflow argo/argo-workflows \
+          -n argo-workflow \
+          --create-namespace \
+          --version=v3.6.5 \
+          --set crds.install=false
+        ```
 
 ## Configuration and customization
 
