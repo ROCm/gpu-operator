@@ -69,7 +69,7 @@ The above command is convenient as it adds the required tolerations all with a s
 2. Create DCM Profile ConfigMap
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Next you will need to create the Device Config Mangaer ConfigMap that specifies the different partitioning profiles you would like to set. Refer to the [Device Config Mangaer ConfigMap](../dcm/device-config-manager-configmap.html#configmap) page for more details on how to create the DCM ConfigMap.
+Next you will need to create the Device Config Manager ConfigMap that specifies the different partitioning profiles you would like to set. Refer to the `Device Config Manager ConfigMap <https://instinct.docs.amd.com/projects/gpu-operator/en/latest/dcm/device-config-manager-configmap.html#configmap>`_ page for more details on how to create the DCM ConfigMap.
 
 Before creating your partition profiles, ensure you use the correct compute and memory partition combinations for your GPU model. For detailed information on supported partition profiles by GPU model, refer to the `AMD GPU Partitioning documentation <https://instinct.docs.amd.com/projects/amdgpu-docs/en/latest/gpu-partitioning/index.html>`_.
 
