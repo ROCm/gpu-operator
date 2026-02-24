@@ -73,7 +73,7 @@ const (
 	AmdGpuRemediationFailed    = "amd-gpu-remediation-failed"
 	DefaultUtilityImage        = "docker.io/rocm/gpu-operator-utils:latest"
 	// DefaultRecoveryPolicyWindowSize - defines the time window size for recovery policy
-	DefaultRecoveryPolicyWindowSize = "15m"
+	DefaultRecoveryPolicyWindowSize = "300m"
 	// DefaultRecoveryPolicyMaxRunsPerWindow - defines the max allowed runs per window for recovery policy
 	// If a specific node condition is hit more than this number of times within the window size, no new remediation workflows will be scheduled
 	DefaultRecoveryPolicyMaxRunsPerWindow = 3
@@ -1543,7 +1543,7 @@ func (h *remediationMgrHelper) isRecoveryPolicyViolated(ctx context.Context, nod
 
 	logger.Info(fmt.Sprintf("Recent recovery count for node %s and condition %s: %d", nodeName, mapping.NodeCondition, recentRecoveryCount))
 	logger.Info(fmt.Sprintf("Max allowed runs per window for node %s and condition %s: %d", nodeName, mapping.NodeCondition, maxAllowedRuns))
-	return recentRecoveryCount > maxAllowedRuns
+	return recentRecoveryCount >= maxAllowedRuns
 }
 
 func (h *remediationMgrHelper) isNodeLabelledForForceResume(ctx context.Context, nodeObj *v1.Node) bool {
