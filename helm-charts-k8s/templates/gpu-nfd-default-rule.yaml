@@ -180,6 +180,11 @@ spec:
             matchExpressions:
               vendor: {op: In, value: ["1002"]}
               device: {op: In, value: ["73a1"]} # V620
+      - matchFeatures:
+          - feature: pci.device
+            matchExpressions:
+              vendor: {op: In, value: ["1002"]}
+              device: {op: In, value: ["7551"]} # AI PRO R9700 / R9700S / R9600
       # AMD Radeon
       - matchFeatures:
           - feature: pci.device
