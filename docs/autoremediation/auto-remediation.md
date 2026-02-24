@@ -68,7 +68,13 @@ The GPU Operator Helm installation includes the following Argo Workflows compone
 
 The GPU Operator installs Argo Workflows v3.6.5, using a [customized installation YAML](https://github.com/argoproj/argo-workflows/releases/download/v3.6.5/install.yaml) tailored for auto-remediation requirements. This customization excludes components not needed for remediation, such as the Argo workflow server. For more information about Argo Workflows concepts, refer to the [official documentation](https://argo-workflows.readthedocs.io/en/release-3.6/workflow-concepts/).
 
-> **Note:** By default, auto-remediation components (workflow controller and CRDs) are installed during Helm deployment. To disable the installation of these components, use the following Helm flag:
+> **Note:** By default, the GPU Operator installs auto-remediation components (the workflow controller and CRDs) during Helm deployment. If Argo Workflows is already present in the cluster, you can skip installation of only the CRDs by setting:
+>
+> ```bash
+> --set remediation.installCRDs=false
+> ```
+>
+> To disable the auto node remediation feature entirely, use:
 >
 > ```bash
 > --set remediation.enabled=false
