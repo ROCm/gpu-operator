@@ -30,6 +30,7 @@ DEFAULT_RESOURCES="nodes events"
 NFD_RESOURCES="pods daemonsets deployments configmap"
 KMM_RESOURCES="pods daemonsets deployments modules configmap"
 GPUOPER_RESOURCES="pods daemonsets deployments deviceconfig configmap"
+NPD_RESOURCES="pods daemonsets configmap"
 
 OUTPUT_FORMAT="json"
 WIDE=""
@@ -103,6 +104,11 @@ ${KUBECTL} version >${TECH_SUPPORT_FILE}/kubectl.txt || die "${KUBECTL} failed"
 NFD_NS=$(${KUBECTL} get pods --no-headers -A -l app.kubernetes.io/name=node-feature-discovery | awk '{ print $1 }' | sort -u | head -n1)
 KMM_NS=$(${KUBECTL} get pods --no-headers -A -l app.kubernetes.io/name=kmm | awk '{ print $1 }' | sort -u | head -n1)
 GPUOPER_NS=$(${KUBECTL} get pods --no-headers -A -l app.kubernetes.io/name=gpu-operator-charts | awk '{ print $1 }' | sort -u | head -n1)
+# Node-problem-detector is often in kube-system; discover namespace by DaemonSet or pod label
+NPD_NS=$(${KUBECTL} get daemonsets --no-headers -A -l app=node-problem-detector | awk '{ print $1 }' | sort -u | head -n1)
+if [ -z "$NPD_NS" ]; then
+	NPD_NS=$(${KUBECTL} get pods --no-headers -A -l app=node-problem-detector | awk '{ print $1 }' | sort -u | head -n1)
+fi
 
 # if nothing is found based on the above command
 # it is possible that the cluster is OpenShift cluster and operators were deployed by OLM
@@ -119,10 +125,11 @@ fi
 
 [ -z "${GPUOPER_NS}" ] && die "no gpu operator"
 
-echo -e "NFD_NAMESPACE:$NFD_NS \nKMM_NAMESPACE:$KMM_NS \nGPUOPER_NAMESPACE:$GPUOPER_NS" >${TECH_SUPPORT_FILE}/namespace.txt
+echo -e "NFD_NAMESPACE:$NFD_NS \nKMM_NAMESPACE:$KMM_NS \nGPUOPER_NAMESPACE:$GPUOPER_NS \nNPD_NAMESPACE:$NPD_NS" >${TECH_SUPPORT_FILE}/namespace.txt
 log "NFD_NAMESPACE:$NFD_NS"
 log "KMM_NAMESPACE:$KMM_NS"
-log "GPUOPER_NAMESPACE:$GPUOPER_NS \n"
+log "GPUOPER_NAMESPACE:$GPUOPER_NS"
+log "NPD_NAMESPACE:$NPD_NS \n"
 
 # default namespace
 for resource in ${DEFAULT_RESOURCES}; do
@@ -159,6 +166,18 @@ for resource in ${GPUOPER_RESOURCES}; do
 	${KUBECTL} describe -n ${GPUOPER_NS} ${resource} >>${TECH_SUPPORT_FILE}/gpuoper/${resource}.txt 2>&1
 	${KUBECTL} get -n ${GPUOPER_NS} ${resource} -o ${OUTPUT_FORMAT} >${TECH_SUPPORT_FILE}/gpuoper/${resource}.${OUTPUT_FORMAT} 2>&1
 done
+
+# node-problem-detector (often in kube-system): configuration and cluster-level resources
+if [ -n "${NPD_NS}" ]; then
+	log "node-problem-detector:"
+	for resource in ${NPD_RESOURCES}; do
+		log "   ${NPD_NS}/${resource}"
+		mkdir -p ${TECH_SUPPORT_FILE}/npd/
+		${KUBECTL} get -n ${NPD_NS} ${resource} ${WIDE} >${TECH_SUPPORT_FILE}/npd/${resource}.txt 2>&1
+		${KUBECTL} describe -n ${NPD_NS} ${resource} >>${TECH_SUPPORT_FILE}/npd/${resource}.txt 2>&1
+		${KUBECTL} get -n ${NPD_NS} ${resource} -o ${OUTPUT_FORMAT} >${TECH_SUPPORT_FILE}/npd/${resource}.${OUTPUT_FORMAT} 2>&1
+	done
+fi
 
 CONTROL_PLANE=$(${KUBECTL} get nodes -l node-role.kubernetes.io/control-plane | grep -w Ready | awk '{print $1}')
 # logs
@@ -218,6 +237,18 @@ for node in "${nodeList[@]}"; do
 		NFD_PODS=$(${KNS} get pods -o name --field-selector spec.nodeName=${node} | grep -i nfd- || continue)
 	fi
 	pod_logs $NFD_NS "nfd" $node $NFD_PODS
+
+	# node-problem-detector pod logs and config (if NPD is present on this node)
+	if [ -n "${NPD_NS}" ]; then
+		KNS="${KUBECTL} -n ${NPD_NS}"
+		NPD_PODS=$(${KNS} get pods -o name --field-selector spec.nodeName=${node} -l app=node-problem-detector 2>/dev/null || true)
+		if [ -n "${NPD_PODS}" ]; then
+			log "   node-problem-detector (${NPD_NS})"
+			if ! pod_logs $NPD_NS "node-problem-detector" $node $NPD_PODS; then
+				log "Failed to collect logs for node-problem-detector on node ${node}"
+			fi
+		fi
+	fi
 
 	# kmm pod logs
 	KNS="${KUBECTL} -n ${KMM_NS}"

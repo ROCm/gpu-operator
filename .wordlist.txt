@@ -1,5 +1,6 @@
 amd
 AFID
+AFIDs
 Affectioned
 AGFHC
 Allocatable
@@ -760,6 +761,7 @@ init
 initializer
 inlining
 installable
+installCRDs
 instantiation
 interprocedural
 intersphinx
@@ -972,6 +974,7 @@ args
 attachMetadata
 autobuild
 aws
+BDFs
 bd
 bearerTokenFile
 bool
@@ -1092,6 +1095,8 @@ spx
 staticAuthorization
 svc
 symlinks
+sys
+sysfs
 sysmon
 targetPort
 techsupport
@@ -1118,3 +1123,11 @@ xGMI
 yamls
 sysfs
 BDFs
+bh
+dcd
+gc
+gz
+hcrxm
+jlzbs
+nm
+xtwbm
