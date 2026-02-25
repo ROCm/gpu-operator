@@ -61,6 +61,9 @@ spec:
     #    name: mysigncert
 
   devicePlugin:
+    # Enable device plugin (set to true to enable, false to disable)
+    # Default is false, but typically you want this enabled
+    enableDevicePlugin: true
     # Specify the device plugin image
     # default value is rocm/k8s-device-plugin:latest
     devicePluginImage: rocm/k8s-device-plugin:latest
@@ -77,6 +80,18 @@ spec:
     # Specify Node Labeller image pull policy
     # default value is IfNotPresent for valid tags, Always for no tag or "latest" tag
     nodeLabellerImagePullPolicy: "Always"
+
+  # Specify the DRA driver config (Dynamic Resource Allocation)
+  draDriver:
+    # To enable/disable the DRA driver, disabled by default
+    # Only enable if you need DRA support (requires Kubernetes 1.32+)
+    enable: false
+    # DRA driver image
+    # image: rocm/k8s-dra-driver:latest
+    # DRA driver image pull policy
+    # imagePullPolicy: "IfNotPresent"
+    # DRA driver node selector, if not specified it will reuse spec.selector
+    # selector: {}
 
   # Specify the metrics exporter config
   metricsExporter:

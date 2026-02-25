@@ -58,6 +58,7 @@ import (
 	"github.com/ROCm/gpu-operator/internal/kmmmodule"
 	"github.com/ROCm/gpu-operator/internal/metricsexporter"
 	"github.com/ROCm/gpu-operator/internal/nodelabeller"
+	"github.com/ROCm/gpu-operator/internal/plugin"
 	"github.com/ROCm/gpu-operator/internal/testrunner"
 	monitoringv1 "github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring/v1"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
@@ -118,6 +119,7 @@ func main() {
 	client := mgr.GetClient()
 	isOpenShift := utils.IsOpenShift(setupLogger)
 	kmmHandler := kmmmodule.NewKMMModule(client, scheme, isOpenShift)
+	dpHandler := plugin.NewDevicePlugin(client, scheme, isOpenShift)
 	nlHandler := nodelabeller.NewNodeLabeller(scheme, isOpenShift)
 	metricsHandler := metricsexporter.NewMetricsExporter(scheme)
 	testrunnerHandler := testrunner.NewTestRunner(scheme)
@@ -127,6 +129,7 @@ func main() {
 		mgr.GetConfig(),
 		client,
 		kmmHandler,
+		dpHandler,
 		nlHandler,
 		metricsHandler,
 		testrunnerHandler,

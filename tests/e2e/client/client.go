@@ -75,6 +75,8 @@ type DeviceConfigsInterface interface {
 	PatchDevicePluginImage(config *v1alpha1.DeviceConfig) (*v1alpha1.DeviceConfig, error)
 	PatchNodeLabellerImage(config *v1alpha1.DeviceConfig) (*v1alpha1.DeviceConfig, error)
 	PatchMetricsExporterImage(config *v1alpha1.DeviceConfig) (*v1alpha1.DeviceConfig, error)
+	PatchDRADriverEnablement(config *v1alpha1.DeviceConfig) (*v1alpha1.DeviceConfig, error)
+	PatchDevicePluginEnablement(config *v1alpha1.DeviceConfig) (*v1alpha1.DeviceConfig, error)
 	Get(name string, options metav1.GetOptions) (*v1alpha1.DeviceConfig, error)
 	Delete(name string) (*v1alpha1.DeviceConfig, error)
 }
@@ -350,6 +352,62 @@ func (c *deviceConfigsClient) PatchMetricsExporterImage(devCfg *v1alpha1.DeviceC
 		"spec": map[string]interface{}{
 			"metricsExporter": map[string]string{
 				"image": devCfg.Spec.MetricsExporter.Image,
+			},
+		},
+	}
+	patchBytes, _ := json.Marshal(patch)
+
+	err := c.restClient.
+		Patch(types.MergePatchType).
+		Namespace(devCfg.Namespace).
+		Resource("deviceConfigs").
+		Name(devCfg.Name).
+		Body(patchBytes).
+		Do(context.TODO()).
+		Into(&result)
+
+	return &result, err
+}
+
+func (c *deviceConfigsClient) PatchDRADriverEnablement(devCfg *v1alpha1.DeviceConfig) (*v1alpha1.DeviceConfig, error) {
+	result := v1alpha1.DeviceConfig{}
+	devCfg.TypeMeta = metav1.TypeMeta{
+		Kind:       "DeviceConfig",
+		APIVersion: "amd.com/v1alpha1",
+	}
+
+	patch := map[string]interface{}{
+		"spec": map[string]interface{}{
+			"draDriver": map[string]bool{
+				"enable": *devCfg.Spec.DRADriver.Enable,
+			},
+		},
+	}
+	patchBytes, _ := json.Marshal(patch)
+
+	err := c.restClient.
+		Patch(types.MergePatchType).
+		Namespace(devCfg.Namespace).
+		Resource("deviceConfigs").
+		Name(devCfg.Name).
+		Body(patchBytes).
+		Do(context.TODO()).
+		Into(&result)
+
+	return &result, err
+}
+
+func (c *deviceConfigsClient) PatchDevicePluginEnablement(devCfg *v1alpha1.DeviceConfig) (*v1alpha1.DeviceConfig, error) {
+	result := v1alpha1.DeviceConfig{}
+	devCfg.TypeMeta = metav1.TypeMeta{
+		Kind:       "DeviceConfig",
+		APIVersion: "amd.com/v1alpha1",
+	}
+
+	patch := map[string]interface{}{
+		"spec": map[string]interface{}{
+			"devicePlugin": map[string]bool{
+				"enableDevicePlugin": *devCfg.Spec.DevicePlugin.EnableDevicePlugin,
 			},
 		},
 	}

@@ -1,0 +1,15 @@
+{{- $draApi := include "helm-charts-k8s.draApiVersion" . -}}
+{{- if and .Values.draDriver.deviceClass.create $draApi }}
+apiVersion: {{ $draApi }}
+kind: DeviceClass
+metadata:
+  name: gpu.amd.com
+  labels:
+    app.kubernetes.io/component: amd-gpu
+    app.kubernetes.io/part-of: amd-gpu
+  {{- include "helm-charts-k8s.labels" . | nindent 4 }}
+spec:
+  selectors:
+  - cel:
+      expression: "device.driver == 'gpu.amd.com'"
+{{- end }}

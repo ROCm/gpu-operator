@@ -69,6 +69,7 @@ const (
 	MetricsExporterNameSuffix = "-metrics-exporter"
 	TestRunnerNameSuffix      = "-test-runner"
 	DevicePluginNameSuffix    = "-device-plugin"
+	DRADriverNameSuffix       = "-dra-driver"
 	NodeLabellerNameSuffix    = "-node-labeller"
 )
 

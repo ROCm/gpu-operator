@@ -126,6 +126,10 @@ spec:
 
   {{- with .Values.deviceConfig.spec.devicePlugin }}
   devicePlugin:
+    {{- if (hasKey . "enableDevicePlugin") }}
+    enableDevicePlugin: {{ .enableDevicePlugin }}
+    {{- end }}
+
     {{- with .devicePluginImage }}
     devicePluginImage: {{ . }}
     {{- end }}
@@ -375,6 +379,46 @@ spec:
 
     {{- with .selector }}
     selector:
+      {{- toYaml . | nindent 6 }}
+    {{- end }}
+  {{- end }}
+
+  {{- with .Values.deviceConfig.spec.draDriver }}
+  draDriver:
+    {{- if (hasKey . "enable") }}
+    enable: {{ .enable }}
+    {{- end }}
+
+    {{- with .image }}
+    image: {{ . }}
+    {{- end }}
+
+    {{- with .imagePullPolicy }}
+    imagePullPolicy: {{ . }}
+    {{- end }}
+
+    {{- with .tolerations }}
+    tolerations:
+      {{- toYaml . | nindent 6 }}
+    {{- end }}
+
+    {{- with .imageRegistrySecret }}
+    imageRegistrySecret:
+      {{- toYaml . | nindent 6 }}
+    {{- end }}
+
+    {{- with .cmdLineArguments }}
+    cmdLineArguments:
+      {{- toYaml . | nindent 6 }}
+    {{- end }}
+
+    {{- with .selector }}
+    selector:
+      {{- toYaml . | nindent 6 }}
+    {{- end }}
+
+    {{- with .upgradePolicy }}
+    upgradePolicy:
       {{- toYaml . | nindent 6 }}
     {{- end }}
   {{- end }}

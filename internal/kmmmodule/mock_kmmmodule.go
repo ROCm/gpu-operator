@@ -31,8 +31,7 @@ import (
 	v1alpha1 "github.com/ROCm/gpu-operator/api/v1alpha1"
 	v1beta1 "github.com/rh-ecosystem-edge/kernel-module-management/api/v1beta1"
 	gomock "go.uber.org/mock/gomock"
-	v1 "k8s.io/api/apps/v1"
-	v10 "k8s.io/api/core/v1"
+	v1 "k8s.io/api/core/v1"
 )
 
 // MockKMMModuleAPI is a mock of KMMModuleAPI interface.
@@ -59,7 +58,7 @@ func (m *MockKMMModuleAPI) EXPECT() *MockKMMModuleAPIMockRecorder {
 }
 
 // SetBuildConfigMapAsDesired mocks base method.
-func (m *MockKMMModuleAPI) SetBuildConfigMapAsDesired(buildCM *v10.ConfigMap, devConfig *v1alpha1.DeviceConfig) error {
+func (m *MockKMMModuleAPI) SetBuildConfigMapAsDesired(buildCM *v1.ConfigMap, devConfig *v1alpha1.DeviceConfig) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SetBuildConfigMapAsDesired", buildCM, devConfig)
 	ret0, _ := ret[0].(error)
@@ -72,22 +71,8 @@ func (mr *MockKMMModuleAPIMockRecorder) SetBuildConfigMapAsDesired(buildCM, devC
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetBuildConfigMapAsDesired", reflect.TypeOf((*MockKMMModuleAPI)(nil).SetBuildConfigMapAsDesired), buildCM, devConfig)
 }
 
-// SetDevicePluginAsDesired mocks base method.
-func (m *MockKMMModuleAPI) SetDevicePluginAsDesired(ds *v1.DaemonSet, devConfig *v1alpha1.DeviceConfig) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "SetDevicePluginAsDesired", ds, devConfig)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// SetDevicePluginAsDesired indicates an expected call of SetDevicePluginAsDesired.
-func (mr *MockKMMModuleAPIMockRecorder) SetDevicePluginAsDesired(ds, devConfig any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetDevicePluginAsDesired", reflect.TypeOf((*MockKMMModuleAPI)(nil).SetDevicePluginAsDesired), ds, devConfig)
-}
-
 // SetKMMModuleAsDesired mocks base method.
-func (m *MockKMMModuleAPI) SetKMMModuleAsDesired(ctx context.Context, mod *v1beta1.Module, devConfig *v1alpha1.DeviceConfig, nodes *v10.NodeList) error {
+func (m *MockKMMModuleAPI) SetKMMModuleAsDesired(ctx context.Context, mod *v1beta1.Module, devConfig *v1alpha1.DeviceConfig, nodes *v1.NodeList) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SetKMMModuleAsDesired", ctx, mod, devConfig, nodes)
 	ret0, _ := ret[0].(error)
@@ -101,7 +86,7 @@ func (mr *MockKMMModuleAPIMockRecorder) SetKMMModuleAsDesired(ctx, mod, devConfi
 }
 
 // SetNodeVersionLabelAsDesired mocks base method.
-func (m *MockKMMModuleAPI) SetNodeVersionLabelAsDesired(ctx context.Context, devConfig *v1alpha1.DeviceConfig, nodes *v10.NodeList) error {
+func (m *MockKMMModuleAPI) SetNodeVersionLabelAsDesired(ctx context.Context, devConfig *v1alpha1.DeviceConfig, nodes *v1.NodeList) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SetNodeVersionLabelAsDesired", ctx, devConfig, nodes)
 	ret0, _ := ret[0].(error)

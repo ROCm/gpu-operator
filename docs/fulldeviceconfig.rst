@@ -110,7 +110,9 @@ Below is an example of a full DeviceConfig CR that can be used to install the AM
           imageRegistrySecret:
             name: mysecret
       devicePlugin: 
-        enableNodeLabeller: true # enable or disable the node labeller
+        # Set to True to enable device plugin for GPU resource allocation (default)
+        # Cannot be enabled at the same time as DRA driver
+        enableDevicePlugin: true
         # (Optional) Specifying image names are optional. Default image names for shown here if not specified.
         devicePluginImage: rocm/k8s-device-plugin:latest # Change this to trigger metrics exporter upgrade on CR update
         devicePluginImagePullPolicy: IfNotPresent # Image pull policy for the device plugin. Either `Always`, `IfNotPresent` or `Never`
@@ -127,6 +129,7 @@ Below is an example of a full DeviceConfig CR that can be used to install the AM
           tolerationSeconds: [Expected Int value, not set by default] #Seconds represents the period of time the toleration tolerates the taint. 
           # By default, it is not set, which means tolerate the taint forever (do not evict). Effect needs to be NoExecute for this, 
           # otherwise this field is ignored. Zero and negative values will be treated as 0 (evict immediately) by the system.
+        enableNodeLabeller: true # enable or disable the node labeller
         nodeLabellerImage: rocm/k8s-device-plugin:labeller-latest # Change this to trigger metrics exporter upgrade on CR update
         nodeLabellerImagePullPolicy: IfNotPresent # Image pull policy for the node labeller. Either `Always`, `IfNotPresent` or `Never`
         # nodeLabellerImagePullPolicy default value is "IfNotPresent" for valid tags, "Always" for no tag or "latest" tag
@@ -151,6 +154,33 @@ Below is an example of a full DeviceConfig CR that can be used to install the AM
         upgradePolicy:
           #(Optional) If no UpgradePolicy is mentioned for any of the components but their image is changed, the daemonset will
           # get upgraded according to the defaults, which is `upgradeStrategy` set to `RollingUpdate` and `maxUnavailable` set to 1. 
+          upgradeStrategy: "RollingUpdate" # (Optional) Can be either `RollingUpdate` or `OnDelete`
+          maxUnavailable: 1 # (Optional) Number of pods that can be unavailable during the upgrade process. 1 is the default value
+      ## AMD DRA (Dynamic Resource Allocation) Driver Configuration ##
+      ## Note: DRA driver and Device Plugin cannot be enabled at the same time.
+      ## For detailed DRA driver documentation, see: https://github.com/ROCm/k8s-gpu-dra-driver
+      draDriver:
+        # Set to True to enable DRA driver for GPU resource allocation (requires Kubernetes 1.31+)
+        # Set to False (default) to use the traditional Device Plugin instead
+        enable: false
+        # DRA driver image
+        image: rocm/k8s-gpu-dra-driver:latest
+        # DRA driver image pull policy: Always, IfNotPresent, or Never
+        imagePullPolicy: IfNotPresent
+        # (Optional) DRA driver image pull secret for private registries
+        imageRegistrySecret:
+          name: my-image-secret
+        # (Optional) tolerations for DRA driver to run on tainted nodes
+        tolerations:
+          - key: "example-key"
+            operator: "Equal"
+            value: "example-value"
+            effect: "NoSchedule"
+        # (Optional) pass supported flags and their values while starting DRA driver daemonset
+        cmdLineArguments: {}
+        # (Optional) DRA driver node selector, if not specified it will reuse spec.selector
+        selector: {}
+        upgradePolicy:
           upgradeStrategy: "RollingUpdate" # (Optional) Can be either `RollingUpdate` or `OnDelete`
           maxUnavailable: 1 # (Optional) Number of pods that can be unavailable during the upgrade process. 1 is the default value
       ## AMD GPU Metrics Exporter Configuration ##
@@ -281,7 +311,8 @@ The below is an example of the minimal DeviceConfig CR that can be used to insta
     driver:
       enable: false # Set to false to skip driver installation to use inbox or pre-installed driver on worker nodes
     devicePlugin:
-      enableNodeLabeller: true
+      enableDevicePlugin: True
+      enableNodeLabeller: True
     metricsExporter:
       enable: true # To enable/disable the metrics exporter, disabled by default
       serviceType: "NodePort" # Node port for metrics exporter service

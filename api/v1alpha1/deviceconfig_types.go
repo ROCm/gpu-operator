@@ -380,6 +380,7 @@ type DRADriverSpec struct {
 	// enable DRA driver, disabled by default
 	//+operator-sdk:csv:customresourcedefinitions:type=spec,displayName="Enable",xDescriptors={"urn:alm:descriptor:com.amd.deviceconfigs:enable"}
 	// +optional
+	// +kubebuilder:default=false
 	Enable *bool `json:"enable,omitempty"`
 
 	// DRA driver image
@@ -413,12 +414,24 @@ type DRADriverSpec struct {
 	//+operator-sdk:csv:customresourcedefinitions:type=spec,displayName="DRADriverArguments",xDescriptors={"urn:alm:descriptor:com.amd.deviceconfigs:cmdLineArguments"}
 	// +optional
 	CmdLineArguments map[string]string `json:"cmdLineArguments,omitempty"`
+
+	// Selector describes on which nodes to enable DRA driver
+	//+operator-sdk:csv:customresourcedefinitions:type=spec,displayName="Selector",xDescriptors={"urn:alm:descriptor:com.amd.deviceconfigs:selector"}
+	// +optional
+	Selector map[string]string `json:"selector,omitempty"`
+}
+
+// IsEnabled returns true if the DRA driver is explicitly enabled.
+// When Enable is nil (not set), defaults to false (opt-in).
+func (d *DRADriverSpec) IsEnabled() bool {
+	return d.Enable != nil && *d.Enable
 }
 
 type DevicePluginSpec struct {
-	// enable Device Plugin, disabled by default
+	// enable Device Plugin, enabled by default
 	//+operator-sdk:csv:customresourcedefinitions:type=spec,displayName="EnableDevicePlugin",xDescriptors={"urn:alm:descriptor:com.amd.deviceconfigs:enableDevicePlugin"}
 	// +optional
+	// +kubebuilder:default=true
 	EnableDevicePlugin *bool `json:"enableDevicePlugin,omitempty"`
 
 	// device plugin image
@@ -483,6 +496,11 @@ type DevicePluginSpec struct {
 	//+operator-sdk:csv:customresourcedefinitions:type=spec,displayName="UpgradePolicy",xDescriptors={"urn:alm:descriptor:com.amd.deviceconfigs:upgradePolicy"}
 	// +optional
 	UpgradePolicy *DaemonSetUpgradeSpec `json:"upgradePolicy,omitempty"`
+}
+
+// IsEnabled returns true if the device plugin is explicitly enabled.
+func (d *DevicePluginSpec) IsEnabled() bool {
+	return d.EnableDevicePlugin != nil && *d.EnableDevicePlugin
 }
 
 type DaemonSetUpgradeSpec struct {

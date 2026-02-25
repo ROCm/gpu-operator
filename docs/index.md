@@ -6,6 +6,7 @@ The AMD GPU Operator simplifies the deployment and management of AMD Instinct GP
 
 - Automated driver installation and management
 - Easy deployment of the AMD GPU device plugin
+- Support for DRA (Dynamic Resource Allocation) as an alternative to the device plugin
 - Metrics collection and export
 - Support for both vanilla Kubernetes and OpenShift environments
 - Simplified GPU resource allocation for containers
