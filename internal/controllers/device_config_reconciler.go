@@ -70,6 +70,7 @@ import (
 	"github.com/ROCm/gpu-operator/internal/kmmmodule"
 	"github.com/ROCm/gpu-operator/internal/metricsexporter"
 	"github.com/ROCm/gpu-operator/internal/nodelabeller"
+	"github.com/ROCm/gpu-operator/internal/plugin"
 	"github.com/ROCm/gpu-operator/internal/testrunner"
 	"github.com/ROCm/gpu-operator/internal/validator"
 )
@@ -95,6 +96,7 @@ func NewDeviceConfigReconciler(
 	k8sConfig *rest.Config,
 	client client.Client,
 	kmmHandler kmmmodule.KMMModuleAPI,
+	dpHandler plugin.DevicePluginAPI,
 	nlHandler nodelabeller.NodeLabeller,
 	metricsHandler metricsexporter.MetricsExporter,
 	testrunnerHandler testrunner.TestRunner,
@@ -103,7 +105,7 @@ func NewDeviceConfigReconciler(
 	isOpenShift bool) *DeviceConfigReconciler {
 	upgradeMgrHandler := newUpgradeMgrHandler(client, k8sConfig, isOpenShift)
 	remediationMgrHandler := newRemediationMgrHandler(client, k8sConfig)
-	helper := newDeviceConfigReconcilerHelper(client, kmmHandler, nlHandler, upgradeMgrHandler, remediationMgrHandler, metricsHandler, testrunnerHandler, configmanagerHandler, workerMgr)
+	helper := newDeviceConfigReconcilerHelper(client, kmmHandler, dpHandler, nlHandler, upgradeMgrHandler, remediationMgrHandler, metricsHandler, testrunnerHandler, configmanagerHandler, workerMgr)
 	podEventHandler := watchers.NewPodEventHandler(client, workerMgr)
 	nodeEventHandler := watchers.NewNodeEventHandler(client, workerMgr)
 	daemonsetEventHandler := watchers.NewDaemonsetEventHandler(client)
@@ -286,6 +288,11 @@ func (r *DeviceConfigReconciler) Reconcile(ctx context.Context, req ctrl.Request
 		return res, fmt.Errorf("failed to handle device-plugin for DeviceConfig %s: %v", req.NamespacedName, err)
 	}
 
+	logger.Info("start dra-driver reconciliation")
+	if err = r.helper.handleDRADriver(ctx, devConfig, nodes); err != nil {
+		return res, fmt.Errorf("failed to handle dra-driver for DeviceConfig %s: %v", req.NamespacedName, err)
+	}
+
 	logger.Info("start kmm mod version label reconciliation")
 	err = r.helper.handleKMMVersionLabel(ctx, devConfig, nodes)
 	if err != nil {
@@ -356,6 +363,7 @@ type deviceConfigReconcilerHelperAPI interface {
 	setFinalizer(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig) error
 	handleKMMModule(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig, nodes *v1.NodeList) error
 	handleDevicePlugin(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig, nodes *v1.NodeList) error
+	handleDRADriver(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig, nodes *v1.NodeList) error
 	handleKMMVersionLabel(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig, nodes *v1.NodeList) error
 	handleBuildConfigMap(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig, nodes *v1.NodeList) error
 	handleNodeLabeller(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig, nodes *v1.NodeList) error
@@ -371,11 +379,13 @@ type deviceConfigReconcilerHelperAPI interface {
 }
 
 type deviceConfigReconcilerHelper struct {
-	client                client.Client
-	kmmHandler            kmmmodule.KMMModuleAPI
-	nlHandler             nodelabeller.NodeLabeller
-	metricsHandler        metricsexporter.MetricsExporter
-	testrunnerHandler     testrunner.TestRunner
+	client              client.Client
+	kmmHandler          kmmmodule.KMMModuleAPI
+	devicePluginHandler plugin.DevicePluginAPI
+	nlHandler           nodelabeller.NodeLabeller
+	metricsHandler      metricsexporter.MetricsExporter
+	testrunnerHandler   testrunner.TestRunner
+
 	configmanagerHandler  configmanager.ConfigManager
 	nodeAssignments       map[string]string
 	conditionUpdater      conditions.ConditionUpdater
@@ -388,6 +398,7 @@ type deviceConfigReconcilerHelper struct {
 
 func newDeviceConfigReconcilerHelper(client client.Client,
 	kmmHandler kmmmodule.KMMModuleAPI,
+	dpHandler plugin.DevicePluginAPI,
 	nlHandler nodelabeller.NodeLabeller,
 	upgradeMgrHandler upgradeMgrAPI,
 	remediationMgrHandler remediationMgrAPI,
@@ -400,6 +411,7 @@ func newDeviceConfigReconcilerHelper(client client.Client,
 	return &deviceConfigReconcilerHelper{
 		client:                client,
 		kmmHandler:            kmmHandler,
+		devicePluginHandler:   dpHandler,
 		nlHandler:             nlHandler,
 		metricsHandler:        metricsHandler,
 		testrunnerHandler:     testrunnerHandler,
@@ -1073,13 +1085,44 @@ func (dcrh *deviceConfigReconcilerHelper) handleDevicePlugin(ctx context.Context
 		ObjectMeta: metav1.ObjectMeta{Namespace: devConfig.Namespace, Name: devConfig.Name + utils.DevicePluginNameSuffix},
 	}
 
+	if !devConfig.Spec.DevicePlugin.IsEnabled() {
+		if err := dcrh.client.Delete(ctx, ds); err != nil && !k8serrors.IsNotFound(err) {
+			return fmt.Errorf("failed to delete device-plugin daemonset: %v", err)
+		}
+		return nil
+	}
+
 	opRes, err := controllerutil.CreateOrPatch(ctx, dcrh.client, ds, func() error {
-		return dcrh.kmmHandler.SetDevicePluginAsDesired(ds, devConfig)
+		return dcrh.devicePluginHandler.SetDevicePluginAsDesired(ds, devConfig)
 	})
 	if err != nil {
 		return err
 	}
 	logger.Info("Reconciled device-plugin", "namespace", ds.Namespace, "name", ds.Name, "result", opRes)
+
+	return nil
+}
+
+func (dcrh *deviceConfigReconcilerHelper) handleDRADriver(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig, nodes *v1.NodeList) error {
+	logger := log.FromContext(ctx)
+	ds := &appsv1.DaemonSet{
+		ObjectMeta: metav1.ObjectMeta{Namespace: devConfig.Namespace, Name: devConfig.Name + utils.DRADriverNameSuffix},
+	}
+
+	if !devConfig.Spec.DRADriver.IsEnabled() {
+		if err := dcrh.client.Delete(ctx, ds); err != nil && !k8serrors.IsNotFound(err) {
+			return fmt.Errorf("failed to delete dra-driver daemonset: %v", err)
+		}
+		return nil
+	}
+
+	opRes, err := controllerutil.CreateOrPatch(ctx, dcrh.client, ds, func() error {
+		return dcrh.devicePluginHandler.SetDRADriverAsDesired(ds, devConfig)
+	})
+	if err != nil {
+		return err
+	}
+	logger.Info("Reconciled dra-driver", "namespace", ds.Namespace, "name", ds.Name, "result", opRes)
 
 	return nil
 }

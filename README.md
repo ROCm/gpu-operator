@@ -13,6 +13,7 @@ AMD GPU Operator simplifies the deployment and management of AMD Instinct GPU ac
 * AMD GPU Operator Controller
 * K8s Device Plugin
 * K8s Node Labeller
+* K8s DRA (Dynamic Resource Allocation) Driver
 * Device Config Manager
 * Device Metrics Exporter
 * Device Test Runner
@@ -24,6 +25,7 @@ AMD GPU Operator simplifies the deployment and management of AMD Instinct GPU ac
 * Streamlined GPU driver installation and management
 * Comprehensive metrics collection and export
 * Easy deployment of AMD GPU device plugin for Kubernetes
+* Support for DRA (Dynamic Resource Allocation) as an alternative to the traditional device plugin
 * Automated labeling of nodes with AMD GPU capabilities
 * GPU partitioning configuration and management via Device Config Manager
 * Compatibility with standard Kubernetes environments
@@ -77,6 +79,8 @@ Installation Options
   - Skip NFD installation: `--set node-feature-discovery.enabled=false`
   - Skip KMM installation: `--set kmm.enabled=false`
   - Skip Auto Node Remediation: `--set remediation.enabled=false`
+  - Enable DRA driver (instead of device plugin): `--set deviceConfig.spec.draDriver.enable=true --set deviceConfig.spec.devicePlugin.enableDevicePlugin=false`
+  - Disable DeviceClass creation: `--set draDriver.deviceClass.create=false`
 ```
 
 > [!WARNING]

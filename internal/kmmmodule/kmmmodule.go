@@ -44,16 +44,11 @@ import (
 
 	"github.com/go-logr/logr"
 	kmmv1beta1 "github.com/rh-ecosystem-edge/kernel-module-management/api/v1beta1"
-	kmmLabels "github.com/rh-ecosystem-edge/kernel-module-management/pkg/labels"
 	"golang.org/x/exp/maps"
-	appsv1 "k8s.io/api/apps/v1"
 	v1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/apimachinery/pkg/util/intstr"
-	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/log"
@@ -74,13 +69,11 @@ const (
 	kmmNodeVersionLabelTemplate    = "kmm.node.kubernetes.io/version-module.%s.%s"
 	// check the device plugin image tags here: https://hub.docker.com/r/rocm/k8s-device-plugin/tags
 	defaultDevicePluginImage      = "rocm/k8s-device-plugin:latest"
-	defaultUbiDevicePluginImage   = "rocm/k8s-device-plugin:rhubi-latest"
 	defaultOcDriversImageTemplate = "image-registry.openshift-image-registry.svc:5000/$MOD_NAMESPACE/amdgpu_kmod"
 	// start local registry image-registry:5000 in k8s
 	defaultDriversImageTemplate = "image-registry:5000/$MOD_NAMESPACE/amdgpu_kmod"
 	defaultOcDriversVersion     = "6.2.2"
 	defaultInstallerRepoURL     = "https://repo.radeon.com"
-	defaultInitContainerImage   = "busybox:1.36"
 	defaultBaseImageRegistry    = "docker.io"
 	defaultSourceImageRepo      = "docker.io/rocm/amdgpu-driver"
 	nfdOSReleaseLabelKey        = "feature.node.kubernetes.io/system-os_release.VERSION_ID"
@@ -106,7 +99,6 @@ type KMMModuleAPI interface {
 	SetNodeVersionLabelAsDesired(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig, nodes *v1.NodeList) error
 	SetBuildConfigMapAsDesired(buildCM *v1.ConfigMap, devConfig *amdv1alpha1.DeviceConfig) error
 	SetKMMModuleAsDesired(ctx context.Context, mod *kmmv1beta1.Module, devConfig *amdv1alpha1.DeviceConfig, nodes *v1.NodeList) error
-	SetDevicePluginAsDesired(ds *appsv1.DaemonSet, devConfig *amdv1alpha1.DeviceConfig) error
 }
 
 type kmmModule struct {
@@ -312,189 +304,6 @@ func (km *kmmModule) SetKMMModuleAsDesired(ctx context.Context, mod *kmmv1beta1.
 		return fmt.Errorf("failed to set KMM Module: %v", err)
 	}
 	return controllerutil.SetControllerReference(devConfig, mod, km.scheme)
-}
-
-func (km *kmmModule) SetDevicePluginAsDesired(ds *appsv1.DaemonSet, devConfig *amdv1alpha1.DeviceConfig) error {
-	var devicePluginImage string
-
-	if devConfig.Spec.DevicePlugin.DevicePluginImage == "" {
-		if km.isOpenShift {
-			devicePluginImage = defaultUbiDevicePluginImage
-		} else {
-			devicePluginImage = defaultDevicePluginImage
-		}
-	} else {
-		devicePluginImage = devConfig.Spec.DevicePlugin.DevicePluginImage
-	}
-	hostPathDirectory := v1.HostPathDirectory
-	healthCreateHostDirectory := v1.HostPathDirectoryOrCreate
-
-	if ds == nil {
-		return fmt.Errorf("daemon set is not initialized, zero pointer")
-	}
-
-	commandArgs := "./k8s-device-plugin -logtostderr=true -stderrthreshold=INFO -v=5 -pulse=30"
-
-	devicePluginArguments := devConfig.Spec.DevicePlugin.DevicePluginArguments
-
-	// Default resource_naming_strategy to "mixed" for PF and VF passthrough if not set
-	if _, exists := devicePluginArguments["resource_naming_strategy"]; !exists {
-		if devConfig.Spec.Driver.DriverType == utils.DriverTypePFPassthrough ||
-			devConfig.Spec.Driver.DriverType == utils.DriverTypeVFPassthrough {
-			if devicePluginArguments == nil {
-				devicePluginArguments = make(map[string]string)
-			}
-			devicePluginArguments["resource_naming_strategy"] = "mixed"
-		}
-	}
-
-	for key, val := range devicePluginArguments {
-		commandArgs += " -" + key + "=" + val
-	}
-
-	command := []string{"sh", "-c", commandArgs}
-
-	nodeSelector := map[string]string{}
-	for key, val := range devConfig.Spec.Selector {
-		nodeSelector[key] = val
-	}
-	if utils.ShouldUseKMM(devConfig) {
-		nodeSelector[kmmLabels.GetKernelModuleReadyNodeLabel(devConfig.Namespace, devConfig.Name)] = ""
-	}
-	imagePullSecrets := []v1.LocalObjectReference{}
-	if devConfig.Spec.DevicePlugin.ImageRegistrySecret != nil {
-		imagePullSecrets = append(imagePullSecrets, *devConfig.Spec.DevicePlugin.ImageRegistrySecret)
-	}
-
-	matchLabels := map[string]string{"daemonset-name": devConfig.Name}
-	initContainerImage := defaultInitContainerImage
-	if devConfig.Spec.CommonConfig.InitContainerImage != "" {
-		initContainerImage = devConfig.Spec.CommonConfig.InitContainerImage
-	}
-
-	initContainerCommand := "while [ ! -d /sys/class/kfd ] || [ ! -d /sys/module/amdgpu/drivers/ ]; do echo \"amdgpu driver is not loaded \"; sleep 2 ;done"
-	switch devConfig.Spec.Driver.DriverType {
-	case utils.DriverTypeVFPassthrough:
-		initContainerCommand = "while [ ! -d /sys/module/gim/drivers/ ]; do echo \"gim driver is not loaded \"; sleep 2 ;done"
-	case utils.DriverTypePFPassthrough:
-		initContainerCommand = "true"
-	}
-
-	ds.Spec = appsv1.DaemonSetSpec{
-		Selector: &metav1.LabelSelector{MatchLabels: matchLabels},
-		Template: v1.PodTemplateSpec{
-			ObjectMeta: metav1.ObjectMeta{
-				Labels: matchLabels,
-			},
-			Spec: v1.PodSpec{
-				InitContainers: []v1.Container{
-					{
-						Name:            "driver-init",
-						Image:           initContainerImage,
-						Command:         []string{"sh", "-c", initContainerCommand},
-						SecurityContext: &v1.SecurityContext{Privileged: ptr.To(true)},
-						VolumeMounts: []v1.VolumeMount{
-							{
-								Name:      "sys",
-								MountPath: "/sys",
-							},
-						},
-					},
-				},
-				Containers: []v1.Container{
-					{
-
-						Env: []v1.EnvVar{
-							{
-								Name: "DS_NODE_NAME",
-								ValueFrom: &v1.EnvVarSource{
-									FieldRef: &v1.ObjectFieldSelector{
-										FieldPath: "spec.nodeName",
-									},
-								},
-							},
-						},
-						Name:            "device-plugin",
-						WorkingDir:      "/root",
-						Command:         command,
-						Image:           devicePluginImage,
-						SecurityContext: &v1.SecurityContext{Privileged: ptr.To(true)},
-						VolumeMounts: []v1.VolumeMount{
-							{
-								Name:      "kubelet-device-plugins",
-								MountPath: "/var/lib/kubelet/device-plugins",
-							},
-							{
-								Name:      "sys",
-								MountPath: "/sys",
-							},
-							{
-								Name:      "health",
-								MountPath: "/var/lib/amd-metrics-exporter",
-							},
-						},
-					},
-				},
-				ImagePullSecrets:   imagePullSecrets,
-				PriorityClassName:  "system-node-critical",
-				NodeSelector:       nodeSelector,
-				ServiceAccountName: "amd-gpu-operator-kmm-device-plugin",
-				Volumes: []v1.Volume{
-					{
-						Name: "kubelet-device-plugins",
-						VolumeSource: v1.VolumeSource{
-							HostPath: &v1.HostPathVolumeSource{
-								Path: "/var/lib/kubelet/device-plugins",
-								Type: &hostPathDirectory,
-							},
-						},
-					},
-					{
-						Name: "sys",
-						VolumeSource: v1.VolumeSource{
-							HostPath: &v1.HostPathVolumeSource{
-								Path: "/sys",
-								Type: &hostPathDirectory,
-							},
-						},
-					},
-					{
-						Name: "health",
-						VolumeSource: v1.VolumeSource{
-							HostPath: &v1.HostPathVolumeSource{
-								Path: "/var/lib/amd-metrics-exporter",
-								Type: &healthCreateHostDirectory,
-							},
-						},
-					},
-				},
-			},
-		},
-	}
-	if devConfig.Spec.DevicePlugin.UpgradePolicy != nil {
-		up := devConfig.Spec.DevicePlugin.UpgradePolicy
-		upgradeStrategy := appsv1.RollingUpdateDaemonSetStrategyType
-		if up.UpgradeStrategy == "OnDelete" {
-			upgradeStrategy = appsv1.OnDeleteDaemonSetStrategyType
-		}
-		ds.Spec.UpdateStrategy = appsv1.DaemonSetUpdateStrategy{
-			Type: upgradeStrategy,
-		}
-		if upgradeStrategy == appsv1.RollingUpdateDaemonSetStrategyType {
-			ds.Spec.UpdateStrategy.RollingUpdate = &appsv1.RollingUpdateDaemonSet{
-				MaxUnavailable: &intstr.IntOrString{IntVal: int32(up.MaxUnavailable)},
-			}
-		}
-	}
-	if devConfig.Spec.DevicePlugin.DevicePluginImagePullPolicy != "" {
-		ds.Spec.Template.Spec.Containers[0].ImagePullPolicy = v1.PullPolicy(devConfig.Spec.DevicePlugin.DevicePluginImagePullPolicy)
-	}
-	if len(devConfig.Spec.DevicePlugin.DevicePluginTolerations) > 0 {
-		ds.Spec.Template.Spec.Tolerations = devConfig.Spec.DevicePlugin.DevicePluginTolerations
-	} else {
-		ds.Spec.Template.Spec.Tolerations = nil
-	}
-	return controllerutil.SetControllerReference(devConfig, ds, km.scheme)
 }
 
 func setKMMModuleLoader(ctx context.Context, mod *kmmv1beta1.Module, devConfig *amdv1alpha1.DeviceConfig, isOpenshift bool, nodes *v1.NodeList) error {

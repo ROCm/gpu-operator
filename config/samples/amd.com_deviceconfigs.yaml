@@ -24,6 +24,8 @@ spec:
     version: "30.20.1"
 
   devicePlugin:
+    # Enable device plugin (set to true to enable, false to disable)
+    enableDevicePlugin: true
     # Specify the device plugin image
     # default value is rocm/k8s-device-plugin:latest
     devicePluginImage: rocm/k8s-device-plugin:latest
@@ -31,6 +33,11 @@ spec:
     # Specify the node labeller image
     # default value is rocm/k8s-device-plugin:labeller-latest
     nodeLabellerImage: rocm/k8s-device-plugin:labeller-latest
+
+  # Specify the DRA driver config (Dynamic Resource Allocation)
+  draDriver:
+    # To enable/disable the DRA driver, disabled by default
+    enable: false
 
   # Specifythe node to be managed by this DeviceConfig Custom Resource
   selector:

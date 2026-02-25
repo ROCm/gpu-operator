@@ -61,6 +61,18 @@ The [AMD GPU Device Plugin](https://github.com/ROCm/k8s-device-plugin) enables G
 - Registers AMD GPUs as allocatable resources
 - Enables GPU resource requests and limits in pod specifications
 
+### DRA (Dynamic Resource Allocation) Driver
+
+The [AMD GPU DRA Driver](https://github.com/ROCm/k8s-gpu-dra-driver) is an alternative to the traditional Device Plugin that leverages the Kubernetes Dynamic Resource Allocation API:
+
+- Implements the Kubernetes [DRA interface](https://kubernetes.io/docs/concepts/scheduling-eviction/dynamic-resource-allocation/) for AMD GPUs
+- Publishes GPU resources as `ResourceSlices` for scheduler-driven allocation
+- Supports fine-grained device selection via `DeviceClass` and CEL expressions
+- Enables GPU sharing between containers within a pod
+- Requires Kubernetes 1.32+ with `DynamicResourceAllocation` feature gate
+
+> **Note:** The DRA driver and Device Plugin cannot be enabled simultaneously. See [DRA Driver Documentation](./dra/dra-driver.md) for setup instructions.
+
 ### Node Labeller
 
 The [Node Labeller](https://github.com/ROCm/k8s-device-plugin/blob/master/cmd/k8s-node-labeller/README.md) provides detailed GPU information through node labels:

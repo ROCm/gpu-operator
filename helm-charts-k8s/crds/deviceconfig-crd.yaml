@@ -262,7 +262,8 @@ spec:
                       type: object
                     type: array
                   enableDevicePlugin:
-                    description: enable Device Plugin, disabled by default
+                    default: true
+                    description: enable Device Plugin, enabled by default
                     type: boolean
                   enableNodeLabeller:
                     default: true
@@ -372,6 +373,7 @@ spec:
                       values while starting DRA driver daemonset
                     type: object
                   enable:
+                    default: false
                     description: enable DRA driver, disabled by default
                     type: boolean
                   image:
@@ -400,6 +402,11 @@ spec:
                         type: string
                     type: object
                     x-kubernetes-map-type: atomic
+                  selector:
+                    additionalProperties:
+                      type: string
+                    description: Selector describes on which nodes to enable DRA driver
+                    type: object
                   tolerations:
                     description: tolerations for the DRA driver DaemonSet
                     items:

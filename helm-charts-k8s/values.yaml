@@ -99,6 +99,8 @@ deviceConfig:
         # -- utility container image pull secret, e.g. {"name": "mySecretName"}
         imageRegistrySecret: {}
     devicePlugin:
+      # -- enable/disable the device plugin. Cannot be enabled at the same time as draDriver.
+      enableDevicePlugin: true
       # -- device plugin image
       devicePluginImage: rocm/k8s-device-plugin:latest
       # -- device plugin image pull policy
@@ -235,6 +237,26 @@ deviceConfig:
         maxUnavailable: 1
       # -- config manager tolerations
       configManagerTolerations: []
+    draDriver:
+      # -- enable/disable the DRA (Dynamic Resource Allocation) driver. Cannot be enabled at the same time as devicePlugin.
+      enable: false
+      # -- DRA driver image
+      image: "rocm/k8s-gpu-dra-driver:latest"
+      # -- DRA driver image pull policy
+      imagePullPolicy: IfNotPresent
+      # -- DRA driver tolerations
+      tolerations: []
+      # -- DRA driver image pull secret, e.g. {"name": "mySecretName"}
+      imageRegistrySecret: {}
+      # -- pass supported flags and their values while starting DRA driver daemonset
+      cmdLineArguments: {}
+      # -- DRA driver node selector, if not specified it will reuse spec.selector
+      selector: {}
+      upgradePolicy:
+        # -- the type of daemonset upgrade, RollingUpdate or OnDelete
+        upgradeStrategy: RollingUpdate
+        # -- the maximum number of Pods that can be unavailable during the update process
+        maxUnavailable: 1
     remediationWorkflow:
       # -- enable/disable remediation workflow controller
       enable: false
@@ -291,6 +313,12 @@ controllerManager:
 kmmDevicePlugin:
   serviceAccount:
     annotations: {}
+draDriver:
+  serviceAccount:
+    annotations: {}
+  deviceClass:
+    # -- Create the gpu.amd.com DeviceClass resource. Set to false if managing the DRA driver independently.
+    create: true
 kmmModuleLoader:
   serviceAccount:
     annotations: {}

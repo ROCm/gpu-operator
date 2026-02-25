@@ -597,6 +597,9 @@ func DelDaemonset(cl *kubernetes.Clientset, ns string, name string) error {
 func DevicePluginName(cfgName string) string {
 	return cfgName + "-device-plugin"
 }
+func DRADriverName(cfgName string) string {
+	return cfgName + "-dra-driver"
+}
 func NodeLabellerName(cfgName string) string {
 	return cfgName + "-node-labeller"
 }

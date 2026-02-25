@@ -1,11 +1,17 @@
 # Device Plugin
 
+> **Note:** The AMD GPU Operator also supports [DRA (Dynamic Resource Allocation)](../dra/dra-driver.md) as an alternative to the traditional Device Plugin. DRA provides scheduler-driven GPU allocation, fine-grained device selection, and GPU sharing capabilities. The Device Plugin and DRA driver **cannot be enabled at the same time**.
+
 ## Configure device plugin
 
 To start the Device Plugin along with the GPU Operator configure fields under the ``` spec/devicePlugin ``` field in deviceconfig Custom Resource(CR)
 
 ```yaml
   devicePlugin:
+    # Enable the device plugin (default: true)
+    # Cannot be enabled at the same time as the DRA driver
+    enableDevicePlugin: true
+
     # Specify the device plugin image
     # default value is rocm/k8s-device-plugin:latest
     devicePluginImage: rocm/k8s-device-plugin:latest
@@ -51,15 +57,16 @@ test-deviceconfig-node-labeller-bxk7x                             1/1     Runnin
 
 ## Device Plugin DeviceConfig
 
-| Field Name                       | Details                                      |
-|----------------------------------|----------------------------------------------|
-| **DevicePluginImage**            | Device plugin image                          |
-| **DevicePluginImagePullPolicy**  | One of Always, Never, IfNotPresent.          |
-| **NodeLabellerImage**            | Node labeller image                          |
-| **NodeLabellerImagePullPolicy**  | One of Always, Never, IfNotPresent.          |
-| **EnableNodeLabeller**           | Enable/Disable node labeller with True/False |
-| **DevicePluginArguments**        | The flag/values to pass on to Device Plugin  |
-| **NodeLabellerArguments**        | The flags to pass on to Node Labeller        |
+| Field Name | Details |
+| --- | --- |
+| **EnableDevicePlugin** | Enable/Disable device plugin with True/False. Cannot be enabled simultaneously with DRA driver. |
+| **DevicePluginImage** | Device plugin image |
+| **DevicePluginImagePullPolicy** | One of Always, Never, IfNotPresent. |
+| **NodeLabellerImage** | Node labeller image |
+| **NodeLabellerImagePullPolicy** | One of Always, Never, IfNotPresent. |
+| **EnableNodeLabeller** | Enable/Disable node labeller with True/False |
+| **DevicePluginArguments** | The flag/values to pass on to Device Plugin |
+| **NodeLabellerArguments** | The flags to pass on to Node Labeller |
 
 </br>
 

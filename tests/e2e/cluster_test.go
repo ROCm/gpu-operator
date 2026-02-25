@@ -353,6 +353,47 @@ func (s *E2ESuite) checkDeviceConfigManagerStatus(devCfg *v1alpha1.DeviceConfig,
 	}, 5*time.Minute, 5*time.Second)
 }
 
+func (s *E2ESuite) checkDRADriverStatus(devCfg *v1alpha1.DeviceConfig, ns string, c *C) {
+	dsName := utils.DRADriverName(devCfg.Name)
+	assert.Eventually(c, func() bool {
+		ds, err := s.clientSet.AppsV1().DaemonSets(ns).Get(context.TODO(), dsName, metav1.GetOptions{})
+		if err != nil {
+			logger.Errorf("failed to get DRA driver daemonset %s: %v", dsName, err)
+			return false
+		}
+		logger.Infof("DRA driver %s status: desired=%d, ready=%d",
+			dsName, ds.Status.DesiredNumberScheduled, ds.Status.NumberReady)
+
+		return ds.Status.DesiredNumberScheduled > 0 &&
+			ds.Status.NumberReady == ds.Status.DesiredNumberScheduled
+	}, 5*time.Minute, 5*time.Second)
+}
+
+func (s *E2ESuite) verifyDRADriverDeleted(devCfg *v1alpha1.DeviceConfig, ns string, c *C) {
+	dsName := utils.DRADriverName(devCfg.Name)
+	assert.Eventually(c, func() bool {
+		_, err := s.clientSet.AppsV1().DaemonSets(ns).Get(context.TODO(), dsName, metav1.GetOptions{})
+		if err == nil {
+			logger.Warnf("DRA driver daemonset %s still exists, waiting for deletion", dsName)
+			return false
+		}
+		logger.Infof("DRA driver daemonset %s deleted", dsName)
+		return true
+	}, 5*time.Minute, 5*time.Second)
+}
+
+func (s *E2ESuite) patchDRADriverEnablement(devCfg *v1alpha1.DeviceConfig, c *C) {
+	result, err := s.dClient.DeviceConfigs(s.ns).PatchDRADriverEnablement(devCfg)
+	assert.NoError(c, err, "failed to patch DRA driver enablement on %v", devCfg.Name)
+	logger.Info(fmt.Sprintf("patched DRA driver enablement on device config %+v", result))
+}
+
+func (s *E2ESuite) patchDevicePluginEnablement(devCfg *v1alpha1.DeviceConfig, c *C) {
+	result, err := s.dClient.DeviceConfigs(s.ns).PatchDevicePluginEnablement(devCfg)
+	assert.NoError(c, err, "failed to patch device plugin enablement on %v", devCfg.Name)
+	logger.Info(fmt.Sprintf("patched device plugin enablement on device config %+v", result))
+}
+
 func (s *E2ESuite) patchMetricsExporterEnablement(devCfg *v1alpha1.DeviceConfig, c *C) {
 	result, err := s.dClient.DeviceConfigs(s.ns).PatchMetricsExporterEnablement(devCfg)
 	assert.NoError(c, err, "failed to update %v", s.cfgName)

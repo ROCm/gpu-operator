@@ -98,8 +98,48 @@ func ValidateMetricsExporterSpec(ctx context.Context, client client.Client, devC
 	return nil
 }
 
+// DRADriverSpec validation
+func ValidateDRADriverSpec(ctx context.Context, client client.Client, devConfig *amdv1alpha1.DeviceConfig) error {
+	draSpec := devConfig.Spec.DRADriver
+	pluginSpec := devConfig.Spec.DevicePlugin
+
+	// Check if both DRA driver and Device Plugin are enabled
+	draEnabled := draSpec.IsEnabled()
+	pluginEnabled := pluginSpec.IsEnabled()
+
+	if draEnabled && pluginEnabled {
+		return fmt.Errorf("DRADriver and DevicePlugin cannot be enabled at the same time")
+	}
+
+	if !draEnabled {
+		return nil
+	}
+
+	if draSpec.ImageRegistrySecret != nil {
+		if err := validateSecret(ctx, client, draSpec.ImageRegistrySecret, devConfig.Namespace); err != nil {
+			return fmt.Errorf("ImageRegistrySecret: %v", err)
+		}
+	}
+
+	return nil
+}
+
 // DevicePluginSpec validation
 func ValidateDevicePluginSpec(ctx context.Context, client client.Client, devConfig *amdv1alpha1.DeviceConfig) error {
+	pluginSpec := devConfig.Spec.DevicePlugin
+	draSpec := devConfig.Spec.DRADriver
+
+	// Check if both DRA driver and Device Plugin are enabled
+	draEnabled := draSpec.IsEnabled()
+	pluginEnabled := pluginSpec.IsEnabled()
+
+	if draEnabled && pluginEnabled {
+		return fmt.Errorf("DRADriver and DevicePlugin cannot be enabled at the same time")
+	}
+
+	if !pluginEnabled {
+		return nil
+	}
 	dSpec := devConfig.Spec.DevicePlugin
 
 	if dSpec.ImageRegistrySecret != nil {

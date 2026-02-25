@@ -14,7 +14,11 @@ metadata:
           "spec": {
             "devicePlugin": {
               "devicePluginImage": "rocm/k8s-device-plugin:latest",
+              "enableDevicePlugin": true,
               "nodeLabellerImage": "rocm/k8s-device-plugin:labeller-latest"
+            },
+            "draDriver": {
+              "enable": false
             },
             "driver": {
               "image": "my.registry.io/myUserName/myRepo",
@@ -196,7 +200,7 @@ spec:
         path: devicePlugin.devicePluginTolerations
         x-descriptors:
         - urn:alm:descriptor:com.amd.deviceconfigs:devicePluginTolerations
-      - description: enable Device Plugin, disabled by default
+      - description: enable Device Plugin, enabled by default
         displayName: EnableDevicePlugin
         path: devicePlugin.enableDevicePlugin
         x-descriptors:
@@ -285,6 +289,11 @@ spec:
         path: draDriver.imageRegistrySecret
         x-descriptors:
         - urn:alm:descriptor:com.amd.deviceconfigs:imageRegistrySecret
+      - description: Selector describes on which nodes to enable DRA driver
+        displayName: Selector
+        path: draDriver.selector
+        x-descriptors:
+        - urn:alm:descriptor:com.amd.deviceconfigs:selector
       - description: tolerations for the DRA driver DaemonSet
         displayName: Tolerations
         path: draDriver.tolerations

@@ -40,6 +40,7 @@ func NewValidator() ValidatorAPI {
 		"driver":              ValidateDriverSpec,
 		"metricsExporter":     ValidateMetricsExporterSpec,
 		"devicePlugin":        ValidateDevicePluginSpec,
+		"draDriver":           ValidateDRADriverSpec,
 		"remediationWorkflow": ValidateRemediationWorkflowSpec,
 	}
 	vInst := &validator{
