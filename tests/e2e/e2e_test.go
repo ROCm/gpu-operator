@@ -148,6 +148,13 @@ func (s *E2ESuite) SetUpSuite(c *C) {
 
 	s.clusterType = utils.GetClusterType(config)
 
+	// Initialize the per-test monitor (log collection + periodic snapshots)
+	s.testMonitor = utils.NewTestMonitor(cs, s.ns, "e2e-artifacts",
+		utils.WithLogCollection(),
+		utils.WithSnapshots(),
+		utils.WithSnapshotInterval(2*time.Minute),
+	)
+
 	if s.openshift == false {
 		assert.Eventually(c, func() bool {
 			if err := utils.CheckHelmDeployment(cs, s.ns, true); err != nil {
@@ -180,6 +187,9 @@ func (s *E2ESuite) SetUpTest(c *C) {
 	if err := s.clientSet.CoreV1().ConfigMaps(s.ns).Delete(context.TODO(), s.cfgName, metav1.DeleteOptions{}); err != nil && !apierrors.IsNotFound(err) {
 		logger.Warnf("Failed to delete configmap %s during SetUpTest for test %s: %v", s.cfgName, c.TestName(), err)
 	}
+
+	// Start per-test monitoring
+	s.testMonitor.Start(c.TestName())
 }
 
 func (s *E2ESuite) TearDownTest(c *C) {
@@ -208,6 +218,10 @@ func (s *E2ESuite) TearDownTest(c *C) {
 	if err := s.clientSet.CoreV1().ConfigMaps(s.ns).Delete(context.TODO(), s.cfgName, metav1.DeleteOptions{}); err != nil && !apierrors.IsNotFound(err) {
 		logger.Warnf("Failed to delete configmap %s at the end of TearDownTest for test %s: %v", s.cfgName, c.TestName(), err)
 	}
+
+	// Stop per-test monitoring (after cleanup so teardown-phase logs are captured)
+	s.testMonitor.Stop()
+
 	time.Sleep(20 * time.Second)
 	logger.Infof("==================== Finished Test: %s ====================", c.TestName())
 }

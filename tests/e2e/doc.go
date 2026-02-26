@@ -18,6 +18,7 @@ package e2e
 
 import (
 	"github.com/ROCm/gpu-operator/tests/e2e/client"
+	"github.com/ROCm/gpu-operator/tests/e2e/utils"
 	workflowclient "github.com/argoproj/argo-workflows/v3/pkg/client/clientset/versioned"
 	monitoringClient "github.com/prometheus-operator/prometheus-operator/pkg/client/versioned"
 	apiextClient "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
@@ -43,4 +44,5 @@ type E2ESuite struct {
 	apiClientSet         *apiextClient.Clientset
 	framework            string
 	wfStatusClient       *client.RemediationWorkflowStatusClient
+	testMonitor          *utils.TestMonitor
 }
