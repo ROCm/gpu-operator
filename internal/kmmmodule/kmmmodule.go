@@ -333,6 +333,12 @@ func (km *kmmModule) SetDevicePluginAsDesired(ds *appsv1.DaemonSet, devConfig *a
 		return fmt.Errorf("daemon set is not initialized, zero pointer")
 	}
 
+	// Use configurable kubelet device plugins path, default to standard path
+	kubeletDevicePluginsDir := kubeletDevicePluginsPath
+	if devConfig.Spec.DevicePlugin.KubeletSocketPath != "" {
+		kubeletDevicePluginsDir = devConfig.Spec.DevicePlugin.KubeletSocketPath
+	}
+
 	commandArgs := "./k8s-device-plugin -logtostderr=true -stderrthreshold=INFO -v=5 -pulse=30"
 
 	devicePluginArguments := devConfig.Spec.DevicePlugin.DevicePluginArguments
@@ -422,7 +428,7 @@ func (km *kmmModule) SetDevicePluginAsDesired(ds *appsv1.DaemonSet, devConfig *a
 						VolumeMounts: []v1.VolumeMount{
 							{
 								Name:      "kubelet-device-plugins",
-								MountPath: "/var/lib/kubelet/device-plugins",
+								MountPath: kubeletDevicePluginsDir,
 							},
 							{
 								Name:      "sys",
@@ -444,7 +450,7 @@ func (km *kmmModule) SetDevicePluginAsDesired(ds *appsv1.DaemonSet, devConfig *a
 						Name: "kubelet-device-plugins",
 						VolumeSource: v1.VolumeSource{
 							HostPath: &v1.HostPathVolumeSource{
-								Path: "/var/lib/kubelet/device-plugins",
+								Path: kubeletDevicePluginsDir,
 								Type: &hostPathDirectory,
 							},
 						},

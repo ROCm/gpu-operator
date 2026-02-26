@@ -434,6 +434,15 @@ type DevicePluginSpec struct {
 	//+operator-sdk:csv:customresourcedefinitions:type=spec,displayName="UpgradePolicy",xDescriptors={"urn:alm:descriptor:com.amd.deviceconfigs:upgradePolicy"}
 	// +optional
 	UpgradePolicy *DaemonSetUpgradeSpec `json:"upgradePolicy,omitempty"`
+
+	// kubeletSocketPath is the host path where kubelet device plugin sockets are located.
+	// This path is mounted into the device plugin container so it can register with the kubelet.
+	// The default is /var/lib/kubelet/device-plugins which is the standard Kubernetes path.
+	// Some distributions (e.g., microk8s, k3s) may use a different path.
+	//+operator-sdk:csv:customresourcedefinitions:type=spec,displayName="KubeletSocketPath",xDescriptors={"urn:alm:descriptor:com.amd.deviceconfigs:kubeletSocketPath"}
+	// +kubebuilder:default="/var/lib/kubelet/device-plugins"
+	// +optional
+	KubeletSocketPath string `json:"kubeletSocketPath,omitempty"`
 }
 
 type DaemonSetUpgradeSpec struct {
