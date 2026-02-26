@@ -1,6 +1,8 @@
 GPU Partitioning via DCM
 ========================
 
+**OpenShift / Red Hat OCP:** On OpenShift, the GPU Operator is typically deployed in the ``openshift-amd-gpu`` namespace (not ``kube-amd-gpu``). Use ``openshift-amd-gpu`` in the examples below when you are on OpenShift. Essential OpenShift cluster components (DNS, ingress, network, etc.) may run on GPU nodes; applying a ``NoExecute`` taint will evict any pod that does not tolerate it. Ensure you add the ``amd-dcm`` toleration to required workloads in ``kube-system`` and, on OpenShift, in relevant ``openshift-*`` namespaces (e.g. ``openshift-dns``, ``openshift-ingress``) that schedule onto GPU nodes before tainting.
+
 - GPU on the node cannot be partitioned on the go, we need to bring down all daemonsets using the GPU resource before partitioning. Hence we need to taint the node and the partition.
 - DCM pod comes with a toleration
     - `key: amd-dcm , value: up , Operator: Equal, effect: NoExecute `
@@ -27,6 +29,9 @@ Setting GPU Partitioning
 
 Since tainting a node will bring down all pods/daemonsets, we need to add toleration to the Kubernetes system pods to prevent them from getting evicted. Pods in the system namespace are responsible for things like DNS, networking, proxy and the overall proper functioning of your node.
 
+.. note::
+   **OpenShift:** On OpenShift, essential cluster DaemonSets and Deployments (e.g. in ``openshift-dns``, ``openshift-ingress``, ``openshift-network-operator``) may run on GPU nodes. Adding a ``NoExecute`` taint without first adding the ``amd-dcm`` toleration to those workloads can evict critical components. After patching ``kube-system`` as below, add the same toleration to any ``openshift-*`` namespaces that have workloads on your GPU nodes. You can list pods on the node and add tolerations to their controllers as needed.
+
 Here we are patching all the deployments in the `kube-system` namespace with the key `amd-dcm` which is used during the tainting process to evict all non-essential pods:
 
 .. tab-set::
@@ -36,6 +41,12 @@ Here we are patching all the deployments in the `kube-system` namespace with the
       .. code-block:: bash
 
          kubectl get deployments -n kube-system -o json | jq -r '.items[] | .metadata.name' | xargs -I {} kubectl patch deployment {} -n kube-system --type='json' -p='[{"op": "add", "path": "/spec/template/spec/tolerations", "value": [{"key": "amd-dcm", "operator": "Equal", "value": "up", "effect": "NoExecute"}]}]'
+
+   .. tab-item:: OpenShift
+
+      .. code-block:: bash
+
+         oc get deployments -n kube-system -o json | jq -r '.items[] | .metadata.name' | xargs -I {} oc patch deployment {} -n kube-system --type='json' -p='[{"op": "add", "path": "/spec/template/spec/tolerations", "value": [{"key": "amd-dcm", "operator": "Equal", "value": "up", "effect": "NoExecute"}]}]'
 
 We also need to patch all the daemonsets in the `kube-system` namespace to prevent CNI (e.g., Cilium) malfunction:
 
@@ -47,12 +58,12 @@ We also need to patch all the daemonsets in the `kube-system` namespace to preve
 
          kubectl get daemonsets -n kube-system -o json | jq -r '.items[] | .metadata.name' | xargs -I {} kubectl patch daemonsets {} -n kube-system --type='json' -p='[{"op": "add", "path": "/spec/template/spec/tolerations", "value": [{"key": "amd-dcm", "operator": "Equal", "value": "up", "effect": "NoExecute"}]}]'
 
-..    .. tab-item:: OpenShift
+   .. tab-item:: OpenShift
 
-..       .. code-block:: bash
+      .. code-block:: bash
 
-..          oc get deployments -n kube-system -o json | jq -r '.items[] | .metadata.name' | xargs -I {} kubectl patch deployment {} -n kube-system --type='json' -p='[{"op": "add", "path": "/spec/template/spec/tolerations", "value": [{"key": "amd-dcm", "operator": "Equal", "value": "up", "effect": "NoExecute"}]}]'
-             
+         oc get daemonsets -n kube-system -o json | jq -r '.items[] | .metadata.name' | xargs -I {} oc patch daemonset {} -n kube-system --type='json' -p='[{"op": "add", "path": "/spec/template/spec/tolerations", "value": [{"key": "amd-dcm", "operator": "Equal", "value": "up", "effect": "NoExecute"}]}]'
+
 
 The above command is convenient as it adds the required tolerations all with a single command. However, you can also manually edit any required deployments or pods yourself and add this toleration to any other required pods in your cluster as follows:
 
@@ -105,6 +116,8 @@ Below is an example of how to create the `config-manager-config.yaml` file that 
 
 - **cpx-profile**: CPX+NPS4 (64 GPU partitions)
 - **spx-profile**: SPX+NPS1 (no GPU partitions)
+
+Use namespace ``kube-amd-gpu`` for Kubernetes; on OpenShift use ``openshift-amd-gpu``.
 
 .. code-block:: yaml
     
@@ -161,11 +174,11 @@ Now apply the DCM ConfigMap to your cluster
 
             kubectl apply -f config-manager-config.yaml
 
-..    .. tab-item:: OpenShift
+   .. tab-item:: OpenShift
 
-..       .. code-block:: bash
+      .. code-block:: bash
 
-..             oc apply -f config-manager-config.yaml
+            oc apply -f config-manager-config.yaml
 
 After creating the ConfigMap, you need to associate it with the Device Config Manager by updating the DeviceConfig Custom Resource (CR)
 
@@ -209,11 +222,11 @@ In order to ensure there are no workloads on the node that are using the GPUs we
 
             kubectl taint nodes [nodename] amd-dcm=up:NoExecute
 
-..    .. tab-item:: OpenShift
+   .. tab-item:: OpenShift
 
-..       .. code-block:: bash
+      .. code-block:: bash
 
-..             oc taint nodes [nodename] amd-dcm=up:NoExecute
+            oc taint nodes [nodename] amd-dcm=up:NoExecute
 
 4. Label the node with the CPX profile
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -228,11 +241,11 @@ Monitor the pods on the node to ensure that all non-essential workloads are bein
 
             kubectl label node [nodename] dcm.amd.com/gpu-config-profile=cpx-profile --overwrite
 
-..    .. tab-item:: OpenShift
+   .. tab-item:: OpenShift
 
-..       .. code-block:: bash
+      .. code-block:: bash
 
-..             oc label node [nodename] dcm.amd.com/gpu-config-profile=cpx-profile --overwrite
+            oc label node [nodename] dcm.amd.com/gpu-config-profile=cpx-profile --overwrite
 
 You can also confirm that the label got applied by checking the node:
 
@@ -244,11 +257,11 @@ You can also confirm that the label got applied by checking the node:
 
             kubectl describe node [nodename] | grep gpu-config-profile
 
-..    .. tab-item:: OpenShift
+   .. tab-item:: OpenShift
 
-..       .. code-block:: bash
+      .. code-block:: bash
 
-..             oc describe node [nodename] | grep gpu-config-profile
+            oc describe node [nodename] | grep gpu-config-profile
 
 5. Verify GPU partitioning
 ~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -263,13 +276,13 @@ Use kubectl exec to run amd-smi inside the Device Config Manager pod to confirm 
 
             kubectl exec -n kube-amd-gpu -it [dcm-pod-name] -- amd-smi list
 
-..    .. tab-item:: OpenShift
+   .. tab-item:: OpenShift
 
-..       .. code-block:: bash
+      .. code-block:: bash
 
-..             oc exec -n kube-amd-gpu -it [dcm-pod-name] -- amd-smi list
+            oc exec -n openshift-amd-gpu -it [dcm-pod-name] -- amd-smi list
 
-Replace ``[dcm-pod-name]`` with the actual name of your Device Config Manager pod (e.g., ``gpu-operator-device-config-manager-hn9rb``).
+Replace ``[dcm-pod-name]`` with the actual name of your Device Config Manager pod (e.g., ``gpu-operator-device-config-manager-hn9rb``). On Kubernetes the DCM pod runs in ``kube-amd-gpu``; on OpenShift it runs in ``openshift-amd-gpu`` (use ``-n openshift-amd-gpu`` in the OpenShift tab above).
 
 6. Remove Taint from the node
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -284,11 +297,11 @@ Remove the taint from the node to restart all previous workloads and allow the n
 
             kubectl taint nodes [nodename] amd-dcm=up:NoExecute-
 
-..    .. tab-item:: OpenShift
+   .. tab-item:: OpenShift
 
-..       .. code-block:: bash
+      .. code-block:: bash
 
-..             oc taint nodes [nodename] amd-dcm=up:NoExecute-
+            oc taint nodes [nodename] amd-dcm=up:NoExecute-
 
 Reverting back to SPX (no partitions)
 -------------------------------------
@@ -303,11 +316,11 @@ To revert a node back to SPX mode (no partitions), apply the ``spx-profile`` lab
 
             kubectl label node [nodename] dcm.amd.com/gpu-config-profile=spx-profile --overwrite
 
-..    .. tab-item:: OpenShift
+   .. tab-item:: OpenShift
 
-..       .. code-block:: bash
+      .. code-block:: bash
 
-..             oc label node [nodename] dcm.amd.com/gpu-config-profile=spx-profile --overwrite
+            oc label node [nodename] dcm.amd.com/gpu-config-profile=spx-profile --overwrite
 
 Removing Partition Profile label
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -322,11 +335,11 @@ To completely remove the partition profile label from a node:
 
             kubectl label node [nodename] dcm.amd.com/gpu-config-profile-
 
-..    .. tab-item:: OpenShift
+   .. tab-item:: OpenShift
 
-..       .. code-block:: bash
+      .. code-block:: bash
 
-..             oc label node [nodename] dcm.amd.com/gpu-config-profile-
+            oc label node [nodename] dcm.amd.com/gpu-config-profile-
 
 Removing DCM tolerations from all daemonsets in kube-system namespace
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -341,8 +354,8 @@ After completing partitioning operations, you can remove the DCM tolerations tha
 
             kubectl get daemonsets -n kube-system -o json | jq -r '.items[] | .metadata.name' | xargs -I {} kubectl patch daemonset {} -n kube-system --type='json' -p='[{"op": "remove", "path": "/spec/template/spec/tolerations/0"}]'
 
-..    .. tab-item:: OpenShift
+   .. tab-item:: OpenShift
 
-..       .. code-block:: bash
+      .. code-block:: bash
 
-..             oc get daemonsets -n kube-system -o json | jq -r '.items[] | .metadata.name' | xargs -I {} kubectl patch daemonset {} -n kube-system --type='json' -p='[{"op": "remove", "path": "/spec/template/spec/tolerations/0"}]'
+            oc get daemonsets -n kube-system -o json | jq -r '.items[] | .metadata.name' | xargs -I {} oc patch daemonset {} -n kube-system --type='json' -p='[{"op": "remove", "path": "/spec/template/spec/tolerations/0"}]'
