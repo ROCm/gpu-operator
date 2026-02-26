@@ -7,6 +7,45 @@ Node-problem-detector(NPD) aims to make various node problems visible to the ups
 
 Many Kubernetes clusters like GKE, AKS, etc. come with NPD enabled by default. If not already present, easiest way to install is to use Helm chart. Follow the official [Node-problem-detector installation guide](https://github.com/kubernetes/node-problem-detector?tab=readme-ov-file#installation) for more information about installation.
 
+<!-- markdownlint-disable MD031 MD040 -->
+```{note}
+**For OpenShift users:** To install NPD on OpenShift clusters, follow these commands:
+
+  1. Create namespace and service account:
+
+      ```bash
+      oc create namespace node-problem-detector
+      oc create serviceaccount npd -n node-problem-detector
+      ```
+
+  2. Grant required access to the service account:
+
+      ```bash
+      oc create clusterrolebinding npd-privileged-scc \
+        --clusterrole=system:openshift:scc:privileged \
+        --serviceaccount=node-problem-detector:npd
+
+      oc create clusterrole npd-pod-endpoint-access \
+        --verb=get,list,watch --resource=pods,endpoints
+
+      oc create clusterrolebinding npd-pod-endpoint-access-binding \
+        --clusterrole=npd-pod-endpoint-access \
+        --serviceaccount=node-problem-detector:npd
+      ```
+
+  3. Install NPD using Helm chart:
+
+      ```bash
+      helm install npd oci://ghcr.io/deliveryhero/helm-charts/node-problem-detector \
+        --version 2.4.0 \
+        -n node-problem-detector \
+        --set serviceAccount.name=npd \
+        --set serviceAccount.create=false
+      ```
+
+```
+<!-- markdownlint-enable MD031 MD040 -->
+
 ## Custom Plugin Monitor
 
 Custom plugin monitor is a plugin mechanism for node-problem-detector. It will extend node-problem-detector to execute any monitor scripts written in any language. The monitor scripts must conform to the plugin protocol in exit code and standard output. For more info about the plugin protocol, please refer to the [node-problem-detector plugin interface](https://docs.google.com/document/d/1jK_5YloSYtboj-DtfjmYKxfNnUxCAvohLnsH5aGCAYQ/edit#).
