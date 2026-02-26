@@ -45,6 +45,7 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	kmmv1beta1 "github.com/rh-ecosystem-edge/kernel-module-management/api/v1beta1"
+	appsv1 "k8s.io/api/apps/v1"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/yaml"
@@ -730,5 +731,124 @@ var _ = Describe("getKernelMappings", func() {
 			result := parseRHELVersion(tc.labels, tc.input)
 			Expect(result).To(Equal(tc.expected))
 		}
+	})
+})
+
+var _ = Describe("SetDevicePluginAsDesired", func() {
+	var km *kmmModule
+
+	BeforeEach(func() {
+		km = &kmmModule{
+			client:      nil,
+			scheme:      scheme,
+			isOpenShift: false,
+		}
+	})
+
+	It("should use default kubelet device plugins path when not specified", func() {
+		ds := &appsv1.DaemonSet{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "test-device-plugin",
+				Namespace: "test-namespace",
+			},
+		}
+
+		devConfig := &amdv1alpha1.DeviceConfig{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "test-config",
+				Namespace: "test-namespace",
+			},
+			Spec: amdv1alpha1.DeviceConfigSpec{
+				DevicePlugin: amdv1alpha1.DevicePluginSpec{},
+			},
+		}
+
+		err := km.SetDevicePluginAsDesired(ds, devConfig)
+		Expect(err).To(BeNil())
+
+		// Verify the default path is used
+		expectedPath := "/var/lib/kubelet/device-plugins"
+
+		// Check volume mount
+		var foundVolumeMount bool
+		for _, vm := range ds.Spec.Template.Spec.Containers[0].VolumeMounts {
+			if vm.Name == "kubelet-device-plugins" {
+				Expect(vm.MountPath).To(Equal(expectedPath))
+				foundVolumeMount = true
+				break
+			}
+		}
+		Expect(foundVolumeMount).To(BeTrue(), "kubelet-device-plugins volume mount not found")
+
+		// Check volume
+		var foundVolume bool
+		for _, vol := range ds.Spec.Template.Spec.Volumes {
+			if vol.Name == "kubelet-device-plugins" {
+				Expect(vol.HostPath.Path).To(Equal(expectedPath))
+				foundVolume = true
+				break
+			}
+		}
+		Expect(foundVolume).To(BeTrue(), "kubelet-device-plugins volume not found")
+	})
+
+	It("should use custom kubelet socket path when specified", func() {
+		ds := &appsv1.DaemonSet{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "test-device-plugin",
+				Namespace: "test-namespace",
+			},
+		}
+
+		customPath := "/var/snap/microk8s/common/var/lib/kubelet/device-plugins"
+		devConfig := &amdv1alpha1.DeviceConfig{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "test-config",
+				Namespace: "test-namespace",
+			},
+			Spec: amdv1alpha1.DeviceConfigSpec{
+				DevicePlugin: amdv1alpha1.DevicePluginSpec{
+					KubeletSocketPath: customPath,
+				},
+			},
+		}
+
+		err := km.SetDevicePluginAsDesired(ds, devConfig)
+		Expect(err).To(BeNil())
+
+		// Check volume mount uses custom path
+		var foundVolumeMount bool
+		for _, vm := range ds.Spec.Template.Spec.Containers[0].VolumeMounts {
+			if vm.Name == "kubelet-device-plugins" {
+				Expect(vm.MountPath).To(Equal(customPath))
+				foundVolumeMount = true
+				break
+			}
+		}
+		Expect(foundVolumeMount).To(BeTrue(), "kubelet-device-plugins volume mount not found")
+
+		// Check volume uses custom path
+		var foundVolume bool
+		for _, vol := range ds.Spec.Template.Spec.Volumes {
+			if vol.Name == "kubelet-device-plugins" {
+				Expect(vol.HostPath.Path).To(Equal(customPath))
+				foundVolume = true
+				break
+			}
+		}
+		Expect(foundVolume).To(BeTrue(), "kubelet-device-plugins volume not found")
+	})
+
+	It("should return error when daemonset is nil", func() {
+		devConfig := &amdv1alpha1.DeviceConfig{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "test-config",
+				Namespace: "test-namespace",
+			},
+		}
+
+		err := km.SetDevicePluginAsDesired(nil, devConfig)
+		Expect(err).NotTo(BeNil())
+		Expect(err.Error()).To(ContainSubstring("daemon set is not initialized"))
 	})
 })

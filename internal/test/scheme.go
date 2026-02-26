@@ -33,6 +33,7 @@ limitations under the License.
 package test
 
 import (
+	amdv1alpha1 "github.com/ROCm/gpu-operator/api/v1alpha1"
 	hubv1beta1 "github.com/rh-ecosystem-edge/kernel-module-management/api-hub/v1beta1"
 	kmmv1beta1 "github.com/rh-ecosystem-edge/kernel-module-management/api/v1beta1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -50,6 +51,7 @@ func TestScheme() (*runtime.Scheme, error) {
 		hubv1beta1.AddToScheme,
 		clusterv1.Install,
 		workv1.Install,
+		amdv1alpha1.AddToScheme,
 	}
 
 	for _, f := range funcs {
