@@ -30,6 +30,7 @@ DEFAULT_RESOURCES="nodes events"
 NFD_RESOURCES="pods daemonsets deployments configmap"
 KMM_RESOURCES="pods daemonsets deployments modules configmap"
 GPUOPER_RESOURCES="pods daemonsets deployments deviceconfig configmap"
+NPD_RESOURCES="pods daemonsets configmap"
 
 OUTPUT_FORMAT="json"
 WIDE=""
@@ -59,7 +60,7 @@ pod_logs() {
 	NODE=$3
 	PODS=$4
 
-	[ -z ${PODS} ] && return
+	[ -z "${PODS}" ] && return
 	KNS="${KUBECTL} -n ${NS}"
 	mkdir -p ${TECH_SUPPORT_FILE}/${NODE}/${FEATURE}
 	for lpod in ${PODS}; do
@@ -68,7 +69,7 @@ pod_logs() {
 		${KNS} logs "${pod}" --all-containers >${TECH_SUPPORT_FILE}/${NODE}/${FEATURE}/${NS}_${pod}.txt
 		${KNS} logs -p "${pod}" --all-containers --tail 1 >/dev/null 2>&1 && ${KNS} logs -p "${pod}" >${TECH_SUPPORT_FILE}/${NODE}/${FEATURE}/${NS}_${pod}_previous.txt
 	done
-	echo ${PODS} >${TECH_SUPPORT_FILE}/${node}/${FEATURE}/pods.txt
+	echo "${PODS}" >${TECH_SUPPORT_FILE}/${node}/${FEATURE}/pods.txt
 }
 
 while getopts who:k: opt; do
@@ -103,6 +104,11 @@ ${KUBECTL} version >${TECH_SUPPORT_FILE}/kubectl.txt || die "${KUBECTL} failed"
 NFD_NS=$(${KUBECTL} get pods --no-headers -A -l app.kubernetes.io/name=node-feature-discovery | awk '{ print $1 }' | sort -u | head -n1)
 KMM_NS=$(${KUBECTL} get pods --no-headers -A -l app.kubernetes.io/name=kmm | awk '{ print $1 }' | sort -u | head -n1)
 GPUOPER_NS=$(${KUBECTL} get pods --no-headers -A -l app.kubernetes.io/name=gpu-operator-charts | awk '{ print $1 }' | sort -u | head -n1)
+# Node-problem-detector is often in kube-system; discover namespace by DaemonSet or pod label
+NPD_NS=$(${KUBECTL} get daemonsets --no-headers -A -l app=node-problem-detector | awk '{ print $1 }' | sort -u | head -n1)
+if [ -z "$NPD_NS" ]; then
+	NPD_NS=$(${KUBECTL} get pods --no-headers -A -l app=node-problem-detector | awk '{ print $1 }' | sort -u | head -n1)
+fi
 
 # if nothing is found based on the above command
 # it is possible that the cluster is OpenShift cluster and operators were deployed by OLM
@@ -119,16 +125,24 @@ fi
 
 [ -z "${GPUOPER_NS}" ] && die "no gpu operator"
 
-echo -e "NFD_NAMESPACE:$NFD_NS \nKMM_NAMESPACE:$KMM_NS \nGPUOPER_NAMESPACE:$GPUOPER_NS" >${TECH_SUPPORT_FILE}/namespace.txt
+echo -e "NFD_NAMESPACE:$NFD_NS \nKMM_NAMESPACE:$KMM_NS \nGPUOPER_NAMESPACE:$GPUOPER_NS \nNPD_NAMESPACE:$NPD_NS" >${TECH_SUPPORT_FILE}/namespace.txt
 log "NFD_NAMESPACE:$NFD_NS"
 log "KMM_NAMESPACE:$KMM_NS"
-log "GPUOPER_NAMESPACE:$GPUOPER_NS \n"
+log "GPUOPER_NAMESPACE:$GPUOPER_NS"
+log "NPD_NAMESPACE:$NPD_NS \n"
 
 # default namespace
+log "cluster-wide resources:"
 for resource in ${DEFAULT_RESOURCES}; do
+	log "   ${resource}"
 	${KUBECTL} get -A ${resource} ${WIDE} >${TECH_SUPPORT_FILE}/${resource}.txt 2>&1
-	${KUBECTL} describe -A ${resource} >>${TECH_SUPPORT_FILE}/${resource}.txt 2>&1
-	${KUBECTL} get -A ${resource} -o ${OUTPUT_FORMAT} >${TECH_SUPPORT_FILE}/${resource}.${OUTPUT_FORMAT} 2>&1
+	if [ "${resource}" = "events" ]; then
+		# Skip describe for events as it's redundant and extremely slow
+		${KUBECTL} get events -A --sort-by='.lastTimestamp' -o ${OUTPUT_FORMAT} >${TECH_SUPPORT_FILE}/${resource}.${OUTPUT_FORMAT} 2>&1
+	else
+		${KUBECTL} describe -A ${resource} >>${TECH_SUPPORT_FILE}/${resource}.txt 2>&1
+		${KUBECTL} get -A ${resource} -o ${OUTPUT_FORMAT} >${TECH_SUPPORT_FILE}/${resource}.${OUTPUT_FORMAT} 2>&1
+	fi
 done
 
 # nfd namespace
@@ -137,8 +151,25 @@ for resource in ${NFD_RESOURCES}; do
 	log "   ${NFD_NS}/${resource}"
 	mkdir -p ${TECH_SUPPORT_FILE}/nfd/
 	${KUBECTL} get -n ${NFD_NS} ${resource} ${WIDE} >${TECH_SUPPORT_FILE}/nfd/${resource}.txt 2>&1
-	${KUBECTL} describe -n ${NFD_NS} ${resource} >>${TECH_SUPPORT_FILE}/nfd/${resource}.txt 2>&1
-	${KUBECTL} get -n ${NFD_NS} ${resource} -o ${OUTPUT_FORMAT} >${TECH_SUPPORT_FILE}/nfd/${resource}.${OUTPUT_FORMAT} 2>&1
+	if [ "${resource}" != "pods" ]; then
+		${KUBECTL} describe -n ${NFD_NS} ${resource} >>${TECH_SUPPORT_FILE}/nfd/${resource}.txt 2>&1
+		${KUBECTL} get -n ${NFD_NS} ${resource} -o ${OUTPUT_FORMAT} >${TECH_SUPPORT_FILE}/nfd/${resource}.${OUTPUT_FORMAT} 2>&1
+	else
+		# For pods, collect one by one with progress feedback
+		echo "" >${TECH_SUPPORT_FILE}/nfd/${resource}.${OUTPUT_FORMAT}
+		POD_LIST=$(${KUBECTL} get -n ${NFD_NS} pods --no-headers -o custom-columns=NAME:.metadata.name 2>/dev/null || true)
+		if [ -n "$POD_LIST" ]; then
+			POD_COUNT=$(echo "$POD_LIST" | wc -l)
+			POD_NUM=0
+			while IFS= read -r pod_name; do
+				[ -z "$pod_name" ] && continue
+				POD_NUM=$((POD_NUM + 1))
+				log "     ($POD_NUM/$POD_COUNT) ${pod_name}"
+				${KUBECTL} describe -n ${NFD_NS} pod "$pod_name" >>${TECH_SUPPORT_FILE}/nfd/${resource}.txt 2>&1
+				${KUBECTL} get -n ${NFD_NS} pod "$pod_name" -o ${OUTPUT_FORMAT} >>${TECH_SUPPORT_FILE}/nfd/${resource}.${OUTPUT_FORMAT} 2>&1
+			done <<< "$POD_LIST"
+		fi
+	fi
 done
 
 log "kmm:"
@@ -147,18 +178,64 @@ for resource in ${KMM_RESOURCES}; do
 	log "   ${KMM_NS}/${resource}"
 	mkdir -p ${TECH_SUPPORT_FILE}/kmm/
 	${KUBECTL} get -n ${KMM_NS} ${resource} ${WIDE} >${TECH_SUPPORT_FILE}/kmm/${resource}.txt 2>&1
-	${KUBECTL} describe -n ${KMM_NS} ${resource} >>${TECH_SUPPORT_FILE}/kmm/${resource}.txt 2>&1
-	${KUBECTL} get -n ${KMM_NS} ${resource} -o ${OUTPUT_FORMAT} >${TECH_SUPPORT_FILE}/kmm/${resource}.${OUTPUT_FORMAT} 2>&1
+	if [ "${resource}" != "pods" ]; then
+		${KUBECTL} describe -n ${KMM_NS} ${resource} >>${TECH_SUPPORT_FILE}/kmm/${resource}.txt 2>&1
+		${KUBECTL} get -n ${KMM_NS} ${resource} -o ${OUTPUT_FORMAT} >${TECH_SUPPORT_FILE}/kmm/${resource}.${OUTPUT_FORMAT} 2>&1
+	else
+		# For pods, collect one by one with progress feedback
+		echo "" >${TECH_SUPPORT_FILE}/kmm/${resource}.${OUTPUT_FORMAT}
+		POD_LIST=$(${KUBECTL} get -n ${KMM_NS} pods --no-headers -o custom-columns=NAME:.metadata.name 2>/dev/null || true)
+		if [ -n "$POD_LIST" ]; then
+			POD_COUNT=$(echo "$POD_LIST" | wc -l)
+			POD_NUM=0
+			while IFS= read -r pod_name; do
+				[ -z "$pod_name" ] && continue
+				POD_NUM=$((POD_NUM + 1))
+				log "     ($POD_NUM/$POD_COUNT) ${pod_name}"
+				${KUBECTL} describe -n ${KMM_NS} pod "$pod_name" >>${TECH_SUPPORT_FILE}/kmm/${resource}.txt 2>&1
+				${KUBECTL} get -n ${KMM_NS} pod "$pod_name" -o ${OUTPUT_FORMAT} >>${TECH_SUPPORT_FILE}/kmm/${resource}.${OUTPUT_FORMAT} 2>&1
+			done <<< "$POD_LIST"
+		fi
+	fi
 done
-log "gpu-operator: "
+log "gpu-operator:"
 # gpu oper namespace
 for resource in ${GPUOPER_RESOURCES}; do
 	log "   ${GPUOPER_NS}/${resource}"
 	mkdir -p ${TECH_SUPPORT_FILE}/gpuoper/
 	${KUBECTL} get -n ${GPUOPER_NS} ${resource} ${WIDE} >${TECH_SUPPORT_FILE}/gpuoper/${resource}.txt 2>&1
-	${KUBECTL} describe -n ${GPUOPER_NS} ${resource} >>${TECH_SUPPORT_FILE}/gpuoper/${resource}.txt 2>&1
-	${KUBECTL} get -n ${GPUOPER_NS} ${resource} -o ${OUTPUT_FORMAT} >${TECH_SUPPORT_FILE}/gpuoper/${resource}.${OUTPUT_FORMAT} 2>&1
+	if [ "${resource}" != "pods" ]; then
+		${KUBECTL} describe -n ${GPUOPER_NS} ${resource} >>${TECH_SUPPORT_FILE}/gpuoper/${resource}.txt 2>&1
+		${KUBECTL} get -n ${GPUOPER_NS} ${resource} -o ${OUTPUT_FORMAT} >${TECH_SUPPORT_FILE}/gpuoper/${resource}.${OUTPUT_FORMAT} 2>&1
+	else
+		# For pods, collect one by one with progress feedback
+		echo "" >${TECH_SUPPORT_FILE}/gpuoper/${resource}.${OUTPUT_FORMAT}
+		POD_LIST=$(${KUBECTL} get -n ${GPUOPER_NS} pods --no-headers -o custom-columns=NAME:.metadata.name 2>/dev/null || true)
+		if [ -n "$POD_LIST" ]; then
+			POD_COUNT=$(echo "$POD_LIST" | wc -l)
+			POD_NUM=0
+			while IFS= read -r pod_name; do
+				[ -z "$pod_name" ] && continue
+				POD_NUM=$((POD_NUM + 1))
+				log "     ($POD_NUM/$POD_COUNT) ${pod_name}"
+				${KUBECTL} describe -n ${GPUOPER_NS} pod "$pod_name" >>${TECH_SUPPORT_FILE}/gpuoper/${resource}.txt 2>&1
+				${KUBECTL} get -n ${GPUOPER_NS} pod "$pod_name" -o ${OUTPUT_FORMAT} >>${TECH_SUPPORT_FILE}/gpuoper/${resource}.${OUTPUT_FORMAT} 2>&1
+			done <<< "$POD_LIST"
+		fi
+	fi
 done
+
+# node-problem-detector (often in kube-system): configuration and cluster-level resources
+if [ -n "${NPD_NS}" ]; then
+	log "node-problem-detector:"
+	for resource in ${NPD_RESOURCES}; do
+		log "   ${NPD_NS}/${resource}"
+		mkdir -p ${TECH_SUPPORT_FILE}/npd/
+		${KUBECTL} get -n ${NPD_NS} ${resource} ${WIDE} >${TECH_SUPPORT_FILE}/npd/${resource}.txt 2>&1
+		${KUBECTL} describe -n ${NPD_NS} ${resource} >>${TECH_SUPPORT_FILE}/npd/${resource}.txt 2>&1
+		${KUBECTL} get -n ${NPD_NS} ${resource} -o ${OUTPUT_FORMAT} >${TECH_SUPPORT_FILE}/npd/${resource}.${OUTPUT_FORMAT} 2>&1
+	done
+fi
 
 CONTROL_PLANE=$(${KUBECTL} get nodes -l node-role.kubernetes.io/control-plane | grep -w Ready | awk '{print $1}')
 # logs
@@ -213,74 +290,119 @@ for node in "${nodeList[@]}"; do
 
 	# nfd pod logs
 	KNS="${KUBECTL} -n ${NFD_NS}"
-	NFD_PODS=$(${KNS} get pods -o name --field-selector spec.nodeName=${node} -l "app.kubernetes.io/name=node-feature-discovery" || continue)
+	NFD_PODS=$(${KNS} get pods -o name --field-selector spec.nodeName=${node} -l "app.kubernetes.io/name=node-feature-discovery" 2>/dev/null || true)
 	if [ -z "$NFD_PODS" ]; then
-		NFD_PODS=$(${KNS} get pods -o name --field-selector spec.nodeName=${node} | grep -i nfd- || continue)
+		NFD_PODS=$(${KNS} get pods -o name --field-selector spec.nodeName=${node} 2>/dev/null | grep -i nfd- || true)
 	fi
-	pod_logs $NFD_NS "nfd" $node $NFD_PODS
+	if [ -n "$NFD_PODS" ]; then
+		if ! pod_logs $NFD_NS "nfd" $node "$NFD_PODS"; then
+			log "Failed to collect logs for NFD pods on node ${node}"
+		fi
+	fi
+
+	# node-problem-detector pod logs and config (if NPD is present on this node)
+	if [ -n "${NPD_NS}" ]; then
+		KNS="${KUBECTL} -n ${NPD_NS}"
+		NPD_PODS=$(${KNS} get pods -o name --field-selector spec.nodeName=${node} -l app=node-problem-detector 2>/dev/null || true)
+		if [ -n "${NPD_PODS}" ]; then
+			log "   node-problem-detector (${NPD_NS})"
+			if ! pod_logs $NPD_NS "node-problem-detector" $node $NPD_PODS; then
+				log "Failed to collect logs for node-problem-detector on node ${node}"
+			fi
+		fi
+	fi
 
 	# kmm pod logs
 	KNS="${KUBECTL} -n ${KMM_NS}"
-	KMM_PODS=$(${KNS} get pods -o name --field-selector spec.nodeName=${node} -l "app.kubernetes.io/name=kmm" || continue)
+	KMM_PODS=$(${KNS} get pods -o name --field-selector spec.nodeName=${node} -l "app.kubernetes.io/name=kmm" 2>/dev/null || true)
 	if [ -z "$KMM_PODS" ]; then
-		KMM_PODS=$(${KNS} get pods -o name --field-selector spec.nodeName=${node} | grep -i kmm-operator- || continue)
+		KMM_PODS=$(${KNS} get pods -o name --field-selector spec.nodeName=${node} 2>/dev/null | grep -i kmm-operator- || true)
 	fi
-	pod_logs $KMM_NS "kmm" $node $KMM_PODS
+	if [ -n "$KMM_PODS" ]; then
+		if ! pod_logs $KMM_NS "kmm" $node "$KMM_PODS"; then
+			log "Failed to collect logs for KMM pods on node ${node}"
+		fi
+	fi
 
 	# metrics exporter pod logs
 	KNS="${KUBECTL} -n ${GPUOPER_NS}"
-	EXPORTER_PODS=$(${KNS} get pods -o name --field-selector spec.nodeName=${node} -l "app.kubernetes.io/name=metrics-exporter" || continue)
+	EXPORTER_PODS=$(${KNS} get pods -o name --field-selector spec.nodeName=${node} -l "app.kubernetes.io/name=metrics-exporter" 2>/dev/null || true)
 
 	if [ -z "$EXPORTER_PODS" ]; then
-		EXPORTER_PODS=$(${KNS} get pods -o name --field-selector spec.nodeName=${node} | grep -i metrics-exporter- || continue)
+		EXPORTER_PODS=$(${KNS} get pods -o name --field-selector spec.nodeName=${node} 2>/dev/null | grep -i metrics-exporter- || true)
 	fi
-	mkdir -p ${TECH_SUPPORT_FILE}/${node}/metrics-exporter/smi
-	${KNS} exec -it ${EXPORTER_PODS} -- sh -c "server --version" >${TECH_SUPPORT_FILE}/${node}/metrics-exporter/exporterversion.txt || true
-	${KNS} exec -it ${EXPORTER_PODS} -- sh -c "metricsclient" >${TECH_SUPPORT_FILE}/${node}/metrics-exporter/exporterhealth.txt || true
-	${KNS} exec -it ${EXPORTER_PODS} -- sh -c "cat /etc/metrics/config.json" >${TECH_SUPPORT_FILE}/${node}/metrics-exporter/config.json || true
-	${KNS} exec -it ${EXPORTER_PODS} -- sh -c "metricsclient -pod -json" >${TECH_SUPPORT_FILE}/${node}/metrics-exporter/exporterpod.json || true
-	${KNS} exec -it ${EXPORTER_PODS} -- sh -c "metricsclient -npod" >${TECH_SUPPORT_FILE}/${node}/metrics-exporter/exporternode.txt || true
-	${KNS} exec -it ${EXPORTER_PODS} -- sh -c "amd-smi list" >${TECH_SUPPORT_FILE}/${node}/metrics-exporter/smi/amd-smi-list.txt || true
-	${KNS} exec -it ${EXPORTER_PODS} -- sh -c "amd-smi metric" >${TECH_SUPPORT_FILE}/${node}/metrics-exporter/smi/amd-smi-metric.txt || true
-	${KNS} exec -it ${EXPORTER_PODS} -- sh -c "amd-smi static" >${TECH_SUPPORT_FILE}/${node}/metrics-exporter/smi/amd-smi-static.txt || true
-	${KNS} exec -it ${EXPORTER_PODS} -- sh -c "amd-smi firmware" >${TECH_SUPPORT_FILE}/${node}/metrics-exporter/smi/amd-smi-firmware.txt || true
-	${KNS} exec -it ${EXPORTER_PODS} -- sh -c "amd-smi partition" >${TECH_SUPPORT_FILE}/${node}/metrics-exporter/smi/amd-smi-partition.txt || true
-	${KNS} exec -it ${EXPORTER_PODS} -- sh -c "amd-smi xgmi" >${TECH_SUPPORT_FILE}/${node}/metrics-exporter/smi/amd-smi-xgmi.txt || true
+	if [ -n "$EXPORTER_PODS" ]; then
+		mkdir -p ${TECH_SUPPORT_FILE}/${node}/metrics-exporter/smi
+		${KNS} exec ${EXPORTER_PODS} -- sh -c "server --version" >${TECH_SUPPORT_FILE}/${node}/metrics-exporter/exporterversion.txt 2>&1 || true
+		${KNS} exec ${EXPORTER_PODS} -- sh -c "metricsclient" >${TECH_SUPPORT_FILE}/${node}/metrics-exporter/exporterhealth.txt 2>&1 || true
+		${KNS} exec ${EXPORTER_PODS} -- sh -c "cat /etc/metrics/config.json" >${TECH_SUPPORT_FILE}/${node}/metrics-exporter/config.json 2>&1 || true
+		${KNS} exec ${EXPORTER_PODS} -- sh -c "metricsclient -pod -json" >${TECH_SUPPORT_FILE}/${node}/metrics-exporter/exporterpod.json 2>&1 || true
+		${KNS} exec ${EXPORTER_PODS} -- sh -c "metricsclient -npod" >${TECH_SUPPORT_FILE}/${node}/metrics-exporter/exporternode.txt 2>&1 || true
+		${KNS} exec ${EXPORTER_PODS} -- sh -c "amd-smi list" >${TECH_SUPPORT_FILE}/${node}/metrics-exporter/smi/amd-smi-list.txt 2>&1 || true
+		${KNS} exec ${EXPORTER_PODS} -- sh -c "amd-smi metric" >${TECH_SUPPORT_FILE}/${node}/metrics-exporter/smi/amd-smi-metric.txt 2>&1 || true
+		${KNS} exec ${EXPORTER_PODS} -- sh -c "amd-smi static" >${TECH_SUPPORT_FILE}/${node}/metrics-exporter/smi/amd-smi-static.txt 2>&1 || true
+		${KNS} exec ${EXPORTER_PODS} -- sh -c "amd-smi firmware" >${TECH_SUPPORT_FILE}/${node}/metrics-exporter/smi/amd-smi-firmware.txt 2>&1 || true
+		${KNS} exec ${EXPORTER_PODS} -- sh -c "amd-smi partition" >${TECH_SUPPORT_FILE}/${node}/metrics-exporter/smi/amd-smi-partition.txt 2>&1 || true
+		${KNS} exec ${EXPORTER_PODS} -- sh -c "amd-smi xgmi" >${TECH_SUPPORT_FILE}/${node}/metrics-exporter/smi/amd-smi-xgmi.txt 2>&1 || true
 
-	pod_logs $GPUOPER_NS "metrics-exporter" $node $EXPORTER_PODS
+		if ! pod_logs $GPUOPER_NS "metrics-exporter" $node "$EXPORTER_PODS"; then
+			log "Failed to collect logs for device-metrics-exporter on node ${node}"
+		fi
+	fi
 
 	# device config manager pod logs
 	KNS="${KUBECTL} -n ${GPUOPER_NS}"
-	DEVICE_CONFIG_MANAGER_PODS=$(${KNS} get pods -o name --field-selector spec.nodeName=${node} -l "app.kubernetes.io/name=device-config-manager" || continue)
-	pod_logs $GPUOPER_NS "device-config-manager" $node $DEVICE_CONFIG_MANAGER_PODS
+	DEVICE_CONFIG_MANAGER_PODS=$(${KNS} get pods -o name --field-selector spec.nodeName=${node} -l "app.kubernetes.io/name=device-config-manager" 2>/dev/null || true)
+	if [ -n "$DEVICE_CONFIG_MANAGER_PODS" ]; then
+		if ! pod_logs $GPUOPER_NS "device-config-manager" $node "$DEVICE_CONFIG_MANAGER_PODS"; then
+			log "Failed to collect logs for device-config-manager on node ${node}"
+		fi
+	fi
 	
 	# device plugin pod logs
-	DEVICE_PLUGIN_PODS=$(${KNS} get pods -o name --field-selector spec.nodeName=${node} | grep -i device-plugin- || continue)
-	pod_logs $GPUOPER_NS "device-plugin" $node $DEVICE_PLUGIN_PODS
+	DEVICE_PLUGIN_PODS=$(${KNS} get pods -o name --field-selector spec.nodeName=${node} 2>/dev/null | grep -i device-plugin- || true)
+	if [ -n "$DEVICE_PLUGIN_PODS" ]; then
+		if ! pod_logs $GPUOPER_NS "device-plugin" $node "$DEVICE_PLUGIN_PODS"; then
+			log "Failed to collect logs for device-plugin on node ${node}"
+		fi
+	fi
 
 	# node labeller pod logs
-	NODE_LABELLER_PODS=$(${KNS} get pods -o name --field-selector spec.nodeName=${node} | grep -i node-labeller- || continue)
-	pod_logs $GPUOPER_NS "node-labeller" $node $NODE_LABELLER_PODS
+	NODE_LABELLER_PODS=$(${KNS} get pods -o name --field-selector spec.nodeName=${node} 2>/dev/null | grep -i node-labeller- || true)
+	if [ -n "$NODE_LABELLER_PODS" ]; then
+		if ! pod_logs $GPUOPER_NS "node-labeller" $node "$NODE_LABELLER_PODS"; then
+			log "Failed to collect logs for node-labeller on node ${node}"
+		fi
+	fi
 
 	# test runner pod logs
-	TEST_RUNNER_PODS=$(${KNS} get pods -o name --field-selector spec.nodeName=${node} | grep -i test-runner- || continue)
-	pod_logs $GPUOPER_NS "test-runner" $node $TEST_RUNNER_PODS
+	TEST_RUNNER_PODS=$(${KNS} get pods -o name --field-selector spec.nodeName=${node} 2>/dev/null | grep -i test-runner- || true)
+	if [ -n "$TEST_RUNNER_PODS" ]; then
+		if ! pod_logs $GPUOPER_NS "test-runner" $node "$TEST_RUNNER_PODS"; then
+			log "Failed to collect logs for test-runner on node ${node}"
+		fi
+	fi
 
 	# operator pod logs
-	GPUOPER_PODS=$(${KNS} get pods -o name --field-selector spec.nodeName=${node} -l "app.kubernetes.io/name=gpu-operator-charts" || continue)
+	GPUOPER_PODS=$(${KNS} get pods -o name --field-selector spec.nodeName=${node} -l "app.kubernetes.io/name=gpu-operator-charts" 2>/dev/null || true)
 	if [ -z "$GPUOPER_PODS" ]; then
-		GPUOPER_PODS=$(${KNS} get pods -o name --field-selector spec.nodeName=${node} | grep -i amd-gpu-operator-controller-manager || continue)
+		GPUOPER_PODS=$(${KNS} get pods -o name --field-selector spec.nodeName=${node} 2>/dev/null | grep -i amd-gpu-operator-controller-manager || true)
 	fi
-	pod_logs $GPUOPER_NS "gpu-operator" $node $GPUOPER_PODS
+	if [ -n "$GPUOPER_PODS" ]; then
+		if ! pod_logs $GPUOPER_NS "gpu-operator" $node "$GPUOPER_PODS"; then
+			log "Failed to collect logs for gpu-operator on node ${node}"
+		fi
+	fi
 
 	# node logs
-	dbgpods=$(${KUBECTL} get pods -o name --field-selector spec.nodeName=${node} -l "app=techsupport-${UUID}" || continue)
+	dbgpods=$(${KUBECTL} get pods -o name --field-selector spec.nodeName=${node} -l "app=techsupport-${UUID}" 2>/dev/null || true)
+	[ -z "$dbgpods" ] && continue
 
 	# wait for the debug pod
 	for dbgpod in ${dbgpods}; do
 		${KUBECTL} wait --for=condition=Ready=true ${dbgpod} >/dev/null
 		log "   lsmod"
-		${KUBECTL} exec ${dbgpod} -- sh -c "lsmod | grep amdgpu || true" >${TECH_SUPPORT_FILE}/${node}/lsmod.txt
+		${KUBECTL} exec ${dbgpod} -- sh -c "lsmod || true" >${TECH_SUPPORT_FILE}/${node}/lsmod.txt
 		log "   dmesg"
 		${KUBECTL} exec ${dbgpod} -- sh -c "dmesg || true" >${TECH_SUPPORT_FILE}/${node}/dmesg.txt
 	done
