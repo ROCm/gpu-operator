@@ -312,6 +312,18 @@ for node in "${nodeList[@]}"; do
 		fi
 	fi
 
+	# node-problem-detector pod logs and config (if NPD is present on this node)
+	if [ -n "${NPD_NS}" ]; then
+		KNS="${KUBECTL} -n ${NPD_NS}"
+		NPD_PODS=$(${KNS} get pods -o name --field-selector spec.nodeName=${node} -l app=node-problem-detector 2>/dev/null || true)
+		if [ -n "${NPD_PODS}" ]; then
+			log "   node-problem-detector (${NPD_NS})"
+			if ! pod_logs $NPD_NS "node-problem-detector" $node $NPD_PODS; then
+				log "Failed to collect logs for node-problem-detector on node ${node}"
+			fi
+		fi
+	fi
+
 	# kmm pod logs
 	KNS="${KUBECTL} -n ${KMM_NS}"
 	KMM_PODS=$(${KNS} get pods -o name --field-selector spec.nodeName=${node} -l "app.kubernetes.io/name=kmm" 2>/dev/null || true)

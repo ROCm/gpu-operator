@@ -253,7 +253,9 @@ The GPU Operator automatically applies this toleration to internal components su
 
 ## Remediation Workflow ConfigMap
 
-The AMD GPU Operator automatically generates a default ConfigMap (`default-conditional-workflow-mappings`) derived from the latest AMD Service Action Guide. This ConfigMap establishes mappings between unique error codes (AFID) and their associated remediation workflows. Each mapping entry defines the error type, the workflow template to invoke for remediation, and workflow-specific parameters. The default ConfigMap is available in the [GPU Operator repository](https://github.com/ROCm/gpu-operator/blob/main/internal/controllers/remediation/configs/default-configmap.yaml) and includes all node conditions managed by the Operator by default.
+The AMD GPU Operator comes with a default ConfigMap named `default-conditional-workflow-mappings` that is embedded in the operator code. This ConfigMap is derived by parsing the latest AMD Service Action Guide (SAG) JSON offline and translating it into error-to-workflow mappings.
+
+Each entry in the ConfigMap maps a unique error code (AFID) to its remediation workflow, specifying the Argo Workflow template to run and any workflow-specific parameters. The default ConfigMap covers all node conditions managed by the Operator and is available in the [GPU Operator repository](https://github.com/ROCm/gpu-operator/blob/main/internal/controllers/remediation/configs/default-configmap.yaml). For details on AFID values and event lists, see the [AMD Instinct AFID Event List documentation](https://docs.amd.com/r/en-US/AMD_Field_ID_70122_v1.0/AFID-Event-List).
 
 ### Example Error Mapping Section
 

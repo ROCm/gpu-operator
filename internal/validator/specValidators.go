@@ -19,6 +19,7 @@ package validator
 import (
 	"context"
 	"fmt"
+	"time"
 
 	amdv1alpha1 "github.com/ROCm/gpu-operator/api/v1alpha1"
 	utils "github.com/ROCm/gpu-operator/internal"
@@ -129,6 +130,28 @@ func ValidateDevicePluginSpec(ctx context.Context, client client.Client, devConf
 
 		if !validKeyValue {
 			return fmt.Errorf("Invalid flag value: %s=%s. Supported values: %v", key, val, supportedFlagValues[key])
+		}
+	}
+
+	return nil
+}
+
+func ValidateRemediationWorkflowSpec(ctx context.Context, client client.Client, devConfig *amdv1alpha1.DeviceConfig) error {
+	rSpec := devConfig.Spec.RemediationWorkflow
+
+	if rSpec.Enable == nil || !*rSpec.Enable {
+		return nil
+	}
+
+	if rSpec.Config != nil {
+		if err := validateConfigMap(ctx, client, rSpec.Config.Name, devConfig.Namespace); err != nil {
+			return fmt.Errorf("validating remediation workflow config map: %v", err)
+		}
+	}
+
+	if rSpec.TtlForFailedWorkflows != "" {
+		if _, err := time.ParseDuration(rSpec.TtlForFailedWorkflows); err != nil {
+			return fmt.Errorf("parsing ttlForFailedWorkflows: %v", err)
 		}
 	}
 
