@@ -67,6 +67,7 @@ RUN apt-get update && apt-get install -y bc \
     git \
     make \
     gcc \
+    ca-certificates \
     linux-headers-${KERNEL_FULL_VERSION} \
     linux-modules-extra-${KERNEL_FULL_VERSION}
 
