@@ -75,6 +75,13 @@ func Test(t *testing.T) {
 	TestingT(t)
 }
 
+// skipTest logs the skip reason in a parseable format and then skips the test.
+// run_e2e.sh parses SKIPPED_TEST lines to produce a summary table at the end.
+func skipTest(c *C, reason string) {
+	logger.Infof("SKIPPED_TEST: %s | %s", c.TestName(), reason)
+	c.Skip(reason)
+}
+
 var _ = Suite(&E2ESuite{})
 
 func (s *E2ESuite) SetUpSuite(c *C) {
@@ -148,11 +155,12 @@ func (s *E2ESuite) SetUpSuite(c *C) {
 
 	s.clusterType = utils.GetClusterType(config)
 
-	// Initialize the per-test monitor (log collection + periodic snapshots)
+	// Initialize the per-test monitor (log collection + periodic snapshots + node diagnostics)
 	s.testMonitor = utils.NewTestMonitor(cs, s.ns, "e2e-artifacts",
 		utils.WithLogCollection(),
 		utils.WithSnapshots(),
 		utils.WithSnapshotInterval(2*time.Minute),
+		utils.WithNodeDiagnostics(),
 	)
 
 	if s.openshift == false {

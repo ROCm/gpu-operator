@@ -165,6 +165,11 @@ func (s *E2ESuite) verifyDevicePlugin(expect, actual *v1alpha1.DeviceConfigSpec)
 		reflect.DeepEqual(expect.DevicePlugin, actual.DevicePlugin)
 }
 
+func (s *E2ESuite) verifyDRADriver(expect, actual *v1alpha1.DeviceConfigSpec) bool {
+	return expect != nil && actual != nil &&
+		reflect.DeepEqual(expect.DRADriver, actual.DRADriver)
+}
+
 func (s *E2ESuite) verifyRemediationWorkflow(expect, actual *v1alpha1.DeviceConfigSpec) bool {
 	return expect != nil && actual != nil &&
 		reflect.DeepEqual(expect.RemediationWorkflow, actual.RemediationWorkflow)
@@ -522,6 +527,7 @@ deviceConfig:
 			expectDefaultCR:      true,
 			expectSpec: &v1alpha1.DeviceConfigSpec{
 				DevicePlugin: v1alpha1.DevicePluginSpec{
+					EnableDevicePlugin:          &boolTrue,
 					DevicePluginImage:           "test/k8s-device-plugin:latest",
 					DevicePluginImagePullPolicy: "Always",
 					DevicePluginTolerations: []corev1.Toleration{
@@ -991,6 +997,77 @@ deviceConfig:
 				},
 			},
 			verifyFunc: s.verifyRemediationWorkflow,
+		},
+		{
+			description: "upgrade with rendering spec.draDriver",
+			valuesYAML: `
+deviceConfig:
+  spec:
+    selector:
+      kubernetes.io/hostname: "node123"
+      feature.node.kubernetes.io/amd-gpu: "true"
+    driver:
+      enable: true
+      blacklist: true
+      image: "test.io/username/repo"
+    commonConfig:
+      initContainerImage: busybox:1.37
+    devicePlugin:
+      enableDevicePlugin: false
+    draDriver:
+      enable: true
+      image: "test.io/rocm/k8s-gpu-dra-driver:v1.0.0"
+      imagePullPolicy: Always
+      tolerations:
+        - key: "gpu-node"
+          operator: "Equal"
+          value: "true"
+          effect: "NoSchedule"
+      imageRegistrySecret:
+        name: draSecret
+      cmdLineArguments:
+        log-level: debug
+        feature-flag: enabled
+      selector:
+        dra-enabled: "true"
+      upgradePolicy:
+        upgradeStrategy: OnDelete
+        maxUnavailable: 3
+`,
+			extraArgs:            []string{"-f", tmpValuesYamlPath, "--set", "crds.defaultCR.upgrade=true"},
+			helmFunc:             s.upgradeHelmChart,
+			expectHelmCommandErr: false,
+			expectDefaultCR:      true,
+			expectSpec: &v1alpha1.DeviceConfigSpec{
+				DRADriver: v1alpha1.DRADriverSpec{
+					Enable:          &boolTrue,
+					Image:           "test.io/rocm/k8s-gpu-dra-driver:v1.0.0",
+					ImagePullPolicy: "Always",
+					Tolerations: []corev1.Toleration{
+						{
+							Key:      "gpu-node",
+							Operator: corev1.TolerationOpEqual,
+							Value:    "true",
+							Effect:   corev1.TaintEffectNoSchedule,
+						},
+					},
+					ImageRegistrySecret: &corev1.LocalObjectReference{
+						Name: "draSecret",
+					},
+					CmdLineArguments: map[string]string{
+						"log-level":    "debug",
+						"feature-flag": "enabled",
+					},
+					Selector: map[string]string{
+						"dra-enabled": "true",
+					},
+					UpgradePolicy: &v1alpha1.DaemonSetUpgradeSpec{
+						UpgradeStrategy: "OnDelete",
+						MaxUnavailable:  3,
+					},
+				},
+			},
+			verifyFunc: s.verifyDRADriver,
 		},
 	}
 

@@ -156,7 +156,7 @@ func (s *E2ESuite) verifyClusterIPMetrics(c *C, devCfg *v1alpha1.DeviceConfig, f
 
 func (s *E2ESuite) TestExporterDeployment(c *C) {
 	if s.simEnable {
-		c.Skip("Skipping for non amd gpu testbed")
+		skipTest(c, "Skipping for non amd gpu testbed")
 	}
 
 	exporterEnable := false
@@ -274,11 +274,11 @@ func (s *E2ESuite) TestExporterDeployment(c *C) {
 
 func (s *E2ESuite) TestHealthCheckFeature(c *C) {
 	if s.simEnable {
-		c.Skip("Skipping for non amd gpu testbed")
+		skipTest(c, "Skipping for non amd gpu testbed")
 	}
 
 	// TODO: Fix the health check feature test for hardware testbeds
-	c.Skip("Skipping test for health check feature")
+	skipTest(c, "Skipping test for health check feature")
 
 	exporterEnable := true
 	_, err := s.dClient.DeviceConfigs(s.ns).Get(s.cfgName, metav1.GetOptions{})

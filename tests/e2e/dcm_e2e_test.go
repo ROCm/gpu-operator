@@ -386,7 +386,7 @@ func (s *E2ESuite) eventHelper(reason string, event_type string) bool {
 
 func (s *E2ESuite) TestDCMConfigMapCreation(c *C) {
 	if !dcmImageDefined {
-		c.Skip("skip DCM test because E2E_DCM_IMAGE is not defined")
+		skipTest(c, "skip DCM test because E2E_DCM_IMAGE is not defined")
 	}
 	s.configMapHelper(c)
 	if s.eventHelper("SuccessfulCreate", "Normal") {
@@ -398,12 +398,12 @@ func (s *E2ESuite) TestDCMConfigMapCreation(c *C) {
 
 func (s *E2ESuite) TestDCMConfigMapPartitionHomogenous(c *C) {
 	if s.simEnable {
-		c.Skip("Skipping for non amd gpu testbed")
+		skipTest(c, "Skipping for non amd gpu testbed")
 	}
 	if !dcmImageDefined {
-		c.Skip("skip DCM test because E2E_DCM_IMAGE is not defined")
+		skipTest(c, "skip DCM test because E2E_DCM_IMAGE is not defined")
 	}
-	c.Skip("Skipping DCM Partition test for now, enable after fixing the test")
+	skipTest(c, "Skipping DCM Partition test for now, enable after fixing the test")
 	s.configMapHelper(c)
 	// Trigger partition using labels
 	logger.Infof("Add node label after pod comes up")
@@ -426,12 +426,12 @@ func (s *E2ESuite) TestDCMConfigMapPartitionHomogenous(c *C) {
 
 func (s *E2ESuite) TestDCMConfigMapPartitionHeterogenous(c *C) {
 	if s.simEnable {
-		c.Skip("Skipping for non amd gpu testbed")
+		skipTest(c, "Skipping for non amd gpu testbed")
 	}
 	if !dcmImageDefined {
-		c.Skip("skip DCM test because E2E_DCM_IMAGE is not defined")
+		skipTest(c, "skip DCM test because E2E_DCM_IMAGE is not defined")
 	}
-	c.Skip("Skipping DCM Partition test for now, enable after fixing the test")
+	skipTest(c, "Skipping DCM Partition test for now, enable after fixing the test")
 	s.configMapHelper(c)
 	// Trigger partition using labels
 	logger.Infof("Add node label after pod comes up")
@@ -453,12 +453,12 @@ func (s *E2ESuite) TestDCMConfigMapPartitionHeterogenous(c *C) {
 
 func (s *E2ESuite) TestDCMPartitionNPS4(c *C) {
 	if s.simEnable {
-		c.Skip("Skipping for non amd gpu testbed")
+		skipTest(c, "Skipping for non amd gpu testbed")
 	}
 	if !dcmImageDefined {
-		c.Skip("skip DCM test because E2E_DCM_IMAGE is not defined")
+		skipTest(c, "skip DCM test because E2E_DCM_IMAGE is not defined")
 	}
-	c.Skip("Skipping DCM Partition test for now, enable after fixing the test")
+	skipTest(c, "Skipping DCM Partition test for now, enable after fixing the test")
 	s.configMapHelper(c)
 	// Trigger partition using labels
 	logger.Infof("Add node label after pod comes up")
@@ -480,12 +480,12 @@ func (s *E2ESuite) TestDCMPartitionNPS4(c *C) {
 
 func (s *E2ESuite) TestDCMInvalidComputeType(c *C) {
 	if s.simEnable {
-		c.Skip("Skipping for non amd gpu testbed")
+		skipTest(c, "Skipping for non amd gpu testbed")
 	}
 	if !dcmImageDefined {
-		c.Skip("skip DCM test because E2E_DCM_IMAGE is not defined")
+		skipTest(c, "skip DCM test because E2E_DCM_IMAGE is not defined")
 	}
-	c.Skip("Skipping DCM Partition test for now, enable after fixing the test")
+	skipTest(c, "Skipping DCM Partition test for now, enable after fixing the test")
 	s.configMapHelper(c)
 	// Trigger partition using labels
 	logger.Infof("Add node label after pod comes up")
@@ -507,12 +507,12 @@ func (s *E2ESuite) TestDCMInvalidComputeType(c *C) {
 
 func (s *E2ESuite) TestDCMInvalidMemoryType(c *C) {
 	if s.simEnable {
-		c.Skip("Skipping for non amd gpu testbed")
+		skipTest(c, "Skipping for non amd gpu testbed")
 	}
 	if !dcmImageDefined {
-		c.Skip("skip DCM test because E2E_DCM_IMAGE is not defined")
+		skipTest(c, "skip DCM test because E2E_DCM_IMAGE is not defined")
 	}
-	c.Skip("Skipping DCM Partition test for now, enable after fixing the test")
+	skipTest(c, "Skipping DCM Partition test for now, enable after fixing the test")
 	s.configMapHelper(c)
 	// Trigger partition using labels
 	logger.Infof("Add node label after pod comes up")
@@ -534,12 +534,12 @@ func (s *E2ESuite) TestDCMInvalidMemoryType(c *C) {
 
 func (s *E2ESuite) TestDCMInvalidGPUFilter(c *C) {
 	if s.simEnable {
-		c.Skip("Skipping for non amd gpu testbed")
+		skipTest(c, "Skipping for non amd gpu testbed")
 	}
 	if !dcmImageDefined {
-		c.Skip("skip DCM test because E2E_DCM_IMAGE is not defined")
+		skipTest(c, "skip DCM test because E2E_DCM_IMAGE is not defined")
 	}
-	c.Skip("Skipping DCM Partition test for now, enable after fixing the test")
+	skipTest(c, "Skipping DCM Partition test for now, enable after fixing the test")
 	s.configMapHelper(c)
 	// Trigger partition using labels
 	logger.Infof("Add node label after pod comes up")
@@ -559,12 +559,12 @@ func (s *E2ESuite) TestDCMInvalidGPUFilter(c *C) {
 
 func (s *E2ESuite) TestDCMDefaultPartition(c *C) {
 	if s.simEnable {
-		c.Skip("Skipping for non amd gpu testbed")
+		skipTest(c, "Skipping for non amd gpu testbed")
 	}
 	if !dcmImageDefined {
-		c.Skip("skip DCM test because E2E_DCM_IMAGE is not defined")
+		skipTest(c, "skip DCM test because E2E_DCM_IMAGE is not defined")
 	}
-	c.Skip("Skipping DCM Partition test for now, enable after fixing the test")
+	skipTest(c, "Skipping DCM Partition test for now, enable after fixing the test")
 	logger.Infof("###BEGIN TESTCASE###\n")
 	// check to see existing deviceconfig DS pods
 	_, err := s.dClient.DeviceConfigs(s.ns).Get(s.cfgName, metav1.GetOptions{})

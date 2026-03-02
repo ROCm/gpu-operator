@@ -157,7 +157,7 @@ func (s *E2ESuite) clearRemediationWorkflowStatusMetaData(ns string, c *C) {
 func (s *E2ESuite) TestAutoNodeRemediationWithoutPhysicalAction(c *C) {
 	logger.Infof("Starting Auto Node Remediation Test without physical action")
 	if s.simEnable {
-		c.Skip("Skipping for non amd gpu testbed")
+		skipTest(c, "Skipping for non amd gpu testbed")
 	}
 
 	nodes, err := s.clientSet.CoreV1().Nodes().List(context.Background(), metav1.ListOptions{
@@ -218,7 +218,7 @@ func (s *E2ESuite) TestAutoNodeRemediationWithoutPhysicalAction(c *C) {
 func (s *E2ESuite) TestAutoNodeRemediationWithPhysicalAction(c *C) {
 	logger.Infof("Starting Auto Node Remediation Test with physical action")
 	if s.simEnable {
-		c.Skip("Skipping for non amd gpu testbed")
+		skipTest(c, "Skipping for non amd gpu testbed")
 	}
 
 	nodes, err := s.clientSet.CoreV1().Nodes().List(context.Background(), metav1.ListOptions{
@@ -287,7 +287,7 @@ func (s *E2ESuite) TestAutoNodeRemediationWithPhysicalAction(c *C) {
 func (s *E2ESuite) TestAutoNodeRemediationAbortWorkflow(c *C) {
 	logger.Infof("Starting Auto Node Remediation abort workflow test")
 	if s.simEnable {
-		c.Skip("Skipping for non amd gpu testbed")
+		skipTest(c, "Skipping for non amd gpu testbed")
 	}
 
 	nodes, err := s.clientSet.CoreV1().Nodes().List(context.Background(), metav1.ListOptions{
@@ -357,7 +357,7 @@ func (s *E2ESuite) TestAutoNodeRemediationAbortWorkflow(c *C) {
 func (s *E2ESuite) TestAutoNodeRemediationRecoveryPolicy(c *C) {
 	logger.Infof("Starting Auto Node Remediation recovery policy test")
 	if s.simEnable {
-		c.Skip("Skipping for non amd gpu testbed")
+		skipTest(c, "Skipping for non amd gpu testbed")
 	}
 
 	nodes, err := s.clientSet.CoreV1().Nodes().List(context.Background(), metav1.ListOptions{

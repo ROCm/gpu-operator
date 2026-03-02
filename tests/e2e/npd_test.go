@@ -209,7 +209,7 @@ func tearDownPrometheusOperator() {
 
 func (s *E2ESuite) TestNodeProblemDetector(c *C) {
 	if s.simEnable {
-		c.Skip("Skipping for non amd gpu testbed")
+		skipTest(c, "Skipping for non amd gpu testbed")
 	}
 
 	_, err := s.dClient.DeviceConfigs(s.ns).Get(s.cfgName, metav1.GetOptions{})
@@ -259,7 +259,7 @@ func (s *E2ESuite) TestNodeProblemDetector(c *C) {
 
 func (s *E2ESuite) TestNPDWithTLSEnabledOnExporter(c *C) {
 	if s.simEnable {
-		c.Skip("Skipping for non amd gpu testbed")
+		skipTest(c, "Skipping for non amd gpu testbed")
 	}
 
 	// setup required certs
@@ -369,7 +369,7 @@ func (s *E2ESuite) TestNPDWithTLSEnabledOnExporter(c *C) {
 
 func (s *E2ESuite) TestNPDWithPrometheus(c *C) {
 	if s.simEnable {
-		c.Skip("Skipping for non amd gpu testbed")
+		skipTest(c, "Skipping for non amd gpu testbed")
 	}
 
 	_, err := s.dClient.DeviceConfigs(s.ns).Get(s.cfgName, metav1.GetOptions{})

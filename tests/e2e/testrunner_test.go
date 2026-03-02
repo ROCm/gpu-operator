@@ -489,7 +489,7 @@ func (s *E2ESuite) TestTestRunnerEnablement(c *C) {
 
 func (s *E2ESuite) TestTestRunnerAutoUnhealthyGPUWatchTrigger(c *C) {
 	if s.simEnable {
-		c.Skip("Skipping for non amd gpu testbed")
+		skipTest(c, "Skipping for non amd gpu testbed")
 	}
 	_, err := s.dClient.DeviceConfigs(s.ns).Get(s.cfgName, metav1.GetOptions{})
 	assert.Errorf(c, err, fmt.Sprintf("config %v exists", s.cfgName))
@@ -559,11 +559,11 @@ func (s *E2ESuite) TestTestRunnerNodeSpecificConfig(c *C) {
 	// verify that the test runner is using node specific config
 	// not the global default config
 	if s.simEnable {
-		c.Skip("Skipping for non amd gpu testbed")
+		skipTest(c, "Skipping for non amd gpu testbed")
 	}
 
 	// TODO: Fix the test runner feature test for hardware testbeds
-	c.Skip("Skipping test for test runner feature")
+	skipTest(c, "Skipping test for test runner feature")
 
 	_, err := s.dClient.DeviceConfigs(s.ns).Get(s.cfgName, metav1.GetOptions{})
 	assert.Errorf(c, err, fmt.Sprintf("config %v exists", s.cfgName))
@@ -641,11 +641,11 @@ func (s *E2ESuite) TestTestRunnerNodeSpecificConfig(c *C) {
 
 func (s *E2ESuite) TestTestRunnerMultipleIterations(c *C) {
 	if s.simEnable {
-		c.Skip("Skipping for non amd gpu testbed")
+		skipTest(c, "Skipping for non amd gpu testbed")
 	}
 
 	// TODO: Fix the test runner feature test for hardware testbeds
-	c.Skip("Skipping test for test runner feature")
+	skipTest(c, "Skipping test for test runner feature")
 
 	_, err := s.dClient.DeviceConfigs(s.ns).Get(s.cfgName, metav1.GetOptions{})
 	assert.Errorf(c, err, fmt.Sprintf("config %v exists", s.cfgName))
@@ -722,7 +722,7 @@ func (s *E2ESuite) TestTestRunnerMultipleIterations(c *C) {
 
 func (s *E2ESuite) TestTestRunnerAssociatedWorkloadOnUnhealthyGPU(c *C) {
 	if s.simEnable {
-		c.Skip("Skipping for non amd gpu testbed")
+		skipTest(c, "Skipping for non amd gpu testbed")
 	}
 	realWorkload = true
 	_, err := s.dClient.DeviceConfigs(s.ns).Get(s.cfgName, metav1.GetOptions{})
@@ -779,11 +779,11 @@ func (s *E2ESuite) TestTestRunnerAssociatedWorkloadOnUnhealthyGPU(c *C) {
 
 func (s *E2ESuite) TestTestRunnerLogsExport(c *C) {
 	if s.simEnable {
-		c.Skip("Skipping for non amd gpu testbed")
+		skipTest(c, "Skipping for non amd gpu testbed")
 	}
 
 	// TODO: Fix the test runner feature test for hardware testbeds
-	c.Skip("Skipping test for test runner feature")
+	skipTest(c, "Skipping test for test runner feature")
 
 	_, err := s.dClient.DeviceConfigs(s.ns).Get(s.cfgName, metav1.GetOptions{})
 	assert.Errorf(c, err, fmt.Sprintf("config %v exists", s.cfgName))

@@ -35,9 +35,8 @@ import (
 // is created and reaches a ready state when DRA is enabled, then verifies it
 // is cleaned up when DRA is disabled.
 func (s *E2ESuite) TestDRADriverDaemonSetReadyAndCleanup(c *C) {
-	c.Skip("Skipping DRA tests")
 	if !draDriverImageDefined {
-		c.Skip("E2E_DRA_DRIVER_IMAGE is not defined, skipping DRA driver test")
+		skipTest(c, "E2E_DRA_DRIVER_IMAGE is not defined, skipping DRA driver test")
 	}
 
 	driverEnable := false
@@ -90,9 +89,8 @@ func (s *E2ESuite) TestDRADriverDaemonSetReadyAndCleanup(c *C) {
 // legacy Device Plugin works correctly: DRA daemonset is removed and
 // device-plugin daemonset is created.
 func (s *E2ESuite) TestDRAToDevicePluginMigration(c *C) {
-	c.Skip("Skipping DRA tests")
 	if !draDriverImageDefined {
-		c.Skip("E2E_DRA_DRIVER_IMAGE is not defined, skipping DRA migration test")
+		skipTest(c, "E2E_DRA_DRIVER_IMAGE is not defined, skipping DRA migration test")
 	}
 
 	driverEnable := false
@@ -170,7 +168,6 @@ func (s *E2ESuite) TestDRADriverDeviceClass(c *C) {
 // DeviceConfig with both DRA driver and Device Plugin enabled produces a
 // validation error condition on the DeviceConfig status.
 func (s *E2ESuite) TestDRADriverAndDevicePluginMutualExclusion(c *C) {
-	c.Skip("Skipping DRA tests")
 	driverEnable := false
 	devCfg := &v1alpha1.DeviceConfig{
 		ObjectMeta: metav1.ObjectMeta{
