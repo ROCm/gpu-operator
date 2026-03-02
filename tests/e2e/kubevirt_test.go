@@ -157,7 +157,7 @@ func (s *E2ESuite) verifyPFPassthroughNodeLabels(devCfg *v1alpha1.DeviceConfig, 
 func (s *E2ESuite) TestVFPassthroughDeployment(c *C) {
 	// only run this test case when all the worker node has AMD GPU model supported by GIM driver for VF Passthrough
 	if s.simEnable {
-		c.Skip("Skipping for non amd gpu testbed")
+		skipTest(c, "Skipping for non amd gpu testbed")
 	}
 	_, err := s.dClient.DeviceConfigs(s.ns).Get(s.cfgName, metav1.GetOptions{})
 	assert.Errorf(c, err, fmt.Sprintf("config %v exists", s.cfgName))
@@ -195,7 +195,7 @@ func (s *E2ESuite) TestVFPassthroughDeployment(c *C) {
 func (s *E2ESuite) TestVFPassthroughSingleStrategy(c *C) {
 	// Test VF passthrough with single resource naming strategy
 	if s.simEnable {
-		c.Skip("Skipping for non amd gpu testbed")
+		skipTest(c, "Skipping for non amd gpu testbed")
 	}
 	_, err := s.dClient.DeviceConfigs(s.ns).Get(s.cfgName, metav1.GetOptions{})
 	assert.Errorf(c, err, fmt.Sprintf("config %v exists", s.cfgName))
@@ -238,7 +238,7 @@ func (s *E2ESuite) TestVFPassthroughSingleStrategy(c *C) {
 func (s *E2ESuite) TestPFPassthroughDeployment(c *C) {
 	// only run this test case when all the worker node has AMD GPU model supported by GIM driver for PF Passthrough
 	if s.simEnable {
-		c.Skip("Skipping for non amd gpu testbed")
+		skipTest(c, "Skipping for non amd gpu testbed")
 	}
 	_, err := s.dClient.DeviceConfigs(s.ns).Get(s.cfgName, metav1.GetOptions{})
 	assert.Errorf(c, err, fmt.Sprintf("config %v exists", s.cfgName))
@@ -274,7 +274,7 @@ func (s *E2ESuite) TestPFPassthroughDeployment(c *C) {
 func (s *E2ESuite) TestPFPassthroughSingleStrategy(c *C) {
 	// Test PF passthrough with single resource naming strategy
 	if s.simEnable {
-		c.Skip("Skipping for non amd gpu testbed")
+		skipTest(c, "Skipping for non amd gpu testbed")
 	}
 	_, err := s.dClient.DeviceConfigs(s.ns).Get(s.cfgName, metav1.GetOptions{})
 	assert.Errorf(c, err, fmt.Sprintf("config %v exists", s.cfgName))

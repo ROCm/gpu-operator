@@ -17,8 +17,10 @@ limitations under the License.
 package utils
 
 import (
+	"bytes"
 	"context"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -38,6 +40,9 @@ import (
 
 const (
 	defaultSnapshotInterval = 30 * time.Second
+	diagSeparator           = "@@TESTMON_DIAG_SEPARATOR@@"
+	diagPodPrefix           = "testmon-diag-"
+	gpuNodeLabel            = "feature.node.kubernetes.io/amd-gpu=true"
 )
 
 // TestMonitor observes cluster state during an e2e test. It supports
@@ -79,6 +84,9 @@ type TestMonitor struct {
 	logCollectionEnabled bool
 	snapshotsEnabled     bool
 	snapshotInterval     time.Duration
+	nodeDiagEnabled      bool
+	diagImage            string
+	nodeDiagSelector     string
 
 	// per-test state (set on Start, cleared on Stop)
 	mu        sync.Mutex
@@ -116,6 +124,46 @@ func WithSnapshotInterval(d time.Duration) Option {
 	}
 }
 
+// WithNodeDiagnostics enables collection of dmesg and lsmod from GPU worker
+// nodes (those labelled feature.node.kubernetes.io/amd-gpu=true) at the end
+// of each test. Diagnostics are saved under
+// <testDir>/node-diagnostics/<nodeName>/.
+// The container image defaults to the E2E_NODE_DIAG_IMAGE env var
+// (set via dev.env / Makefile), falling back to busybox:1.36.
+func WithNodeDiagnostics() Option {
+	return func(tm *TestMonitor) {
+		tm.nodeDiagEnabled = true
+		if tm.nodeDiagSelector == "" {
+			tm.nodeDiagSelector = gpuNodeLabel
+		}
+		if tm.diagImage == "" {
+			if img := os.Getenv("E2E_NODE_DIAG_IMAGE"); img != "" {
+				tm.diagImage = img
+			} else {
+				tm.diagImage = "busybox:1.36"
+			}
+		}
+	}
+}
+
+// WithNodeDiagnosticsImage enables node diagnostics with a custom container
+// image (must have nsenter available).
+func WithNodeDiagnosticsImage(image string) Option {
+	return func(tm *TestMonitor) {
+		tm.nodeDiagEnabled = true
+		tm.diagImage = image
+	}
+}
+
+// WithNodeDiagnosticsSelector overrides the default node label selector
+// used to pick which nodes to collect diagnostics from.
+// Default: "feature.node.kubernetes.io/amd-gpu=true".
+func WithNodeDiagnosticsSelector(selector string) Option {
+	return func(tm *TestMonitor) {
+		tm.nodeDiagSelector = selector
+	}
+}
+
 // NewTestMonitor creates a new TestMonitor for a single namespace.
 // Pass one or more Option values to enable modules. If no options are
 // passed, nothing is collected (the monitor is inert).
@@ -139,7 +187,7 @@ func (tm *TestMonitor) Start(testName string) {
 	tm.mu.Lock()
 	defer tm.mu.Unlock()
 
-	if !tm.logCollectionEnabled && !tm.snapshotsEnabled {
+	if !tm.logCollectionEnabled && !tm.snapshotsEnabled && !tm.nodeDiagEnabled {
 		log.Infof("[TestMonitor] No modules enabled, skipping for %s", testName)
 		return
 	}
@@ -149,8 +197,8 @@ func (tm *TestMonitor) Start(testName string) {
 	tm.startTime = metav1.Now()
 	tm.ctx, tm.cancel = context.WithCancel(context.Background())
 
-	log.Infof("[TestMonitor] Starting for test %q ns=%s (logs=%t snapshots=%t) -> %s",
-		testName, tm.namespace, tm.logCollectionEnabled, tm.snapshotsEnabled, tm.testDir)
+	log.Infof("[TestMonitor] Starting for test %q ns=%s (logs=%t snapshots=%t diag=%t) -> %s",
+		testName, tm.namespace, tm.logCollectionEnabled, tm.snapshotsEnabled, tm.nodeDiagEnabled, tm.testDir)
 
 	if tm.logCollectionEnabled {
 		if err := os.MkdirAll(filepath.Join(tm.testDir, "logs"), 0755); err != nil {
@@ -186,6 +234,10 @@ func (tm *TestMonitor) Stop() {
 
 	if tm.snapshotsEnabled {
 		tm.takeSnapshot("final")
+	}
+
+	if tm.nodeDiagEnabled {
+		tm.collectNodeDiagnostics()
 	}
 
 	tm.cancel()
@@ -408,6 +460,181 @@ func (tm *TestMonitor) takeSnapshot(label string) {
 	}
 
 	fmt.Fprintf(f, "\n")
+}
+
+// =========================================================================
+// Node diagnostics module
+// =========================================================================
+
+// collectNodeDiagnostics creates a short-lived privileged pod on every node
+// to capture dmesg and lsmod output, saving them under
+// <testDir>/node-diagnostics/<nodeName>/.
+func (tm *TestMonitor) collectNodeDiagnostics() {
+	diagDir := filepath.Join(tm.testDir, "node-diagnostics")
+	if err := os.MkdirAll(diagDir, 0755); err != nil {
+		log.Warnf("[TestMonitor] Failed to create diagnostics dir: %v", err)
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
+	defer cancel()
+
+	listOpts := metav1.ListOptions{}
+	if tm.nodeDiagSelector != "" {
+		listOpts.LabelSelector = tm.nodeDiagSelector
+	}
+	nodes, err := tm.clientSet.CoreV1().Nodes().List(ctx, listOpts)
+	if err != nil {
+		log.Warnf("[TestMonitor] Failed to list nodes for diagnostics: %v", err)
+		return
+	}
+
+	log.Infof("[TestMonitor] Collecting node diagnostics from %d node(s) (selector=%q)", len(nodes.Items), tm.nodeDiagSelector)
+
+	var wg sync.WaitGroup
+	for i := range nodes.Items {
+		node := &nodes.Items[i]
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			tm.collectFromNode(ctx, diagDir, node.Name)
+		}()
+	}
+	wg.Wait()
+	log.Infof("[TestMonitor] Node diagnostics collection complete")
+}
+
+// collectFromNode creates a privileged pod on the given node, runs dmesg and
+// lsmod via nsenter, captures the output into separate files, and cleans up.
+func (tm *TestMonitor) collectFromNode(ctx context.Context, diagDir string, nodeName string) {
+	nodeDir := filepath.Join(diagDir, sanitizeNodeName(nodeName))
+	if err := os.MkdirAll(nodeDir, 0755); err != nil {
+		log.Warnf("[TestMonitor] Failed to create node dir for %s: %v", nodeName, err)
+		return
+	}
+
+	podName := diagPodPrefix + sanitizeNodeName(nodeName)
+	if len(podName) > 63 {
+		podName = podName[:63]
+	}
+	podName = strings.TrimRight(podName, "-")
+
+	privileged := true
+	var zero int64
+	cmd := fmt.Sprintf("dmesg -T 2>/dev/null || dmesg; echo '%s'; lsmod", diagSeparator)
+
+	pod := &corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      podName,
+			Namespace: tm.namespace,
+		},
+		Spec: corev1.PodSpec{
+			NodeName:                      nodeName,
+			HostPID:                       true,
+			RestartPolicy:                 corev1.RestartPolicyNever,
+			TerminationGracePeriodSeconds: &zero,
+			Containers: []corev1.Container{
+				{
+					Name:    "diag",
+					Image:   tm.diagImage,
+					Command: []string{"nsenter", "-t", "1", "-m", "-u", "-i", "-n", "--", "sh", "-c", cmd},
+					SecurityContext: &corev1.SecurityContext{
+						Privileged: &privileged,
+					},
+				},
+			},
+			Tolerations: []corev1.Toleration{
+				{Operator: corev1.TolerationOpExists},
+			},
+		},
+	}
+
+	// Clean up any leftover pod from a previous run
+	_ = tm.clientSet.CoreV1().Pods(tm.namespace).Delete(ctx, podName, metav1.DeleteOptions{})
+	time.Sleep(2 * time.Second)
+
+	if _, err := tm.clientSet.CoreV1().Pods(tm.namespace).Create(ctx, pod, metav1.CreateOptions{}); err != nil {
+		log.Warnf("[TestMonitor] Failed to create diag pod on node %s: %v", nodeName, err)
+		return
+	}
+	defer func() {
+		_ = tm.clientSet.CoreV1().Pods(tm.namespace).Delete(
+			context.Background(), podName, metav1.DeleteOptions{})
+	}()
+
+	if err := tm.waitForPodDone(ctx, podName); err != nil {
+		log.Warnf("[TestMonitor] Diag pod on node %s did not complete: %v", nodeName, err)
+		return
+	}
+
+	// Fetch pod logs
+	stream, err := tm.clientSet.CoreV1().Pods(tm.namespace).
+		GetLogs(podName, &corev1.PodLogOptions{}).Stream(ctx)
+	if err != nil {
+		log.Warnf("[TestMonitor] Failed to get diag logs from node %s: %v", nodeName, err)
+		return
+	}
+	defer stream.Close()
+
+	var buf bytes.Buffer
+	if _, err := io.Copy(&buf, stream); err != nil {
+		log.Warnf("[TestMonitor] Failed to read diag logs from node %s: %v", nodeName, err)
+		return
+	}
+
+	parts := strings.SplitN(buf.String(), diagSeparator, 2)
+
+	dmesgData := ""
+	lsmodData := ""
+	if len(parts) >= 1 {
+		dmesgData = strings.TrimSpace(parts[0])
+	}
+	if len(parts) >= 2 {
+		lsmodData = strings.TrimSpace(parts[1])
+	}
+
+	if err := os.WriteFile(filepath.Join(nodeDir, "dmesg.log"), []byte(dmesgData+"\n"), 0644); err != nil {
+		log.Warnf("[TestMonitor] Failed to write dmesg for node %s: %v", nodeName, err)
+	}
+	if err := os.WriteFile(filepath.Join(nodeDir, "lsmod.log"), []byte(lsmodData+"\n"), 0644); err != nil {
+		log.Warnf("[TestMonitor] Failed to write lsmod for node %s: %v", nodeName, err)
+	}
+
+	log.Infof("[TestMonitor] Collected diagnostics from node %s", nodeName)
+}
+
+// waitForPodDone polls until the pod reaches Succeeded or Failed phase.
+func (tm *TestMonitor) waitForPodDone(ctx context.Context, podName string) error {
+	for {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		default:
+		}
+
+		pod, err := tm.clientSet.CoreV1().Pods(tm.namespace).Get(ctx, podName, metav1.GetOptions{})
+		if err != nil {
+			return fmt.Errorf("get pod: %w", err)
+		}
+
+		switch pod.Status.Phase {
+		case corev1.PodSucceeded:
+			return nil
+		case corev1.PodFailed:
+			return fmt.Errorf("pod failed")
+		}
+
+		time.Sleep(2 * time.Second)
+	}
+}
+
+// sanitizeNodeName produces a lowercase string safe for Kubernetes pod names.
+func sanitizeNodeName(name string) string {
+	name = strings.ToLower(name)
+	re := regexp.MustCompile(`[^a-z0-9-]`)
+	name = re.ReplaceAllString(name, "-")
+	name = strings.Trim(name, "-")
+	return name
 }
 
 // =========================================================================

@@ -1068,9 +1068,9 @@ func (s *E2ESuite) setupKubeRbacCerts(c *C, includeClient bool) (
 
 func (s *E2ESuite) TestDeploymentWithPreInstalledKMMAndNFD(c *C) {
 	if s.simEnable {
-		c.Skip("Skipping for non amd gpu testbed")
+		skipTest(c, "Skipping for non amd gpu testbed")
 	}
-	c.Skip("Skipping for non amd gpu testbed")
+	skipTest(c, "Skipping for non amd gpu testbed")
 	var deployCommand, undeployCommand, deployWithoutNFDKMMCommand string
 	var nfdInstallCommands, nfdUnInstallCommands []string
 	var kmmInstallCommand, kmmUnInstallCommand string
@@ -1235,7 +1235,7 @@ func (s *E2ESuite) TestDeploymentOnNonAMDGPUCluster(c *C) {
 	}
 	logger.Infof("%v", noamdNodeNames)
 	if len(noamdNodeNames) == 0 {
-		c.Skip("Skipping no non amd gpu server in testbed")
+		skipTest(c, "Skipping no non amd gpu server in testbed")
 	}
 
 	_, err := s.dClient.DeviceConfigs(s.ns).Get(s.cfgName, metav1.GetOptions{})
@@ -1317,7 +1317,7 @@ func (s *E2ESuite) TestDeploymentOnNonAMDGPUCluster(c *C) {
 
 func (s *E2ESuite) TestEnableBlacklist(c *C) {
 	if s.simEnable {
-		c.Skip("Skipping for non amd gpu testbed")
+		skipTest(c, "Skipping for non amd gpu testbed")
 	}
 
 	logger.Infof("TestEnableBlacklist")
@@ -1340,7 +1340,7 @@ func (s *E2ESuite) TestEnableBlacklist(c *C) {
 
 func (s *E2ESuite) TestWorkloadRequestedGPUs(c *C) {
 	if s.simEnable {
-		c.Skip("Skipping for non amd gpu testbed")
+		skipTest(c, "Skipping for non amd gpu testbed")
 	}
 
 	ctx := context.TODO()
@@ -1398,10 +1398,10 @@ func (s *E2ESuite) TestWorkloadRequestedGPUs(c *C) {
 
 func (s *E2ESuite) TestWorkloadRequestedGPUsHomogeneousSingle(c *C) {
 	if s.simEnable {
-		c.Skip("Skipping for non amd gpu testbed")
+		skipTest(c, "Skipping for non amd gpu testbed")
 	}
 	if !dcmImageDefined {
-		c.Skip("skip DCM test because E2E_DCM_IMAGE is not defined")
+		skipTest(c, "skip DCM test because E2E_DCM_IMAGE is not defined")
 	}
 
 	s.configMapHelper(c)
@@ -1478,10 +1478,10 @@ func (s *E2ESuite) TestWorkloadRequestedGPUsHomogeneousSingle(c *C) {
 
 func (s *E2ESuite) TestWorkloadRequestedGPUsHomogeneousMixed(c *C) {
 	if s.simEnable {
-		c.Skip("Skipping for non amd gpu testbed")
+		skipTest(c, "Skipping for non amd gpu testbed")
 	}
 	if !dcmImageDefined {
-		c.Skip("skip DCM test because E2E_DCM_IMAGE is not defined")
+		skipTest(c, "skip DCM test because E2E_DCM_IMAGE is not defined")
 	}
 
 	s.configMapHelper(c)
@@ -1557,10 +1557,10 @@ func (s *E2ESuite) TestWorkloadRequestedGPUsHomogeneousMixed(c *C) {
 
 func (s *E2ESuite) TestWorkloadRequestedGPUsHeterogeneousMixed(c *C) {
 	if s.simEnable {
-		c.Skip("Skipping for non amd gpu testbed")
+		skipTest(c, "Skipping for non amd gpu testbed")
 	}
 	if !dcmImageDefined {
-		c.Skip("skip DCM test because E2E_DCM_IMAGE is not defined")
+		skipTest(c, "skip DCM test because E2E_DCM_IMAGE is not defined")
 	}
 
 	s.configMapHelper(c)
@@ -1636,7 +1636,7 @@ func (s *E2ESuite) TestWorkloadRequestedGPUsHeterogeneousMixed(c *C) {
 
 func (s *E2ESuite) TestNodeLabellerPartitionLabelsPresent(c *C) {
 	if s.simEnable {
-		c.Skip("Skipping for non amd gpu testbed")
+		skipTest(c, "Skipping for non amd gpu testbed")
 	}
 
 	logger.Infof("create %v", s.cfgName)
@@ -1658,7 +1658,7 @@ func (s *E2ESuite) TestNodeLabellerPartitionLabelsPresent(c *C) {
 
 func (s *E2ESuite) TestNodeLabellerPartitionLabelsAbsent(c *C) {
 	if s.simEnable {
-		c.Skip("Skipping for non amd gpu testbed")
+		skipTest(c, "Skipping for non amd gpu testbed")
 	}
 
 	logger.Infof("create %v", s.cfgName)
@@ -1679,7 +1679,7 @@ func (s *E2ESuite) TestNodeLabellerPartitionLabelsAbsent(c *C) {
 
 func (s *E2ESuite) TestKubeRbacProxyClusterIP(c *C) {
 	if !s.simEnable {
-		c.Skip("Skipping for amd gpu testbed")
+		skipTest(c, "Skipping for amd gpu testbed")
 	}
 	_, err := s.dClient.DeviceConfigs(s.ns).Get("deviceconfig-kuberbac-clusterip", metav1.GetOptions{})
 	assert.Errorf(c, err, "config deviceconfig-kuberbac-clusterip exists")
@@ -2400,7 +2400,7 @@ func (s *E2ESuite) TestServiceMonitorCRDFlow(c *C) {
 
 func (s *E2ESuite) TestDeployDefaultDriver(c *C) {
 	if s.simEnable {
-		c.Skip("Skipping for non amd gpu testbed")
+		skipTest(c, "Skipping for non amd gpu testbed")
 	}
 
 	_, err := s.dClient.DeviceConfigs(s.ns).Get(s.cfgName, metav1.GetOptions{})
@@ -2840,7 +2840,7 @@ func (s *E2ESuite) TestMaxParallelUpgradeFromDefaultVersion(c *C) {
 
 func (s *E2ESuite) TestMaxParallelChangeDuringUpgrade(c *C) {
 	// TODO: Fix this testcase and re-enable
-	c.Skip("Skipping failing test case")
+	skipTest(c, "Skipping failing test case")
 
 	_, err := s.dClient.DeviceConfigs(s.ns).Get(s.cfgName, metav1.GetOptions{})
 	assert.Errorf(c, err, fmt.Sprintf("config %v exists", s.cfgName))
@@ -2962,7 +2962,7 @@ func (s *E2ESuite) TestMaxUnavailableChangeDuringUpgrade(c *C) {
 
 func (s *E2ESuite) TestRebootRequiredChangeDuringUpgrade(c *C) {
 	if s.simEnable {
-		c.Skip("Skipping for non amd gpu testbed")
+		skipTest(c, "Skipping for non amd gpu testbed")
 	}
 
 	_, err := s.dClient.DeviceConfigs(s.ns).Get(s.cfgName, metav1.GetOptions{})
@@ -3053,7 +3053,7 @@ func (s *E2ESuite) TestDevicePluginNodeLabellerDaemonSetUpgrade(c *C) {
 
 func (s *E2ESuite) TestMetricsExporterDaemonSetUpgrade(c *C) {
 	if s.simEnable {
-		c.Skip("Skipping for non amd gpu testbed")
+		skipTest(c, "Skipping for non amd gpu testbed")
 	}
 	_, err := s.dClient.DeviceConfigs(s.ns).Get(s.cfgName, metav1.GetOptions{})
 	assert.Errorf(c, err, fmt.Sprintf("config %v exists", s.cfgName))
@@ -3084,7 +3084,7 @@ func (s *E2ESuite) TestMetricsExporterDaemonSetUpgrade(c *C) {
 
 func (s *E2ESuite) TestKMMOperatorUpgrade(c *C) {
 	if s.openshift || !s.simEnable {
-		c.Skip("Skipping for openshift testbed/non amd gpu testbed")
+		skipTest(c, "Skipping for openshift testbed/non amd gpu testbed")
 	}
 	_, err := s.dClient.DeviceConfigs(s.ns).Get(s.cfgName, metav1.GetOptions{})
 	assert.Errorf(c, err, fmt.Sprintf("config %v exists", s.cfgName))
@@ -3205,7 +3205,7 @@ func (s *E2ESuite) TestPreUpgradeHookFailure(c *C) {
 
 func (s *E2ESuite) TestRemediationWorkflow(c *C) {
 	// TODO: Fix this testcase and re-enable
-	c.Skip("Skipping failing test case")
+	skipTest(c, "Skipping failing test case")
 
 	_, err := s.dClient.DeviceConfigs(s.ns).Get(s.cfgName, metav1.GetOptions{})
 	assert.Errorf(c, err, fmt.Sprintf("config %v exists", s.cfgName))
