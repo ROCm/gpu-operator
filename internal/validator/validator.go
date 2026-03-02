@@ -37,9 +37,10 @@ type validator struct {
 func NewValidator() ValidatorAPI {
 	// Map of spec names to their respective validation functions
 	specValidationFuncs := map[string]func(context.Context, client.Client, *amdv1alpha1.DeviceConfig) error{
-		"driver":          ValidateDriverSpec,
-		"metricsExporter": ValidateMetricsExporterSpec,
-		"devicePlugin":    ValidateDevicePluginSpec,
+		"driver":              ValidateDriverSpec,
+		"metricsExporter":     ValidateMetricsExporterSpec,
+		"devicePlugin":        ValidateDevicePluginSpec,
+		"remediationWorkflow": ValidateRemediationWorkflowSpec,
 	}
 	vInst := &validator{
 		specValidationFuncs: specValidationFuncs,

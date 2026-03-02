@@ -895,6 +895,21 @@ spec:
         path: nodeModuleStatus
         x-descriptors:
         - urn:alm:descriptor:com.amd.deviceconfigs:nodeModuleStatus
+      - description: number of the actually deployed and running pods
+        displayName: AvailableNumber
+        path: remediationWorkflow.availableNumber
+        x-descriptors:
+        - urn:alm:descriptor:com.amd.deviceconfigs:availableNumber
+      - description: number of the pods that should be deployed for daemonset
+        displayName: DesiredNumber
+        path: remediationWorkflow.desiredNumber
+        x-descriptors:
+        - urn:alm:descriptor:com.amd.deviceconfigs:desiredNumber
+      - description: number of nodes that are targeted by the DeviceConfig selector
+        displayName: NodesMatchingSelectorNumber
+        path: remediationWorkflow.nodesMatchingSelectorNumber
+        x-descriptors:
+        - urn:alm:descriptor:com.amd.deviceconfigs:nodesMatchingSelectorNumber
       version: v1alpha1
   description: |-
     Operator responsible for deploying AMD GPU kernel drivers, device plugin, device test runner and device metrics exporter

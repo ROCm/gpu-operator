@@ -897,6 +897,8 @@ type DeviceConfigStatus struct {
 	MetricsExporter DeploymentStatus `json:"metricsExporter,omitempty"`
 	// ConfigManager contains the status of the ConfigManager deployment
 	ConfigManager DeploymentStatus `json:"configManager,omitempty"`
+	// RemediationWorkflow contains the status of the RemediationWorkflow deployment
+	RemediationWorkflow DeploymentStatus `json:"remediationWorkflow,omitempty"`
 	// NodeModuleStatus contains per node status of driver module installation
 	//+operator-sdk:csv:customresourcedefinitions:type=status,displayName="NodeModuleStatus",xDescriptors="urn:alm:descriptor:com.amd.deviceconfigs:nodeModuleStatus"
 	NodeModuleStatus map[string]ModuleStatus `json:"nodeModuleStatus,omitempty"`

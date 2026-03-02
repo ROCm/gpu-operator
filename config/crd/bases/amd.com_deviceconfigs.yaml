@@ -1814,6 +1814,24 @@ spec:
                   processed by the controller
                 format: int64
                 type: integer
+              remediationWorkflow:
+                description: RemediationWorkflow contains the status of the RemediationWorkflow
+                  deployment
+                properties:
+                  availableNumber:
+                    description: number of the actually deployed and running pods
+                    format: int32
+                    type: integer
+                  desiredNumber:
+                    description: number of the pods that should be deployed for daemonset
+                    format: int32
+                    type: integer
+                  nodesMatchingSelectorNumber:
+                    description: number of nodes that are targeted by the DeviceConfig
+                      selector
+                    format: int32
+                    type: integer
+                type: object
             type: object
         type: object
     served: true
