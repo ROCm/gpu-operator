@@ -44,7 +44,7 @@ export E2E_DRIVER_IMAGE_REPO
 .DEFAULT: all
 .PHONY: all lint
 
-TEST_ARGS = ""
+TEST_ARGS ?= ""
 ifdef OPENSHIFT
 	TEST_ARGS += "-openshift"
 endif
