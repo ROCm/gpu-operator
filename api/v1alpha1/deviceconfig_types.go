@@ -496,6 +496,14 @@ type DevicePluginSpec struct {
 	//+operator-sdk:csv:customresourcedefinitions:type=spec,displayName="UpgradePolicy",xDescriptors={"urn:alm:descriptor:com.amd.deviceconfigs:upgradePolicy"}
 	// +optional
 	UpgradePolicy *DaemonSetUpgradeSpec `json:"upgradePolicy,omitempty"`
+
+	// PodResourceAPISocketPath specifies the kubelet device plugins directory path.
+	// Useful for Kubernetes distributions like microk8s, k3s where the path differs from the standard.
+	//+operator-sdk:csv:customresourcedefinitions:type=spec,displayName="PodResourceAPISocketPath",xDescriptors={"urn:alm:descriptor:com.amd.deviceconfigs:podResourceAPISocketPath"}
+	// +optional
+	// +kubebuilder:validation:Pattern=`^(/[^/\0]+)*(/)?$`
+	// +kubebuilder:default="/var/lib/kubelet/device-plugins"
+	PodResourceAPISocketPath string `json:"podResourceAPISocketPath,omitempty"`
 }
 
 // IsEnabled returns true if the device plugin is explicitly enabled.
