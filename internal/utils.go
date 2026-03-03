@@ -42,6 +42,8 @@ const (
 	openShiftNodeLabel      = "node.openshift.io/os_id"
 	NodeFeatureLabelAmdGpu  = "feature.node.kubernetes.io/amd-gpu"
 	NodeFeatureLabelAmdVGpu = "feature.node.kubernetes.io/amd-vgpu"
+	// kubelet paths
+	KubeletDevicePluginsPath = "/var/lib/kubelet/device-plugins"
 	// device plugin
 	ResourceNamingStrategyFlag = "resource_naming_strategy"
 	SingleStrategy             = "single"

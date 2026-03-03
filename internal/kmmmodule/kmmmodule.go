@@ -59,7 +59,6 @@ import (
 
 const (
 	kubeletDevicePluginsVolumeName = "kubelet-device-plugins"
-	kubeletDevicePluginsPath       = "/var/lib/kubelet/device-plugins"
 	nodeVarLibFirmwarePath         = "/var/lib/firmware"
 	ContainerDriverModuleName      = "amdgpu"
 	VFPassthroughDriverModuleName  = "gim"
