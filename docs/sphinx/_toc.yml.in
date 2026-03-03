@@ -54,6 +54,10 @@ subtrees:
     entries:
       - file: device_plugin/device-plugin
       - file: device_plugin/resource-allocation
+  - caption: DRA Driver
+    entries:
+      - file: dra/dra-driver
+        title: Dynamic Resource Allocation
   - caption: Device Config Manager
     entries:
       - file: dcm/device-config-manager
