@@ -84,26 +84,152 @@ oc get pods -n openshift-image-registry
 
 ### 1. Install Required Dependencies
 
-- Install Node Feature Discovery (NFD) Operator
+#### Method 1: Using OpenShift Web Console
+
+##### Install Node Feature Discovery (NFD) Operator
 
 1. Navigate to the OpenShift Web Console
 2. Go to OperatorHub
 3. Search for "Node Feature Discovery"
 4. Select and install the RedHat version of the operator
 
-- Install Kernel Module Management (KMM) Operator
+##### Install Kernel Module Management (KMM) Operator
 
 1. Navigate to the OpenShift Web Console
 2. Go to OperatorHub
 3. Search for "Kernel Module Management"
 4. Select and install the RedHat version (without Hub label)
 
+#### Method 2: Using CLI
+
+##### Install Node Feature Discovery (NFD) Operator
+
+Create a Subscription resource to install the NFD operator:
+
+```bash
+cat <<EOF | oc apply -f -
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: openshift-nfd
+---
+apiVersion: operators.coreos.com/v1
+kind: OperatorGroup
+metadata:
+  name: nfd-operator-group
+  namespace: openshift-nfd
+spec:
+  targetNamespaces:
+  - openshift-nfd
+---
+apiVersion: operators.coreos.com/v1alpha1
+kind: Subscription
+metadata:
+  name: nfd
+  namespace: openshift-nfd
+spec:
+  channel: stable
+  name: nfd
+  source: redhat-operators
+  sourceNamespace: openshift-marketplace
+  installPlanApproval: Automatic
+EOF
+```
+
+Verify the NFD operator installation:
+
+```bash
+oc get csv -n openshift-nfd
+oc get pods -n openshift-nfd
+```
+
+##### Install Kernel Module Management (KMM) Operator
+
+Create a Subscription resource to install the KMM operator:
+
+```bash
+cat <<EOF | oc apply -f -
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: openshift-kmm
+---
+apiVersion: operators.coreos.com/v1
+kind: OperatorGroup
+metadata:
+  name: kernel-module-management
+  namespace: openshift-kmm
+---
+apiVersion: operators.coreos.com/v1alpha1
+kind: Subscription
+metadata:
+  name: kernel-module-management
+  namespace: openshift-kmm
+spec:
+  channel: stable
+  name: kernel-module-management
+  source: redhat-operators
+  sourceNamespace: openshift-marketplace
+  installPlanApproval: Automatic
+EOF
+```
+
+Verify the KMM operator installation:
+
+```bash
+oc get csv -n openshift-kmm
+oc get pods -n openshift-kmm
+```
+
 ### 2. Install AMD GPU Operator
+
+#### Method 1: Using OpenShift Web Console
 
 1. Navigate to the OpenShift Web Console
 2. Go to OperatorHub
 3. Search for "amd"
 4. Select and install the certified AMD GPU Operator
+
+#### Method 2: Using CLI
+
+Create a Subscription resource to install the AMD GPU Operator:
+
+```bash
+cat <<EOF | oc apply -f -
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: openshift-amd-gpu
+---
+apiVersion: operators.coreos.com/v1
+kind: OperatorGroup
+metadata:
+  name: amd-gpu-operator-group
+  namespace: openshift-amd-gpu
+spec:
+  targetNamespaces:
+  - openshift-amd-gpu
+---
+apiVersion: operators.coreos.com/v1alpha1
+kind: Subscription
+metadata:
+  name: amd-gpu-operator
+  namespace: openshift-amd-gpu
+spec:
+  channel: alpha
+  name: amd-gpu-operator
+  source: certified-operators
+  sourceNamespace: openshift-marketplace
+  installPlanApproval: Automatic
+EOF
+```
+
+Verify the AMD GPU Operator installation:
+
+```bash
+oc get csv -n openshift-amd-gpu
+oc get pods -n openshift-amd-gpu
+```
 
 ## Configuration
 
