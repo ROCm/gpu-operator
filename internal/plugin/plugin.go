@@ -194,7 +194,7 @@ func (dp *devicePlugin) SetDevicePluginAsDesired(ds *appsv1.DaemonSet, devConfig
 						VolumeMounts: []v1.VolumeMount{
 							{
 								Name:      "kubelet-device-plugins",
-								MountPath: kubeletDevicePluginsDir,
+								MountPath: utils.KubeletDevicePluginsPath,
 							},
 							{
 								Name:      "sys",
