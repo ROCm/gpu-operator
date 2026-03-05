@@ -207,6 +207,13 @@ spec:
         path: devicePlugin.nodeLabellerTolerations
         x-descriptors:
         - urn:alm:descriptor:com.amd.deviceconfigs:nodeLabellerTolerations
+      - description: PodResourceAPISocketPath specifies the kubelet device plugins
+          directory path. Useful for Kubernetes distributions like microk8s, k3s where
+          the path differs from the standard.
+        displayName: PodResourceAPISocketPath
+        path: devicePlugin.podResourceAPISocketPath
+        x-descriptors:
+        - urn:alm:descriptor:com.amd.deviceconfigs:podResourceAPISocketPath
       - description: upgrade policy for device plugin and node labeller daemons
         displayName: UpgradePolicy
         path: devicePlugin.upgradePolicy
