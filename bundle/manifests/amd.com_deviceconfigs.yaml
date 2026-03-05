@@ -338,6 +338,13 @@ spec:
                           type: string
                       type: object
                     type: array
+                  podResourceAPISocketPath:
+                    default: /var/lib/kubelet/device-plugins
+                    description: |-
+                      PodResourceAPISocketPath specifies the kubelet device plugins directory path.
+                      Useful for Kubernetes distributions like microk8s, k3s where the path differs from the standard.
+                    pattern: ^(/[^/\0]+)*(/)?$
+                    type: string
                   upgradePolicy:
                     description: upgrade policy for device plugin and node labeller
                       daemons

@@ -36,8 +36,8 @@ import (
 	"testing"
 
 	amdv1alpha1 "github.com/ROCm/gpu-operator/api/v1alpha1"
-	"github.com/ROCm/gpu-operator/internal/test"
 	utils "github.com/ROCm/gpu-operator/internal"
+	"github.com/ROCm/gpu-operator/internal/test"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	appsv1 "k8s.io/api/apps/v1"
