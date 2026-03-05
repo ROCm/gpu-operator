@@ -55,6 +55,9 @@ const (
 	defaultDevicePluginImage    = "rocm/k8s-device-plugin:latest"
 	defaultUbiDevicePluginImage = "rocm/k8s-device-plugin:rhubi-latest"
 	defaultInitContainerImage   = "busybox:1.36"
+
+	// check the DRA driver image tags here: https://hub.docker.com/r/rocm/k8s-gpu-dra-driver/tags
+	defaultDRADriverImage = "rocm/k8s-gpu-dra-driver:latest"
 )
 
 //go:generate mockgen -source=plugin.go -package=plugin -destination=mock_plugin.go DevicePluginAPI
@@ -267,7 +270,7 @@ func (dp *devicePlugin) SetDRADriverAsDesired(ds *appsv1.DaemonSet, devConfig *a
 
 	image := devConfig.Spec.DRADriver.Image
 	if image == "" {
-		return fmt.Errorf("DRADriver image must be specified")
+		image = defaultDRADriverImage
 	}
 
 	// Prepare arguments

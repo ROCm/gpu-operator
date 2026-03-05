@@ -33,6 +33,17 @@ helm install amd-gpu-operator rocm/gpu-operator-charts \
   --set deviceConfig.spec.draDriver.enable=true
 ```
 
+By default, the operator uses the `rocm/k8s-gpu-dra-driver:latest` image from [Docker Hub](https://hub.docker.com/r/rocm/k8s-gpu-dra-driver). To specify a custom DRA driver image:
+
+```bash
+helm install amd-gpu-operator rocm/gpu-operator-charts \
+  --namespace kube-amd-gpu \
+  --create-namespace \
+  --set deviceConfig.spec.devicePlugin.enableDevicePlugin=false \
+  --set deviceConfig.spec.draDriver.enable=true \
+  --set deviceConfig.spec.draDriver.image=rocm/k8s-gpu-dra-driver:latest
+```
+
 This will create a default `DeviceConfig` with the DRA driver enabled and the device plugin disabled.
 
 ### Option 2: Enable via DeviceConfig CR
@@ -44,6 +55,8 @@ kubectl edit deviceconfigs -n kube-amd-gpu default
 ```
 
 Set the `draDriver` section:
+
+> **Note:** If no `image` is specified, the operator defaults to `rocm/k8s-gpu-dra-driver:latest`.
 
 ```yaml
 apiVersion: amd.com/v1alpha1
@@ -66,6 +79,8 @@ spec:
 ### Option 3: Apply a DeviceConfig YAML
 
 Create a file `dra-deviceconfig.yaml`:
+
+> **Note:** The `image` field is optional. If omitted, the operator defaults to `rocm/k8s-gpu-dra-driver:latest`.
 
 ```yaml
 apiVersion: amd.com/v1alpha1
@@ -189,7 +204,7 @@ To migrate an existing deployment from the traditional device plugin to the DRA 
 | Field | Type | Default | Description |
 | --- | --- | --- | --- |
 | `enable` | bool | `false` | Enable or disable the DRA driver |
-| `image` | string | `rocm/k8s-gpu-dra-driver:latest` | DRA driver container image |
+| `image` | string | `rocm/k8s-gpu-dra-driver:latest` | DRA driver container image. If not specified, defaults to `rocm/k8s-gpu-dra-driver:latest` |
 | `imagePullPolicy` | string | `IfNotPresent` | Image pull policy: Always, IfNotPresent, or Never |
 | `tolerations` | list | `[]` | Tolerations for the DRA driver DaemonSet pods |
 | `imageRegistrySecret` | object | `{}` | Image pull secret for private registries, e.g. `{"name": "mySecret"}` |
