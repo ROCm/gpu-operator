@@ -139,11 +139,12 @@ var _ = Describe("SetDevicePluginAsDesired", func() {
 		err := dp.SetDevicePluginAsDesired(ds, devConfig)
 		Expect(err).To(BeNil())
 
-		// Check volume mount uses custom path
+		// Check volume mount uses the default path (container mount path should always be the standard path
+		// because the kubelet device plugin API hardcodes the path inside the container)
 		var foundVolumeMount bool
 		for _, vm := range ds.Spec.Template.Spec.Containers[0].VolumeMounts {
 			if vm.Name == "kubelet-device-plugins" {
-				Expect(vm.MountPath).To(Equal(customPath))
+				Expect(vm.MountPath).To(Equal(utils.KubeletDevicePluginsPath))
 				foundVolumeMount = true
 				break
 			}
