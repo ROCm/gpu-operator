@@ -83,11 +83,9 @@ spec:
               if kubectl get crds deviceconfigs.amd.com > /dev/null 2>&1; then
                 kubectl delete crds deviceconfigs.amd.com
               fi
-              {{- if .Values.remediation.enabled }}
               if kubectl get crds remediationworkflowstatuses.amd.com > /dev/null 2>&1; then
                 kubectl delete crds remediationworkflowstatuses.amd.com
               fi
-              {{- end }}
               {{- if and .Values.remediation.enabled .Values.remediation.installCRDs }}
               if kubectl get crds clusterworkflowtemplates.argoproj.io > /dev/null 2>&1; then
                 kubectl delete crds clusterworkflowtemplates.argoproj.io

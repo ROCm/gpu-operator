@@ -217,6 +217,7 @@ spec:
           - -c
           - |
             kubectl apply -f /opt/helm-charts-crds-k8s/deviceconfig-crd.yaml
+            kubectl apply -f /opt/helm-charts-crds-k8s/remediationworkflowstatus-crd.yaml
             {{- if index .Values "node-feature-discovery" "enabled" }}
             kubectl apply -f /opt/helm-charts-crds-k8s/nfd-api-crds.yaml
             {{- end }}
@@ -224,9 +225,7 @@ spec:
             kubectl apply -f /opt/helm-charts-crds-k8s/module-crd.yaml
             kubectl apply -f /opt/helm-charts-crds-k8s/nodemodulesconfig-crd.yaml
             {{- end }}
-            {{- if .Values.remediation.enabled }}
-            kubectl apply -f /opt/helm-charts-crds-k8s/remediationworkflowstatus-crd.yaml
-              {{- if .Values.remediation.installCRDs }}
+            {{- if and .Values.remediation.enabled .Values.remediation.installCRDs }}
             kubectl apply -f /opt/helm-charts-crds-k8s/clusterworkflowtemplate-crd.yaml
             kubectl apply -f /opt/helm-charts-crds-k8s/cronworkflow-crd.yaml
             kubectl apply -f /opt/helm-charts-crds-k8s/workflowartifactgctask-crd.yaml
@@ -235,7 +234,6 @@ spec:
             kubectl apply -f /opt/helm-charts-crds-k8s/workflowtaskresult-crd.yaml
             kubectl apply -f /opt/helm-charts-crds-k8s/workflowtaskset-crd.yaml
             kubectl apply -f /opt/helm-charts-crds-k8s/workflowtemplate-crd.yaml
-              {{- end }}
             {{- end }}
       restartPolicy: OnFailure
 {{- end }}
