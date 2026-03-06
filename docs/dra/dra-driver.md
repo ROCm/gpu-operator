@@ -193,10 +193,27 @@ To migrate an existing deployment from the traditional device plugin to the DRA 
 | `imagePullPolicy` | string | `IfNotPresent` | Image pull policy: Always, IfNotPresent, or Never |
 | `tolerations` | list | `[]` | Tolerations for the DRA driver DaemonSet pods |
 | `imageRegistrySecret` | object | `{}` | Image pull secret for private registries, e.g. `{"name": "mySecret"}` |
-| `cmdLineArguments` | map | `{}` | Additional command-line flags passed to the DRA driver |
+| `cmdLineArguments` | map | `{}` | Additional command-line flags passed to the DRA driver binary. Keys are flag names (without leading `--`) and values are the flag values. For all available flags, see the [DRA driver CLI options reference](https://github.com/ROCm/k8s-gpu-dra-driver/blob/main/docs/cli-options.md) |
 | `selector` | map | `{}` | Node selector for the DRA driver DaemonSet; if not specified, reuses `spec.selector` |
 | `upgradePolicy.upgradeStrategy` | string | `RollingUpdate` | DaemonSet upgrade strategy: `RollingUpdate` or `OnDelete` |
 | `upgradePolicy.maxUnavailable` | int | `1` | Maximum pods unavailable during a rolling update |
+
+### Passing Command-Line Arguments
+
+The `cmdLineArguments` field lets you pass flags directly to the `gpu-kubeletplugin` binary. Specify each flag as a key-value pair where the key is the flag name without the leading `--`:
+
+```yaml
+spec:
+  draDriver:
+    enable: true
+    cmdLineArguments:
+      cdi-root: /etc/cdi
+      healthcheck-port: "8080"
+      v: "4"
+      logging-format: json
+```
+
+For the full list of supported flags and their descriptions, refer to the [DRA driver CLI options reference](https://github.com/ROCm/k8s-gpu-dra-driver/blob/main/docs/cli-options.md).
 
 ## Helm Chart Values
 
@@ -241,6 +258,7 @@ The operator enforces mutual exclusion. Disable the device plugin before enablin
 ## Further Reading
 
 - [AMD GPU DRA Driver (upstream)](https://github.com/ROCm/k8s-gpu-dra-driver/blob/main/README.md) — detailed DRA driver documentation, architecture, and advanced configuration
+- [DRA Driver CLI Options Reference](https://github.com/ROCm/k8s-gpu-dra-driver/blob/main/docs/cli-options.md) — all command-line flags accepted by the `gpu-kubeletplugin` binary
 - [Kubernetes DRA Documentation](https://kubernetes.io/docs/concepts/scheduling-eviction/dynamic-resource-allocation/) — Kubernetes-native DRA concepts and API reference
 - [Device Plugin Documentation](../device_plugin/device-plugin.md) — traditional device plugin approach
 - [Full DeviceConfig Reference](../fulldeviceconfig.rst) — all available DeviceConfig fields
