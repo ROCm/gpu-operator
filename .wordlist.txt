@@ -15,6 +15,7 @@ CEL
 CheckUnitStatus
 CleanupPreState
 CLI
+ClusterRole
 CN
 CNI
 computePartition
@@ -132,6 +133,7 @@ NodeRemediationLabels
 NodeRemediationTaints
 NoExecute
 NPD
+NPD's
 NotReady
 numGPUsAssigned
 Observability
@@ -1106,6 +1108,7 @@ skipRebootStep
 slurm
 spx
 staticAuthorization
+stdout
 svc
 symlinks
 sys
