@@ -36,7 +36,7 @@ metadata:
     capabilities: Seamless Upgrades
     categories: AI/Machine Learning,Monitoring
     containerImage: docker.io/rocm/gpu-operator:v1.4.0
-    createdAt: "2026-02-22T15:49:07Z"
+    createdAt: "2026-03-06T04:57:05Z"
     description: |-
       Operator responsible for deploying AMD GPU kernel drivers, device plugin, device test runner and device metrics exporter
       For more information, visit [documentation](https://instinct.docs.amd.com/projects/gpu-operator/en/latest/)
@@ -215,6 +215,13 @@ spec:
         path: devicePlugin.imageRegistrySecret
         x-descriptors:
         - urn:alm:descriptor:com.amd.deviceconfigs:imageRegistrySecret
+      - description: KubeletSocketPath specifies the kubelet device plugins directory
+          path. Useful for Kubernetes distributions like microk8s, k3s where the path
+          differs from the standard.
+        displayName: KubeletSocketPath
+        path: devicePlugin.kubeletSocketPath
+        x-descriptors:
+        - urn:alm:descriptor:com.amd.deviceconfigs:kubeletSocketPath
       - description: 'node labeller arguments is used to pass supported labels while
           starting node labeller daemonset some flags are enabled by default as they
           are applicable and bare minimum for all setups and are supported in all
@@ -240,13 +247,6 @@ spec:
         path: devicePlugin.nodeLabellerTolerations
         x-descriptors:
         - urn:alm:descriptor:com.amd.deviceconfigs:nodeLabellerTolerations
-      - description: PodResourceAPISocketPath specifies the kubelet device plugins
-          directory path. Useful for Kubernetes distributions like microk8s, k3s where
-          the path differs from the standard.
-        displayName: PodResourceAPISocketPath
-        path: devicePlugin.podResourceAPISocketPath
-        x-descriptors:
-        - urn:alm:descriptor:com.amd.deviceconfigs:podResourceAPISocketPath
       - description: upgrade policy for device plugin and node labeller daemons
         displayName: UpgradePolicy
         path: devicePlugin.upgradePolicy

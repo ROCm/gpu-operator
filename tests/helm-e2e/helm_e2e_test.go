@@ -515,7 +515,7 @@ deviceConfig:
       # -- image pull secret for device plugin and node labeller, e.g. {"name": "mySecretName"}
       imageRegistrySecret:
         name: mySecretName
-      podResourceAPISocketPath: /var/lib/kubelet/device-plugins-custom
+      kubeletSocketPath: /var/lib/kubelet/device-plugins-custom
       upgradePolicy:
         # -- the type of daemonset upgrade, RollingUpdate or OnDelete
         upgradeStrategy: OnDelete
@@ -563,7 +563,7 @@ deviceConfig:
 					ImageRegistrySecret: &corev1.LocalObjectReference{
 						Name: "mySecretName",
 					},
-					PodResourceAPISocketPath: "/var/lib/kubelet/device-plugins-custom",
+					KubeletSocketPath: "/var/lib/kubelet/device-plugins-custom",
 					UpgradePolicy: &v1alpha1.DaemonSetUpgradeSpec{
 						UpgradeStrategy: "OnDelete",
 						MaxUnavailable:  5,

@@ -131,7 +131,7 @@ var _ = Describe("SetDevicePluginAsDesired", func() {
 			},
 			Spec: amdv1alpha1.DeviceConfigSpec{
 				DevicePlugin: amdv1alpha1.DevicePluginSpec{
-					PodResourceAPISocketPath: customPath,
+					KubeletSocketPath: customPath,
 				},
 			},
 		}

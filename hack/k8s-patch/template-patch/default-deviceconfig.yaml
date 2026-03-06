@@ -180,8 +180,8 @@ spec:
       {{- toYaml . | nindent 6 }}
     {{- end }}
 
-    {{- with .podResourceAPISocketPath }}
-    podResourceAPISocketPath: {{ . }}
+    {{- with .kubeletSocketPath }}
+    kubeletSocketPath: {{ . }}
     {{- end }}
   {{- end }}
 

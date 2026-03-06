@@ -279,6 +279,13 @@ spec:
                         type: string
                     type: object
                     x-kubernetes-map-type: atomic
+                  kubeletSocketPath:
+                    default: /var/lib/kubelet/device-plugins
+                    description: |-
+                      KubeletSocketPath specifies the kubelet device plugins directory path.
+                      Useful for Kubernetes distributions like microk8s, k3s where the path differs from the standard.
+                    pattern: ^(/[^/\0]+)*(/)?$
+                    type: string
                   nodeLabellerArguments:
                     description: |-
                       node labeller arguments is used to pass supported labels while starting node labeller daemonset
@@ -338,13 +345,6 @@ spec:
                           type: string
                       type: object
                     type: array
-                  podResourceAPISocketPath:
-                    default: /var/lib/kubelet/device-plugins
-                    description: |-
-                      PodResourceAPISocketPath specifies the kubelet device plugins directory path.
-                      Useful for Kubernetes distributions like microk8s, k3s where the path differs from the standard.
-                    pattern: ^(/[^/\0]+)*(/)?$
-                    type: string
                   upgradePolicy:
                     description: upgrade policy for device plugin and node labeller
                       daemons
