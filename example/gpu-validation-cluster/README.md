@@ -31,7 +31,9 @@ This project provides an automated, reproducible testing environment for GPU ope
    ```
 
    After building, you have two options to make the image available on all nodes:
+
    - **Option A**: Save and port the image to other nodes:
+
      ```bash
      # On server node: save the image
      docker save gpu-validation-cluster:latest -o gpu-validation-cluster.tar
@@ -40,7 +42,9 @@ This project provides an automated, reproducible testing environment for GPU ope
      scp gpu-validation-cluster.tar user@worker-node:/tmp/
      ssh user@worker-node "docker load -i /tmp/gpu-validation-cluster.tar"
      ```
+
    - **Option B**: Rebuild the image on each worker node:
+
      ```bash
      # Run on each worker node
      ./gpu-cluster.sh build
@@ -57,6 +61,7 @@ This project provides an automated, reproducible testing environment for GPU ope
    - For virtual NICs (in VMs): `"nic-type": "amd-vnic"`
 
    **Resource Configuration:**
+
    ```json
    "cluster-validation-framework": {
      "node-selector-labels": [      // Node selector labels for candidate selection
@@ -222,6 +227,7 @@ To view the overall cluster validation framework status including CronJob config
 ```
 
 This command displays:
+
 - **CronJob Status**: Configuration and schedule of validation CronJobs
 - **Recent Pod Runs**: Last 5 pod executions with timestamps, phases, and assigned nodes
 - **Pod Details**: Detailed information about recent validation test pods
@@ -235,6 +241,7 @@ To view validation test results broken down by individual node:
 ```
 
 This command displays:
+
 - **Node Summary Table**: Shows each node with its last run timestamp and validation result (Passed/Failed/Pending)
 - **Detailed Node Information**: Per-node breakdown including:
   - Last run timestamp (from node annotation)
@@ -242,6 +249,7 @@ This command displays:
   - Most recent pod name that executed on the node
 
 **Result Status Legend:**
+
 - `Passed`: All validation tests on the node passed
   - Label: `amd.com/cluster-validation-status=passed`
 - `Failed`: One or more validation tests on the node failed
@@ -252,6 +260,7 @@ This command displays:
 ### Understanding the Output
 
 The per-node view uses Kubernetes node labels and annotations to track validation test execution:
+
 - **Annotation `amd.com/cluster-validation-last-run-timestamp`**: Timestamp of the last validation test execution on this node
 - **Label `amd.com/cluster-validation-status`**: Current validation result status:
   - Set to `passed` if all tests passed
