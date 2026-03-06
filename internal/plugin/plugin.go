@@ -98,8 +98,8 @@ func (dp *devicePlugin) SetDevicePluginAsDesired(ds *appsv1.DaemonSet, devConfig
 
 	// Use configurable kubelet device plugins path, default to standard path
 	kubeletDevicePluginsDir := utils.KubeletDevicePluginsPath
-	if devConfig.Spec.DevicePlugin.PodResourceAPISocketPath != "" {
-		kubeletDevicePluginsDir = devConfig.Spec.DevicePlugin.PodResourceAPISocketPath
+	if devConfig.Spec.DevicePlugin.KubeletSocketPath != "" {
+		kubeletDevicePluginsDir = devConfig.Spec.DevicePlugin.KubeletSocketPath
 	}
 
 	commandArgs := "./k8s-device-plugin -logtostderr=true -stderrthreshold=INFO -v=5 -pulse=30"
