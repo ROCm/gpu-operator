@@ -1,0 +1,492 @@
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: cluster-validation-mpijob-config
+data:
+  cluster-validation-mpijob-config.yaml: |
+    apiVersion: kubeflow.org/v2beta1
+    kind: MPIJob
+    metadata:
+      name: cluster-validation-mpi-job
+      labels:
+        amd.com/cluster-validation-created: "true"
+    spec:
+      slotsPerWorker: $$SLOTS_PER_WORKER # Value is dynamically substituted from SLOTS_PER_WORKER at runtime
+      runPolicy:
+        cleanPodPolicy: All
+        backoffLimit: 0
+        ttlSecondsAfterFinished: 20     # <-update before deploy
+      mpiReplicaSpecs:
+        Launcher:
+          replicas: $$LAUNCHER_REPLICAS  # Value substituted at runtime from LAUNCHER_REPLICAS
+          template:
+            spec:
+              # If nodeName is set, it will direct the launcher pod to run on the specified node for easier log access. Otherwise, it will be scheduled on any of the candidate nodes.
+              nodeName: $$LOG_STORE_NODE_NAME
+              # Only schedule on nodes labeled as candidate
+              nodeSelector:
+                amd.com/cluster-validation-candidate: "true"        # Must match CANDIDATE_LABEL
+              serviceAccountName: cluster-validation-sa             # Must have permission to create MPIJobs
+              restartPolicy: Never
+              volumes:
+                - name: shared
+                  emptyDir: {}
+              initContainers:
+                - name: wait-for-worker-pods
+                  image: docker.io/rocm/network-operator-utils:v1.1.0
+                  imagePullPolicy: IfNotPresent
+                  envFrom:
+                    - configMapRef:
+                        name: cluster-validation-config
+                  volumeMounts:
+                    - name: shared
+                      mountPath: /shared
+                  command: ["/bin/bash", "-c"]
+                  args:
+                    - |
+                      # Load wait-for-worker script from ConfigMap
+                      echo "$WAIT_FOR_WORKERS_SCRIPT" > /shared/wait-for-worker.sh
+                      chmod +x /shared/wait-for-worker.sh
+                      /shared/wait-for-worker.sh
+
+              containers:
+              - name: rccl-launcher
+                image: $$RCCL_WORKLOAD_IMAGE
+                imagePullPolicy: Always
+                envFrom:
+                  - configMapRef:
+                      name: cluster-validation-config
+                volumeMounts:
+                  - name: shared
+                    mountPath: /shared
+              
+                command: ["/bin/bash", "-c"]
+                args:
+                  - |
+                    exec 2>&1
+                    set -euxo pipefail
+
+                    # --- prepare launcher env ---
+                    echo "$MPI_LAUNCHER_ENV_VARS" > /shared/launcher_env.sh
+                    chmod +x /shared/launcher_env.sh
+                    source /shared/launcher_env.sh
+
+                    # --- prepare rccl env ---
+                    echo "$RCCL_ENV_VARS" > /shared/rccl_env.sh
+                    chmod +x /shared/rccl_env.sh
+                    /shared/rccl_env.sh
+                    RCCL_ENV=$(cat /shared/rccl_env.txt)
+
+                    # --- parse test list ---
+                    echo "$TESTS_JSON" > /shared/tests.json
+                    test_count=$(jq '.tests | length' /shared/tests.json)
+                    echo "Found $test_count tests"
+
+                    # --- prepare validation script ---
+                    echo "$VALIDATE_RCCL_TEST_SCRIPT" > /shared/validate-single-test.sh
+                    chmod +x /shared/validate-single-test.sh
+
+                    # -- mpi run start --- 
+                    NP=$(( WORKER_REPLICAS * SLOTS_PER_WORKER ))
+                    echo "MPI NP = $NP"
+                    failed=0
+                    RSH_AGENT="ssh -p ${MPIRUN_SSH_PORT}"
+                    for i in $(seq 0 $((test_count - 1))); do
+                      test=$(jq -r ".tests[$i].name" /shared/tests.json)
+                      threshold=$(jq -r ".tests[$i].threshold" /shared/tests.json)
+                      echo "-------------------------------------------"
+                      echo "Running $test (threshold: $threshold)..."
+
+                      ${OMPI_DIR}/bin/mpirun --np $NP \
+                        -x PATH -x LD_LIBRARY_PATH -x LD_PRELOAD \
+                        --allow-run-as-root --mca plm_rsh_agent "$RSH_AGENT" \
+                        --mca btl ^vader,openib -mca btl_tcp_if_include $MCA_IF \
+                        ${RCCL_ENV} \
+                        $PERF_TEST_DIR/${test} -b ${START_MSG_SIZE} -e ${END_MSG_SIZE} \
+                        -n ${ITER_COUNT} -w ${WARMUP_ITER_COUNT} -c ${CHECK_ITER_COUNT} \
+                        -f ${STEP_FACTOR} -g ${THREADS_PER_GPU}  | tee /shared/${test}.log
+
+                      echo "Validating $test result..."
+                      if ! /shared/validate-single-test.sh "$test" "$threshold"; then
+                        echo "$test failed validation."
+                        failed=1
+                      fi
+                    done
+
+                    echo "All RCCL test runs done"
+
+                    if [ "$failed" -ne 0 ]; then
+                      echo "Validation FAILED  for one or more tests ❌"
+                      echo "Sleeping ${DEBUG_DELAY} secs before exiting to debug failure"
+                      sleep ${DEBUG_DELAY}
+                      echo "Launcher exiting with failure."
+                      exit 1
+                    else
+                      echo "Validation of all tests PASSED successfully ✅"
+                    fi
+
+                    ## echo "Sleeping ${DEBUG_DELAY} secs before exiting on success"
+                    ## sleep ${DEBUG_DELAY}
+                    echo "Launcher exiting with success"
+
+        Worker:
+          replicas: $$WORKER_REPLICAS   # Dynamically set based on number of passed nodes
+          template:
+            metadata:
+              annotations:
+                k8s.v1.cni.cncf.io/networks: $$NAD_ANNOTATION
+              labels: 
+                app: rccl-test-worker
+            spec:
+              # Only schedule on nodes labeled as candidate
+              nodeSelector:
+                amd.com/cluster-validation-candidate: "true"        # Must match CANDIDATE_LABEL
+              restartPolicy: Never
+              containers:
+              - name: rccl-test-worker
+                image: $$RCCL_WORKLOAD_IMAGE
+                imagePullPolicy: Always
+                securityContext:
+                  capabilities:
+                    add: ["IPC_LOCK"]
+                envFrom:
+                  - configMapRef:
+                      name: cluster-validation-config
+                resources:
+                  requests:
+                    amd.com/gpu: $$GPU_PER_WORKER
+                    amd.com/nic: $$PF_NIC_PER_WORKER
+                    amd.com/vnic: $$VF_NIC_PER_WORKER
+                  limits:
+                    amd.com/gpu: $$GPU_PER_WORKER
+                    amd.com/nic: $$PF_NIC_PER_WORKER
+                    amd.com/vnic: $$VF_NIC_PER_WORKER
+                volumeMounts:
+                  - name: boot
+                    mountPath: /boot
+                    readOnly: true
+                  - name: shm
+                    mountPath: /dev/shm
+              volumes:
+                - name: boot
+                  hostPath:
+                    path: /boot
+                    type: Directory
+                - name: shm
+                  emptyDir:
+                    medium: Memory
+                    sizeLimit: 16Gi
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: cluster-validation-test-runner-job-config
+data:
+  cluster-validation-test-runner-job-config.yaml: |
+    apiVersion: batch/v1
+    kind: Job
+    metadata:
+      name: cluster-validation-test-runner-job
+      labels:
+        amd.com/cluster-validation-created: "true"
+    spec:
+      template:
+        spec:
+          serviceAccountName: cluster-validation-sa
+          nodeSelector:
+            kubernetes.io/hostname: $$NODE
+          volumes:
+          - name: config-volume # Config map volume
+            configMap:
+              name: cluster-validation-config
+          - hostPath: # Specify to use this directory on the host as volume
+              path: /var/log/cluster-validation
+              type: DirectoryOrCreate
+            name: test-runner-volume
+          containers:
+          - resources:
+              requests:
+                amd.com/gpu: $$GPU_PER_WORKER
+              limits:
+                amd.com/gpu: $$GPU_PER_WORKER
+            name: amd-test-runner
+            image: $$TEST_RUNNER_IMAGE
+            imagePullPolicy: IfNotPresent
+            securityContext: # setup security context for container to get access to device related interfaces
+              privileged: true
+            volumeMounts:
+            - mountPath: /var/log/amd-test-runner # Specify to mount host path volume into specific directory
+              name: test-runner-volume
+            - mountPath: /etc/test-runner/config.json
+              name: config-volume
+              subPath: GPU_VALIDATION_TESTS_JSON
+            env:
+            - name: TEST_TRIGGER
+              value: "MANUAL" # Set the TEST_TRIGGER environment variable to MANUAL for manual test
+            - name: POD_NAME # Use downward API to pass pod name to test runner container
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: POD_NAMESPACE # Use downward API to pass pod namespace to test runner container
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+            - name: POD_UID # Use downward API to pass pod UID to test runner container
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.uid
+            - name: NODE_NAME # Use downward API to pass host name to test runner container
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
+          restartPolicy: Never
+      backoffLimit: 0
+      ttlSecondsAfterFinished: 300 # TTL for the job to be auto cleaned up after finishing
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: cluster-validation-sa
+  namespace: default
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: cluster-validation-role
+rules:
+  # Allow MPIJob operations
+  - apiGroups: ["kubeflow.org"]
+    resources: ["mpijobs"]
+    verbs: ["get", "list", "watch", "create", "delete", "patch"]
+
+  # Allow Job operations
+  - apiGroups: ["batch"]
+    resources: ["jobs"]
+    verbs: ["get", "list", "watch", "create", "delete", "patch"]
+
+  # Allow node operations
+  - apiGroups: [""]
+    resources: ["nodes"]
+    verbs: ["get", "list", "watch", "patch", "update", "label"]
+
+  # Allow test runner to report GPU test events
+  - apiGroups: [""]
+    resources: ["events"]
+    verbs: ["get", "list", "watch", "create", "update"]
+
+  # Allow listing pods by MPIJob controller wait steps
+  - apiGroups: [""]
+    resources: ["pods", "pods/exec"]
+    verbs: ["get", "list", "watch"]
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: cluster-validation-role-binding
+subjects:
+  - kind: ServiceAccount
+    name: cluster-validation-sa
+    namespace: default
+roleRef:
+  kind: ClusterRole
+  name: cluster-validation-role
+  apiGroup: rbac.authorization.k8s.io
+---
+
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: cluster-validation-cron-job
+spec:
+  # schedule: "0 0 * * *"
+  # schedule every 10 minutes (Change as needed)
+  schedule: "__CRONJOB_SCHEDULE__"
+  concurrencyPolicy: Forbid                             # Dont overlap runs    
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          serviceAccountName: cluster-validation-sa  # must have permission to create MPIJobs
+          restartPolicy: Never
+          containers:
+            - name: submit-mpijob
+              image: docker.io/rocm/network-operator-utils:v1.1.0
+              imagePullPolicy: IfNotPresent
+              command: ["/bin/bash", "-c"]
+              envFrom:
+                - configMapRef:
+                    name: cluster-validation-config
+              args:
+                - |
+                  # --- Redirect all output to a timestamped log file ---
+                  LOG_DIR=/var/log/cluster-validation
+                  mkdir -p "$LOG_DIR"
+                  LOG_TS=$(date +%Y%m%d-%H%M%S)
+                  LOG_FILE="${LOG_DIR}/cronjob-${LOG_TS}.log"
+                  exec > >(tee -a "$LOG_FILE") 2>&1
+
+                  set -euo pipefail
+
+                  echo -e "\n$(date): ===Step 1: Determining candidate nodes==="
+                  echo "$CRONJOB_CANDIDATE_NODES_SELECTION_SCRIPT" > /tmp/select-and-label-candidate.sh
+                  chmod +x /tmp/select-and-label-candidate.sh
+                  if ! /tmp/select-and-label-candidate.sh; then
+                    exit 0
+                  fi
+                  nodes=$(kubectl get nodes -l "${CANDIDATE_LABEL}" -o name | sed 's|node/||')
+
+                  echo -e "\n$(date): ===Step 2: Submitting test runner jobs for each candidate node==="
+                  # Define variables BEFORE calling the modularized script
+                  job_names=""
+                  declare -A job_to_node
+                  passed_nodes=""
+                  failed_nodes=""
+                  
+                  # Call the modularized GPU validation script
+                  echo "$GPU_VALIDATION_TEST_SCRIPT" > /tmp/gpu-validation-test.sh
+                  chmod +x /tmp/gpu-validation-test.sh
+                  source /tmp/gpu-validation-test.sh
+
+                  echo -e "\n$(date): ===Step 3: Submitting MPIJob==="
+
+                  # Check if RCCL test should be skipped
+                  if [[ "${SKIP_RCCL_TEST,,}" == "true" ]]; then
+                    echo "SKIP_RCCL_TEST is set to true. Skipping MPI Job RCCL test."
+                    echo "=================================================================="
+
+                    # Label passed nodes with success status and remove candidate label
+                    CLUSTER_VALIDATION_STATUS_LABEL=${SUCCESS_LABEL}
+                    echo -e "\n$(date): ===Labeling nodes (RCCL test skipped)==="
+                    for n in $passed_nodes; do
+                      echo "Labeling node $n with $CLUSTER_VALIDATION_STATUS_LABEL"
+                      kubectl label node "$n" "$CLUSTER_VALIDATION_STATUS_LABEL" --overwrite
+                    done
+                    CANDIDATE_LABEL_KEY=${CANDIDATE_LABEL%%=*}
+                    for n in $passed_nodes; do
+                      echo "Removing candidate label on node: $n"
+                      kubectl label node "$n" "${CANDIDATE_LABEL_KEY}-" --overwrite
+                    done
+                    echo "[CronJob Result: $CLUSTER_VALIDATION_STATUS_LABEL] Cluster Validation Status updated on Candidate Nodes (RCCL test skipped)"
+                    echo "=================================================================="
+                    echo "[CronJob Completed] $(date)"
+                    exit 0
+                  fi
+
+                  ts=$(date +%Y%m%d-%H%M)
+                  new_job="cluster-validation-mpi-job-${ts}"
+                  # Calculate worker replicas based on passed nodes count
+                  actual_worker_replicas=$passed_count
+
+                  # Generate PF NAD list (for PF)
+                  PF_NAD_LIST=$(printf "${PF_NIC_NAD_NAME},%.0s" $(seq 1 $PF_NIC_PER_WORKER))
+                  PF_NAD_LIST=${PF_NAD_LIST%,}  # remove trailing comma
+                  # Generate VF NAD list (for VF)
+                  VF_NAD_LIST=$(printf "${VF_NIC_NAD_NAME},%.0s" $(seq 1 $VF_NIC_PER_WORKER))
+                  VF_NAD_LIST=${VF_NAD_LIST%,}  # remove trailing comma
+
+                  if [ "$PF_NIC_PER_WORKER" -gt 0 ]; then
+                    NAD_ANNOTATION="$PF_NAD_LIST"
+                  elif [ "$VF_NIC_PER_WORKER" -gt 0 ]; then
+                    NAD_ANNOTATION="$VF_NAD_LIST"
+                  else
+                    NAD_ANNOTATION=""
+                  fi
+
+                  sed "s/^  name: cluster-validation-mpi-job/  name: ${new_job}/; \
+                      s|\$\$WORKER_REPLICAS|${actual_worker_replicas}|g; \
+                      s|\$\$LAUNCHER_REPLICAS|${LAUNCHER_REPLICAS}|g; \
+                      s|\$\$LOG_STORE_NODE_NAME|${LOG_STORE_NODE_NAME}|g; \
+                      s|\$\$SLOTS_PER_WORKER|${SLOTS_PER_WORKER}|g; \
+                      s|\$\$GPU_PER_WORKER|${GPU_PER_WORKER}|g; \
+                      s|\$\$PF_NIC_PER_WORKER|${PF_NIC_PER_WORKER}|g; \
+                      s|\$\$VF_NIC_PER_WORKER|${VF_NIC_PER_WORKER}|g; \
+                      s|\$\$NAD_ANNOTATION|${NAD_ANNOTATION}|g; \
+                      s|\$\$RCCL_WORKLOAD_IMAGE|${RCCL_WORKLOAD_IMAGE}|g" \
+                      /mpi-configs/cluster-validation-mpijob-config.yaml | kubectl apply -f -   
+                  echo "[MPIJob: Submitted for $actual_worker_replicas worker node(s)]"
+                  echo "=================================================================="
+
+                  echo -e "\n$(date): ===Step 4: Waiting for MPIJob completion==="
+                  if kubectl wait mpijob "$new_job" --for=condition=Succeeded --timeout=${MPIJOB_WAIT_TIME}s; then
+                    CLUSTER_VALIDATION_STATUS_LABEL=${SUCCESS_LABEL}
+                    job_status=passed
+                    echo "$(date): MPIJob $new_job succeeded ✅"
+                    echo "[MPIJob Result: Passed]"
+                  else
+                    CLUSTER_VALIDATION_STATUS_LABEL=${FAILURE_LABEL}
+                    job_status=failed
+                    echo "$(date): MPIJob $new_job failed ❌"
+                    echo "[MPIJob Result: Failed]"
+                    sleep ${DEBUG_DELAY}
+                  fi
+                  echo "=================================================================="
+
+                  echo -e "\n$(date): ===Step 5: Labeling nodes based on MPIJob result==="
+                  for n in $passed_nodes; do
+                    echo "Labeling node $n with $CLUSTER_VALIDATION_STATUS_LABEL"
+                    kubectl label node "$n" "$CLUSTER_VALIDATION_STATUS_LABEL" --overwrite
+                  done
+                  CANDIDATE_LABEL_KEY=${CANDIDATE_LABEL%%=*}
+                  for n in $passed_nodes; do
+                    echo "Removing candidate label on node: $n"
+                    kubectl label node "$n" "${CANDIDATE_LABEL_KEY}-" --overwrite
+                  done
+                  echo "[CronJob Result: $CLUSTER_VALIDATION_STATUS_LABEL] Cluster Validation Status updated on Candidate Nodes"
+                  echo "=================================================================="
+
+                  echo -e "\n$(date): ===Retrieving launcher pod logs==="
+                  LAUNCHER_POD=$(kubectl get pods -l "training.kubeflow.org/job-name=${new_job},training.kubeflow.org/replica-type=launcher" \
+                    -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || true)
+                  if [ -n "$LAUNCHER_POD" ]; then
+                    LAUNCHER_LOG_FILE="${LOG_DIR}/launcher-${new_job}.log"
+                    echo "Saving launcher pod logs ($LAUNCHER_POD) to $LAUNCHER_LOG_FILE"
+                    kubectl logs "$LAUNCHER_POD" --all-containers=true > "$LAUNCHER_LOG_FILE" 2>&1 || \
+                      echo "Warning: Failed to retrieve launcher pod logs"
+                  else
+                    echo "Warning: Could not find launcher pod for MPIJob $new_job"
+                  fi
+                  echo "=================================================================="
+
+                  echo -e "\n$(date): ===Step 6: Cleaning up old MPIJobs==="
+                  mpijobs=$(kubectl get mpijobs -o jsonpath='{.items[*].metadata.name}' \
+                            | tr ' ' '\n' | grep '^cluster-validation-mpi-job-' | sort)
+                  count=$(echo "$mpijobs" | wc -l)
+                  keep=3                                        # <-update before deploy 
+                  if [ "$count" -gt "$keep" ]; then
+                    del=$(echo "$mpijobs" | head -n -"$keep")
+                    for job in $del; do
+                      echo "Deleting old MPIJob: $job"
+                      kubectl delete mpijob "$job" --ignore-not-found
+                    done
+                  fi
+
+                  # Fail the overall cronjob if any test runner jobs failed
+                  if [ $failed_count -gt 0 ]; then
+                    echo "Test runner jobs failed on $failed_count node(s). Failing cronjob."
+                    echo "[CronJob Result: FAILED] ❌"
+                    sleep ${DEBUG_DELAY}
+                    exit 1
+                  fi
+
+                  echo "[CronJob Completed] $(date)"
+                  echo "=================================================================="
+              volumeMounts:
+                - name: mpi-configs
+                  mountPath: /mpi-configs
+                - name: test-runner-configs
+                  mountPath: /test-runner-configs
+                - name: cluster-validation-logs
+                  mountPath: /var/log/cluster-validation
+          volumes:
+            - name: mpi-configs
+              configMap:
+                name: cluster-validation-mpijob-config
+            - name: test-runner-configs
+              configMap:
+                name: cluster-validation-test-runner-job-config
+            - name: cluster-validation-logs
+              hostPath:
+                path: /var/log/cluster-validation
+                type: DirectoryOrCreate

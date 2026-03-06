@@ -1,0 +1,412 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: cluster-validation-config
+data:
+  LOG_STORE_NODE_NAME: ""               # Specify a candidate node name to store logs for easier access, or leave empty to let the system pick one of the candidate nodes
+  JOB_NAME: cluster-validation-mpi-job  # Must match MPIJob metadata.name
+  WORKER_REPLICAS: "__WORKER_REPLICAS__"                  # Number of Worker Pods in each MPIJob doing actual computation
+  LAUNCHER_REPLICAS: "__LAUNCHER_REPLICAS__"                # Number of Launcher Pods for the MPIJob, which coordinates workers
+  SLOTS_PER_WORKER: "__SLOTS_PER_WORKER__"                 # MPI ranks per Worker pod
+  GPU_PER_WORKER: "__GPU_PER_WORKER__"                   # Number of GPUs to request per Worker pod
+  PF_NIC_PER_WORKER: "__PF_NIC_PER_WORKER__"                # Number of PF-NICs to request per Worker pod
+  VF_NIC_PER_WORKER: "__VF_NIC_PER_WORKER__"                # Number of VF-NICs to request per Worker pod
+  NODE_VALIDATION_INTERVAL_MINS: "__NODE_VALIDATION_INTERVAL_MINS__"   # minimum interval in minutes between cluster validation runs on a given worker node
+  PF_NIC_NAD_NAME: "amd-host-device-nad"
+  VF_NIC_NAD_NAME: "vf-amd-host-device-nad"
+
+  # === Node Selection Labels for candidates ===
+  # NOTE:
+  # The entire list below can be customized via config.json["cluster-validation-framework"]["node-selector-labels"]
+  # Default: Select nodes with feature.node.kubernetes.io/amd-gpu=true and feature.node.kubernetes.io/amd-nic=true
+  # For virtual function (VF) based GPU in a VM, use amd-vgpu=true instead of amd-gpu=true
+  # For virtual function (VF) based NIC in a VM, use amd-vnic=true instead of amd-nic=true
+  NODE_SELECTOR_LABELS: |
+    __NODE_SELECTOR_LABELS__
+  CANDIDATE_LABEL: "amd.com/cluster-validation-candidate=true"
+  SUCCESS_LABEL: "amd.com/cluster-validation-status=passed"
+  FAILURE_LABEL: "amd.com/cluster-validation-status=failed"
+  TIMESTAMP_ANNOTATION: "amd.com/cluster-validation-last-run-timestamp"
+
+  # === RCCL Tests Definitions ===
+  TESTS_JSON: |
+    {
+      "tests": [
+        { "name": "all_reduce_perf", "threshold": 5 },
+        { "name": "broadcast_perf", "threshold": 5 },
+        { "name": "reduce_scatter_perf", "threshold": 5.0 }
+      ]
+    }
+
+  RCCL_WORKLOAD_IMAGE: "docker.io/rocm/roce-workload:ubuntu24_rocm-7.0.2_rccl-7.0.2_anp-v1.2.0_ainic-1.117.1-a-63"
+  MPIJOB_WAIT_TIME: "240"
+  DEBUG_DELAY: "20"
+  WAIT_FOR_WORKERS: "true"
+  ENABLE_SSH_CHECK: "true"
+  WORKER_READY_TIMEOUT: "300"
+  SSH_CHECK_INTERVAL: "4"
+  SSH_CHECK_TIMEOUT: "60"
+
+  RCCL_ENV_VARS: |
+    #!/bin/bash
+    RCCL_ENV="$RCCL_ENV -x NCCL_IB_GID_INDEX=1"
+    RCCL_ENV="$RCCL_ENV -x NCCL_NET_OPTIONAL_RECV_COMPLETION=0"
+    RCCL_ENV="$RCCL_ENV -x NCCL_GDR_FLUSH_DISABLE=1"
+    RCCL_ENV="$RCCL_ENV -x RCCL_GDR_FLUSH_GPU_MEM_NO_RELAXED_ORDERING=0"
+    RCCL_ENV="$RCCL_ENV -x NCCL_IB_USE_INLINE=1"
+    RCCL_ENV="$RCCL_ENV -x IONIC_LOCKFREE=all"
+    RCCL_ENV="$RCCL_ENV -x NCCL_NET_PLUGIN=librccl-anp.so"
+    RCCL_ENV="$RCCL_ENV -x NCCL_TOPO_DUMP_FILE=/tmp/topo_all.txt"
+    RCCL_ENV="$RCCL_ENV -x NCCL_DEBUG=INFO"
+    RCCL_ENV="$RCCL_ENV -x NCCL_DMABUF_ENABLE=0"
+    echo "$RCCL_ENV" > /shared/rccl_env.txt
+
+  # MPIJob documentation: https://www.kubeflow.org/docs/components/trainer/legacy-v1/user-guides/mpi/
+  MPI_LAUNCHER_ENV_VARS: |
+    export MPIRUN_SSH_PORT=22
+    export OMPI_DIR=/root/ompi/install
+    export PERF_TEST_DIR=/root/rccl-tests/build
+    export MCA_IF=eth0
+    export START_MSG_SIZE="1K"
+    export END_MSG_SIZE="2G"
+    export STEP_FACTOR="2"
+    export THREADS_PER_GPU="1"
+    export ITER_COUNT="6"
+    export WARMUP_ITER_COUNT="20"
+    export CHECK_ITER_COUNT="0"
+
+  # === GPU Validation Tests Definitions ===
+  # RVS: ROCm Validation Suite. For a full list of supported recipes and arguments, refer to https://instinct.docs.amd.com/projects/gpu-operator/en/latest/test/appendix-test-recipe.html
+  # AGFHC: AMD GPU Field Health Check. For a full list of supported recipes and arguments, refer to https://instinct.docs.amd.com/projects/gpu-operator/en/latest/test/agfhc.html
+  # Refer to the above links for other available test frameworks and recipes, and configure the wait time accordingly.
+  SKIP_GPU_VALIDATION: "__SKIP_GPU_VALIDATION__" # Set to "true" to skip GPU validation tests, directly start the RCCL tests
+  SKIP_RCCL_TEST: "__SKIP_RCCL_TEST__" # Set to "true" to skip MPI Job RCCL tests
+  TEST_RUNNER_JOB_WAIT_TIME: "1200"
+  TEST_RUNNER_SUCCESS_LABEL: "amd.com/gpu-validation-test=passed"
+  TEST_RUNNER_FAILURE_LABEL: "amd.com/gpu-validation-test=failed"
+  TEST_RUNNER_IMAGE: "docker.io/rocm/test-runner:v1.4.0"
+  GPU_VALIDATION_TESTS_JSON: |
+    {
+      "TestConfig": {
+        "GPU_HEALTH_CHECK": {
+          "TestLocationTrigger": {
+            "global": {
+              "TestParameters": {
+                "MANUAL": {
+                  "TestCases": [
+                    {
+                      "Framework": "RVS",
+                      "Recipe": "gst_single",
+                      "Iterations": 1,
+                      "StopOnFailure": true,
+                      "TimeoutSeconds": 1200,
+                      "Arguments": "--parallel"
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+
+
+  # === select-and-label-candidates.sh ===
+  CRONJOB_CANDIDATE_NODES_SELECTION_SCRIPT: |
+    #!/bin/bash
+    set -euo pipefail
+
+    NODE_SELECTOR_LABEL=$(echo "$NODE_SELECTOR_LABELS" \
+      | sed -E 's/^-[[:space:]]*//g; s/^[[:space:]]+//g; s/[[:space:]]+$//g' \
+      | tr '\n' ',' \
+      | sed -E 's/,+$//; s/[[:space:]]*,[[:space:]]*/,/g')
+    echo "[Node Selection] Using node selector: ${NODE_SELECTOR_LABEL}"
+    nodes=$(kubectl get nodes -l "${NODE_SELECTOR_LABEL}" -o name | sed 's|node/||')
+
+    candidates=()
+    candidate_count=0
+    current_time_secs=$(date +%s)
+    skipped_recent_nodes=()
+    busy_nodes=()
+    ESCAPED_TS_ANNOTATION=$(echo "$TIMESTAMP_ANNOTATION" | sed 's/\./\\./g')
+
+    for node in $nodes; do
+      last_labeled=$(kubectl get node "$node" -o jsonpath="{.metadata.annotations.${ESCAPED_TS_ANNOTATION}}" 2>/dev/null || echo "")
+      if [[ -n "$last_labeled" ]]; then
+        last_labeled_epoch=$(date -d "$last_labeled" +%s 2>/dev/null || echo 0)
+        age_mins=$(( (current_time_secs - last_labeled_epoch) / 60 ))
+        if (( age_mins < NODE_VALIDATION_INTERVAL_MINS )); then
+          echo "[Node Selection] Skipping $node, tested recently ($age_mins mins ago, threshold ${NODE_VALIDATION_INTERVAL_MINS} min)"
+          skipped_recent_nodes+=("$node")
+          continue
+        fi
+      fi
+
+      # --- Resource usage checks ---
+      gpus_allocated=$(kubectl get pods -A --field-selector spec.nodeName=$node \
+          -o jsonpath='{range .items[*]}{range .spec.containers[*]}{.resources.requests.amd\.com/gpu}{"\n"}{end}{end}' \
+          2>/dev/null | awk 'NF{sum+=$1+0} END{print sum+0}')
+      nics_allocated=$(kubectl get pods -A --field-selector spec.nodeName=$node \
+          -o jsonpath='{range .items[*]}{range .spec.containers[*]}{.resources.requests.amd\.com/nic}{"\n"}{end}{end}' \
+          2>/dev/null | awk 'NF{sum+=$1+0} END{print sum+0}')
+      vnics_allocated=$(kubectl get pods -A --field-selector spec.nodeName=$node \
+          -o jsonpath='{range .items[*]}{range .spec.containers[*]}{.resources.requests.amd\.com/vnic}{"\n"}{end}{end}' \
+          2>/dev/null | awk 'NF{sum+=$1+0} END{print sum+0}')
+
+      if { [ "${gpus_allocated:-0}" -eq 0 ] && [ "${nics_allocated:-0}" -eq 0 ] && [ "${vnics_allocated:-0}" -eq 0 ]; } 2>/dev/null; then
+        echo "[Node Selection] Node $node is idle (allocated: GPU=$gpus_allocated, NIC=$nics_allocated, VNIC=$vnics_allocated)"
+        candidates+=("$node")
+        candidate_count=$((candidate_count + 1))
+        if [ "$candidate_count" -ge "${WORKER_REPLICAS}" ]; then
+          echo "[Node Selection] Reached desired candidate count ($candidate_count / $WORKER_REPLICAS)"
+          break
+        fi
+      else
+        busy_nodes+=("$node")
+        echo "[Node Selection] Node $node busy (allocated: GPU=$gpus_allocated, NIC=$nics_allocated, VNIC=$vnics_allocated)"
+      fi
+    done
+
+    # --- Summary Section ---
+    echo "--------------------[ Node Selection Summary ]--------------------"
+    printf "%-35s %s\n" "Timestamp:" "$(date)"
+    printf "%-35s %s\n" "Required worker replicas:" "$WORKER_REPLICAS"
+    printf "%-35s %s\n" "Total nodes checked:" "$(echo "$nodes" | wc -w)"
+    printf "%-35s %s\n" "Skipped (recently labeled):" "${#skipped_recent_nodes[@]}"
+    printf "%-35s %s\n" "Busy (non-idle) nodes:" "${#busy_nodes[@]}"
+    printf "%-35s %s\n" "Candidate nodes (idle):" "${#candidates[@]}"
+    echo "------------------------------------------------------------------"
+
+    # --- Action Decision ---
+    if [ $candidate_count -lt ${WORKER_REPLICAS} ]; then
+      echo "[Node Selection: Skipped] Insufficient candidates (required $WORKER_REPLICAS, available $candidate_count)"
+      echo "=================================================================="
+      exit 1
+    else
+      for n in "${candidates[@]}"; do
+        echo "Adding candidate label to node: $n"
+        kubectl label node "$n" "$CANDIDATE_LABEL" --overwrite
+        #kubectl annotate node "$n" "${TIMESTAMP_ANNOTATION}=$(date -u +"%Y-%m-%dT%H:%M:%SZ")" --overwrite
+        #kubectl annotate node "$n" "${TIMESTAMP_ANNOTATION}=$(date '+%Y-%m-%d %H:%M:%S')" --overwrite
+        kubectl annotate node "$n" "${TIMESTAMP_ANNOTATION}=$(date -d 'now' '+%Y-%m-%d %H:%M:%S')" --overwrite
+      done
+      echo "------------------------------------------------------------------"
+      echo "[Node Selection: Success] Labeled ${#candidates[@]} candidate node(s) for cluster validation"
+      echo "[Node Selection] Candidate nodes labeled this run: ${candidates[*]} "
+      echo "=================================================================="
+    fi
+
+  # === wait-for-worker-pods.sh ===
+  WAIT_FOR_WORKERS_SCRIPT: |
+    #!/bin/bash
+    set -euo pipefail
+
+    NAMESPACE=default
+    TOTAL=${WORKER_REPLICAS}
+    PREFIX=$(kubectl get mpijob -o jsonpath='{.items[*].metadata.name}' \
+             | tr ' ' '\n' | grep "^${JOB_NAME}" | sort | tail -n1)
+    JOB_LABELS="training.kubeflow.org/job-name=${PREFIX},training.kubeflow.org/job-role=worker"
+
+    echo "Namespace: $NAMESPACE"
+    echo "Waiting for $TOTAL worker pods..."
+
+    if [ "$WAIT_FOR_WORKERS" = "true" ]; then
+      kubectl wait --namespace "$NAMESPACE" \
+        --for=condition=Ready pod -l "$JOB_LABELS" \
+        --timeout=${WORKER_READY_TIMEOUT}s
+    fi
+
+    if [ "$ENABLE_SSH_CHECK" = "true" ]; then
+      echo "Checking SSH connectivity across workers..."
+      WORKER_PODS=$(kubectl get pods -n "$NAMESPACE" -l "$JOB_LABELS" -o jsonpath='{.items[*].metadata.name}')
+      FIRST_POD=$(echo $WORKER_PODS | awk '{print $1}')
+      WORKER_IPS=$(kubectl get pods -n "$NAMESPACE" -l "$JOB_LABELS" -o jsonpath='{.items[*].status.podIP}')
+
+      kubectl exec -n "$NAMESPACE" "$FIRST_POD" -- bash -c "
+        for ip in $WORKER_IPS; do
+          echo '__ Testing SSH to' \$ip '...'
+          timeout=${SSH_CHECK_TIMEOUT}
+          interval=${SSH_CHECK_INTERVAL}
+          elapsed=0
+          until ssh -o StrictHostKeyChecking=no -o ConnectTimeout=5 \$ip 'echo SSH OK' >/dev/null 2>&1; do
+            echo 'SSH not ready yet for' \$ip', retrying...'
+            sleep \$interval
+            elapsed=\$((elapsed + interval))
+            if [ \$elapsed -ge \$timeout ]; then
+              echo 'FATAL: SSH check timed out for' \$ip
+              exit 1
+            fi
+          done
+          echo '__ SSH OK for' \$ip
+        done
+      "
+      echo "__ SSH connectivity verified across all worker pods."
+    fi
+
+  # === validate-single-test.sh ===
+  VALIDATE_RCCL_TEST_SCRIPT: |
+    #!/bin/bash
+    # Args: <test_name> <threshold>
+    set -euo pipefail
+    test_name=$1
+    threshold=$2
+    logfile="/shared/${test_name}.log"
+
+    if [ ! -f "$logfile" ]; then
+      echo "ERROR: Log file $logfile not found!"
+      exit 1
+    fi
+
+    value=$(awk -F': ' '/Avg bus bandwidth/ {print $2}' "$logfile" || echo 0)
+    echo "Validating $test_name: actual=$value, expected>$threshold"
+
+    if awk "BEGIN{exit !($value > $threshold)}"; then
+      echo "$test_name PASSED ✅"
+      echo "$test_name: PASS (actual=$value, expected>$threshold)" >> /shared/validation_summary.txt
+    else
+      echo "$test_name FAILED ❌"
+      echo "$test_name: FAIL (actual=$value, expected>$threshold)" >> /shared/validation_summary.txt
+      echo "ValidatorExitCode: 1" > /shared/validator_result.txt
+      exit 1
+    fi
+
+  # === GPU Validation Test Script ===
+  GPU_VALIDATION_TEST_SCRIPT: |
+    #!/bin/bash
+    # Step 2: GPU Validation Test Script
+    # Expected input variables (from parent scope):
+    #   - nodes
+    #   - SKIP_GPU_VALIDATION
+    #   - GPU_PER_WORKER
+    #   - TEST_RUNNER_IMAGE
+    #   - TEST_RUNNER_JOB_WAIT_TIME
+    #   - TEST_RUNNER_SUCCESS_LABEL
+    #   - TEST_RUNNER_FAILURE_LABEL
+    #   - CANDIDATE_LABEL
+    #   - FAILURE_LABEL
+    #   - WORKER_REPLICAS
+    #   - DEBUG_DELAY
+    # 
+    # Expected variables to be defined in parent scope:
+    #   - job_names (will be populated)
+    #   - job_to_node (will be populated)
+    #   - passed_nodes (will be populated)
+    #   - failed_nodes (will be populated)
+    
+    if [[ "${SKIP_GPU_VALIDATION,,}" == "true" ]]; then
+      echo "SKIP_GPU_VALIDATION is set to true. Skipping test runner jobs."
+      passed_nodes="$nodes"
+      failed_nodes=""
+    else
+      for node in $nodes; do
+        ts=$(date +%Y%m%d-%H%M%S)
+        prefix="cvf-test-runner"
+        max_len=63
+        job_name="${prefix}-${node}-${ts}"
+        if [ ${#job_name} -gt $max_len ]; then
+            # If hostname is too long, replace node with node-hash
+            echo "Truncating long job name.. $job_name"
+            node_hash=$(echo -n "$node" | sha1sum | cut -c1-6)
+            job_name="${prefix}-${node_hash}-${ts}"
+        fi
+        job_names="$job_names $job_name"
+        job_to_node[$job_name]=$node
+        echo "Submitting test runner job for node: $node (job: $job_name)"
+        sed "s|\$\$NODE|${node}|g; \
+          s/^  name: cluster-validation-test-runner-job/  name: ${job_name}/; \
+          s|\$\$GPU_PER_WORKER|${GPU_PER_WORKER}|g; \
+          s|\$\$TEST_RUNNER_IMAGE|${TEST_RUNNER_IMAGE}|g" \
+          /test-runner-configs/cluster-validation-test-runner-job-config.yaml | kubectl apply -f -
+        sleep 1
+      done
+      echo "[Test Runner Jobs: Submitted for all candidate nodes]"
+      echo -e "\n$(date): Waiting for test runner jobs to complete..."
+      
+      for job_name in $job_names; do
+        node=${job_to_node[$job_name]}
+        echo "Waiting for job $job_name (node: $node)..."
+        
+        start_time=$(date +%s)
+        timeout=${TEST_RUNNER_JOB_WAIT_TIME}
+        job_succeeded=false
+        
+        while true; do
+          elapsed=$(($(date +%s) - start_time))
+          if [ $elapsed -ge $timeout ]; then
+            echo "Job $job_name timed out after ${timeout}s ❌"
+            break
+          fi
+          
+          status=$(kubectl get job "$job_name" -o jsonpath='{.status.conditions[?(@.type=="Complete")].status}' 2>/dev/null || echo "")
+          if [[ "$status" == "True" ]]; then
+            echo "Job $job_name completed successfully ✅ (node: $node)"
+            job_succeeded=true
+            break
+          fi
+          
+          failed_status=$(kubectl get job "$job_name" -o jsonpath='{.status.conditions[?(@.type=="Failed")].status}' 2>/dev/null || echo "")
+          if [[ "$failed_status" == "True" ]]; then
+            echo "Job $job_name failed ❌ (node: $node)"
+            break
+          fi
+          sleep 5
+        done
+        
+        if [ "$job_succeeded" = true ]; then
+          passed_nodes="$passed_nodes $node"
+        else
+          failed_nodes="$failed_nodes $node"
+        fi
+      done
+    fi
+    
+    # Count and report results
+    passed_count=$(echo $passed_nodes | wc -w)
+    failed_count=$(echo $failed_nodes | wc -w)
+    echo "=================================================================="
+    echo "Test Runner Jobs Summary:"
+    echo "  Passed: $passed_count node(s)"
+    if [ $passed_count -gt 0 ]; then
+      echo "    Nodes: $passed_nodes"
+    fi
+    echo "  Failed: $failed_count node(s)"
+    if [ $failed_count -gt 0 ]; then
+      echo "    Nodes: $failed_nodes"
+    fi
+    echo "=================================================================="
+    
+    if [[ "${SKIP_GPU_VALIDATION,,}" == "true" ]]; then
+      echo "SKIP_GPU_VALIDATION is set to true. Skip labelling nodes."
+    else
+      if [ $passed_count -gt 0 ]; then
+        echo "Labeling passed test runner nodes..."
+        for n in $passed_nodes; do
+          echo "  - Node $n: Adding test runner success label"
+          kubectl label node "$n" "${TEST_RUNNER_SUCCESS_LABEL}" --overwrite
+        done
+      fi
+      if [ $failed_count -gt 0 ]; then
+        echo "Processing failed nodes..."
+        CANDIDATE_LABEL_KEY=${CANDIDATE_LABEL%%=*}
+        for n in $failed_nodes; do
+          echo "  - Node $n: Adding test runner failure label"
+          kubectl label node "$n" "${TEST_RUNNER_FAILURE_LABEL}" --overwrite
+          echo "  - Node $n: Removing candidate label and marking as failed"
+          kubectl label node "$n" "${CANDIDATE_LABEL_KEY}-" --overwrite
+          kubectl label node "$n" "${FAILURE_LABEL}" --overwrite
+        done
+      fi
+    fi
+    
+    # Check if minimum nodes passed
+    min_nodes=${WORKER_REPLICAS}
+    if [ $passed_count -lt $min_nodes ]; then
+      echo "❌ Insufficient nodes passed test runner jobs. Required: $min_nodes, Passed: $passed_count"
+      echo "Skipping MPI job submission."
+      sleep ${DEBUG_DELAY}
+      exit 1
+    fi
+    
+    echo "[Test Runner Jobs: $passed_count node(s) passed, proceeding with RCCL tests]"
+    echo "=================================================================="
