@@ -258,6 +258,9 @@ func (dp *devicePlugin) SetDevicePluginAsDesired(ds *appsv1.DaemonSet, devConfig
 			}
 		}
 	}
+	if devConfig.Spec.DevicePlugin.HostNetwork != nil {
+		ds.Spec.Template.Spec.HostNetwork = *devConfig.Spec.DevicePlugin.HostNetwork
+	}
 	if devConfig.Spec.DevicePlugin.DevicePluginImagePullPolicy != "" {
 		ds.Spec.Template.Spec.Containers[0].ImagePullPolicy = v1.PullPolicy(devConfig.Spec.DevicePlugin.DevicePluginImagePullPolicy)
 	}
