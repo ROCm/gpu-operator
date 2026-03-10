@@ -1,11 +1,13 @@
 set -e
-NODE_NAME="{{inputs.parameters.node_name}}"
-echo "Waiting for {{inputs.parameters.node_condition}} condition to be False on node $NODE_NAME for 2 consecutive minutes (timeout: 15 minutes)"
+NODE_NAME='{{inputs.parameters.node_name}}'
+NODE_CONDITION='{{inputs.parameters.node_condition}}'
+
+echo "Waiting for $NODE_CONDITION condition to be False on node $NODE_NAME for 2 consecutive minutes (timeout: 15 minutes)"
 STABLE_COUNT=0
 TOTAL_WAIT=0
 while [ "$TOTAL_WAIT" -lt 15 ]; do
-  STATUS=$(kubectl get node "$NODE_NAME" -o jsonpath="{.status.conditions[?(@.type=='{{inputs.parameters.node_condition}}')].status}")
-  echo "[$(date)] {{inputs.parameters.node_condition}} status: $STATUS"
+  STATUS=$(kubectl get node "$NODE_NAME" -o jsonpath="{.status.conditions[?(@.type==\"$NODE_CONDITION\")].status}")
+  echo "[$(date)] $NODE_CONDITION status: $STATUS"
   if [ "$STATUS" = "False" ]; then
     STABLE_COUNT=$((STABLE_COUNT + 1))
     echo "Condition is stable (False) for $STABLE_COUNT minute(s)"
@@ -20,5 +22,5 @@ while [ "$TOTAL_WAIT" -lt 15 ]; do
   sleep 60
   TOTAL_WAIT=$((TOTAL_WAIT + 1))
 done
-echo "{{inputs.parameters.node_condition}} did not remain False for 2 consecutive minutes within 15 minutes. Exiting with failure."
+echo "$NODE_CONDITION did not remain False for 2 consecutive minutes within 15 minutes. Exiting with failure."
 exit 1

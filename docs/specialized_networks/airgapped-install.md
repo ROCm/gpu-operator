@@ -45,6 +45,9 @@ quay.io/jetstack/cert-manager-controller:v1.15.1
 quay.io/jetstack/cert-manager-webhook:v1.15.1
 quay.io/jetstack/cert-manager-cainjector:v1.15.1
 quay.io/jetstack/cert-manager-acmesolver:v1.15.1
+
+# Argo workflow controller image (for Auto Node Remediation)
+quay.io/argoproj/workflow-controller:v3.6.5
 ```
 
 ### Required RPM/DEB Packages

@@ -247,6 +247,11 @@ func (n *remediationMgr) HandleRemediation(ctx context.Context, devConfig *amdv1
 
 // HandleDelete handles the delete operations during remediation process
 func (n *remediationMgr) HandleDelete(ctx context.Context, deviceConfig *amdv1alpha1.DeviceConfig, nodeList *v1.NodeList) (res ctrl.Result, err error) {
+	res = ctrl.Result{Requeue: true, RequeueAfter: time.Second * 20}
+	remediationDisabled, err := n.helper.isRemediationDisabled(ctx, deviceConfig)
+	if err != nil || remediationDisabled {
+		return res, err
+	}
 
 	wfList, err := n.helper.getWorkflowList(ctx, deviceConfig.Namespace)
 	if err != nil {
@@ -337,7 +342,7 @@ type remediationMgrHelper struct {
 	k8sInterface         kubernetes.Interface
 	recoveryTracker      *sync.Map
 	serviceAccountName   string
-	maxParallelWorkflows int
+	maxParallelWorkflows int32
 	tolerationsCache     *sync.Map
 }
 
@@ -968,7 +973,7 @@ func (h *remediationMgrHelper) updateMaxParallelWorkflows(ctx context.Context, d
 			}
 			// Update parallelism in Argo workflow controller configmap.
 			// https://github.com/argoproj/argo-workflows/blob/main/config/config.go#L69
-			acm.Data["namespaceParallelism"] = strconv.Itoa(devConfig.Spec.RemediationWorkflow.MaxParallelWorkflows)
+			acm.Data["namespaceParallelism"] = strconv.Itoa(int(devConfig.Spec.RemediationWorkflow.MaxParallelWorkflows))
 			return h.client.Update(ctx, acm)
 		})
 		if err != nil {

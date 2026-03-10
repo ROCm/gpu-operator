@@ -1,6 +1,6 @@
 set -e
-NODE_NAME="{{inputs.parameters.node_name}}"
-NODE_LABELS="{{inputs.parameters.node_labels}}"
+NODE_NAME='{{inputs.parameters.node_name}}'
+NODE_LABELS='{{inputs.parameters.node_labels}}'
 
 # Check if jq is installed
 if ! command -v jq &> /dev/null; then
