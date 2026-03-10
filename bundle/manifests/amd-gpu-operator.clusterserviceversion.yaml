@@ -210,6 +210,12 @@ spec:
         path: devicePlugin.enableNodeLabeller
         x-descriptors:
         - urn:alm:descriptor:com.amd.deviceconfigs:enableNodeLabeller
+      - description: HostNetwork specifies whether to use host network namespace for
+          the device plugin DaemonSet pods.
+        displayName: HostNetwork
+        path: devicePlugin.hostNetwork
+        x-descriptors:
+        - urn:alm:descriptor:com.amd.deviceconfigs:hostNetwork
       - description: node labeller image registry secret used to pull/push images
         displayName: ImageRegistrySecret
         path: devicePlugin.imageRegistrySecret
@@ -572,6 +578,12 @@ spec:
         path: metricsExporter.enable
         x-descriptors:
         - urn:alm:descriptor:com.amd.deviceconfigs:enable
+      - description: HostNetwork specifies whether to use host network namespace for
+          the metrics exporter DaemonSet pods.
+        displayName: HostNetwork
+        path: metricsExporter.hostNetwork
+        x-descriptors:
+        - urn:alm:descriptor:com.amd.deviceconfigs:hostNetwork
       - description: metrics exporter image
         displayName: Image
         path: metricsExporter.image

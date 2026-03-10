@@ -181,7 +181,9 @@ Kubernetes: `>= 1.29.0-0`
 | deviceConfig.spec.devicePlugin.devicePluginTolerations | list | `[]` | device plugin tolerations |
 | deviceConfig.spec.devicePlugin.enableDevicePlugin | bool | `true` | enable/disable the device plugin. Cannot be enabled at the same time as draDriver. |
 | deviceConfig.spec.devicePlugin.enableNodeLabeller | bool | `true` | enable / disable node labeller |
+| deviceConfig.spec.devicePlugin.hostNetwork | bool | `false` | specify whether to use host network for device plugin daemonset |
 | deviceConfig.spec.devicePlugin.imageRegistrySecret | object | `{}` | image pull secret for device plugin and node labeller, e.g. {"name": "mySecretName"} |
+| deviceConfig.spec.devicePlugin.kubeletSocketPath | string | `"/var/lib/kubelet/device-plugins"` | specify the kubelet device plugins directory path on the host, default is "/var/lib/kubelet/device-plugins", make sure this path is consistent with kubelet configuration on the cluster for device plugin to work properly |
 | deviceConfig.spec.devicePlugin.nodeLabellerArguments | list | `[]` | pass supported labels while starting node labeller daemonset, default ["vram", "cu-count", "simd-count", "device-id", "family", "product-name", "driver-version"], also support ["compute-memory-partition", "compute-partitioning-supported", "memory-partitioning-supported"] |
 | deviceConfig.spec.devicePlugin.nodeLabellerImage | string | `"rocm/k8s-device-plugin:labeller-latest"` | node labeller image |
 | deviceConfig.spec.devicePlugin.nodeLabellerImagePullPolicy | string | `"IfNotPresent"` | node labeller image pull policy |
@@ -219,6 +221,7 @@ Kubernetes: `>= 1.29.0-0`
 | deviceConfig.spec.driver.version | string | `"30.20.1"` | specify an out-of-tree driver version to install |
 | deviceConfig.spec.metricsExporter.config | object | `{}` | name of the metrics exporter config map, e.g. {"name": "metricConfigMapName"} |
 | deviceConfig.spec.metricsExporter.enable | bool | `true` | enable / disable device metrics exporter |
+| deviceConfig.spec.metricsExporter.hostNetwork | bool | `false` | specify whether to use host network for metrics exporter daemonset |
 | deviceConfig.spec.metricsExporter.image | string | `"docker.io/rocm/device-metrics-exporter:latest"` | metrics exporter image |
 | deviceConfig.spec.metricsExporter.imagePullPolicy | string | `"IfNotPresent"` | metrics exporter image pull policy |
 | deviceConfig.spec.metricsExporter.imageRegistrySecret | object | `{}` | metrics exporter image pull secret, e.g. {"name": "pullSecretName"} |

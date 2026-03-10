@@ -183,6 +183,10 @@ spec:
     {{- with .kubeletSocketPath }}
     kubeletSocketPath: {{ . }}
     {{- end }}
+
+    {{- if (hasKey . "hostNetwork") }}
+    hostNetwork: {{ .hostNetwork }}
+    {{- end }}
   {{- end }}
 
   {{- with .Values.deviceConfig.spec.metricsExporter }}
@@ -253,6 +257,10 @@ spec:
     {{- with .serviceAnnotations }}
     serviceAnnotations:
       {{- toYaml . | nindent 6 }}
+    {{- end }}
+
+    {{- if (hasKey . "hostNetwork") }}
+    hostNetwork: {{ .hostNetwork }}
     {{- end }}
 
     {{- with .rbacConfig }}

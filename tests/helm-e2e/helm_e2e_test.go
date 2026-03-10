@@ -516,6 +516,7 @@ deviceConfig:
       imageRegistrySecret:
         name: mySecretName
       kubeletSocketPath: /var/lib/kubelet/device-plugins-custom
+      hostNetwork: true
       upgradePolicy:
         # -- the type of daemonset upgrade, RollingUpdate or OnDelete
         upgradeStrategy: OnDelete
@@ -564,6 +565,7 @@ deviceConfig:
 						Name: "mySecretName",
 					},
 					KubeletSocketPath: "/var/lib/kubelet/device-plugins-custom",
+					HostNetwork:       &boolTrue,
 					UpgradePolicy: &v1alpha1.DaemonSetUpgradeSpec{
 						UpgradeStrategy: "OnDelete",
 						MaxUnavailable:  5,
@@ -797,6 +799,7 @@ deviceConfig:
         prometheus.io/port: "5001"
       serviceAnnotations:
         service.beta.kubernetes.io/aws-load-balancer-type: "nlb"
+      hostNetwork: true
       tolerations:
         - key: "example-key"
           operator: "Equal"
@@ -880,6 +883,7 @@ deviceConfig:
 					ServiceAnnotations: map[string]string{
 						"service.beta.kubernetes.io/aws-load-balancer-type": "nlb",
 					},
+					HostNetwork: &boolTrue,
 					Tolerations: []corev1.Toleration{
 						{
 							Key:      "example-key",
