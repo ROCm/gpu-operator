@@ -19,10 +19,12 @@ package validator
 import (
 	"context"
 	"fmt"
-	"time"
+	"strings"
 
 	amdv1alpha1 "github.com/ROCm/gpu-operator/api/v1alpha1"
 	utils "github.com/ROCm/gpu-operator/internal"
+	v1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/util/validation"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
@@ -176,6 +178,32 @@ func ValidateDevicePluginSpec(ctx context.Context, client client.Client, devConf
 	return nil
 }
 
+func validateTaintEffect(effect v1.TaintEffect) error {
+	if effect != v1.TaintEffectNoSchedule && effect != v1.TaintEffectPreferNoSchedule && effect != v1.TaintEffectNoExecute {
+		return fmt.Errorf("unsupported taint effect %v", effect)
+	}
+
+	return nil
+}
+
+func checkTaintValidation(taint v1.Taint) error {
+	if errs := validation.IsQualifiedName(taint.Key); len(errs) > 0 {
+		return fmt.Errorf("invalid taint key: %s", strings.Join(errs, "; "))
+	}
+	if taint.Value != "" {
+		if errs := validation.IsValidLabelValue(taint.Value); len(errs) > 0 {
+			return fmt.Errorf("invalid taint value: %s", strings.Join(errs, "; "))
+		}
+	}
+	if taint.Effect != "" {
+		if err := validateTaintEffect(taint.Effect); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
 func ValidateRemediationWorkflowSpec(ctx context.Context, client client.Client, devConfig *amdv1alpha1.DeviceConfig) error {
 	rSpec := devConfig.Spec.RemediationWorkflow
 
@@ -189,9 +217,19 @@ func ValidateRemediationWorkflowSpec(ctx context.Context, client client.Client, 
 		}
 	}
 
-	if rSpec.TtlForFailedWorkflows != "" {
-		if _, err := time.ParseDuration(rSpec.TtlForFailedWorkflows); err != nil {
-			return fmt.Errorf("parsing ttlForFailedWorkflows: %v", err)
+	for key, value := range rSpec.NodeRemediationLabels {
+		if len(validation.IsQualifiedName(key)) > 0 {
+			return fmt.Errorf("invalid label key: %s", key)
+		}
+		if len(validation.IsValidLabelValue(value)) > 0 {
+			return fmt.Errorf("invalid label value: %s", value)
+		}
+	}
+
+	for _, taint := range rSpec.NodeRemediationTaints {
+		err := checkTaintValidation(taint)
+		if err != nil {
+			return err
 		}
 	}
 

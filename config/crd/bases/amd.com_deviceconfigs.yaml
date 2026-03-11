@@ -1525,9 +1525,12 @@ spec:
                       enable if operator should automatically handle remediation of node incase of gpu issues
                     type: boolean
                   maxParallelWorkflows:
+                    default: 0
                     description: MaxParallelWorkflows specifies limit on how many
                       remediation workflows can be executed in parallel. 0 is the
                       default value and it means no limit.
+                    format: int32
+                    minimum: 0
                     type: integer
                   nodeDrainPolicy:
                     description: Node drain policy during remediation workflow execution

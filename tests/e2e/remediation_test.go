@@ -285,10 +285,11 @@ func (s *E2ESuite) TestAutoNodeRemediationWithPhysicalAction(c *C) {
 }
 
 func (s *E2ESuite) TestAutoNodeRemediationAbortWorkflow(c *C) {
-	logger.Infof("Starting Auto Node Remediation abort workflow test")
 	if s.simEnable {
 		skipTest(c, "Skipping for non amd gpu testbed")
 	}
+
+	logger.Infof("Starting Auto Node Remediation abort workflow test")
 
 	nodes, err := s.clientSet.CoreV1().Nodes().List(context.Background(), metav1.ListOptions{
 		LabelSelector: "feature.node.kubernetes.io/amd-gpu=true",
@@ -311,6 +312,7 @@ func (s *E2ESuite) TestAutoNodeRemediationAbortWorkflow(c *C) {
 	// Wait for cluster to be up
 	logger.Infof("Waiting for device config to be applied")
 	time.Sleep(5 * time.Second)
+	s.clearRemediationWorkflowStatusMetaData(devCfg.Namespace, c)
 
 	// Setup NPD
 	logger.Infof("Setting up Node Problem Detector (NPD)")
@@ -326,6 +328,10 @@ func (s *E2ESuite) TestAutoNodeRemediationAbortWorkflow(c *C) {
 	// Trigger error condition by modifying NPD config
 	logger.Infof("Edit Node Problem Detector (NPD) thresholds to simulate error condition")
 	s.updateConfigForNPD(c, npdInbandRASConfigPath, npdInband2RASErrorConfigPath)
+	defer func() {
+		s.untaintNode(nodeName)
+		s.clearRemediationWorkflowStatusMetaData(devCfg.Namespace, c)
+	}()
 
 	s.verifyNodeCondition(c, conditionInternalError, corev1.ConditionTrue)
 
@@ -351,7 +357,6 @@ func (s *E2ESuite) TestAutoNodeRemediationAbortWorkflow(c *C) {
 	assert.Eventually(c, func() bool {
 		return s.checkWorkflowExistence(c, nodeName, false)
 	}, 1*time.Minute, 10*time.Second, "Remediation workflow was not aborted and deleted")
-	s.untaintNode(nodeName)
 }
 
 func (s *E2ESuite) TestAutoNodeRemediationRecoveryPolicy(c *C) {
@@ -443,4 +448,113 @@ func (s *E2ESuite) TestAutoNodeRemediationRecoveryPolicy(c *C) {
 		return s.checkWorkflowExistence(c, nodeName, false)
 	}, 1*time.Minute, 10*time.Second, "Remediation workflow was not aborted and deleted")
 	s.untaintNode(nodeName)
+}
+
+func (s *E2ESuite) verifyDeviceConfigErrorStatus(devCfg *v1alpha1.DeviceConfig, c *C, errStr string) {
+	assert.Eventually(c, func() bool {
+		devCfg, err := s.dClient.DeviceConfigs(s.ns).Get(devCfg.Name, metav1.GetOptions{})
+		if err != nil {
+			logger.Errorf("failed to get deviceConfig %v", err)
+			return false
+		}
+		readyCondition := false
+		errorCondition := false
+		for _, condition := range devCfg.Status.Conditions {
+			if condition.Type == "Ready" && condition.Status == "False" {
+				readyCondition = true
+			}
+			if condition.Type == "Error" && condition.Status == "True" && strings.Contains(condition.Message, errStr) {
+				errorCondition = true
+			}
+		}
+		return readyCondition && errorCondition
+	}, 2*time.Minute, 5*time.Second)
+}
+
+func (s *E2ESuite) verifyDeviceConfigReadyStatus(devCfg *v1alpha1.DeviceConfig, c *C) {
+	assert.Eventually(c, func() bool {
+		devCfg, err := s.dClient.DeviceConfigs(s.ns).Get(devCfg.Name, metav1.GetOptions{})
+		if err != nil {
+			logger.Errorf("failed to get deviceConfig %v", err)
+			return false
+		}
+		readyCondition := false
+		for _, condition := range devCfg.Status.Conditions {
+			if condition.Type == "Ready" && condition.Status == "True" {
+				readyCondition = true
+			}
+		}
+		return readyCondition
+	}, 2*time.Minute, 5*time.Second)
+}
+
+func (s *E2ESuite) TestRemediationSpecValidation(c *C) {
+	logger.Infof("Starting RemediationSpec validation test")
+	_, err := s.dClient.DeviceConfigs(s.ns).Get(s.cfgName, metav1.GetOptions{})
+	assert.Errorf(c, err, fmt.Sprintf("expected no config to be present. but config %v exists", s.cfgName))
+
+	devCfg := s.getDeviceConfig(c)
+	// set remediation workflow spec to invalid values
+	trueValue := true
+
+	devCfg.Spec.RemediationWorkflow.Enable = &trueValue
+	devCfg.Spec.RemediationWorkflow.Config = &corev1.LocalObjectReference{
+		Name: "invalid-config",
+	}
+
+	logger.Infof("creating DeviceConfig with remediation workflow spec with invalid config map")
+	s.createDeviceConfig(devCfg, c)
+	s.verifyDeviceConfigErrorStatus(devCfg, c, "validating remediation workflow config map")
+
+	logger.Infof("patching DeviceConfig with remediation workflow spec with invalid nodeRemediationTaints")
+	patch := map[string]interface{}{
+		"spec": map[string]interface{}{
+			"remediationWorkflow": map[string]interface{}{
+				"enable":                true,
+				"config":                nil,
+				"ttlForFailedWorkflows": "24h",
+				"nodeRemediationTaints": []interface{}{
+					map[string]interface{}{
+						"key":    "amd-gpu-unhealthy",
+						"value":  "test",
+						"effect": "Invalid taint effect",
+					},
+				},
+			},
+		},
+	}
+	_, err = s.dClient.DeviceConfigs(s.ns).PatchRemediationWorkflowSpec(devCfg, patch)
+	assert.NoError(c, err, "failed to patch DeviceConfig with remediation workflow spec with invalid nodeRemediationTaints")
+	s.verifyDeviceConfigErrorStatus(devCfg, c, "unsupported taint effect")
+
+	logger.Infof("patching DeviceConfig with remediation workflow spec with invalid nodeRemediationLabels")
+	patch = map[string]interface{}{
+		"spec": map[string]interface{}{
+			"remediationWorkflow": map[string]interface{}{
+				"enable":                true,
+				"nodeRemediationTaints": nil,
+				"nodeRemediationLabels": map[string]string{
+					"invalid key": "value",
+				},
+			},
+		},
+	}
+	_, err = s.dClient.DeviceConfigs(s.ns).PatchRemediationWorkflowSpec(devCfg, patch)
+	assert.NoError(c, err, "failed to patch DeviceConfig with remediation workflow spec with invalid nodeRemediationLabels")
+	s.verifyDeviceConfigErrorStatus(devCfg, c, "invalid label key")
+
+	logger.Infof("patching DeviceConfig with remediation workflow spec with accepted values")
+	patch = map[string]interface{}{
+		"spec": map[string]interface{}{
+			"remediationWorkflow": map[string]interface{}{
+				"enable":                true,
+				"nodeRemediationLabels": nil,
+			},
+		},
+	}
+	_, err = s.dClient.DeviceConfigs(s.ns).PatchRemediationWorkflowSpec(devCfg, patch)
+	assert.NoError(c, err, "failed to patch DeviceConfig with remediation workflow spec with accepted values")
+	s.verifyDeviceConfigReadyStatus(devCfg, c)
+
+	s.deleteDeviceConfig(devCfg, c)
 }

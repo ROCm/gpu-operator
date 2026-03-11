@@ -1,18 +1,18 @@
 set -e
-NODE_NAME="{{inputs.parameters.node_name}}"
+NODE_NAME='{{inputs.parameters.node_name}}'
 JOB_NAME="{{workflow.name}}-test-run"
-CM_NAME="{{workflow.name}}-test-configmap"
-FRAMEWORK="{{inputs.parameters.framework}}"
-RECIPE="{{inputs.parameters.recipe}}"
-ITERATIONS="{{inputs.parameters.iterations}}"
-STOPONFAILURE="{{inputs.parameters.stopOnFailure}}"
-TIMEOUTSECONDS="{{inputs.parameters.timeoutSeconds}}"
-TESTRUNNERIMAGE="{{inputs.parameters.testRunnerImage}}"
-TESTRUNNERSA="{{inputs.parameters.testRunnerServiceAccount}}"
-NAMESPACE="{{inputs.parameters.namespace}}"
-INITCONTAINERIMAGE="{{inputs.parameters.initContainerImage}}"
-WFNAME="{{workflow.name}}"
-WFUID="{{workflow.uid}}"
+CM_NAME='{{workflow.name}}-test-configmap'
+FRAMEWORK='{{inputs.parameters.framework}}'
+RECIPE='{{inputs.parameters.recipe}}'
+ITERATIONS='{{inputs.parameters.iterations}}'
+STOPONFAILURE='{{inputs.parameters.stopOnFailure}}'
+TIMEOUTSECONDS='{{inputs.parameters.timeoutSeconds}}'
+TESTRUNNERIMAGE='{{inputs.parameters.testRunnerImage}}'
+TESTRUNNERSA='{{inputs.parameters.testRunnerServiceAccount}}'
+NAMESPACE='{{inputs.parameters.namespace}}'
+INITCONTAINERIMAGE='{{inputs.parameters.initContainerImage}}'
+WFNAME='{{workflow.name}}'
+WFUID='{{workflow.uid}}'
 
 if [ -z "$FRAMEWORK" ] || [ -z "$RECIPE" ] || [ -z "$ITERATIONS" ] || [ -z "$STOPONFAILURE" ] || [ -z "$TIMEOUTSECONDS" ]; then
   echo "Validation profile incomplete, skipping configmap and job creation. Please enter framework, recipe, iterations, stopOnFailure, timeoutSeconds as per testrunner requirements"

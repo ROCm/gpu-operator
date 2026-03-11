@@ -113,7 +113,9 @@ type RemediationWorkflowSpec struct {
 	// MaxParallelWorkflows specifies limit on how many remediation workflows can be executed in parallel. 0 is the default value and it means no limit.
 	//+operator-sdk:csv:customresourcedefinitions:type=spec,displayName="MaxParallelWorkflows",xDescriptors={"urn:alm:descriptor:com.amd.deviceconfigs:maxParallelWorkflows"}
 	// +optional
-	MaxParallelWorkflows int `json:"maxParallelWorkflows"`
+	// +kubebuilder:default:=0
+	// +kubebuilder:validation:Minimum:=0
+	MaxParallelWorkflows int32 `json:"maxParallelWorkflows"`
 
 	// Node Remediation taints are custom taints that we can apply on the node to specify that the node is undergoing remediation or needs attention by the administrator.
 	// If user does not specify any taints, the operator will apply a taint with key "amd-gpu-unhealthy" and effect "NoSchedule" to the node under remediation.

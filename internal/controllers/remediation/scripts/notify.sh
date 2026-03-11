@@ -1,7 +1,7 @@
 set -e
-NODE_NAME="{{inputs.parameters.nodeName}}"
-NOTIFY_MESSAGE="{{inputs.parameters.notifyMessage}}"
-EVENT_NAME="{{inputs.parameters.eventName}}"
+NODE_NAME='{{inputs.parameters.nodeName}}'
+NOTIFY_MESSAGE='{{inputs.parameters.notifyMessage}}'
+EVENT_NAME='{{inputs.parameters.eventName}}'
 
 kubectl create -f - <<EOF
 apiVersion: v1

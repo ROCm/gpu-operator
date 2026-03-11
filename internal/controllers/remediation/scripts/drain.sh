@@ -1,7 +1,6 @@
 set -e
-echo "Fetching node name..."
-NODE_NAME="{{inputs.parameters.node_name}}"
-DRAIN_POLICY="{{inputs.parameters.drain_policy}}"
+NODE_NAME='{{inputs.parameters.node_name}}'
+DRAIN_POLICY='{{inputs.parameters.drain_policy}}'
 
 # Check if jq is installed
 if ! command -v jq &> /dev/null; then
