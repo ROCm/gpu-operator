@@ -41,10 +41,20 @@ import (
 
 // DeviceConfigSpec describes how the AMD GPU operator should enable AMD GPU device for customer's use.
 type DeviceConfigSpec struct {
-	// driver
+	// driver configures a single driver installation on the worker nodes.
+	// This section is mutually exclusive with spec.drivers, only one of the two may be specified.
+	// It is recommended to use spec.drivers instead, which supports installing multiple driver types
 	//+operator-sdk:csv:customresourcedefinitions:type=spec,displayName="Driver",xDescriptors={"urn:alm:descriptor:com.amd.deviceconfigs:driver"}
 	// +optional
-	Driver DriverSpec `json:"driver,omitempty"`
+	Driver *DriverSpec `json:"driver,omitempty"`
+
+	// drivers configures one or more driver installations on the worker nodes.
+	// Use this to install multiple driver types to define a shared upgrade policy that applies across all listed drivers.
+	// This section is mutually exclusive with spec.driver, only one of the two may be specified.
+	// It is recommended to use spec.drivers over spec.driver for new configurations.
+	//+operator-sdk:csv:customresourcedefinitions:type=spec,displayName="Drivers",xDescriptors={"urn:alm:descriptor:com.amd.deviceconfigs:drivers"}
+	// +optional
+	Drivers *DriversSpec `json:"drivers,omitempty"`
 
 	// metrics exporter
 	//+operator-sdk:csv:customresourcedefinitions:type=spec,displayName="MetricsExporter",xDescriptors={"urn:alm:descriptor:com.amd.deviceconfigs:metricsExporter"}
@@ -157,6 +167,23 @@ type VFIOConfigSpec struct {
 	DeviceIDs []string `json:"deviceIDs,omitempty"`
 }
 
+type DriversSpec struct {
+	// list of drivers to install on the worker nodes.
+	Items []DriverSpec `json:"items,omitempty"`
+
+	// policy to upgrade the drivers
+	// when using spec.drivers, this policy is used to upgrade the drivers for all entries in items[]
+	// and overrides the upgrade policy specified in spec.drivers.items[].upgradePolicy
+	//+operator-sdk:csv:customresourcedefinitions:type=spec,displayName="UpgradePolicy",xDescriptors={"urn:alm:descriptor:com.amd.deviceconfigs:upgradePolicy"}
+	// +optional
+	UpgradePolicy *DriverUpgradePolicySpec `json:"upgradePolicy,omitempty"`
+
+	// tolerations for kmm module object
+	//+operator-sdk:csv:customresourcedefinitions:type=spec,displayName="Tolerations",xDescriptors={"urn:alm:descriptor:com.amd.deviceconfigs:tolerations"}
+	// +optional
+	Tolerations []v1.Toleration `json:"tolerations,omitempty"`
+}
+
 type DriverSpec struct {
 	// enable driver install. default value is true.
 	// disable is for skipping driver install/uninstall for dryrun or using in-tree amdgpu kernel module
@@ -241,6 +268,7 @@ type DriverSpec struct {
 	ImageBuild ImageBuildSpec `json:"imageBuild,omitempty"`
 
 	// policy to upgrade the drivers
+	// this is ignored if using spec.drivers.items[] format to define a driver list
 	//+operator-sdk:csv:customresourcedefinitions:type=spec,displayName="UpgradePolicy",xDescriptors={"urn:alm:descriptor:com.amd.deviceconfigs:upgradePolicy"}
 	// +optional
 	UpgradePolicy *DriverUpgradePolicySpec `json:"upgradePolicy,omitempty"`
@@ -960,6 +988,7 @@ type ModuleStatus struct {
 	Status             UpgradeState `json:"status,omitempty"`
 	UpgradeStartTime   string       `json:"upgradeStartTime,omitempty"`
 	BootId             string       `json:"bootId,omitempty"`
+	DriverType         string       `json:"driverType,omitempty"`
 }
 
 // DeviceConfigStatus defines the observed state of Module.
@@ -977,6 +1006,9 @@ type DeviceConfigStatus struct {
 	// NodeModuleStatus contains per node status of driver module installation
 	//+operator-sdk:csv:customresourcedefinitions:type=status,displayName="NodeModuleStatus",xDescriptors="urn:alm:descriptor:com.amd.deviceconfigs:nodeModuleStatus"
 	NodeModuleStatus map[string]ModuleStatus `json:"nodeModuleStatus,omitempty"`
+	// NodeModulesStatus contains per node status of driver module installation for multiple modules
+	//+operator-sdk:csv:customresourcedefinitions:type=status,displayName="NodeModulesStatus",xDescriptors="urn:alm:descriptor:com.amd.deviceconfigs:nodeModulesStatus"
+	NodeModulesStatus map[string][]ModuleStatus `json:"nodeModulesStatus,omitempty"`
 	// Conditions list the current status of the DeviceConfig object
 	Conditions []metav1.Condition `json:"conditions,omitempty"`
 	// ObservedGeneration is the latest spec generation successfully processed by the controller
