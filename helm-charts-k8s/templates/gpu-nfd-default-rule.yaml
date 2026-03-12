@@ -149,6 +149,11 @@ spec:
           - feature: pci.device
             matchExpressions:
               vendor: {op: In, value: ["1002"]}
+              device: {op: In, value: ["744b"]} # W7900D
+      - matchFeatures:
+          - feature: pci.device
+            matchExpressions:
+              vendor: {op: In, value: ["1002"]}
               device: {op: In, value: ["744a"]} # W7900 Dual Slot
       - matchFeatures:
           - feature: pci.device
@@ -184,7 +189,7 @@ spec:
           - feature: pci.device
             matchExpressions:
               vendor: {op: In, value: ["1002"]}
-              device: {op: In, value: ["7551"]} # AI PRO R9700 / R9700S / R9600
+              device: {op: In, value: ["7551"]} # AI PRO R9700 / R9700S / R9600D
       # AMD Radeon
       - matchFeatures:
           - feature: pci.device
