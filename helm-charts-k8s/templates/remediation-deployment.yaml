@@ -296,11 +296,11 @@ spec:
       labels:
         app: amd-gpu-operator-workflow-controller
     spec:
-      {{- with .Values.controllerManager.affinity }}
+      {{- with .Values.remediation.controller.affinity }}
       affinity:
         {{- toYaml . | nindent 8 }}
       {{- end }}
-      nodeSelector: {{- toYaml .Values.controllerManager.nodeSelector | nindent 8 }}
+      nodeSelector: {{- toYaml .Values.remediation.controller.nodeSelector | nindent 8 }}
       containers:
       - name: workflow-controller
         command: [ "workflow-controller" ]

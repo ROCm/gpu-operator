@@ -2,6 +2,20 @@ node-feature-discovery:
   enabled: true  # Set to false to disable node-feature-discovery
 kmm:
   enabled: true  # Set to false to disable kmm
+remediation:
+  enabled: true
+  installCRDs: true
+  controller:
+    image: "quay.io/argoproj/workflow-controller:v3.6.5"
+    nodeSelector: {}
+    affinity:
+      nodeAffinity:
+        preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 1
+            preference:
+              matchExpressions:
+                - key: node-role.kubernetes.io/control-plane
+                  operator: Exists
 installdefaultNFDRule: true # default NFD rule will detect amd gpu based on pci vendor ID
 controllerManager:
   manager:

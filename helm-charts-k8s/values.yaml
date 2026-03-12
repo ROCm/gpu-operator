@@ -28,6 +28,17 @@ remediation:
   # -- Set the controller image for remediation workflow controller deployment
   controller:
     image: "quay.io/argoproj/workflow-controller:v3.6.5"
+    # -- Node selector for remediation workflow controller deployment
+    nodeSelector: {}
+    # -- Deployment affinity configs for remediation workflow controller
+    affinity:
+      nodeAffinity:
+        preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 1
+            preference:
+              matchExpressions:
+                - key: node-role.kubernetes.io/control-plane
+                  operator: Exists
 # -- Default NFD rule will detect amd gpu based on pci vendor ID
 installdefaultNFDRule: true
 # -- CRD will be patched as pre-upgrade/pre-rollback hook when doing helm upgrade/rollback to current helm chart
