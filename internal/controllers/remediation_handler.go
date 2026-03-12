@@ -128,13 +128,13 @@ type remediationMgrAPI interface {
 	HandleDelete(ctx context.Context, deviceConfig *amdv1alpha1.DeviceConfig, nodes *v1.NodeList) (ctrl.Result, error)
 }
 
-func newRemediationMgrHandler(client client.Client, k8sConfig *rest.Config) remediationMgrAPI {
+func newRemediationMgrHandler(client client.Client, k8sConfig *rest.Config, isOpenShift bool) remediationMgrAPI {
 	k8sIntf, err := kubernetes.NewForConfig(k8sConfig)
 	if err != nil {
 		return nil
 	}
 	return &remediationMgr{
-		helper: newRemediationMgrHelperHandler(client, k8sIntf),
+		helper: newRemediationMgrHelperHandler(client, k8sIntf, isOpenShift),
 	}
 }
 
@@ -344,15 +344,17 @@ type remediationMgrHelper struct {
 	serviceAccountName   string
 	maxParallelWorkflows int32
 	tolerationsCache     *sync.Map
+	isOpenShift          bool
 }
 
 // Initialize remediation manager helper interface
-func newRemediationMgrHelperHandler(client client.Client, k8sInterface kubernetes.Interface) remediationMgrHelperAPI {
+func newRemediationMgrHelperHandler(client client.Client, k8sInterface kubernetes.Interface, isOpenShift bool) remediationMgrHelperAPI {
 	return &remediationMgrHelper{
 		client:           client,
 		k8sInterface:     k8sInterface,
 		recoveryTracker:  new(sync.Map),
 		tolerationsCache: new(sync.Map),
+		isOpenShift:      isOpenShift,
 	}
 }
 
@@ -378,23 +380,27 @@ func (h *remediationMgrHelper) isRemediationDisabled(ctx context.Context, devCon
 		return true, nil
 	}
 
-	podList := &v1.PodList{}
-	if err := h.client.List(ctx, podList, client.InNamespace(devConfig.Namespace)); err != nil {
-		logger.Error(err, "failed to list pods")
-		return false, err
-	}
-
-	found := false
-	for _, pod := range podList.Items {
-		if strings.HasPrefix(pod.Name, "amd-gpu-operator-workflow-controller") {
-			found = true
-			break
+	// Skip workflow controller pod check for OpenShift clusters
+	// in OpenShift the argo workflow pods need to be allowed in different namespaces and checking for the controller pod in the operator namespace may not be sufficient to determine if workflow controller is present or not
+	if !h.isOpenShift {
+		podList := &v1.PodList{}
+		if err := h.client.List(ctx, podList, client.InNamespace(devConfig.Namespace)); err != nil {
+			logger.Error(err, "failed to list pods")
+			return false, err
 		}
-	}
 
-	if !found {
-		logger.Info("Workflow controller pod not found. Please check if it was disabled during bringup, skipping remediation")
-		return true, nil
+		found := false
+		for _, pod := range podList.Items {
+			if strings.HasPrefix(pod.Name, "amd-gpu-operator-workflow-controller") {
+				found = true
+				break
+			}
+		}
+
+		if !found {
+			logger.Info("Workflow controller pod not found. Please check if it was disabled during bringup, skipping remediation")
+			return true, nil
+		}
 	}
 	return false, nil
 }
