@@ -104,7 +104,7 @@ func NewDeviceConfigReconciler(
 	workerMgr workermgr.WorkerMgrAPI,
 	isOpenShift bool) *DeviceConfigReconciler {
 	upgradeMgrHandler := newUpgradeMgrHandler(client, k8sConfig, isOpenShift)
-	remediationMgrHandler := newRemediationMgrHandler(client, k8sConfig)
+	remediationMgrHandler := newRemediationMgrHandler(client, k8sConfig, isOpenShift)
 	helper := newDeviceConfigReconcilerHelper(client, kmmHandler, dpHandler, nlHandler, upgradeMgrHandler, remediationMgrHandler, metricsHandler, testrunnerHandler, configmanagerHandler, workerMgr)
 	podEventHandler := watchers.NewPodEventHandler(client, workerMgr)
 	nodeEventHandler := watchers.NewNodeEventHandler(client, workerMgr)
