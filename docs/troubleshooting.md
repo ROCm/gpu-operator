@@ -18,7 +18,7 @@ To collect logs from the AMD GPU Operator:
 kubectl logs -n kube-amd-gpu <pod-name>
 ```
 
-## Potential Issues with default ``DeviceConfig``
+## Potential Issues with ``DeviceConfig``
 
 * Please refer to {ref}`typical-deployment-scenarios` for more information and get corresponding ```helm install``` commands and configs that fits your specific use case.
 
@@ -30,6 +30,31 @@ kubectl logs -n kube-amd-gpu <pod-name>
 
 ```bash
 kubectl edit deviceconfigs -n kube-amd-gpu default
+```
+
+* Verify that the DeviceConfig has been applied successfully across all nodes by checking its status. Any configuration issues (such as field validation errors) will be reported in the status section with the `OperatorReady` condition set to `False`. Use the following command to view the status:
+
+```bash
+kubectl get deviceconfigs -n kube-amd-gpu default -o yaml
+```
+
+```yaml
+status:
+  conditions:
+  - lastTransitionTime: "2026-03-10T09:56:53Z"
+    message: ""
+    reason: OperatorReady
+    status: "True"
+    type: Ready
+  devicePlugin:
+    availableNumber: 1
+    desiredNumber: 1
+    nodesMatchingSelectorNumber: 1
+  metricsExporter:
+    availableNumber: 1
+    desiredNumber: 1
+    nodesMatchingSelectorNumber: 1
+  observedGeneration: 1
 ```
 
 ## Debugging Driver Installation
