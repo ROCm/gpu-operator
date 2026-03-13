@@ -270,7 +270,9 @@ Kubernetes: `>= 1.29.0-0`
 | node-feature-discovery.enabled | bool | `true` | Set to true/false to enable/disable the installation of node feature discovery (NFD) operator |
 | node-feature-discovery.worker.nodeSelector | object | `{}` | Set nodeSelector for NFD worker daemonset |
 | node-feature-discovery.worker.tolerations | list | `[{"effect":"NoExecute","key":"amd-dcm","operator":"Equal","value":"up"},{"effect":"NoSchedule","key":"amd-gpu-unhealthy","operator":"Exists"}]` | Set tolerations for NFD worker daemonset |
-| remediation.controller | object | `{"image":"quay.io/argoproj/workflow-controller:v3.6.5"}` | Set the controller image for remediation workflow controller deployment |
+| remediation.controller | object | `{"affinity":{"nodeAffinity":{"preferredDuringSchedulingIgnoredDuringExecution":[{"preference":{"matchExpressions":[{"key":"node-role.kubernetes.io/control-plane","operator":"Exists"}]},"weight":1}]}},"image":"quay.io/argoproj/workflow-controller:v3.6.5","nodeSelector":{}}` | Set the controller image for remediation workflow controller deployment |
+| remediation.controller.affinity | object | `{"nodeAffinity":{"preferredDuringSchedulingIgnoredDuringExecution":[{"preference":{"matchExpressions":[{"key":"node-role.kubernetes.io/control-plane","operator":"Exists"}]},"weight":1}]}}` | Deployment affinity configs for remediation workflow controller |
+| remediation.controller.nodeSelector | object | `{}` | Node selector for remediation workflow controller deployment |
 | remediation.enabled | bool | `true` | Set to true/false to enable/disable the installation of remediation workflow controller |
 | remediation.installCRDs | bool | `true` | Set to true/false to enable/disable the installation of Argo CRDs used by the remediation workflow controller |
 | upgradeCRD | bool | `true` | CRD will be patched as pre-upgrade/pre-rollback hook when doing helm upgrade/rollback to current helm chart |
