@@ -457,6 +457,9 @@ func (nl *metricsExporter) SetMetricsExporterAsDesired(ds *appsv1.DaemonSet, dev
 			},
 		},
 	}
+	if mSpec.HostNetwork != nil {
+		ds.Spec.Template.Spec.HostNetwork = *mSpec.HostNetwork
+	}
 	if devConfig.Spec.MetricsExporter.UpgradePolicy != nil {
 		up := devConfig.Spec.MetricsExporter.UpgradePolicy
 		upgradeStrategy := appsv1.RollingUpdateDaemonSetStrategyType

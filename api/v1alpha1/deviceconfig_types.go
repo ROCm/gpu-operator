@@ -506,6 +506,11 @@ type DevicePluginSpec struct {
 	// +kubebuilder:validation:Pattern=`^(/[^/\0]+)*(/)?$`
 	// +kubebuilder:default="/var/lib/kubelet/device-plugins"
 	KubeletSocketPath string `json:"kubeletSocketPath,omitempty"`
+
+	// HostNetwork specifies whether to use host network namespace for the device plugin DaemonSet pods.
+	//+operator-sdk:csv:customresourcedefinitions:type=spec,displayName="HostNetwork",xDescriptors={"urn:alm:descriptor:com.amd.deviceconfigs:hostNetwork"}
+	// +optional
+	HostNetwork *bool `json:"hostNetwork,omitempty"`
 }
 
 // IsEnabled returns true if the device plugin is explicitly enabled.
@@ -714,6 +719,11 @@ type MetricsExporterSpec struct {
 	//+operator-sdk:csv:customresourcedefinitions:type=spec,displayName="ServiceAnnotations",xDescriptors={"urn:alm:descriptor:com.amd.deviceconfigs:serviceAnnotations"}
 	// +optional
 	ServiceAnnotations map[string]string `json:"serviceAnnotations,omitempty"`
+
+	// HostNetwork specifies whether to use host network namespace for the metrics exporter DaemonSet pods.
+	//+operator-sdk:csv:customresourcedefinitions:type=spec,displayName="HostNetwork",xDescriptors={"urn:alm:descriptor:com.amd.deviceconfigs:hostNetwork"}
+	// +optional
+	HostNetwork *bool `json:"hostNetwork,omitempty"`
 }
 
 type PrometheusConfig struct {

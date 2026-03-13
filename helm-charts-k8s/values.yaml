@@ -121,6 +121,10 @@ deviceConfig:
       nodeLabellerArguments: []
       # -- image pull secret for device plugin and node labeller, e.g. {"name": "mySecretName"}
       imageRegistrySecret: {}
+      # -- specify the kubelet device plugins directory path on the host, default is "/var/lib/kubelet/device-plugins", make sure this path is consistent with kubelet configuration on the cluster for device plugin to work properly
+      kubeletSocketPath: "/var/lib/kubelet/device-plugins"
+      # -- specify whether to use host network for device plugin daemonset
+      hostNetwork: false
       upgradePolicy:
         # -- the type of daemonset upgrade, RollingUpdate or OnDelete
         upgradeStrategy: RollingUpdate
@@ -145,6 +149,8 @@ deviceConfig:
       tolerations: []
       # -- metrics exporter image pull secret, e.g. {"name": "pullSecretName"}
       imageRegistrySecret: {}
+      # -- specify whether to use host network for metrics exporter daemonset
+      hostNetwork: false
       # -- metrics exporter node selector, if not specified it will reuse spec.selector
       selector: {}
       upgradePolicy:

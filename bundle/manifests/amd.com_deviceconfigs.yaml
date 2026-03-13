@@ -264,6 +264,10 @@ spec:
                     default: true
                     description: enable or disable the node labeller
                     type: boolean
+                  hostNetwork:
+                    description: HostNetwork specifies whether to use host network
+                      namespace for the device plugin DaemonSet pods.
+                    type: boolean
                   imageRegistrySecret:
                     description: node labeller image registry secret used to pull/push
                       images
@@ -798,6 +802,10 @@ spec:
                     type: object
                   enable:
                     description: enable metrics exporter, disabled by default
+                    type: boolean
+                  hostNetwork:
+                    description: HostNetwork specifies whether to use host network
+                      namespace for the metrics exporter DaemonSet pods.
                     type: boolean
                   image:
                     description: metrics exporter image
