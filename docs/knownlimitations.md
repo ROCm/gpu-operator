@@ -105,6 +105,18 @@
     - *Root Cause:* The version specified in the CR would still have to match the version string on Radeon repo.
     - *Recommendation:* Although this will be fixed in a future version of the GPU Operator, for the time being you will instead need to specific `"6.4"` or `"6.3"` when installing those versions of the ROCm amdgpu driver.
 
+17. **Device plugin crashes when unable to establish watcher on kubelet device plugin path**
+
+    - *Impact:* The device plugin will enter `CrashLoopBackOff` state when unable to establish a watcher on the kubelet device plugin path, preventing GPUs from being reported on the affected node.
+    - *Root Cause:* This issue stems from an [unhandled error](https://github.com/kubevirt/device-plugin-manager/issues/29) in the third-party library used to manage the device plugin.
+    - *Recommendation:* This is a rare scenario typically caused by too many open file descriptors on the system. If you encounter this issue frequently, increase the maximum allowed open file descriptors on the host node by setting values higher than the current defaults:
+
+    ```bash
+    sudo sysctl -w fs.inotify.max_user_watches=186575
+    sudo sysctl -w fs.inotify.max_user_instances=8192
+    sudo sysctl -w fs.inotify.max_queued_events=16384
+    ```
+
 </br></br>
 
 ## Fixed Issues
