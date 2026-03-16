@@ -114,6 +114,25 @@ func NewKMMModule(client client.Client, scheme *runtime.Scheme, isOpenShift bool
 	}
 }
 
+// noOpKMMModule is a no-op implementation of KMMModuleAPI used when KMM watch is disabled
+type noOpKMMModule struct{}
+
+func NewNoOpKMMModule() KMMModuleAPI {
+	return &noOpKMMModule{}
+}
+
+func (n *noOpKMMModule) SetNodeVersionLabelAsDesired(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig, nodes *v1.NodeList) error {
+	return nil
+}
+
+func (n *noOpKMMModule) SetBuildConfigMapAsDesired(buildCM *v1.ConfigMap, devConfig *amdv1alpha1.DeviceConfig) error {
+	return nil
+}
+
+func (n *noOpKMMModule) SetKMMModuleAsDesired(ctx context.Context, mod *kmmv1beta1.Module, devConfig *amdv1alpha1.DeviceConfig, nodes *v1.NodeList) error {
+	return nil
+}
+
 func (km *kmmModule) SetNodeVersionLabelAsDesired(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig, nodes *v1.NodeList) error {
 	// for each selected node
 	// put the KMM version label given by CR's driver version

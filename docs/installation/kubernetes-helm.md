@@ -126,8 +126,14 @@ helm install amd-gpu-operator rocm/gpu-operator-charts \
 Installation Options
   - Skip NFD installation: `--set node-feature-discovery.enabled=false`
   - Skip KMM installation: `--set kmm.enabled=false` <br> Although KMM is a [Kubernetes-SIGs](https://github.com/kubernetes-sigs) maintained project, it is strongly recommended to use AMD optimized and published KMM images included in each operator release.
+  - Disable GPU operator watching KMM resources: `--set kmm.watch=false`
   - Skip Auto Node Remediation: `--set remediation.enabled=false`
   - Disable default DeviceConfig installation: `--set crds.defaultCR.install=false`
+
+**KMM Configuration Examples:**
+  - Use existing KMM installation: `--set kmm.enabled=false --set kmm.watch=true`
+  - Skip KMM for alternative driver management: `--set kmm.enabled=false --set kmm.watch=false`
+  - Install KMM without GPU operator using it: `--set kmm.enabled=true --set kmm.watch=false`
 ```
 
 ```{tip}
@@ -167,6 +173,7 @@ The following parameters are able to be configued when using the Helm Chart. In 
 | controllerManager.nodeSelector | object | `{}` | Node selector for AMD GPU operator controller manager deployment |
 | installdefaultNFDRule | bool | `true` | Set to true to install default NFD rule for detecting AMD GPU hardware based on pci vendor ID and device ID |
 | kmm.enabled | bool | `true` | Set to true/false to enable/disable the installation of kernel module management (KMM) operator |
+| kmm.watch | bool | `true` | Set to true/false to enable/disable GPU operator watching and using KMM resources |
 | node-feature-discovery.enabled | bool | `true` | Set to true/false to enable/disable the installation of node feature discovery (NFD) operator |
 | upgradeCRD | bool | `true` | CRD will be patched as pre-upgrade/pre-rollback hook when doing helm upgrade/rollback to current helm chart |
 | kmm.controller.affinity | object | `{"nodeAffinity":{"preferredDuringSchedulingIgnoredDuringExecution":[{"preference":{"matchExpressions":[{"key":"node-role.kubernetes.io/control-plane","operator":"Exists"}]},"weight":1}]}}` | Affinity for the KMM controller manager deployment |
@@ -206,7 +213,6 @@ The following parameters are able to be configued when using the Helm Chart. In 
 | kmm.kubernetesClusterDomain | string | `"cluster.local"` |  |
 | kmm.managerConfig.controllerConfigYaml | string | `"healthProbeBindAddress: :8081\nwebhookPort: 9443\nleaderElection:\n  enabled: true\n  resourceID: kmm.sigs.x-k8s.io\nmetrics:\n  enableAuthnAuthz: true\n  bindAddress: 0.0.0.0:8443\n  secureServing: true\nworker:\n  runAsUser: 0\n  seLinuxType: spc_t\n  firmwareHostPath: /var/lib/firmware"` |  |
 | kmm.webhookServer.affinity | object | `{"nodeAffinity":{"preferredDuringSchedulingIgnoredDuringExecution":[{"preference":{"matchExpressions":[{"key":"node-role.kubernetes.io/control-plane","operator":"Exists"}]},"weight":1}]}}` | KMM webhook's deployment affinity configs |
-| kmm.enabled | bool | `true` | Set to true/false to enable/disable the installation of kernel module management (KMM) operator |
 | kmm.webhookServer.nodeAffinity.nodeSelectorTerms | list | `[{"key":"node-role.kubernetes.io/control-plane","operator":"Exists"},{"key":"node-role.kubernetes.io/master","operator":"Exists"}]` | Node affinity selector terms config for the KMM webhook deployment, set it to [] if you want to make affinity config empty |
 | kmm.webhookServer.nodeSelector | object | `{}` | KMM webhook's deployment node selector |
 | kmm.webhookServer.replicas | int | `1` |  |

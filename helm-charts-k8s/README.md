@@ -78,6 +78,7 @@ helm install amd-gpu-operator rocm/gpu-operator-charts \
 Installation Options
   - Skip NFD installation: `--set node-feature-discovery.enabled=false`
   - Skip KMM installation: `--set kmm.enabled=false`
+  - Disable KMM watching/usage: `--set kmm.watch=false`
   - Skip Auto Node Remediation: `--set remediation.enabled=false`
   - Enable DRA driver (instead of device plugin): `--set deviceConfig.spec.draDriver.enable=true --set deviceConfig.spec.devicePlugin.enableDevicePlugin=false`
   - Disable DeviceClass creation: `--set draDriver.deviceClass.create=false`
@@ -266,7 +267,8 @@ Kubernetes: `>= 1.29.0-0`
 | deviceConfig.spec.testRunner.upgradePolicy.upgradeStrategy | string | `"RollingUpdate"` | the type of daemonset upgrade, RollingUpdate or OnDelete |
 | draDriver.deviceClass.create | bool | `true` | Create the gpu.amd.com DeviceClass resource. Set to false if managing the DRA driver independently. |
 | installdefaultNFDRule | bool | `true` | Default NFD rule will detect amd gpu based on pci vendor ID |
-| kmm.enabled | bool | `true` | Set to true/false to enable/disable the installation of kernel module management (KMM) operator |
+| kmm.enabled | bool | `true` | Set to true/false to enable/disable the installation of kernel module management (KMM) operator subchart |
+| kmm.watch | bool | `true` | Set to true/false to enable/disable GPU operator watching and using KMM resources |
 | node-feature-discovery.enabled | bool | `true` | Set to true/false to enable/disable the installation of node feature discovery (NFD) operator |
 | node-feature-discovery.worker.nodeSelector | object | `{}` | Set nodeSelector for NFD worker daemonset |
 | node-feature-discovery.worker.tolerations | list | `[{"effect":"NoExecute","key":"amd-dcm","operator":"Equal","value":"up"},{"effect":"NoSchedule","key":"amd-gpu-unhealthy","operator":"Exists"}]` | Set tolerations for NFD worker daemonset |

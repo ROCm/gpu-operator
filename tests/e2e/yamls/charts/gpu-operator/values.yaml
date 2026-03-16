@@ -1,7 +1,8 @@
 node-feature-discovery:
   enabled: true  # Set to false to disable node-feature-discovery
 kmm:
-  enabled: true  # Set to false to disable kmm
+  enabled: true  # Set to false to skip KMM installation
+  watch: true    # Set to false to disable KMM watching/usage
 remediation:
   enabled: true
   installCRDs: true

@@ -78,6 +78,7 @@ helm install amd-gpu-operator rocm/gpu-operator-charts \
 Installation Options
   - Skip NFD installation: `--set node-feature-discovery.enabled=false`
   - Skip KMM installation: `--set kmm.enabled=false`
+  - Disable KMM watching/usage: `--set kmm.watch=false`
   - Skip Auto Node Remediation: `--set remediation.enabled=false`
   - Enable DRA driver (instead of device plugin): `--set deviceConfig.spec.draDriver.enable=true --set deviceConfig.spec.devicePlugin.enableDevicePlugin=false`
   - Disable DeviceClass creation: `--set draDriver.deviceClass.create=false`
