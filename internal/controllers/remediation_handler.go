@@ -643,7 +643,7 @@ func (h *remediationMgrHelper) createDefaultWorkflowTemplate(ctx context.Context
 					Name:     "inbuilt",
 					Metadata: instanceIDMeta,
 					Steps: []workflowv1alpha1.ParallelSteps{
-						{Steps: []workflowv1alpha1.WorkflowStep{{Name: "autostart", Template: "suspend", When: "{{workflow.parameters.auto_start}} == 'false'"}}}, // If auto start is disabled, workflow will be created in suspended state and needs to be manually resumed by user
+						{Steps: []workflowv1alpha1.WorkflowStep{{Name: "autostart", Template: "suspend", When: "{{workflow.parameters.auto_start}} == false"}}}, // If auto start is disabled, workflow will be created in suspended state and needs to be manually resumed by user
 						{Steps: []workflowv1alpha1.WorkflowStep{{Name: "applylabels", Template: "applylabels"}}},
 						{Steps: []workflowv1alpha1.WorkflowStep{{Name: "taint", Template: "taint"}}},
 						{Steps: []workflowv1alpha1.WorkflowStep{{Name: "drain", Template: "drain"}}},
@@ -662,7 +662,7 @@ func (h *remediationMgrHelper) createDefaultWorkflowTemplate(ctx context.Context
 						},
 						},
 						{Steps: []workflowv1alpha1.WorkflowStep{{Name: "suspend", Template: "suspend"}}},
-						{Steps: []workflowv1alpha1.WorkflowStep{{Name: "reboot", Template: "reboot", ContinueOn: &workflowv1alpha1.ContinueOn{Failed: true}, When: "{{workflow.parameters.skipRebootStep}} == 'false'"}}},
+						{Steps: []workflowv1alpha1.WorkflowStep{{Name: "reboot", Template: "reboot", ContinueOn: &workflowv1alpha1.ContinueOn{Failed: true}, When: "{{workflow.parameters.skipRebootStep}} == false"}}},
 						{Steps: []workflowv1alpha1.WorkflowStep{{Name: "test", Template: "test", ContinueOn: &workflowv1alpha1.ContinueOn{Failed: true}}}},
 						{Steps: []workflowv1alpha1.WorkflowStep{
 							{

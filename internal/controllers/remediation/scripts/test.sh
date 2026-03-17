@@ -1,7 +1,26 @@
 set -e
 NODE_NAME='{{inputs.parameters.node_name}}'
-JOB_NAME="{{workflow.name}}-test-run"
-CM_NAME='{{workflow.name}}-test-configmap'
+
+# Generate a unique job name under 63 characters
+# Format: <truncated-workflow-name>-<short-uid>-test
+WORKFLOW_NAME='{{workflow.name}}'
+WORKFLOW_UID='{{workflow.uid}}'
+
+# Extract last 8 characters of workflow UID for uniqueness
+SHORT_UID="${WORKFLOW_UID: -8}"
+
+# Calculate max length for workflow name prefix (63 - 8 (uid) - 1 (dash) - 5 ("-test") - 1 (dash) = 48)
+MAX_PREFIX_LEN=48
+
+# Truncate workflow name if needed
+if [ ${#WORKFLOW_NAME} -gt $MAX_PREFIX_LEN ]; then
+  WORKFLOW_PREFIX="${WORKFLOW_NAME:0:$MAX_PREFIX_LEN}"
+else
+  WORKFLOW_PREFIX="$WORKFLOW_NAME"
+fi
+
+JOB_NAME="${WORKFLOW_PREFIX}-${SHORT_UID}-test"
+CM_NAME="${WORKFLOW_PREFIX}-${SHORT_UID}-cm"
 FRAMEWORK='{{inputs.parameters.framework}}'
 RECIPE='{{inputs.parameters.recipe}}'
 ITERATIONS='{{inputs.parameters.iterations}}'
