@@ -41,6 +41,8 @@ spec:
           value: {{ quote .Values.kubernetesClusterDomain }}
         - name: SIM_ENABLE
           value: {{ quote .Values.controllerManager.env.simEnable }}
+        - name: KMM_WATCH_ENABLED
+          value: {{ quote .Values.kmm.watch }}
         image: {{ .Values.controllerManager.manager.image.repository }}:{{ .Values.controllerManager.manager.image.tag
           | default .Chart.AppVersion }}
         imagePullPolicy: {{ .Values.controllerManager.manager.imagePullPolicy }}

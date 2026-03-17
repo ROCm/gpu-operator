@@ -34,6 +34,8 @@ package main
 
 import (
 	"flag"
+	"os"
+	"strconv"
 
 	workflowv1alpha1 "github.com/argoproj/argo-workflows/v3/pkg/apis/workflow/v1alpha1"
 	kmmv1beta1 "github.com/rh-ecosystem-edge/kernel-module-management/api/v1beta1"
@@ -98,7 +100,18 @@ func main() {
 
 	setupLogger := logger.WithName("setup")
 
-	setupLogger.Info("Creating manager", "version", Version, "git commit", GitCommit, "build tag", BuildTag)
+	// Read KMM watch configuration from environment variable
+	kmmWatchEnabled := true // default to true for backward compatibility
+	if kmmWatchEnv := os.Getenv("KMM_WATCH_ENABLED"); kmmWatchEnv != "" {
+		var err error
+		kmmWatchEnabled, err = strconv.ParseBool(kmmWatchEnv)
+		if err != nil {
+			setupLogger.Error(err, "invalid KMM_WATCH_ENABLED value, defaulting to true", "value", kmmWatchEnv)
+			kmmWatchEnabled = true
+		}
+	}
+
+	setupLogger.Info("Creating manager", "version", Version, "git commit", GitCommit, "build tag", BuildTag, "kmmWatchEnabled", kmmWatchEnabled)
 
 	setupLogger.Info("Parsing configuration file", "path", configFile)
 
@@ -118,7 +131,12 @@ func main() {
 	// Use manager's client, it may read from a cache.
 	client := mgr.GetClient()
 	isOpenShift := utils.IsOpenShift(setupLogger)
-	kmmHandler := kmmmodule.NewKMMModule(client, scheme, isOpenShift)
+	var kmmHandler kmmmodule.KMMModuleAPI
+	if kmmWatchEnabled {
+		kmmHandler = kmmmodule.NewKMMModule(client, scheme, isOpenShift)
+	} else {
+		kmmHandler = kmmmodule.NewNoOpKMMModule()
+	}
 	dpHandler := plugin.NewDevicePlugin(client, scheme, isOpenShift)
 	nlHandler := nodelabeller.NewNodeLabeller(scheme, isOpenShift)
 	metricsHandler := metricsexporter.NewMetricsExporter(scheme)
@@ -135,7 +153,8 @@ func main() {
 		testrunnerHandler,
 		configmanagerHandler,
 		workerMgr,
-		isOpenShift)
+		isOpenShift,
+		kmmWatchEnabled)
 	if err = dcr.SetupWithManager(mgr); err != nil {
 		cmd.FatalError(setupLogger, err, "unable to create controller", "name", controllers.DeviceConfigReconcilerName)
 	}

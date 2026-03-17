@@ -17,8 +17,10 @@ node-feature-discovery:
     nodeSelector: {}
 # KMM related configs
 kmm:
-  # -- Set to true/false to enable/disable the installation of kernel module management (KMM) operator
+  # -- Set to true/false to enable/disable the installation of kernel module management (KMM) operator subchart
   enabled: true
+  # -- Set to true/false to enable/disable GPU operator watching and using KMM resources
+  watch: true
 # Remediation related configs
 remediation:
   # -- Set to true/false to enable/disable the installation of remediation workflow controller

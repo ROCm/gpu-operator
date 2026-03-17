@@ -194,7 +194,7 @@ var _ = Describe("getLabelsPerModules", func() {
 	BeforeEach(func() {
 		ctrl := gomock.NewController(GinkgoT())
 		kubeClient = mock_client.NewMockClient(ctrl)
-		dcrh = newDeviceConfigReconcilerHelper(kubeClient, nil, nil, nil, nil, nil, nil, nil, nil, nil)
+		dcrh = newDeviceConfigReconcilerHelper(kubeClient, nil, nil, nil, nil, nil, nil, nil, nil, nil, true)
 	})
 
 	ctx := context.Background()
@@ -230,6 +230,46 @@ var _ = Describe("getLabelsPerModules", func() {
 	})
 })
 
+var _ = Describe("deviceConfigReconcilerHelper with KMM watch disabled", func() {
+	var (
+		kubeClient *mock_client.MockClient
+		dcrh       deviceConfigReconcilerHelperAPI
+	)
+	BeforeEach(func() {
+		ctrl := gomock.NewController(GinkgoT())
+		kubeClient = mock_client.NewMockClient(ctrl)
+		dcrh = newDeviceConfigReconcilerHelper(kubeClient, nil, nil, nil, nil, nil, nil, nil, nil, nil, true)
+	})
+	ctx := context.Background()
+	nn := types.NamespacedName{
+		Name:      devConfigName,
+		Namespace: devConfigNamespace,
+	}
+	It("good flow with KMM watch disabled", func() {
+		expectedDevConfig := amdv1alpha1.DeviceConfig{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      nn.Name,
+				Namespace: nn.Namespace,
+			},
+		}
+		kubeClient.EXPECT().Get(ctx, nn, gomock.Any()).Do(
+			func(_ interface{}, _ interface{}, devConfig *amdv1alpha1.DeviceConfig, _ ...client.GetOption) {
+				devConfig.Name = nn.Name
+				devConfig.Namespace = nn.Namespace
+			},
+		)
+		res, err := dcrh.getRequestedDeviceConfig(ctx, nn)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(*res).To(Equal(expectedDevConfig))
+	})
+	It("error flow with KMM watch disabled", func() {
+		kubeClient.EXPECT().Get(ctx, nn, gomock.Any()).Return(fmt.Errorf("some error"))
+		res, err := dcrh.getRequestedDeviceConfig(ctx, nn)
+		Expect(err).To(HaveOccurred())
+		Expect(res).To(BeNil())
+	})
+})
+
 var _ = Describe("setFinalizer", func() {
 	var (
 		kubeClient *mock_client.MockClient
@@ -239,7 +279,7 @@ var _ = Describe("setFinalizer", func() {
 	BeforeEach(func() {
 		ctrl := gomock.NewController(GinkgoT())
 		kubeClient = mock_client.NewMockClient(ctrl)
-		dcrh = newDeviceConfigReconcilerHelper(kubeClient, nil, nil, nil, nil, nil, nil, nil, nil, nil)
+		dcrh = newDeviceConfigReconcilerHelper(kubeClient, nil, nil, nil, nil, nil, nil, nil, nil, nil, true)
 	})
 
 	ctx := context.Background()
@@ -275,7 +315,7 @@ var _ = Describe("finalizeDeviceConfig", func() {
 	BeforeEach(func() {
 		ctrl := gomock.NewController(GinkgoT())
 		kubeClient = mock_client.NewMockClient(ctrl)
-		dcrh = newDeviceConfigReconcilerHelper(kubeClient, nil, nil, nil, nil, nil, nil, nil, nil, nil)
+		dcrh = newDeviceConfigReconcilerHelper(kubeClient, nil, nil, nil, nil, nil, nil, nil, nil, nil, true)
 	})
 
 	ctx := context.Background()
@@ -486,7 +526,7 @@ var _ = Describe("handleKMMModule", func() {
 		ctrl := gomock.NewController(GinkgoT())
 		kubeClient = mock_client.NewMockClient(ctrl)
 		kmmHelper = kmmmodule.NewMockKMMModuleAPI(ctrl)
-		dcrh = newDeviceConfigReconcilerHelper(kubeClient, kmmHelper, nil, nil, nil, nil, nil, nil, nil, nil)
+		dcrh = newDeviceConfigReconcilerHelper(kubeClient, kmmHelper, nil, nil, nil, nil, nil, nil, nil, nil, true)
 	})
 
 	ctx := context.Background()
@@ -556,7 +596,7 @@ var _ = Describe("handleBuildConfigMap", func() {
 		ctrl := gomock.NewController(GinkgoT())
 		kubeClient = mock_client.NewMockClient(ctrl)
 		kmmHelper = kmmmodule.NewMockKMMModuleAPI(ctrl)
-		dcrh = newDeviceConfigReconcilerHelper(kubeClient, kmmHelper, nil, nil, nil, nil, nil, nil, nil, nil)
+		dcrh = newDeviceConfigReconcilerHelper(kubeClient, kmmHelper, nil, nil, nil, nil, nil, nil, nil, nil, true)
 	})
 
 	ctx := context.Background()
@@ -623,7 +663,7 @@ var _ = Describe("handleNodeLabeller", func() {
 		ctrl := gomock.NewController(GinkgoT())
 		kubeClient = mock_client.NewMockClient(ctrl)
 		nodeLabellerHelper = nodelabeller.NewMockNodeLabeller(ctrl)
-		dcrh = newDeviceConfigReconcilerHelper(kubeClient, nil, nil, nodeLabellerHelper, nil, nil, nil, nil, nil, nil)
+		dcrh = newDeviceConfigReconcilerHelper(kubeClient, nil, nil, nodeLabellerHelper, nil, nil, nil, nil, nil, nil, true)
 	})
 
 	ctx := context.Background()

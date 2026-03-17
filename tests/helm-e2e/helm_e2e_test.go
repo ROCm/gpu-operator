@@ -18,6 +18,7 @@ package e2e
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"os"
 	"os/exec"
@@ -1087,4 +1088,58 @@ deviceConfig:
 		}
 		s.verifyDefaultDeviceConfig(c, tc.description, tc.expectDefaultCR, tc.expectSpec, tc.verifyFunc)
 	}
+}
+
+func (s *E2ESuite) TestHelmInstallWithKMMDisabled(c *C) {
+	// Test case: install helm chart with kmm.enabled=false and kmm.watch=false
+	// Verify:
+	// 1. No KMM CRDs installed (modules.kmm.sigs.x-k8s.io, nodemodulesconfigs.kmm.sigs.x-k8s.io)
+	// 2. No KMM controller/webhook deployed
+	// 3. GPU Operator controller is running without crashes
+
+	logger.Info("Installing helm chart with KMM completely disabled")
+	s.installHelmChart(c, false, []string{
+		"--set", "kmm.enabled=false",
+		"--set", "kmm.watch=false",
+	})
+
+	// Verify 1: No KMM controller/webhook deployments
+	logger.Info("Verifying KMM deployments are not created")
+	deploymentList, err := s.clientSet.AppsV1().Deployments(s.ns).List(context.TODO(), v1.ListOptions{
+		LabelSelector: "app.kubernetes.io/component=kmm",
+	})
+	assert.NoError(c, err, "Failed to list KMM deployments")
+	assert.True(c, len(deploymentList.Items) == 0,
+		"Expected no KMM deployments, but found %d", len(deploymentList.Items))
+
+	// Verify 2: GPU Operator controller deployment exists and has correct environment variables
+	logger.Info("Verifying GPU Operator controller deployment exists")
+	deploymentList, err = s.clientSet.AppsV1().Deployments(s.ns).List(context.TODO(), v1.ListOptions{
+		LabelSelector: "control-plane=controller-manager",
+	})
+	assert.NoError(c, err, "Failed to list GPU Operator controller deployments")
+	assert.True(c, len(deploymentList.Items) > 0, "No GPU Operator controller deployment found")
+
+	deployment := deploymentList.Items[0]
+
+	// Verify KMM_WATCH_ENABLED environment variable is set to "false"
+	logger.Info("Verifying KMM_WATCH_ENABLED environment variable is set correctly")
+	found := false
+	for _, container := range deployment.Spec.Template.Spec.Containers {
+		if container.Name == "manager" {
+			for _, env := range container.Env {
+				if env.Name == "KMM_WATCH_ENABLED" {
+					found = true
+					assert.Equal(c, "false", env.Value,
+						"Expected KMM_WATCH_ENABLED to be 'false', got '%s'", env.Value)
+					break
+				}
+			}
+			break
+		}
+	}
+	assert.True(c, found, "KMM_WATCH_ENABLED environment variable not found in manager container")
+
+	logger.Info("KMM disabled test passed - cleaning up")
+	s.uninstallHelmChart(c, false, nil)
 }

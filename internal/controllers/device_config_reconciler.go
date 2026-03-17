@@ -86,6 +86,7 @@ type DeviceConfigReconciler struct {
 	client.Client
 	once                  sync.Once
 	initErr               error
+	kmmWatchEnabled       bool
 	helper                deviceConfigReconcilerHelperAPI
 	podEventHandler       watchers.PodEventHandlerAPI
 	nodeEventHandler      watchers.NodeEventHandlerAPI
@@ -102,15 +103,17 @@ func NewDeviceConfigReconciler(
 	testrunnerHandler testrunner.TestRunner,
 	configmanagerHandler configmanager.ConfigManager,
 	workerMgr workermgr.WorkerMgrAPI,
-	isOpenShift bool) *DeviceConfigReconciler {
+	isOpenShift bool,
+	kmmWatchEnabled bool) *DeviceConfigReconciler {
 	upgradeMgrHandler := newUpgradeMgrHandler(client, k8sConfig, isOpenShift)
 	remediationMgrHandler := newRemediationMgrHandler(client, k8sConfig, isOpenShift)
-	helper := newDeviceConfigReconcilerHelper(client, kmmHandler, dpHandler, nlHandler, upgradeMgrHandler, remediationMgrHandler, metricsHandler, testrunnerHandler, configmanagerHandler, workerMgr)
+	helper := newDeviceConfigReconcilerHelper(client, kmmHandler, dpHandler, nlHandler, upgradeMgrHandler, remediationMgrHandler, metricsHandler, testrunnerHandler, configmanagerHandler, workerMgr, kmmWatchEnabled)
 	podEventHandler := watchers.NewPodEventHandler(client, workerMgr)
 	nodeEventHandler := watchers.NewNodeEventHandler(client, workerMgr)
 	daemonsetEventHandler := watchers.NewDaemonsetEventHandler(client)
 	return &DeviceConfigReconciler{
 		Client:                client,
+		kmmWatchEnabled:       kmmWatchEnabled,
 		helper:                helper,
 		podEventHandler:       podEventHandler,
 		nodeEventHandler:      nodeEventHandler,
@@ -120,12 +123,24 @@ func NewDeviceConfigReconciler(
 
 // SetupWithManager sets up the controller with the Manager.
 func (r *DeviceConfigReconciler) SetupWithManager(mgr ctrl.Manager) error {
-	return ctrl.NewControllerManagedBy(mgr).
+	controllerBuilder := ctrl.NewControllerManagedBy(mgr).
 		Named(DeviceConfigReconcilerName).
 		// just reconcile the spec change or deletion
 		For(&amdv1alpha1.DeviceConfig{}, builder.WithPredicates(watchers.SpecChangedOrDeletionPredicate{})).
-		Owns(&v1.Service{}, builder.WithPredicates(watchers.SpecChangedOrDeletionPredicate{})).
-		Owns(&kmmv1beta1.Module{}).
+		Owns(&v1.Service{}, builder.WithPredicates(watchers.SpecChangedOrDeletionPredicate{}))
+
+	// Conditionally add KMM watches only if KMM watch is enabled
+	if r.kmmWatchEnabled {
+		controllerBuilder = controllerBuilder.
+			Owns(&kmmv1beta1.Module{}).
+			Watches( // watch NMC for upgrademgr
+				&kmmv1beta1.NodeModulesConfig{},
+				handler.EnqueueRequestsFromMapFunc(r.helper.findDeviceConfigsForNMC),
+				builder.WithPredicates(predicate.ResourceVersionChangedPredicate{}),
+			)
+	}
+
+	return controllerBuilder.
 		Watches( // watch for owned daemonset, only update status
 			&appsv1.DaemonSet{},
 			r.daemonsetEventHandler,
@@ -138,11 +153,6 @@ func (r *DeviceConfigReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Watches(&v1.Node{}, // watch for Node resource to get latest kernel mapping for KMM CR
 			r.nodeEventHandler,
 			builder.WithPredicates(watchers.NodePredicate{}),
-		).
-		Watches( // watch NMC for upgrademgr
-			&kmmv1beta1.NodeModulesConfig{},
-			handler.EnqueueRequestsFromMapFunc(r.helper.findDeviceConfigsForNMC),
-			builder.WithPredicates(predicate.ResourceVersionChangedPredicate{}),
 		).
 		Watches( // watch pod event to auto-clean unknown status builder pod and cleanup post-process worker pod
 			&v1.Pod{},
@@ -380,6 +390,7 @@ type deviceConfigReconcilerHelperAPI interface {
 
 type deviceConfigReconcilerHelper struct {
 	client              client.Client
+	kmmWatchEnabled     bool
 	kmmHandler          kmmmodule.KMMModuleAPI
 	devicePluginHandler plugin.DevicePluginAPI
 	nlHandler           nodelabeller.NodeLabeller
@@ -405,11 +416,13 @@ func newDeviceConfigReconcilerHelper(client client.Client,
 	metricsHandler metricsexporter.MetricsExporter,
 	testrunnerHandler testrunner.TestRunner,
 	configmanagerHandler configmanager.ConfigManager,
-	workerMgr workermgr.WorkerMgrAPI) deviceConfigReconcilerHelperAPI {
+	workerMgr workermgr.WorkerMgrAPI,
+	kmmWatchEnabled bool) deviceConfigReconcilerHelperAPI {
 	conditionUpdater := conditions.NewDeviceConfigConditionMgr()
 	validator := validator.NewValidator()
 	return &deviceConfigReconcilerHelper{
 		client:                client,
+		kmmWatchEnabled:       kmmWatchEnabled,
 		kmmHandler:            kmmHandler,
 		devicePluginHandler:   dpHandler,
 		nlHandler:             nlHandler,
@@ -424,6 +437,14 @@ func newDeviceConfigReconcilerHelper(client client.Client,
 		remediationMgrHandler: remediationMgrHandler,
 		namespace:             os.Getenv("OPERATOR_NAMESPACE"),
 	}
+}
+
+// shouldUseKMMOperatorLevel checks both operator-level and device-level KMM settings
+func (dcrh *deviceConfigReconcilerHelper) shouldUseKMMOperatorLevel(devConfig *amdv1alpha1.DeviceConfig) bool {
+	if !dcrh.kmmWatchEnabled {
+		return false // Operator-level: KMM watch is disabled globally
+	}
+	return utils.ShouldUseKMM(devConfig) // Device-level: check driver type
 }
 
 func (dcrh *deviceConfigReconcilerHelper) shouldReconcile(ctx context.Context, ugpgradeRes, remediationRes ctrl.Result) ctrl.Result {
@@ -520,7 +541,7 @@ func (dcrh *deviceConfigReconcilerHelper) hasSecretReference(secretName string, 
 func (dcrh *deviceConfigReconcilerHelper) buildDeviceConfigStatus(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig, nodes *v1.NodeList) error {
 	// fetch DeviceConfig-owned custom resource
 	// then retrieve its status and put it to DeviceConfig's status fields
-	if utils.ShouldUseKMM(devConfig) {
+	if dcrh.shouldUseKMMOperatorLevel(devConfig) {
 		kmmModuleObj, err := dcrh.getDeviceConfigOwnedKMMModule(ctx, devConfig)
 		if err != nil {
 			return fmt.Errorf("failed to fetch owned kmm module for DeviceConfig %+v: %+v",
@@ -566,9 +587,15 @@ func (dcrh *deviceConfigReconcilerHelper) updateDeviceConfigStatus(ctx context.C
 }
 
 func (dcrh *deviceConfigReconcilerHelper) getDeviceConfigOwnedKMMModule(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig) (*kmmv1beta1.Module, error) {
+	if !dcrh.kmmWatchEnabled {
+		return nil, nil
+	}
 	module := kmmv1beta1.Module{}
 	namespacedName := types.NamespacedName{Namespace: devConfig.Namespace, Name: devConfig.Name}
 	if err := dcrh.client.Get(ctx, namespacedName, &module); err != nil {
+		if k8serrors.IsNotFound(err) || meta.IsNoMatchError(err) {
+			return nil, nil
+		}
 		return nil, fmt.Errorf("failed to get KMM Module %s: %v", namespacedName, err)
 	}
 	return &module, nil
@@ -603,10 +630,15 @@ func (dcrh *deviceConfigReconcilerHelper) buildDeviceConfigNodeStatus(ctx contex
 		}
 		devConfig.Status.NodeModuleStatus[node.Name] = amdv1alpha1.ModuleStatus{Status: dcrh.upgradeMgrHandler.GetNodeStatus(node.Name), UpgradeStartTime: upgradeStartTime, BootId: bootId}
 
+		if !dcrh.kmmWatchEnabled {
+			// Skip NMC lookup if KMM watch is disabled
+			continue
+		}
+
 		nmc := kmmv1beta1.NodeModulesConfig{}
 		err := dcrh.client.Get(ctx, types.NamespacedName{Name: node.Name}, &nmc)
 		if err != nil {
-			if !k8serrors.IsNotFound(err) {
+			if !k8serrors.IsNotFound(err) && !meta.IsNoMatchError(err) {
 				logger.Error(err, fmt.Sprintf("failed to fetch NMC for node %+v", node.Name))
 			}
 			continue
@@ -621,7 +653,7 @@ func (dcrh *deviceConfigReconcilerHelper) buildDeviceConfigNodeStatus(ctx contex
 					// need to remove this redundant info to unblock a known issue https://github.com/ROCm/gpu-operator/issues/403
 					// the driver management is disabled but there is probability that dirver status get stuck in Install-In-Progress
 					nodeStatus := amdv1alpha1.UpgradeStateEmpty
-					if utils.ShouldUseKMM(devConfig) {
+					if dcrh.shouldUseKMMOperatorLevel(devConfig) {
 						// only assign node driver status value when DeviceConfig is managing drivers
 						nodeStatus = dcrh.upgradeMgrHandler.GetNodeStatus(node.Name)
 					}
@@ -864,15 +896,23 @@ func (dcrh *deviceConfigReconcilerHelper) finalizeDeviceConfig(ctx context.Conte
 	if err := utils.UpdateDriverTypeNodeLabel(ctx, dcrh.client, devConfig, nodes, true); err != nil {
 		return fmt.Errorf("failed to remove driver type node label: %+v", err)
 	}
+
+	if !dcrh.kmmWatchEnabled {
+		// When KMM watch is disabled, skip KMM Module deletion and leave any existing KMM resources orphaned
+		devConfigCopy := devConfig.DeepCopy()
+		controllerutil.RemoveFinalizer(devConfig, deviceConfigFinalizer)
+		return dcrh.client.Patch(ctx, devConfig, client.MergeFrom(devConfigCopy))
+	}
+
 	mod := kmmv1beta1.Module{}
 	namespacedName = types.NamespacedName{
 		Namespace: devConfig.Namespace,
 		Name:      devConfig.Name,
 	}
 	if err := dcrh.client.Get(ctx, namespacedName, &mod); err != nil {
-		if k8serrors.IsNotFound(err) {
+		if k8serrors.IsNotFound(err) || meta.IsNoMatchError(err) {
 			// if KMM module CR is not found
-			if utils.ShouldUseKMM(devConfig) {
+			if dcrh.shouldUseKMMOperatorLevel(devConfig) {
 				// when KMM was trigger
 				switch devConfig.Spec.Driver.DriverType {
 				case utils.DriverTypeVFPassthrough:
@@ -964,6 +1004,11 @@ func (dcrh *deviceConfigReconcilerHelper) checkPostProcessFinalizeCondition(ctx 
 // findDeviceConfigsForNMC when a NMC changed, only trigger reconcile for related DeviceConfig
 func (drch *deviceConfigReconcilerHelper) findDeviceConfigsForNMC(ctx context.Context, nmc client.Object) []reconcile.Request {
 	reqs := []reconcile.Request{}
+
+	if !drch.kmmWatchEnabled {
+		return reqs
+	}
+
 	logger := log.FromContext(ctx)
 	nmcObj, ok := nmc.(*kmmv1beta1.NodeModulesConfig)
 	if !ok {
@@ -999,8 +1044,11 @@ func (drch *deviceConfigReconcilerHelper) findDeviceConfigsForNMC(ctx context.Co
 
 func (dcrh *deviceConfigReconcilerHelper) handleBuildConfigMap(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig, nodes *v1.NodeList) error {
 	logger := log.FromContext(ctx)
-	if !utils.ShouldUseKMM(devConfig) {
-		logger.Info("skip handling build config map as KMM driver mode is disabled")
+	if !dcrh.shouldUseKMMOperatorLevel(devConfig) {
+		if !dcrh.kmmWatchEnabled && devConfig.Spec.Driver.Enable != nil && *devConfig.Spec.Driver.Enable {
+			logger.Info("KMM watch is disabled but DeviceConfig requests driver installation - drivers will not be installed",
+				"namespace", devConfig.Namespace, "name", devConfig.Name)
+		}
 		return nil
 	}
 	if nodes == nil || len(nodes.Items) == 0 {
@@ -1055,7 +1103,7 @@ func (dcrh *deviceConfigReconcilerHelper) handleKMMModule(ctx context.Context, d
 		return err
 	}
 
-	if utils.ShouldUseKMM(devConfig) {
+	if dcrh.shouldUseKMMOperatorLevel(devConfig) {
 		// the newly created KMM Module will always has the same namespace and name as its parent DeviceConfig
 		kmmMod := &kmmv1beta1.Module{
 			ObjectMeta: metav1.ObjectMeta{
@@ -1072,8 +1120,11 @@ func (dcrh *deviceConfigReconcilerHelper) handleKMMModule(ctx context.Context, d
 		}
 		return err
 	}
-	logger.Info("skip handling KMM module as KMM driver mode is disabled")
-	// if driver mode switched from enable to disable
+	if !dcrh.kmmWatchEnabled && devConfig.Spec.Driver.Enable != nil && *devConfig.Spec.Driver.Enable {
+		logger.Info("KMM watch is disabled but DeviceConfig requests driver installation - drivers will not be installed",
+			"namespace", devConfig.Namespace, "name", devConfig.Name)
+	}
+	// if driver mode switched from enable to disable or KMM watch is disabled
 	// we won't delete the existing KMM module
 
 	return nil
@@ -1130,7 +1181,7 @@ func (dcrh *deviceConfigReconcilerHelper) handleDRADriver(ctx context.Context, d
 func (dcrh *deviceConfigReconcilerHelper) handleKMMVersionLabel(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig, nodes *v1.NodeList) error {
 	// label corresponding node with given kmod version
 	// so that KMM could manage the upgrade by watching the node's version label change
-	if utils.ShouldUseKMM(devConfig) {
+	if dcrh.shouldUseKMMOperatorLevel(devConfig) {
 		err := dcrh.kmmHandler.SetNodeVersionLabelAsDesired(ctx, devConfig, nodes)
 		if err != nil {
 			return fmt.Errorf("failed to update node version label for DeviceConfig %s/%s: %v", devConfig.Namespace, devConfig.Name, err)
