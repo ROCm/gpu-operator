@@ -9,7 +9,7 @@ patches:
 
 images:
 - name: controller
-  newName: registry.test.pensando.io:5000/amd-gpu-operator
+  newName: docker.io/rocm/gpu-operator
   newTag: v1.5.0
 
 configurations:
