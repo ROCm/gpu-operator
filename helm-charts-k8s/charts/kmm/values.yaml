@@ -23,7 +23,7 @@ controller:
       # -- KMM controller manager image repository
       repository: docker.io/rocm/kernel-module-management-operator
       # -- KMM controller manager image tag
-      tag: latest
+      tag: v1.5.0
     # -- Image pull policy for KMM controller manager pod
     imagePullPolicy: Always
     # -- Image pull secret name for pulling KMM controller manager image if registry needs credential to pull image
@@ -106,7 +106,7 @@ webhookServer:
       # -- KMM webhook image repository
       repository: docker.io/rocm/kernel-module-management-webhook-server
       # -- KMM webhook image tag
-      tag: latest
+      tag: v1.5.0
     # -- Image pull policy for KMM webhook pod
     imagePullPolicy: Always
     # -- Image pull secret name for pulling KMM webhook image if registry needs credential to pull image

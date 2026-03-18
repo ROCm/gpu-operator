@@ -3,9 +3,13 @@ ifneq ("$(wildcard dev.env)","")
     include dev.env
 endif
 
-# PROJECT_VERSION defines the project version.
-# Update this value when you upgrade the version of your project.
-PROJECT_VERSION ?= v1.4.0
+# Default version for the project.
+PROJECT_VERSION ?= 1.5.0
+# CI/CD sets RELEASE to the full release version; defaults to PROJECT_VERSION for local builds.
+RELEASE ?= $(PROJECT_VERSION)
+# VERSION follows RELEASE unless explicitly set.
+# "or" treats "" as false, so VERSION will be PROJECT_VERSION if RELEASE is not set or empty.
+VERSION ?= $(or $(RELEASE),$(PROJECT_VERSION))
 
 ####################################
 # GPU Operator Image Build variables
@@ -17,14 +21,12 @@ GIT_COMMIT ?= $(shell git rev-parse --short HEAD)
 DOCKER_REGISTRY ?= docker.io/rocm
 IMAGE_NAME ?= gpu-operator
 IMAGE_TAG_BASE ?= $(DOCKER_REGISTRY)/$(IMAGE_NAME)
-IMAGE_TAG ?= dev
+IMAGE_TAG ?= v$(VERSION)
 IMG ?= $(IMAGE_TAG_BASE):$(IMAGE_TAG)
-# name used for saving the container images as tar.gz
-DOCKER_CONTAINER_IMG = $(IMAGE_NAME)-$(IMAGE_TAG)
-HOURLY_TAG_LABEL ?= latest
+HOURLY_TAG_LABEL = $(VERSION)
 
 # KMM related images
-KMM_IMAGE_TAG ?= latest
+KMM_IMAGE_TAG ?= v$(PROJECT_VERSION)
 KMM_SIGNER_IMG ?= $(DOCKER_REGISTRY)/kernel-module-management-signimage:$(KMM_IMAGE_TAG)
 KMM_WORKER_IMG ?= $(DOCKER_REGISTRY)/kernel-module-management-worker:$(KMM_IMAGE_TAG)
 KMM_BUILDER_IMG ?= gcr.io/kaniko-project/executor:v1.23.2
@@ -38,7 +40,7 @@ DEVICE_CONFIG_MANAGER_IMAGE_TAG ?= latest
 DEVICE_CONFIG_MANAGER_IMG = $(DOCKER_REGISTRY)/device-config-manager:$(DEVICE_CONFIG_MANAGER_IMAGE_TAG)
 TEST_RUNNER_IMAGE_TAG ?= latest
 TEST_RUNNER_IMG = $(DOCKER_REGISTRY)/test-runner:$(TEST_RUNNER_IMAGE_TAG)
-UTILS_IMAGE_TAG ?= latest
+UTILS_IMAGE_TAG ?= $(IMAGE_TAG)
 UTILS_IMAGE_NAME ?= $(IMAGE_NAME)-utils
 UTILS_IMG ?= $(DOCKER_REGISTRY)/$(UTILS_IMAGE_NAME):$(UTILS_IMAGE_TAG)
 
@@ -49,8 +51,11 @@ CRD_YAML_FILES = deviceconfig-crd.yaml remediationworkflowstatus-crd.yaml
 K8S_KMM_CRD_YAML_FILES=module-crd.yaml nodemodulesconfig-crd.yaml
 DEFAULT_VALUES_FILES=helm-charts-k8s/values.yaml hack/k8s-patch/metadata-patch/values.yaml
 REMEDIATION_CRD_YAML_FILES=clusterworkflowtemplate-crd.yaml cronworkflow-crd.yaml workflowartifactgctask-crd.yaml workflow-crd.yaml workfloweventbinding-crd.yaml workflowtaskresult-crd.yaml workflowtaskset-crd.yaml workflowtemplate-crd.yaml
+HELM_CHART_VERSION ?= $(VERSION)
+HELM_APP_VERSION ?= $(IMAGE_TAG)
 
-GPU_OPERATOR_CHART ?= $(shell pwd)/helm-charts-k8s/gpu-operator-helm-k8s-$(PROJECT_VERSION).tgz
+HELM_OUTPUT_FILE_NAME ?= gpu-operator-helm-k8s-$(HELM_CHART_VERSION).tgz
+GPU_OPERATOR_CHART ?= $(shell pwd)/helm-charts-k8s/$(HELM_OUTPUT_FILE_NAME)
 KUBECTL_CMD ?= kubectl
 
 ifdef SKIP_NFD
@@ -81,8 +86,8 @@ endif
 # OpenShift OLM Bundle varaiables
 # BUNDLE_IMG defines the image:tag used for the bundle.
 # You can use it as an arg. (E.g make bundle-build BUNDLE_IMG=<some-registry>/<project-name-bundle>:<tag>)
-BUNDLE_IMG ?= $(IMAGE_TAG_BASE)-bundle:$(PROJECT_VERSION)
-INDEX_IMG := $(IMAGE_TAG_BASE)-index:$(PROJECT_VERSION)
+BUNDLE_IMG ?= $(IMAGE_TAG_BASE)-bundle:$(VERSION)
+INDEX_IMG := $(IMAGE_TAG_BASE)-index:$(VERSION)
 BUNDLE_NAMESPACE ?= default # the namespace to deploy the OLM bundle 
 
 # Add a new line here if you would like to change its default config. (E.g CHANNELS = "candidate,fast,stable")
@@ -104,7 +109,7 @@ endif
 
 BUNDLE_METADATA_OPTS ?= $(BUNDLE_CHANNELS) $(BUNDLE_DEFAULT_CHANNEL)
 # BUNDLE_GEN_FLAGS are the flags passed to the operator-sdk generate bundle command
-BUNDLE_GEN_FLAGS ?= -q --overwrite --version $(shell echo $(PROJECT_VERSION) | sed 's/^v//') $(BUNDLE_METADATA_OPTS)
+BUNDLE_GEN_FLAGS ?= -q --overwrite --version $(VERSION) $(BUNDLE_METADATA_OPTS)
 # ENVTEST_K8S_VERSION refers to the version of kubebuilder assets to be downloaded by envtest binary.
 ENVTEST_K8S_VERSION = 1.23
 
@@ -215,18 +220,20 @@ update-registry:
 	-e 's|relatedImageWorker:.*$$|relatedImageWorker: ${KMM_WORKER_IMG}|' \
 	hack/k8s-patch/k8s-kmm-patch/metadata-patch/values.yaml
 
+.PHONY: update-helm-metadata
+update-helm-metadata: ## Update helm Chart.yaml version and appVersion based on HELM_CHART_VERSION
+	sed -i -e 's|appVersion:.*$$|appVersion: "$(HELM_APP_VERSION)"|' hack/k8s-patch/metadata-patch/Chart.yaml
+	sed -i '0,/version:/s|version:.*|version: $(HELM_CHART_VERSION)|' hack/k8s-patch/metadata-patch/Chart.yaml
+
 .PHONY: update-version
-update-version:
-	# updating project version in manifests
-	sed -i -e 's|appVersion:.*$$|appVersion: "${PROJECT_VERSION}"|' hack/k8s-patch/metadata-patch/Chart.yaml
-	sed -i '0,/version:/s|version:.*|version: ${PROJECT_VERSION}|' hack/k8s-patch/metadata-patch/Chart.yaml
+update-version: update-helm-metadata ## Update the Project version in helm charts based on ${PROJECT_VERSION}
 	# updating project version in Dockerfile metadata
-	sed -i 's/release="[^"]*"/release="${PROJECT_VERSION}"/g' Dockerfile internal/utils_container/Dockerfile
-	sed -i 's/version="[^"]*"/version="${PROJECT_VERSION}"/g' Dockerfile internal/utils_container/Dockerfile
+	sed -i 's/release="[^"]*"/release="${VERSION}"/g' Dockerfile internal/utils_container/Dockerfile
+	sed -i 's/version="[^"]*"/version="${VERSION}"/g' Dockerfile internal/utils_container/Dockerfile
 	# updating default image tags in Go source files
-	sed -i 's|defaultConfigManagerImage.*=.*"docker.io/rocm/device-config-manager:[^"]*"|defaultConfigManagerImage = "docker.io/rocm/device-config-manager:${PROJECT_VERSION}"|' internal/configmanager/configmanager.go
-	sed -i 's|defaultMetricsExporterImage.*=.*"docker.io/rocm/device-metrics-exporter:[^"]*"|defaultMetricsExporterImage = "docker.io/rocm/device-metrics-exporter:${PROJECT_VERSION}"|' internal/metricsexporter/metricsexporter.go
-	sed -i 's|defaultTestRunnerImage.*=.*"docker.io/rocm/test-runner:[^"]*"|defaultTestRunnerImage = "docker.io/rocm/test-runner:${PROJECT_VERSION}"|' internal/testrunner/testrunner.go
+	sed -i 's|defaultConfigManagerImage.*=.*"docker.io/rocm/device-config-manager:[^"]*"|defaultConfigManagerImage = "docker.io/rocm/device-config-manager:v${PROJECT_VERSION}"|' internal/configmanager/configmanager.go
+	sed -i 's|defaultMetricsExporterImage.*=.*"docker.io/rocm/device-metrics-exporter:[^"]*"|defaultMetricsExporterImage = "docker.io/rocm/device-metrics-exporter:v${PROJECT_VERSION}"|' internal/metricsexporter/metricsexporter.go
+	sed -i 's|defaultTestRunnerImage.*=.*"docker.io/rocm/test-runner:[^"]*"|defaultTestRunnerImage = "docker.io/rocm/test-runner:v${PROJECT_VERSION}"|' internal/testrunner/testrunner.go
 	${MAKE} fmt
 
 .PHONY: manifests
@@ -308,7 +315,7 @@ docs-lint: ## Run docs Markdown lint + spelling (full ROCm-style docs lint).
 ##@ Build
 
 manager: $(shell find -name "*.go") go.mod go.sum  ## Build manager binary.
-	go build -ldflags="-X main.Version=$(PROJECT_VERSION) -X main.GitCommit=$(GIT_COMMIT) -X main.BuildTag=$(HOURLY_TAG_LABEL)" -o $@ ./cmd
+	go build -ldflags="-X main.Version=$(VERSION) -X main.GitCommit=$(GIT_COMMIT) -X main.BuildTag=$(HOURLY_TAG_LABEL)" -o $@ ./cmd
 
 .PHONY: docker-build
 docker-build: ## Build docker image with the manager.
@@ -319,8 +326,8 @@ docker-push: ## Push docker image with the manager.
 	docker push $(IMG)
 
 .PHONY: docker-save
-docker-save: ## Save the container image with the manager.
-	docker save $(IMG) | gzip > $(DOCKER_CONTAINER_IMG).tar.gz
+docker-save: ## save the container image with the manager.
+	docker save $(IMG) | gzip > $(IMAGE_NAME).tar.gz
 
 .PHONY: docker-build-utils
 docker-build-utils: ## Build docker image for utils container.
@@ -332,7 +339,7 @@ docker-push-utils: ## Push docker image for utils container.
 
 .PHONY: docker-save-utils
 docker-save-utils: ## Save the utils container image as tar.gz.
-	docker save $(UTILS_IMG) | gzip > $(IMAGE_NAME)-utils-$(IMAGE_TAG).tar.gz
+	docker save $(UTILS_IMG) | gzip > $(IMAGE_NAME)-utils.tar.gz
 
 .PHONY: docker-build-env
 docker-build-env: ## Build the docker shell container.
