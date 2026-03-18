@@ -111,7 +111,7 @@ deviceConfig:
       initContainerImage: busybox:1.36
       utilsContainer:
         # -- gpu operator utility container image
-        image: docker.io/rocm/gpu-operator-utils:latest
+        image: registry.test.pensando.io:5000/amd-gpu-operator-utils:v1.5.0
         # -- utility container image pull policy
         imagePullPolicy: IfNotPresent
         # -- utility container image pull secret, e.g. {"name": "mySecretName"}
@@ -297,7 +297,7 @@ controllerManager:
       # -- AMD GPU operator controller manager image repository
       repository: docker.io/rocm/gpu-operator
       # -- AMD GPU operator controller manager image tag
-      tag: dev
+      tag: v1.5.0
     # -- Image pull policy for AMD GPU operator controller manager pod
     imagePullPolicy: Always
     # -- Image pull secret name for pulling AMD GPU operator controller manager image if registry needs credential to pull image

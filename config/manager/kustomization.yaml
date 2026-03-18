@@ -6,8 +6,8 @@ resources:
 
 images:
 - name: controller
-  newName: docker.io/rocm/gpu-operator
-  newTag: dev
+  newName: registry.test.pensando.io:5000/amd-gpu-operator
+  newTag: v1.5.0
 
 configMapGenerator:
 - files:
