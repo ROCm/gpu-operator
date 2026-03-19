@@ -82,6 +82,7 @@ hostnames
 HSIO
 HTTPS
 iet
+imageRegistrySecrets
 IfNotPresent
 IgnoreDaemonSets
 IgnoreNamespaces

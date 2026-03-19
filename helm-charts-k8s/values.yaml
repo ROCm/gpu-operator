@@ -1,5 +1,7 @@
 # NFD related configs
 # schema reference: https://github.com/kubernetes-sigs/node-feature-discovery/blob/release-0.16/deployment/helm/node-feature-discovery/values.yaml
+# Note: To use global secrets, set imagePullSecrets of NFD subchart itself, global.imagePullSecrets will not be automatically inherited by NFD subchart.
+# Example: node-feature-discovery.imagePullSecrets: [{"name": "my-secret"}]
 node-feature-discovery:
   # -- Set to true/false to enable/disable the installation of node feature discovery (NFD) operator
   enabled: true
@@ -16,6 +18,9 @@ node-feature-discovery:
     # -- Set nodeSelector for NFD worker daemonset
     nodeSelector: {}
 # KMM related configs
+# Note: KMM automatically inherits global.imagePullSecrets. You can override or supplement
+# with component-specific secrets using controller.manager.imagePullSecrets and
+# webhookServer.webhookServer.imagePullSecrets
 kmm:
   # -- Set to true/false to enable/disable the installation of kernel module management (KMM) operator subchart
   enabled: true
@@ -372,5 +377,19 @@ utilsContainer:
   serviceAccount:
     annotations: {}
 global:
+  # -- Global image pull secret(s) applied to all component pods and subcharts.
+  # If specified, these secrets will be used by:
+  # - GPU operator controller manager deployment
+  # - Remediation workflow controller
+  # - All helm hooks (pre-upgrade, pre-delete, post-delete)
+  # - DeviceConfig-managed components (via commonConfig.imageRegistrySecrets)
+  # - KMM controller and webhook pods (automatically inherited)
+  # - KMM builder/signer/worker pods (automatically uses first secret as fallback)
+  #
+  # Format: [{"name": "myGlobalSecret"}] or [{"name": "secret1"}, {"name": "secret2"}]
+  #
+  # Note: For NFD subchart, you must manually set the field to match global secrets:
+  #   node-feature-discovery.imagePullSecrets: [{"name": "myGlobalSecret"}]
+  imagePullSecrets: []
   proxy:
     env: {}

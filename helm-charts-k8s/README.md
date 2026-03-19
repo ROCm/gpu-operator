@@ -149,12 +149,13 @@ Kubernetes: `>= 1.29.0-0`
 |------------|------|---------|
 | file://./charts/kmm | kmm | v1.0.0 |
 | file://./charts/remediation-crds | remediation-crds | v1.0.0 |
-| https://kubernetes-sigs.github.io/node-feature-discovery/charts | node-feature-discovery | v0.16.1 |
+| https://kubernetes-sigs.github.io/node-feature-discovery/charts | node-feature-discovery | v0.18.3 |
 
 ## Values
 
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
+| global.imagePullSecrets | list | `[]` | Global image pull secret(s) applied to all component pods and subcharts. If specified, these secrets will be used by: - GPU operator controller manager deployment - Remediation workflow controller - All helm hooks (pre-upgrade, pre-delete, post-delete) - DeviceConfig-managed components (via commonConfig.imageRegistrySecrets) - KMM controller and webhook pods (automatically inherited) - KMM builder/signer/worker pods (automatically uses first secret as fallback)  Format: [{"name": "myGlobalSecret"}] or [{"name": "secret1"}, {"name": "secret2"}]  Note: For NFD subchart, you must manually set the field to match global secrets:   node-feature-discovery.imagePullSecrets: [{"name": "myGlobalSecret"}] |
 | controllerManager.affinity | object | `{"nodeAffinity":{"preferredDuringSchedulingIgnoredDuringExecution":[{"preference":{"matchExpressions":[{"key":"node-role.kubernetes.io/control-plane","operator":"Exists"}]},"weight":1}]}}` | Deployment affinity configs for controller manager |
 | controllerManager.manager.image.repository | string | `"docker.io/rocm/gpu-operator"` | AMD GPU operator controller manager image repository |
 | controllerManager.manager.image.tag | string | `"dev"` | AMD GPU operator controller manager image tag |

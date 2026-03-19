@@ -276,6 +276,11 @@ func (nl *metricsExporter) SetMetricsExporterAsDesired(ds *appsv1.DaemonSet, dev
 	}
 
 	imagePullSecrets := []v1.LocalObjectReference{}
+	// Add global secrets first
+	if len(devConfig.Spec.CommonConfig.ImageRegistrySecrets) > 0 {
+		imagePullSecrets = append(imagePullSecrets, devConfig.Spec.CommonConfig.ImageRegistrySecrets...)
+	}
+	// Add component-specific secret
 	if mSpec.ImageRegistrySecret != nil {
 		imagePullSecrets = append(imagePullSecrets, *mSpec.ImageRegistrySecret)
 	}

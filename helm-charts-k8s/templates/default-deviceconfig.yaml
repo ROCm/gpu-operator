@@ -107,6 +107,16 @@ spec:
     initContainerImage: {{ . }}
     {{- end }}
 
+    {{- if or .imageRegistrySecrets $.Values.global.imagePullSecrets }}
+    imageRegistrySecrets:
+      {{- if $.Values.global.imagePullSecrets }}
+      {{- toYaml $.Values.global.imagePullSecrets | nindent 6 }}
+      {{- end }}
+      {{- if .imageRegistrySecrets }}
+      {{- toYaml .imageRegistrySecrets | nindent 6 }}
+      {{- end }}
+    {{- end }}
+
     {{- with .utilsContainer }}
     utilsContainer:
       {{- with .image }}

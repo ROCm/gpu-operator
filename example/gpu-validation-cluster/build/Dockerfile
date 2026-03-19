@@ -4,7 +4,7 @@ FROM ${BASE_IMAGE}
 
 ARG K3S_VERSION=v1.35.0+k3s1
 ARG MULTUS_CNI_VERSION=v4.2.2
-ARG NFD_VERSION=v0.16.1
+ARG NFD_VERSION=v0.18.3
 
 # Install required system packages
 RUN apt-get update && apt-get install -y \

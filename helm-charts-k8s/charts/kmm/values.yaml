@@ -13,9 +13,11 @@ controller:
       relatedImageWorker: docker.io/rocm/kernel-module-management-worker:latest
       # -- Image pull secret name for pulling KMM kaniko builder image if registry needs credential to pull image
       relatedImageBuildPullSecret: ""
-      # -- Image pull secret name for pulling KMM signer image if registry needs credential to pull image
+      # -- Image pull secret name for pulling KMM signer image if registry needs credential to pull image.
+      # If not set and global.imagePullSecrets is configured, the first global secret will be used automatically.
       relatedImageSignPullSecret: ""
-      # -- Image pull secret name for pulling KMM worker image if registry needs credential to pull image
+      # -- Image pull secret name for pulling KMM worker image if registry needs credential to pull image.
+      # If not set and global.imagePullSecrets is configured, the first global secret will be used automatically.
       relatedImageWorkerPullSecret: ""
     image:
       # -- KMM controller manager image repository

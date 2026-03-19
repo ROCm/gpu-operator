@@ -86,9 +86,14 @@ spec:
               fi
               # Delete all existing DeviceConfig custom resources
               kubectl delete deviceconfigs.amd.com --all -A
-      {{- if .Values.controllerManager.manager.imagePullSecrets }}
+      {{- if or .Values.global.imagePullSecrets .Values.controllerManager.manager.imagePullSecrets }}
       imagePullSecrets:
+      {{- range .Values.global.imagePullSecrets }}
+      - {{ toYaml . | nindent 8 }}
+      {{- end }}
+      {{- if .Values.controllerManager.manager.imagePullSecrets }}
       - name: {{ .Values.controllerManager.manager.imagePullSecrets }}
+      {{- end }}
       {{- end}}
       {{- with .Values.controllerManager.manager.tolerations }}
       tolerations:
