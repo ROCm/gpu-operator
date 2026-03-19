@@ -23,6 +23,7 @@ import (
 	"os"
 	"os/exec"
 	"reflect"
+	"slices"
 
 	monitoringv1 "github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring/v1"
 	"github.com/stretchr/testify/assert"
@@ -1142,4 +1143,318 @@ func (s *E2ESuite) TestHelmInstallWithKMMDisabled(c *C) {
 
 	logger.Info("KMM disabled test passed - cleaning up")
 	s.uninstallHelmChart(c, false, nil)
+}
+
+func (s *E2ESuite) TestGlobalImagePullSecrets(c *C) {
+	testName := "TestGlobalImagePullSecrets"
+	secretName := "test-global-registry-secret"
+
+	// Create a dummy image pull secret
+	secret := &corev1.Secret{
+		ObjectMeta: v1.ObjectMeta{
+			Name:      secretName,
+			Namespace: s.ns,
+		},
+		Type: corev1.SecretTypeDockerConfigJson,
+		Data: map[string][]byte{
+			corev1.DockerConfigJsonKey: []byte(`{"auths":{"https://index.dummyRegistry.io/v1/":{"auth":"dummyToken"}}}`),
+		},
+	}
+
+	_, err := s.clientSet.CoreV1().Secrets(s.ns).Create(context.TODO(), secret, v1.CreateOptions{})
+	assert.NoError(c, err, fmt.Sprintf("%s: failed to create test secret", testName))
+
+	// Defer secret deletion
+	defer func() {
+		err := s.clientSet.CoreV1().Secrets(s.ns).Delete(context.TODO(), secretName, v1.DeleteOptions{})
+		assert.NoError(c, err, fmt.Sprintf("%s: failed to delete test secret", testName))
+	}()
+
+	// Install helm chart with global secret for both main chart and NFD subchart
+	s.installHelmChart(c, false, []string{
+		"--set", fmt.Sprintf("global.imagePullSecrets[0].name=%s", secretName),
+	})
+
+	// Defer helm chart uninstall
+	defer func() {
+		s.uninstallHelmChart(c, false, nil)
+	}()
+
+	// Verify DeviceConfig has the global secret in commonConfig
+	devCfgList, err := s.dClient.DeviceConfigs(s.ns).List(v1.ListOptions{})
+	assert.NoError(c, err, fmt.Sprintf("%s: failed to list DeviceConfigs", testName))
+	assert.True(c, len(devCfgList.Items) == 1, fmt.Sprintf("%s: expected 1 DeviceConfig, got %d", testName, len(devCfgList.Items)))
+
+	devConfig := devCfgList.Items[0]
+	assert.True(c, len(devConfig.Spec.CommonConfig.ImageRegistrySecrets) == 1,
+		fmt.Sprintf("%s: expected 1 global secret in commonConfig, got %d", testName, len(devConfig.Spec.CommonConfig.ImageRegistrySecrets)))
+	assert.Equal(c, secretName, devConfig.Spec.CommonConfig.ImageRegistrySecrets[0].Name,
+		fmt.Sprintf("%s: expected secret name %s, got %s", testName, secretName, devConfig.Spec.CommonConfig.ImageRegistrySecrets[0].Name))
+
+	// Verify GPU operator controller manager deployment has the secret
+	controllerDeploymentList, err := s.clientSet.AppsV1().Deployments(s.ns).List(context.TODO(), v1.ListOptions{
+		LabelSelector: "control-plane=controller-manager",
+	})
+	assert.NoError(c, err, fmt.Sprintf("%s: failed to list controller manager deployment", testName))
+	assert.True(c, len(controllerDeploymentList.Items) == 1, fmt.Sprintf("%s: expected 1 controller manager deployment, got %d", testName, len(controllerDeploymentList.Items)))
+	controllerDeployment := controllerDeploymentList.Items[0]
+	assert.True(c, len(controllerDeployment.Spec.Template.Spec.ImagePullSecrets) >= 1,
+		fmt.Sprintf("%s: controller manager should have at least 1 imagePullSecret", testName))
+	assert.Equal(c, secretName, controllerDeployment.Spec.Template.Spec.ImagePullSecrets[0].Name,
+		fmt.Sprintf("%s: controller manager imagePullSecret mismatch", testName))
+
+	// Verify remediation workflow controller deployment has the secret
+	remediationDeploymentList, err := s.clientSet.AppsV1().Deployments(s.ns).List(context.TODO(), v1.ListOptions{
+		LabelSelector: "app=amd-gpu-operator-workflow-controller",
+	})
+	if err == nil && len(remediationDeploymentList.Items) > 0 {
+		// Remediation might be disabled in some test environments
+		remediationDeployment := remediationDeploymentList.Items[0]
+		assert.True(c, len(remediationDeployment.Spec.Template.Spec.ImagePullSecrets) >= 1,
+			fmt.Sprintf("%s: remediation controller should have at least 1 imagePullSecret", testName))
+		assert.Equal(c, secretName, remediationDeployment.Spec.Template.Spec.ImagePullSecrets[0].Name,
+			fmt.Sprintf("%s: remediation controller imagePullSecret mismatch", testName))
+	}
+
+	// Verify KMM controller deployment has the secret
+	kmmControllerDeploymentList, err := s.clientSet.AppsV1().Deployments(s.ns).List(context.TODO(), v1.ListOptions{
+		LabelSelector: "app.kubernetes.io/component=kmm,control-plane=controller",
+	})
+	assert.NoError(c, err, fmt.Sprintf("%s: failed to list KMM controller deployment", testName))
+	assert.True(c, len(kmmControllerDeploymentList.Items) == 1, fmt.Sprintf("%s: expected 1 KMM controller deployment, got %d", testName, len(kmmControllerDeploymentList.Items)))
+	kmmControllerDeployment := kmmControllerDeploymentList.Items[0]
+	assert.True(c, len(kmmControllerDeployment.Spec.Template.Spec.ImagePullSecrets) >= 1,
+		fmt.Sprintf("%s: KMM controller should have at least 1 imagePullSecret", testName))
+	assert.Equal(c, secretName, kmmControllerDeployment.Spec.Template.Spec.ImagePullSecrets[0].Name,
+		fmt.Sprintf("%s: KMM controller imagePullSecret mismatch", testName))
+
+	// Verify KMM webhook deployment has the secret
+	kmmWebhookDeploymentList, err := s.clientSet.AppsV1().Deployments(s.ns).List(context.TODO(), v1.ListOptions{
+		LabelSelector: "app.kubernetes.io/component=kmm,control-plane=webhook-server",
+	})
+	assert.NoError(c, err, fmt.Sprintf("%s: failed to list KMM webhook deployment", testName))
+	assert.True(c, len(kmmWebhookDeploymentList.Items) == 1, fmt.Sprintf("%s: expected 1 KMM webhook deployment, got %d", testName, len(kmmWebhookDeploymentList.Items)))
+	kmmWebhookDeployment := kmmWebhookDeploymentList.Items[0]
+	assert.True(c, len(kmmWebhookDeployment.Spec.Template.Spec.ImagePullSecrets) >= 1,
+		fmt.Sprintf("%s: KMM webhook should have at least 1 imagePullSecret", testName))
+	assert.Equal(c, secretName, kmmWebhookDeployment.Spec.Template.Spec.ImagePullSecrets[0].Name,
+		fmt.Sprintf("%s: KMM webhook imagePullSecret mismatch", testName))
+
+	// Verify KMM deployment has RELATED_IMAGE_*_PULL_SECRET env vars set
+	kmmContainer := kmmControllerDeployment.Spec.Template.Spec.Containers[0]
+	envVars := map[string]bool{
+		"RELATED_IMAGE_BUILD_PULL_SECRET":  false,
+		"RELATED_IMAGE_SIGN_PULL_SECRET":   false,
+		"RELATED_IMAGE_WORKER_PULL_SECRET": false,
+	}
+	for _, env := range kmmContainer.Env {
+		if _, exists := envVars[env.Name]; exists {
+			assert.Equal(c, secretName, env.Value,
+				fmt.Sprintf("%s: KMM %s env var should be %s, got %s", testName, env.Name, secretName, env.Value))
+			envVars[env.Name] = true
+		}
+	}
+	for envName, found := range envVars {
+		assert.True(c, found, fmt.Sprintf("%s: KMM deployment missing %s env var", testName, envName))
+	}
+
+	// Verify NFD pods have the secret
+	nfdWorkerDaemonSetList, err := s.clientSet.AppsV1().DaemonSets(s.ns).List(context.TODO(), v1.ListOptions{
+		LabelSelector: "app.kubernetes.io/name=node-feature-discovery,role=worker",
+	})
+	assert.NoError(c, err, fmt.Sprintf("%s: failed to list NFD worker daemonset", testName))
+	assert.True(c, len(nfdWorkerDaemonSetList.Items) == 1, fmt.Sprintf("%s: expected 1 NFD worker daemonset, got %d", testName, len(nfdWorkerDaemonSetList.Items)))
+	nfdWorkerDaemonSet := nfdWorkerDaemonSetList.Items[0]
+	assert.True(c, len(nfdWorkerDaemonSet.Spec.Template.Spec.ImagePullSecrets) >= 1,
+		fmt.Sprintf("%s: NFD worker should have at least 1 imagePullSecret", testName))
+	assert.Equal(c, secretName, nfdWorkerDaemonSet.Spec.Template.Spec.ImagePullSecrets[0].Name,
+		fmt.Sprintf("%s: NFD worker imagePullSecret mismatch", testName))
+
+	nfdMasterDeploymentList, err := s.clientSet.AppsV1().Deployments(s.ns).List(context.TODO(), v1.ListOptions{
+		LabelSelector: "app.kubernetes.io/name=node-feature-discovery,app.kubernetes.io/component=nfd-master",
+	})
+	if err == nil && len(nfdMasterDeploymentList.Items) > 0 {
+		// NFD master might be a deployment or might not exist depending on NFD version
+		nfdMasterDeployment := nfdMasterDeploymentList.Items[0]
+		assert.True(c, len(nfdMasterDeployment.Spec.Template.Spec.ImagePullSecrets) >= 1,
+			fmt.Sprintf("%s: NFD master should have at least 1 imagePullSecret", testName))
+		assert.Equal(c, secretName, nfdMasterDeployment.Spec.Template.Spec.ImagePullSecrets[0].Name,
+			fmt.Sprintf("%s: NFD master imagePullSecret mismatch", testName))
+	}
+
+	logger.Infof("%s: All verifications passed successfully", testName)
+}
+
+func (s *E2ESuite) TestGlobalAndComponentSpecificImagePullSecrets(c *C) {
+	testName := "TestGlobalAndComponentSpecificImagePullSecrets"
+	globalSecretName := "test-global-registry-secret-v2"
+	componentSecretName := "test-component-registry-secret-v2"
+
+	// Create a dummy global image pull secret
+	globalSecret := &corev1.Secret{
+		ObjectMeta: v1.ObjectMeta{
+			Name:      globalSecretName,
+			Namespace: s.ns,
+		},
+		Type: corev1.SecretTypeDockerConfigJson,
+		Data: map[string][]byte{
+			corev1.DockerConfigJsonKey: []byte(`{"auths":{"https://index.globalRegistry.io/v1/":{"auth":"globalToken"}}}`),
+		},
+	}
+
+	_, err := s.clientSet.CoreV1().Secrets(s.ns).Create(context.TODO(), globalSecret, v1.CreateOptions{})
+	assert.NoError(c, err, fmt.Sprintf("%s: failed to create global secret", testName))
+
+	// Create a dummy component-specific image pull secret
+	componentSecret := &corev1.Secret{
+		ObjectMeta: v1.ObjectMeta{
+			Name:      componentSecretName,
+			Namespace: s.ns,
+		},
+		Type: corev1.SecretTypeDockerConfigJson,
+		Data: map[string][]byte{
+			corev1.DockerConfigJsonKey: []byte(`{"auths":{"https://index.componentRegistry.io/v1/":{"auth":"componentToken"}}}`),
+		},
+	}
+
+	_, err = s.clientSet.CoreV1().Secrets(s.ns).Create(context.TODO(), componentSecret, v1.CreateOptions{})
+	assert.NoError(c, err, fmt.Sprintf("%s: failed to create component secret", testName))
+
+	// Defer secrets deletion
+	defer func() {
+		err := s.clientSet.CoreV1().Secrets(s.ns).Delete(context.TODO(), globalSecretName, v1.DeleteOptions{})
+		assert.NoError(c, err, fmt.Sprintf("%s: failed to delete global secret", testName))
+		err = s.clientSet.CoreV1().Secrets(s.ns).Delete(context.TODO(), componentSecretName, v1.DeleteOptions{})
+		assert.NoError(c, err, fmt.Sprintf("%s: failed to delete component secret", testName))
+	}()
+
+	// Install helm chart with both global and component-specific secrets
+	s.installHelmChart(c, false, []string{
+		"--set", fmt.Sprintf("global.imagePullSecrets[0].name=%s", globalSecretName),
+		"--set", fmt.Sprintf("controllerManager.manager.imagePullSecrets=%s", componentSecretName),
+		"--set", fmt.Sprintf("kmm.controller.manager.imagePullSecrets=%s", componentSecretName),
+		"--set", fmt.Sprintf("kmm.webhookServer.webhookServer.imagePullSecrets=%s", componentSecretName),
+		"--set", fmt.Sprintf("kmm.controller.manager.env.relatedImageBuildPullSecret=%s", componentSecretName),
+		"--set", fmt.Sprintf("kmm.controller.manager.env.relatedImageSignPullSecret=%s", componentSecretName),
+		"--set", fmt.Sprintf("kmm.controller.manager.env.relatedImageWorkerPullSecret=%s", componentSecretName),
+		"--set", fmt.Sprintf("node-feature-discovery.imagePullSecrets[0].name=%s", componentSecretName),
+	})
+
+	// Defer helm chart uninstall
+	defer func() {
+		s.uninstallHelmChart(c, false, nil)
+	}()
+
+	// Verify GPU operator controller manager deployment has both secrets
+	controllerDeploymentList, err := s.clientSet.AppsV1().Deployments(s.ns).List(context.TODO(), v1.ListOptions{
+		LabelSelector: "control-plane=controller-manager",
+	})
+	assert.NoError(c, err, fmt.Sprintf("%s: failed to list controller manager deployment", testName))
+	assert.True(c, len(controllerDeploymentList.Items) == 1, fmt.Sprintf("%s: expected 1 controller manager deployment, got %d", testName, len(controllerDeploymentList.Items)))
+	controllerDeployment := controllerDeploymentList.Items[0]
+	assert.True(c, len(controllerDeployment.Spec.Template.Spec.ImagePullSecrets) >= 2,
+		fmt.Sprintf("%s: controller manager should have at least 2 imagePullSecrets, got %d", testName, len(controllerDeployment.Spec.Template.Spec.ImagePullSecrets)))
+	secretNames := make([]string, 0, len(controllerDeployment.Spec.Template.Spec.ImagePullSecrets))
+	for _, secret := range controllerDeployment.Spec.Template.Spec.ImagePullSecrets {
+		secretNames = append(secretNames, secret.Name)
+	}
+	assert.True(c, contains(secretNames, globalSecretName),
+		fmt.Sprintf("%s: controller manager should have global secret %s", testName, globalSecretName))
+	assert.True(c, contains(secretNames, componentSecretName),
+		fmt.Sprintf("%s: controller manager should have component secret %s", testName, componentSecretName))
+
+	// Verify KMM controller deployment has both secrets
+	kmmControllerDeploymentList, err := s.clientSet.AppsV1().Deployments(s.ns).List(context.TODO(), v1.ListOptions{
+		LabelSelector: "app.kubernetes.io/component=kmm,control-plane=controller",
+	})
+	assert.NoError(c, err, fmt.Sprintf("%s: failed to list KMM controller deployment", testName))
+	assert.True(c, len(kmmControllerDeploymentList.Items) == 1, fmt.Sprintf("%s: expected 1 KMM controller deployment, got %d", testName, len(kmmControllerDeploymentList.Items)))
+	kmmControllerDeployment := kmmControllerDeploymentList.Items[0]
+	assert.True(c, len(kmmControllerDeployment.Spec.Template.Spec.ImagePullSecrets) >= 2,
+		fmt.Sprintf("%s: KMM controller should have at least 2 imagePullSecrets, got %d", testName, len(kmmControllerDeployment.Spec.Template.Spec.ImagePullSecrets)))
+	kmmSecretNames := make([]string, 0, len(kmmControllerDeployment.Spec.Template.Spec.ImagePullSecrets))
+	for _, secret := range kmmControllerDeployment.Spec.Template.Spec.ImagePullSecrets {
+		kmmSecretNames = append(kmmSecretNames, secret.Name)
+	}
+	assert.True(c, contains(kmmSecretNames, globalSecretName),
+		fmt.Sprintf("%s: KMM controller should have global secret %s", testName, globalSecretName))
+	assert.True(c, contains(kmmSecretNames, componentSecretName),
+		fmt.Sprintf("%s: KMM controller should have component secret %s", testName, componentSecretName))
+
+	// Verify KMM webhook deployment has both secrets
+	kmmWebhookDeploymentList, err := s.clientSet.AppsV1().Deployments(s.ns).List(context.TODO(), v1.ListOptions{
+		LabelSelector: "app.kubernetes.io/component=kmm,control-plane=webhook-server",
+	})
+	assert.NoError(c, err, fmt.Sprintf("%s: failed to list KMM webhook deployment", testName))
+	assert.True(c, len(kmmWebhookDeploymentList.Items) == 1, fmt.Sprintf("%s: expected 1 KMM webhook deployment, got %d", testName, len(kmmWebhookDeploymentList.Items)))
+	kmmWebhookDeployment := kmmWebhookDeploymentList.Items[0]
+	assert.True(c, len(kmmWebhookDeployment.Spec.Template.Spec.ImagePullSecrets) >= 2,
+		fmt.Sprintf("%s: KMM webhook should have at least 2 imagePullSecrets, got %d", testName, len(kmmWebhookDeployment.Spec.Template.Spec.ImagePullSecrets)))
+	kmmWebhookSecretNames := make([]string, 0, len(kmmWebhookDeployment.Spec.Template.Spec.ImagePullSecrets))
+	for _, secret := range kmmWebhookDeployment.Spec.Template.Spec.ImagePullSecrets {
+		kmmWebhookSecretNames = append(kmmWebhookSecretNames, secret.Name)
+	}
+	assert.True(c, contains(kmmWebhookSecretNames, globalSecretName),
+		fmt.Sprintf("%s: KMM webhook should have global secret %s", testName, globalSecretName))
+	assert.True(c, contains(kmmWebhookSecretNames, componentSecretName),
+		fmt.Sprintf("%s: KMM webhook should have component secret %s", testName, componentSecretName))
+
+	// Verify NFD worker has component secret (if it exists)
+	nfdWorkerDaemonSetList, err := s.clientSet.AppsV1().DaemonSets(s.ns).List(context.TODO(), v1.ListOptions{
+		LabelSelector: "app.kubernetes.io/name=node-feature-discovery,role=worker",
+	})
+	if err == nil && len(nfdWorkerDaemonSetList.Items) > 0 {
+		// NFD might be disabled in some test environments
+		nfdWorkerDaemonSet := nfdWorkerDaemonSetList.Items[0]
+		assert.True(c, len(nfdWorkerDaemonSet.Spec.Template.Spec.ImagePullSecrets) >= 1,
+			fmt.Sprintf("%s: NFD worker should have at least 1 imagePullSecret, got %d", testName, len(nfdWorkerDaemonSet.Spec.Template.Spec.ImagePullSecrets)))
+		nfdWorkerSecretNames := make([]string, 0, len(nfdWorkerDaemonSet.Spec.Template.Spec.ImagePullSecrets))
+		for _, secret := range nfdWorkerDaemonSet.Spec.Template.Spec.ImagePullSecrets {
+			nfdWorkerSecretNames = append(nfdWorkerSecretNames, secret.Name)
+		}
+		assert.True(c, contains(nfdWorkerSecretNames, componentSecretName),
+			fmt.Sprintf("%s: NFD worker should have component secret %s", testName, componentSecretName))
+	}
+
+	// Verify NFD master has component secret (if it exists)
+	nfdMasterDeploymentList, err := s.clientSet.AppsV1().Deployments(s.ns).List(context.TODO(), v1.ListOptions{
+		LabelSelector: "app.kubernetes.io/name=node-feature-discovery,app.kubernetes.io/component=nfd-master",
+	})
+	if err == nil && len(nfdMasterDeploymentList.Items) > 0 {
+		nfdMasterDeployment := nfdMasterDeploymentList.Items[0]
+		assert.True(c, len(nfdMasterDeployment.Spec.Template.Spec.ImagePullSecrets) >= 1,
+			fmt.Sprintf("%s: NFD master should have at least 1 imagePullSecret, got %d", testName, len(nfdMasterDeployment.Spec.Template.Spec.ImagePullSecrets)))
+		nfdMasterSecretNames := make([]string, 0, len(nfdMasterDeployment.Spec.Template.Spec.ImagePullSecrets))
+		for _, secret := range nfdMasterDeployment.Spec.Template.Spec.ImagePullSecrets {
+			nfdMasterSecretNames = append(nfdMasterSecretNames, secret.Name)
+		}
+		assert.True(c, contains(nfdMasterSecretNames, componentSecretName),
+			fmt.Sprintf("%s: NFD master should have component secret %s", testName, componentSecretName))
+	}
+
+	// Verify KMM deployment has RELATED_IMAGE_*_PULL_SECRET env vars set to component secret (not global)
+	kmmContainer := kmmControllerDeployment.Spec.Template.Spec.Containers[0]
+	envVars := map[string]string{
+		"RELATED_IMAGE_BUILD_PULL_SECRET":  "",
+		"RELATED_IMAGE_SIGN_PULL_SECRET":   "",
+		"RELATED_IMAGE_WORKER_PULL_SECRET": "",
+	}
+	for _, env := range kmmContainer.Env {
+		if _, exists := envVars[env.Name]; exists {
+			envVars[env.Name] = env.Value
+		}
+	}
+	for envName, envValue := range envVars {
+		assert.True(c, envValue != "", fmt.Sprintf("%s: KMM deployment missing %s env var", testName, envName))
+		assert.Equal(c, componentSecretName, envValue,
+			fmt.Sprintf("%s: KMM %s env var should be component secret %s (not global %s), got %s",
+				testName, envName, componentSecretName, globalSecretName, envValue))
+	}
+
+	logger.Infof("%s: All verifications passed successfully", testName)
+}
+
+// Helper function to check if a slice contains a string
+func contains(slice []string, item string) bool {
+	return slices.Contains(slice, item)
 }

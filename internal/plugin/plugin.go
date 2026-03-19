@@ -134,6 +134,11 @@ func (dp *devicePlugin) SetDevicePluginAsDesired(ds *appsv1.DaemonSet, devConfig
 		nodeSelector[kmmLabels.GetKernelModuleReadyNodeLabel(devConfig.Namespace, devConfig.Name)] = ""
 	}
 	imagePullSecrets := []v1.LocalObjectReference{}
+	// Add global secrets first
+	if len(devConfig.Spec.CommonConfig.ImageRegistrySecrets) > 0 {
+		imagePullSecrets = append(imagePullSecrets, devConfig.Spec.CommonConfig.ImageRegistrySecrets...)
+	}
+	// Add component-specific secret
 	if devConfig.Spec.DevicePlugin.ImageRegistrySecret != nil {
 		imagePullSecrets = append(imagePullSecrets, *devConfig.Spec.DevicePlugin.ImageRegistrySecret)
 	}
@@ -306,6 +311,11 @@ func (dp *devicePlugin) SetDRADriverAsDesired(ds *appsv1.DaemonSet, devConfig *a
 	}
 
 	imagePullSecrets := []v1.LocalObjectReference{}
+	// Add global secrets first
+	if len(devConfig.Spec.CommonConfig.ImageRegistrySecrets) > 0 {
+		imagePullSecrets = append(imagePullSecrets, devConfig.Spec.CommonConfig.ImageRegistrySecrets...)
+	}
+	// Add component-specific secret
 	if devConfig.Spec.DRADriver.ImageRegistrySecret != nil {
 		imagePullSecrets = append(imagePullSecrets, *devConfig.Spec.DRADriver.ImageRegistrySecret)
 	}

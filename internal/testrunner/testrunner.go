@@ -270,6 +270,11 @@ func (nl *testRunner) SetTestRunnerAsDesired(ds *appsv1.DaemonSet, devConfig *am
 	}
 
 	imagePullSecrets := []v1.LocalObjectReference{}
+	// Add global secrets first
+	if len(devConfig.Spec.CommonConfig.ImageRegistrySecrets) > 0 {
+		imagePullSecrets = append(imagePullSecrets, devConfig.Spec.CommonConfig.ImageRegistrySecrets...)
+	}
+	// Add component-specific secret
 	if trSpec.ImageRegistrySecret != nil {
 		imagePullSecrets = append(imagePullSecrets, *trSpec.ImageRegistrySecret)
 	}

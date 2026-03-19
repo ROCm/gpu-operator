@@ -12,6 +12,9 @@
     - Supports multiple deployment scenarios: use existing KMM installations (`enabled=false, watch=true`), skip KMM entirely for alternative driver solutions (`enabled=false, watch=false`), or install KMM without asking for GPU Operator to use it (`enabled=true, watch=false`)
     - Fully backward compatible: existing configurations with `kmm.enabled=false` continue to work without changes
 
+- **Node Feature Discovery (NFD) Upgrade**
+  - Upgraded NFD helm chart dependency from v0.16.1 to v0.18.3
+
 ## GPU Operator v1.4.1 Release Notes
 
 The AMD GPU Operator v1.4.1 release extends platform support to OpenShift v4.20 and Debian 12, and introduces the ability to build `amdgpu` kernel modules directly within air-gapped OpenShift clusters.

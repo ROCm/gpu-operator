@@ -944,6 +944,13 @@ type CommonConfigSpec struct {
 	// +optional
 	InitContainerImage string `json:"initContainerImage,omitempty"`
 
+	// ImageRegistrySecrets are global secrets used for pull/push images from/to private registries.
+	// These secrets will be applied to all component pods (device plugin, metrics exporter,
+	// test runner, config manager, DRA driver, node labeller) in addition to component-specific secrets.
+	//+operator-sdk:csv:customresourcedefinitions:type=spec,displayName="ImageRegistrySecrets",xDescriptors={"urn:alm:descriptor:com.amd.deviceconfigs:imageRegistrySecrets"}
+	// +optional
+	ImageRegistrySecrets []v1.LocalObjectReference `json:"imageRegistrySecrets,omitempty"`
+
 	// UtilsContainer contains parameters to configure operator's utils container
 	//+operator-sdk:csv:customresourcedefinitions:type=spec,displayName="UtilsContainer",xDescriptors={"urn:alm:descriptor:com.amd.deviceconfigs:utilsContainer"}
 	// +optional

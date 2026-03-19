@@ -522,6 +522,18 @@ func (drch *deviceConfigReconcilerHelper) findDeviceConfigsForSecret(ctx context
 }
 
 func (dcrh *deviceConfigReconcilerHelper) hasSecretReference(secretName string, dcfg amdv1alpha1.DeviceConfig) bool {
+	// Check global secrets
+	for _, secret := range dcfg.Spec.CommonConfig.ImageRegistrySecrets {
+		if secret.Name == secretName {
+			return true
+		}
+	}
+	// Check utils container image registry secret under CommonConfig
+	if dcfg.Spec.CommonConfig.UtilsContainer.ImageRegistrySecret != nil &&
+		dcfg.Spec.CommonConfig.UtilsContainer.ImageRegistrySecret.Name == secretName {
+		return true
+	}
+
 	// these secrets are KMM driver build/sign/install related secrets
 	// wrong configuration of them is hard to debug unless dumping logs
 	// when their secrets are corrected up and a secret event kicks in
@@ -535,6 +547,35 @@ func (dcrh *deviceConfigReconcilerHelper) hasSecretReference(secretName string, 
 	if dcfg.Spec.Driver.ImageSign.CertSecret != nil && dcfg.Spec.Driver.ImageSign.CertSecret.Name == secretName {
 		return true
 	}
+
+	// Check component-specific secrets
+	if dcfg.Spec.DevicePlugin.ImageRegistrySecret != nil && dcfg.Spec.DevicePlugin.ImageRegistrySecret.Name == secretName {
+		return true
+	}
+	if dcfg.Spec.MetricsExporter.ImageRegistrySecret != nil && dcfg.Spec.MetricsExporter.ImageRegistrySecret.Name == secretName {
+		return true
+	}
+	// Check MetricsExporter RBAC secret
+	if dcfg.Spec.MetricsExporter.RbacConfig.Secret != nil &&
+		dcfg.Spec.MetricsExporter.RbacConfig.Secret.Name == secretName {
+		return true
+	}
+	if dcfg.Spec.TestRunner.ImageRegistrySecret != nil && dcfg.Spec.TestRunner.ImageRegistrySecret.Name == secretName {
+		return true
+	}
+	// Check TestRunner logs export secrets
+	for _, secret := range dcfg.Spec.TestRunner.LogsLocation.LogsExportSecrets {
+		if secret != nil && secret.Name == secretName {
+			return true
+		}
+	}
+	if dcfg.Spec.ConfigManager.ImageRegistrySecret != nil && dcfg.Spec.ConfigManager.ImageRegistrySecret.Name == secretName {
+		return true
+	}
+	if dcfg.Spec.DRADriver.ImageRegistrySecret != nil && dcfg.Spec.DRADriver.ImageRegistrySecret.Name == secretName {
+		return true
+	}
+
 	return false
 }
 

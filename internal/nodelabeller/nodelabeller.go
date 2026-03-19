@@ -157,6 +157,11 @@ func (nl *nodeLabeller) SetNodeLabellerAsDesired(ds *appsv1.DaemonSet, devConfig
 	}
 
 	imagePullSecrets := []v1.LocalObjectReference{}
+	// Add global secrets first
+	if len(devConfig.Spec.CommonConfig.ImageRegistrySecrets) > 0 {
+		imagePullSecrets = append(imagePullSecrets, devConfig.Spec.CommonConfig.ImageRegistrySecrets...)
+	}
+	// Add component-specific secret
 	if devConfig.Spec.DevicePlugin.ImageRegistrySecret != nil {
 		imagePullSecrets = append(imagePullSecrets, *devConfig.Spec.DevicePlugin.ImageRegistrySecret)
 	}

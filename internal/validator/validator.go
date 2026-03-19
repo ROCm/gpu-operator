@@ -42,6 +42,7 @@ func NewValidator() ValidatorAPI {
 		"devicePlugin":        ValidateDevicePluginSpec,
 		"draDriver":           ValidateDRADriverSpec,
 		"remediationWorkflow": ValidateRemediationWorkflowSpec,
+		"commonConfig":        ValidateCommonConfigSpec,
 	}
 	vInst := &validator{
 		specValidationFuncs: specValidationFuncs,

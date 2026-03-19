@@ -32,7 +32,7 @@ COPY LICENSE LICENSE
 COPY helm-charts-k8s helm-charts-k8s
 # need to decompress nfd subchart for k8s chart, in preparation for copying out CRD
 RUN cd helm-charts-k8s/charts && \
-    tar -xvzf node-feature-discovery-chart-0.16.1.tgz
+    tar -xvzf node-feature-discovery-chart-0.18.3.tgz
 
 ARG TARGET
 

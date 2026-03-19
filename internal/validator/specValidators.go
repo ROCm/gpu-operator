@@ -235,3 +235,19 @@ func ValidateRemediationWorkflowSpec(ctx context.Context, client client.Client, 
 
 	return nil
 }
+
+// CommonConfigSpec validation
+func ValidateCommonConfigSpec(ctx context.Context, client client.Client, devConfig *amdv1alpha1.DeviceConfig) error {
+	commonConfig := devConfig.Spec.CommonConfig
+
+	// Validate global ImageRegistrySecrets
+	if len(commonConfig.ImageRegistrySecrets) > 0 {
+		for i, secretRef := range commonConfig.ImageRegistrySecrets {
+			if err := validateSecret(ctx, client, &secretRef, devConfig.Namespace); err != nil {
+				return fmt.Errorf("ImageRegistrySecrets[%d]: %v", i, err)
+			}
+		}
+	}
+
+	return nil
+}

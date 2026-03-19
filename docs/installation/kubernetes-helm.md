@@ -139,7 +139,26 @@ Installation Options
 ```{tip}
 1. Before v1.3.0 the gpu operator helm chart won't provide a default ```DeviceConfig```, you need to take extra step to create a ```DeviceConfig```.
 
-2. Starting from v1.3.0 the ```helm install``` command would support one-step installation + configuration, which would create a default ```DeviceConfig``` with default values, which may not work for all the users with different the deployment scenarios, please refer to {ref}`typical-deployment-scenarios` for more information and get corresponding ```helm install``` commands. 
+2. Starting from v1.3.0 the ```helm install``` command would support one-step installation + configuration, which would create a default ```DeviceConfig``` with default values, which may not work for all the users with different the deployment scenarios, please refer to {ref}`typical-deployment-scenarios` for more information and get corresponding ```helm install``` commands.
+
+3. Global Image Pull Secrets (v1.5.0+): If you need to pull images from private registries or avoid Docker Hub rate limits, you can configure global image pull secrets that will be automatically applied to all components:
+
+    ```bash
+    # Create your image pull secret first
+    kubectl create secret docker-registry my-registry-secret \
+      --docker-server=<your-registry-server> \
+      --docker-username=<your-username> \
+      --docker-password=<your-password/token> \
+      --namespace=kube-amd-gpu
+
+    # Install with global secret
+    helm install amd-gpu-operator rocm/gpu-operator-charts \
+      --namespace kube-amd-gpu \
+      --create-namespace \
+      --version=v1.5.0 \
+      --set global.imagePullSecrets[0].name=my-registry-secret
+    ```
+
 ```
 
 ### 3. Helm Chart Customization Parameters
@@ -171,6 +190,7 @@ The following parameters are able to be configued when using the Helm Chart. In 
 | controllerManager.manager.resources.requests.memory | string | `"256Mi"` | Memory requests for the controller manager. Adjust based on observed memory usage |
 | controllerManager.nodeAffinity.nodeSelectorTerms | list | `[{"key":"node-role.kubernetes.io/control-plane","operator":"Exists"},{"key":"node-role.kubernetes.io/master","operator":"Exists"}]` | Node affinity selector terms config for the AMD GPU operator controller manager, set it to [] if you want to make affinity config empty |
 | controllerManager.nodeSelector | object | `{}` | Node selector for AMD GPU operator controller manager deployment |
+| global.imagePullSecrets | list | `[]` | Global image pull secret(s) applied to all component pods. Automatically inherited by controller, hooks, DeviceConfig components, and KMM. Format: `[{"name": "mySecret"}]` |
 | installdefaultNFDRule | bool | `true` | Set to true to install default NFD rule for detecting AMD GPU hardware based on pci vendor ID and device ID |
 | kmm.enabled | bool | `true` | Set to true/false to enable/disable the installation of kernel module management (KMM) operator |
 | kmm.watch | bool | `true` | Set to true/false to enable/disable GPU operator watching and using KMM resources |

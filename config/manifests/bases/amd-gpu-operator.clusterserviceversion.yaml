@@ -53,6 +53,14 @@ spec:
         path: commonConfig
         x-descriptors:
         - urn:alm:descriptor:com.amd.deviceconfigs:commonConfig
+      - description: ImageRegistrySecrets are global secrets used for pull/push images
+          from/to private registries. These secrets will be applied to all component
+          pods (device plugin, metrics exporter, test runner, config manager, DRA
+          driver, node labeller) in addition to component-specific secrets.
+        displayName: ImageRegistrySecrets
+        path: commonConfig.imageRegistrySecrets
+        x-descriptors:
+        - urn:alm:descriptor:com.amd.deviceconfigs:imageRegistrySecrets
       - description: InitContainerImage is being used for the operands pods, i.e.
           metrics exporter, test runner, device plugin, device config manager and
           node labeller

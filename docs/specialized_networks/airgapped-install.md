@@ -38,7 +38,7 @@ docker.io/ubuntu:<Ubuntu OS version>
 docker.io/busybox:1.36
 
 # Node Feature Discovery
-registry.k8s.io/nfd/node-feature-discovery:v0.16.1
+registry.k8s.io/nfd/node-feature-discovery:v0.18.3
 
 # Cert-Manager Images
 quay.io/jetstack/cert-manager-controller:v1.15.1
@@ -84,7 +84,7 @@ INTERNAL_REGISTRY="internal-registry.example.com"
 OPERATOR_VERSION="v1.4.1"  # GPU operator version, e.g., "v1.5.0"
 UBUNTU_VERSION="22.04"  # e.g., "22.04"
 KANIKO_VERSION="v1.23.2"
-NFD_VERSION="v0.16.1"
+NFD_VERSION="v0.18.3"
 CERT_MANAGER_VERSION="v1.15.1"
 BUSYBOX_VERSION="1.36"
 
@@ -225,7 +225,7 @@ deviceConfig:
 node-feature-discovery:
   image:
     repository: internal-registry.example.com/nfd/node-feature-discovery
-    tag: v0.16.1
+    tag: v0.18.3
 
 # KMM (Kernel Module Management) image configuration
 kmm:

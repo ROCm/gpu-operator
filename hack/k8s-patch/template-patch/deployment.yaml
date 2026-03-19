@@ -67,9 +67,14 @@ spec:
         - mountPath: /controller_manager_config.yaml
           name: manager-config
           subPath: controller_manager_config.yaml
-      {{- if .Values.controllerManager.manager.imagePullSecrets }}
+      {{- if or .Values.global.imagePullSecrets .Values.controllerManager.manager.imagePullSecrets }}
       imagePullSecrets:
+      {{- range .Values.global.imagePullSecrets }}
+      - {{ toYaml . | nindent 8 }}
+      {{- end }}
+      {{- if .Values.controllerManager.manager.imagePullSecrets }}
       - name: {{ .Values.controllerManager.manager.imagePullSecrets }}
+      {{- end }}
       {{- end}}
       securityContext:
         runAsNonRoot: true
