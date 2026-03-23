@@ -1,0 +1,41 @@
+---
+# Teardown GPU Validation Cluster
+# Usage: ansible-playbook playbooks/teardown-cluster.yml
+
+- name: Teardown cluster on all nodes
+  hosts: cluster_nodes
+  gather_facts: no
+  become: yes
+
+  tasks:
+    - name: Run teardown script
+      shell: |
+        cd {{ script_dir }}
+        CONFIG_DIR={{ config_dir }} ./gpu-cluster.sh teardown
+      args:
+        executable: /bin/bash
+      ignore_errors: yes
+
+    - name: Verify containers are removed
+      shell: 'docker ps -a --filter "name=server" --filter "name=agent" --format "{{ ''{{'' }}.Names{{ ''}}'' }}"'
+      register: remaining_containers
+      changed_when: false
+
+    - name: Display remaining containers
+      debug:
+        msg: "{{ 'No containers remaining' if remaining_containers.stdout == '' else 'Remaining containers: ' + remaining_containers.stdout }}"
+
+- name: Cleanup summary
+  hosts: localhost
+  connection: local
+  gather_facts: no
+
+  tasks:
+    - name: Display teardown summary
+      debug:
+        msg: |
+          ============================================================
+          GPU Validation Cluster Teardown Complete!
+          ============================================================
+          All containers and cluster state have been removed.
+          ============================================================

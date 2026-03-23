@@ -104,6 +104,13 @@ cmd_run() {
         exit 1
     fi
 
+    # Create isolated directories for script-owned state to avoid interfering with host
+    local SCRIPT_STATE_DIR="/var/lib/gpu-validation-cluster"
+    mkdir -p "$SCRIPT_STATE_DIR/rancher"
+    mkdir -p "$SCRIPT_STATE_DIR/cni"
+    mkdir -p "$SCRIPT_STATE_DIR/kubelet"
+    mkdir -p "$SCRIPT_STATE_DIR/cni-bin"
+
     # Common docker run options
     DOCKER_OPTS=(
         "--privileged"
@@ -111,19 +118,35 @@ cmd_run() {
         "--cgroupns=host"
         "--security-opt=systempaths=unconfined"
         "--name" "$CONTAINER_NAME"
+        "--restart" "unless-stopped"
         "-e" "K3S_MODE=$MODE"
-        "-v" "/etc/rancher:/etc/rancher"
-        "-v" "/var/lib/rancher:/var/lib/rancher"
-        "-v" "/var/lib/kubelet:/var/lib/kubelet"
+        "-v" "$SCRIPT_STATE_DIR/rancher:/etc/rancher"
+        "-v" "$SCRIPT_STATE_DIR/cni:/etc/cni"
+        "-v" "$SCRIPT_STATE_DIR/rancher:/var/lib/rancher"
+        "-v" "$SCRIPT_STATE_DIR/kubelet:/var/lib/kubelet"
+        "-v" "$SCRIPT_STATE_DIR/cni-bin:/opt/cni/bin:shared"
         "-v" "/var/log:/var/log"
         "-v" "/var/run:/var/run"
-        "-v" "/opt/cni/bin:/opt/cni/bin:shared"
         "-v" "/lib/modules:/lib/modules"
         "-v" "/sys:/sys"
         "-v" "/dev:/dev"
         "-v" "$CONFIG_DIR:/configs:ro"
-        "--rm"
     )
+
+    # Add extra mounts from config.json
+    EXTRA_MOUNTS=$(read_config '.global["extra-mounts"] // []')
+    if [ -n "$EXTRA_MOUNTS" ] && [ "$EXTRA_MOUNTS" != "[]" ]; then
+        MOUNT_COUNT=$(echo "$EXTRA_MOUNTS" | jq 'length')
+        echo "[INFO] Adding $MOUNT_COUNT extra mount(s) from config.json"
+        for ((i=0; i<MOUNT_COUNT; i++)); do
+            HOST_PATH=$(echo "$EXTRA_MOUNTS" | jq -r ".[$i][\"hostPath\"]")
+            MOUNT_PATH=$(echo "$EXTRA_MOUNTS" | jq -r ".[$i][\"mountPath\"]")
+            if [ -n "$HOST_PATH" ] && [ "$HOST_PATH" != "null" ] && [ -n "$MOUNT_PATH" ] && [ "$MOUNT_PATH" != "null" ]; then
+                echo "[INFO]   Mounting: $HOST_PATH -> $MOUNT_PATH"
+                DOCKER_OPTS+=("-v" "$HOST_PATH:$MOUNT_PATH")
+            fi
+        done
+    fi
 
     if [ "$MODE" = "agent" ]; then
         K3S_IP="${2:-}"
@@ -629,6 +652,7 @@ spec:
     enableNodeLabeller: true
   metricsExporter:
     enable: true
+    port: 5007
   selector:
     $(echo "$NIC_NODE_SELECTOR" | jq -c .)
 EOF
@@ -676,10 +700,10 @@ EOF
             exit 1
         fi
 
-        local CP_MAX_RETRIES=10
+        local CP_MAX_RETRIES=30
         local CP_RETRY_COUNT=0
         while [ $CP_RETRY_COUNT -lt $CP_MAX_RETRIES ]; do
-            if docker exec "$CONTAINER_NAME" cp /opt/cni/bin/* /var/lib/rancher/k3s/data/cni/; then
+            if docker exec "$CONTAINER_NAME" sh -c 'cp /opt/cni/bin/* /var/lib/rancher/k3s/data/cni/'; then
                 echo "[INFO] CNI binaries copied successfully"
                 break
             fi
@@ -731,8 +755,8 @@ EOF
 
         # Read node selector labels with default values
         local NODE_SELECTOR_LABELS=$(read_config '.["cluster-validation-framework"]["node-selector-labels"] // ["feature.node.kubernetes.io/amd-gpu=true", "feature.node.kubernetes.io/amd-nic=true"]')
-        # Convert JSON array to YAML list format (no leading spaces, placeholder already indented)
-        local NODE_SELECTOR_LABELS_YAML=$(echo "$NODE_SELECTOR_LABELS" | jq -r '.[] | "- " + .')
+        # Convert JSON array to YAML list format with 4 spaces indentation (to match the placeholder indentation)
+        local NODE_SELECTOR_LABELS_YAML=$(echo "$NODE_SELECTOR_LABELS" | jq -r '.[] | "    - " + .')
 
         echo "[INFO]   CronJob Schedule: $CRONJOB_SCHEDULE"
         echo "[INFO]   Node Selector Labels: $(echo "$NODE_SELECTOR_LABELS" | jq -r 'join(", ")')"
@@ -742,24 +766,30 @@ EOF
         # Install MPI Operator
         echo "[INFO] Installing MPI Operator..."
         local MPI_OPERATOR_VERSION=$(read_config '.["cluster-validation-framework"]["mpi-operator"].version')
-        docker exec "$CONTAINER_NAME" kubectl apply --server-side -f https://raw.githubusercontent.com/kubeflow/mpi-operator/$MPI_OPERATOR_VERSION/deploy/v2beta1/mpi-operator.yaml
+        docker exec "$CONTAINER_NAME" kubectl apply --server-side --force-conflicts -f https://raw.githubusercontent.com/kubeflow/mpi-operator/$MPI_OPERATOR_VERSION/deploy/v2beta1/mpi-operator.yaml
         echo "[INFO] MPI Operator installation completed"
 
         # Apply cluster-validation-config.yaml with substitutions
         echo "[INFO] Applying Cluster Validation ConfigMap..."
-        # Do substitutions in outer shell where variables are accessible, then pipe to kubectl
+        # Do substitutions using a bash while-loop to properly handle multiline content
         docker exec "$CONTAINER_NAME" cat /configs/cluster-validation-config.yaml | \
-            sed "s|__NODE_SELECTOR_LABELS__|${NODE_SELECTOR_LABELS_YAML}|g" | \
-            sed "s|__WORKER_REPLICAS__|${WORKER_REPLICAS}|g; \
-                 s|__LAUNCHER_REPLICAS__|${LAUNCHER_REPLICAS}|g; \
-                 s|__SLOTS_PER_WORKER__|${SLOTS_PER_WORKER}|g; \
-                 s|__GPU_PER_WORKER__|${GPU_PER_WORKER}|g; \
-                 s|__PF_NIC_PER_WORKER__|${PF_NIC_PER_WORKER}|g; \
-                 s|__VF_NIC_PER_WORKER__|${VF_NIC_PER_WORKER}|g; \
-                 s|__NODE_VALIDATION_INTERVAL_MINS__|${NODE_VALIDATION_INTERVAL}|g; \
-                 s|__SKIP_GPU_VALIDATION__|${SKIP_GPU_VALIDATION}|g; \
-                 s|__SKIP_RCCL_TEST__|${SKIP_RCCL_TEST}|g" | \
-            docker exec -i "$CONTAINER_NAME" kubectl apply -f -
+            while IFS= read -r line; do
+                line="${line//__WORKER_REPLICAS__/$WORKER_REPLICAS}"
+                line="${line//__LAUNCHER_REPLICAS__/$LAUNCHER_REPLICAS}"
+                line="${line//__SLOTS_PER_WORKER__/$SLOTS_PER_WORKER}"
+                line="${line//__GPU_PER_WORKER__/$GPU_PER_WORKER}"
+                line="${line//__PF_NIC_PER_WORKER__/$PF_NIC_PER_WORKER}"
+                line="${line//__VF_NIC_PER_WORKER__/$VF_NIC_PER_WORKER}"
+                line="${line//__NODE_VALIDATION_INTERVAL_MINS__/$NODE_VALIDATION_INTERVAL}"
+                line="${line//__SKIP_GPU_VALIDATION__/$SKIP_GPU_VALIDATION}"
+                line="${line//__SKIP_RCCL_TEST__/$SKIP_RCCL_TEST}"
+                # Handle multiline NODE_SELECTOR_LABELS replacement
+                if [[ "$line" == *"__NODE_SELECTOR_LABELS__"* ]]; then
+                    echo "$NODE_SELECTOR_LABELS_YAML"
+                else
+                    echo "$line"
+                fi
+            done | docker exec -i "$CONTAINER_NAME" kubectl apply -f -
 
         # Apply cluster-validation-job.yaml with substitutions
         echo "[INFO] Applying Cluster Validation CronJob..."
@@ -780,6 +810,13 @@ EOF
     else
         echo "[INFO] Starting k3s server container: $CONTAINER_NAME"
     fi
+
+    # Check if container already exists
+    if docker ps -a --format '{{.Names}}' | grep -qx "$CONTAINER_NAME"; then
+        echo "[WARN] Container '$CONTAINER_NAME' already exists. Removing it first..."
+        docker rm -f "$CONTAINER_NAME"
+    fi
+
     docker run "${DOCKER_OPTS[@]}" "$FULL_IMAGE" &
     CONTAINER_PID=$!
 
@@ -809,56 +846,58 @@ EOF
     fi
 
     echo "[INFO] Node Bringup completed successfully"
-    echo "[INFO] Container is now running. You can:"
+    echo "[INFO] Container is running with restart policy 'unless-stopped'"
+    echo "[INFO] Container will automatically restart after system reboots or Docker daemon restarts"
+    echo "[INFO] You can:"
     echo "[INFO]   - Login to container: docker exec -it $CONTAINER_NAME bash"
+    echo "[INFO]   - Check container logs: docker logs -f $CONTAINER_NAME"
     echo "[INFO]   - Check status: $0 status"
     echo "[INFO]   - View node status: $0 node-status"
+    echo "[INFO]"
+    echo "[INFO] Keeping script running... Press Ctrl+C to exit (container will continue running)"
     wait $CONTAINER_PID
 }
 
 cmd_teardown() {
     echo "Starting GPU Validation Cluster teardown..."
-    
+
     local IMAGE_NAME="${IMAGE_NAME:-gpu-validation-cluster}"
     local IMAGE_TAG="${IMAGE_TAG:-latest}"
     local FULL_IMAGE="${IMAGE_NAME}:${IMAGE_TAG}"
     local CLEANUP_TEST_LOGS="${CLEANUP_TEST_LOGS:-false}"
 
-    # Remove containers using the gpu-validation-cluster image
-    echo "Removing containers from image: $FULL_IMAGE"
+    # Stop and remove named containers (server/agent)
+    echo "Stopping and removing server/agent containers..."
+    for CONTAINER in server agent; do
+        if docker ps -a --format '{{.Names}}' | grep -qx "$CONTAINER"; then
+            echo "  Stopping container: $CONTAINER"
+            docker stop "$CONTAINER" 2>/dev/null || true
+            echo "  Removing container: $CONTAINER"
+            docker rm "$CONTAINER" 2>/dev/null || true
+        fi
+    done
+
+    # Remove any other containers using the gpu-validation-cluster image
+    echo "Removing any other containers from image: $FULL_IMAGE"
     docker ps -a --filter "ancestor=$FULL_IMAGE" --format '{{.ID}}' | xargs -r docker rm -f 2>/dev/null || true
 
-    # Clean up Rancher directories
-    echo "Cleaning up Rancher directories..."
-    if [ -d "/etc/rancher" ]; then
-        sudo rm -rf /etc/rancher
-        echo "Removed /etc/rancher"
-    fi
-
-    if [ -d "/var/lib/rancher" ]; then
-        sudo rm -rf /var/lib/rancher
-        echo "Removed /var/lib/rancher"
-    fi
-
-    if [ -d "/var/lib/kubelet" ]; then
-        sudo rm -rf /var/lib/kubelet
-        echo "Removed /var/lib/kubelet"
+    # Clean up script-owned state directory (includes rancher, cni, kubelet, and cni-bin)
+    local SCRIPT_STATE_DIR="/var/lib/gpu-validation-cluster"
+    echo "Cleaning up script-owned state directory: $SCRIPT_STATE_DIR"
+    if [ -d "$SCRIPT_STATE_DIR" ]; then
+        sudo umount -R -f "$SCRIPT_STATE_DIR" 2>/dev/null || true
+        sudo rm -rf "$SCRIPT_STATE_DIR"
+        echo "Removed $SCRIPT_STATE_DIR"
     fi
 
     rm -f /var/log/k3s.log
     echo "Removed /var/log/k3s.log"
 
-    # Clean up CNI directory
-    echo "Cleaning up CNI directory..."
-    if [ -d "/opt/cni/bin" ]; then
-        sudo rm -rf /opt/cni/bin
-        echo "Removed /opt/cni/bin"
-    fi
-
     # Clean up cluster validation logs if enabled
     if [ "$CLEANUP_TEST_LOGS" = "true" ]; then
         echo "Cleaning up cluster validation logs..."
         if [ -d "/var/log/cluster-validation" ]; then
+            sudo umount -R -f /var/log/cluster-validation 2>/dev/null || true
             sudo rm -rf /var/log/cluster-validation
             echo "Removed /var/log/cluster-validation"
         fi

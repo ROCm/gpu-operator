@@ -1,0 +1,59 @@
+---
+# Check GPU Validation Cluster status
+# Usage: ansible-playbook playbooks/check-status.yml
+
+- name: Check container status on all nodes
+  hosts: cluster_nodes
+  gather_facts: no
+
+  tasks:
+    - name: Check Docker containers
+      shell: 'docker ps --filter "name=server" --filter "name=agent" --format "table {{ ''{{'' }}.Names{{ ''}}'' }}\t{{ ''{{'' }}.Status{{ ''}}'' }}\t{{ ''{{'' }}.Ports{{ ''}}'' }}"'
+      register: container_status
+      changed_when: false
+
+    - name: Display container status
+      debug:
+        msg: |
+          {{ inventory_hostname }}:
+          {{ container_status.stdout }}
+
+- name: Check Kubernetes cluster status
+  hosts: server_nodes
+  gather_facts: no
+
+  tasks:
+    - name: Get cluster nodes
+      command: docker exec server kubectl get nodes -o wide
+      register: k8s_nodes
+      changed_when: false
+      ignore_errors: yes
+
+    - name: Display Kubernetes nodes
+      debug:
+        msg: "{{ k8s_nodes.stdout_lines }}"
+      when: k8s_nodes.rc == 0
+
+    - name: Get cluster pods
+      command: docker exec server kubectl get pods --all-namespaces
+      register: k8s_pods
+      changed_when: false
+      ignore_errors: yes
+
+    - name: Display Kubernetes pods
+      debug:
+        msg: "{{ k8s_pods.stdout_lines }}"
+      when: k8s_pods.rc == 0
+
+    - name: Check cluster validation framework status
+      shell: |
+        cd {{ script_dir }}
+        CONFIG_DIR={{ config_dir }} ./gpu-cluster.sh status
+      register: cvf_status
+      changed_when: false
+      ignore_errors: yes
+
+    - name: Display cluster validation framework status
+      debug:
+        msg: "{{ cvf_status.stdout_lines }}"
+      when: cvf_status.rc == 0

@@ -1,0 +1,77 @@
+---
+# Setup passwordless SSH access to all cluster nodes
+# Run this first if you don't have SSH keys configured
+# Usage: ansible-playbook playbooks/setup-ssh-keys.yml --ask-pass --ask-become-pass
+
+- name: Setup SSH keys for passwordless access
+  hosts: localhost
+  connection: local
+  gather_facts: no
+  become: no  # Don't use sudo on localhost
+  vars:
+    ssh_key_path: "{{ lookup('env', 'HOME') }}/.ssh/id_rsa"
+    ssh_key_comment: "ansible-gpu-cluster"
+
+  tasks:
+    - name: Check if SSH key exists
+      stat:
+        path: "{{ ssh_key_path }}"
+      register: ssh_key_stat
+
+    - name: Generate SSH key pair if it doesn't exist
+      command: ssh-keygen -t rsa -b 4096 -f {{ ssh_key_path }} -N "" -C "{{ ssh_key_comment }}"
+      when: not ssh_key_stat.stat.exists
+
+    - name: Read public key
+      slurp:
+        src: "{{ ssh_key_path }}.pub"
+      register: ssh_public_key
+
+    - name: Display public key info
+      debug:
+        msg: "SSH public key ready at {{ ssh_key_path }}.pub"
+
+- name: Copy SSH public key to all cluster nodes
+  hosts: cluster_nodes
+  gather_facts: no
+  vars:
+    ssh_key_path: "{{ lookup('env', 'HOME') }}/.ssh/id_rsa"
+
+  tasks:
+    - name: Test initial connection
+      ping:
+      become: no
+      when: ansible_connection is not defined or ansible_connection != 'local'
+
+    - name: Ensure .ssh directory exists
+      file:
+        path: "/home/{{ ansible_user }}/.ssh"
+        state: directory
+        mode: '0700'
+        owner: "{{ ansible_user }}"
+        group: "{{ ansible_user }}"
+      become: yes
+      when: ansible_connection is not defined or ansible_connection != 'local'
+
+    - name: Copy SSH public key to authorized_keys
+      authorized_key:
+        user: "{{ ansible_user }}"
+        key: "{{ lookup('file', ssh_key_path + '.pub') }}"
+        state: present
+      become: yes
+      when: ansible_connection is not defined or ansible_connection != 'local'
+
+- name: Verify passwordless SSH access
+  hosts: cluster_nodes
+  gather_facts: yes
+  become: no
+  tasks:
+    - name: Verify connection
+      debug:
+        msg: "Successfully connected to {{ inventory_hostname }} ({{ ansible_hostname }})"
+      when: ansible_connection is not defined or ansible_connection != 'local'
+
+    - name: Skip verification for local connection
+      debug:
+        msg: "Skipping verification for {{ inventory_hostname }} (local connection)"
+      when: ansible_connection is defined and ansible_connection == 'local'

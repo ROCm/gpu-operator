@@ -1,6 +1,12 @@
 {
   "global": {
-    "image-pull-secrets": []
+    "image-pull-secrets": [],
+    "extra-mounts": [
+      {
+        "hostPath": "/mnt",
+        "mountPath": "/mnt"
+      }
+    ]
   },
   "in-cluster-registry": {
     "image": "docker.io/library/registry:2",

@@ -1,0 +1,379 @@
+---
+# Main playbook to setup GPU Validation Cluster
+# Usage: ansible-playbook playbooks/setup-cluster.yml
+
+- name: Build Docker image locally
+  hosts: localhost
+  connection: local
+  gather_facts: yes
+  vars:
+    project_dir: "{{ playbook_dir }}/../../"
+    image_name: "{{ gpu_cluster_image_name }}"
+    image_tag: "{{ gpu_cluster_image_tag }}"
+    image_tar: "/tmp/{{ gpu_cluster_image_tar }}"
+
+  tasks:
+    - name: Check if build directory exists
+      stat:
+        path: "{{ project_dir }}/build"
+      register: build_dir
+
+    - name: Fail if build directory doesn't exist
+      fail:
+        msg: "Build directory not found at {{ project_dir }}/build"
+      when: not build_dir.stat.exists
+
+    - name: Build Docker image
+      command: docker build -t {{ image_name }}:{{ image_tag }} {{ project_dir }}/build
+      args:
+        chdir: "{{ project_dir }}"
+      register: build_result
+
+    - name: Display build result
+      debug:
+        msg: "Docker image built successfully: {{ image_name }}:{{ image_tag }}"
+
+    - name: Export Docker image to tar file
+      command: docker save -o {{ image_tar }} {{ image_name }}:{{ image_tag }}
+
+    - name: Fix tar file permissions
+      file:
+        path: "{{ image_tar }}"
+        mode: '0644'
+
+    - name: Get image tar file info
+      stat:
+        path: "{{ image_tar }}"
+      register: image_tar_stat
+
+    - name: Display image size
+      debug:
+        msg: "Image exported to {{ image_tar }} ({{ (image_tar_stat.stat.size / 1024 / 1024) | round(2) }} MB)"
+
+- name: Install prerequisites on all cluster nodes
+  hosts: cluster_nodes
+  gather_facts: yes
+  become: yes
+
+  tasks:
+    - name: Update apt cache
+      apt:
+        update_cache: yes
+        cache_valid_time: 3600
+      when: ansible_os_family == "Debian"
+
+    - name: Check if Docker is installed
+      command: docker --version
+      register: docker_check
+      ignore_errors: yes
+      changed_when: false
+
+    - name: Install Docker prerequisites
+      apt:
+        name:
+          - ca-certificates
+          - curl
+          - gnupg
+          - lsb-release
+        state: present
+      when:
+        - ansible_os_family == "Debian"
+        - docker_check.rc != 0
+
+    - name: Add Docker GPG key
+      apt_key:
+        url: https://download.docker.com/linux/ubuntu/gpg
+        state: present
+      when:
+        - ansible_os_family == "Debian"
+        - docker_check.rc != 0
+
+    - name: Add Docker repository
+      apt_repository:
+        repo: "deb [arch=amd64] https://download.docker.com/linux/ubuntu {{ ansible_distribution_release }} stable"
+        state: present
+      when:
+        - ansible_os_family == "Debian"
+        - docker_check.rc != 0
+
+    - name: Install Docker
+      apt:
+        name:
+          - docker-ce
+          - docker-ce-cli
+          - containerd.io
+        state: present
+        update_cache: yes
+      when:
+        - ansible_os_family == "Debian"
+        - docker_check.rc != 0
+
+    - name: Start and enable Docker service
+      systemd:
+        name: docker
+        state: started
+        enabled: yes
+      when: docker_check.rc != 0
+
+    - name: Add user to docker group
+      user:
+        name: "{{ ansible_user }}"
+        groups: docker
+        append: yes
+
+    - name: Check if jq is installed
+      command: which jq
+      register: jq_check
+      ignore_errors: yes
+      changed_when: false
+      failed_when: false
+
+    - name: Install jq (Debian/Ubuntu)
+      apt:
+        name: jq
+        state: present
+        update_cache: yes
+      when:
+        - jq_check.rc != 0
+        - ansible_os_family == "Debian"
+      ignore_errors: yes
+
+    - name: Install jq (RHEL/CentOS)
+      yum:
+        name: jq
+        state: present
+      when:
+        - jq_check.rc != 0
+        - ansible_os_family == "RedHat"
+      ignore_errors: yes
+
+    - name: Verify Docker installation
+      command: docker ps
+      changed_when: false
+
+    - name: Verify jq installation
+      command: jq --version
+      register: jq_verify
+      changed_when: false
+      failed_when: false
+
+    - name: Display jq installation status
+      debug:
+        msg: "{{ 'jq is installed' if jq_verify.rc == 0 else 'WARNING: jq is not installed - may cause issues with gpu-cluster.sh' }}"
+
+- name: Copy Docker image to all cluster nodes
+  hosts: cluster_nodes
+  gather_facts: no
+  vars:
+    image_tar_src: "/tmp/{{ gpu_cluster_image_tar }}"
+    image_tar_dest: "/tmp/{{ gpu_cluster_image_tar }}"
+
+  tasks:
+    - name: Copy Docker image tar to remote nodes
+      copy:
+        src: "{{ image_tar_src }}"
+        dest: "{{ image_tar_dest }}"
+        mode: '0644'
+        force: yes
+      register: copy_result
+
+    - name: Load Docker image on remote nodes
+      command: docker load -i {{ image_tar_dest }}
+
+    - name: Verify image is loaded
+      shell: 'docker images {{ gpu_cluster_image_name }}:{{ gpu_cluster_image_tag }} --format "{{ ''{{'' }}.Repository{{ ''}}'' }}:{{ ''{{'' }}.Tag{{ ''}}'' }}"'
+      register: image_check
+      changed_when: false
+
+    - name: Display loaded image
+      debug:
+        msg: "Image loaded successfully: {{ image_check.stdout }}"
+
+    - name: Clean up image tar file
+      file:
+        path: "{{ image_tar_dest }}"
+        state: absent
+
+- name: Copy project files to all cluster nodes
+  hosts: cluster_nodes
+  gather_facts: no
+  vars:
+    project_dir: "{{ playbook_dir }}/../../"
+
+  tasks:
+    - name: Create script directory
+      file:
+        path: "{{ script_dir }}"
+        state: directory
+        mode: '0755'
+
+    - name: Copy gpu-cluster.sh script
+      copy:
+        src: "{{ project_dir }}/gpu-cluster.sh"
+        dest: "{{ script_dir }}/gpu-cluster.sh"
+        mode: '0755'
+
+    - name: Copy configs directory
+      copy:
+        src: "{{ project_dir }}/configs/"
+        dest: "{{ config_dir }}/"
+        mode: '0644'
+        directory_mode: '0755'
+
+    - name: Verify config.json exists
+      stat:
+        path: "{{ config_dir }}/config.json"
+      register: config_json_stat
+
+    - name: Fail if config.json is missing
+      fail:
+        msg: "config.json not found at {{ config_dir }}/config.json - required for cluster setup"
+      when: not config_json_stat.stat.exists
+
+- name: Start server node
+  hosts: server_nodes
+  gather_facts: yes
+  become: yes
+
+  tasks:
+    - name: Stop existing server container if running
+      command: docker rm -f server
+      ignore_errors: yes
+
+    - name: Start server container
+      shell: |
+        cd {{ script_dir }}
+        CONFIG_DIR={{ config_dir }} nohup ./gpu-cluster.sh run server > /tmp/gpu-cluster-server.log 2>&1 &
+        sleep 5
+      args:
+        executable: /bin/bash
+
+    - name: Wait for server to be ready
+      wait_for:
+        timeout: 50
+      delegate_to: localhost
+
+    - name: Check server container status
+      shell: 'docker ps --filter name=server --format "{{ ''{{'' }}.Names{{ ''}}'' }}: {{ ''{{'' }}.Status{{ ''}}'' }}"'
+      register: server_status
+      changed_when: false
+
+    - name: Display server status
+      debug:
+        msg: "{{ server_status.stdout }}"
+
+    - name: Get k3s token from server
+      command: docker exec server cat /var/lib/rancher/k3s/server/agent-token
+      register: k3s_token
+      retries: 5
+      delay: 5
+      until: k3s_token.rc == 0
+
+    - name: Get server IP
+      set_fact:
+        server_ip: "{{ ansible_host | default(ansible_default_ipv4.address) }}"
+
+    - name: Display token (masked)
+      debug:
+        msg: "Server is ready. Token retrieved successfully (length: {{ k3s_token.stdout | length }})"
+
+    - name: Save token for agent nodes
+      set_fact:
+        cluster_token: "{{ k3s_token.stdout }}"
+        cacheable: yes
+
+- name: Start agent nodes
+  hosts: agent_nodes
+  gather_facts: no
+  become: yes
+  serial: 1  # Start agents one at a time to avoid overwhelming the server
+
+  tasks:
+    - name: Get server IP and token
+      set_fact:
+        server_ip: "{{ hostvars[groups['server_nodes'][0]]['server_ip'] }}"
+        cluster_token: "{{ hostvars[groups['server_nodes'][0]]['cluster_token'] }}"
+
+    - name: Display connection info (masked)
+      debug:
+        msg: "Connecting to server at {{ server_ip }}"
+
+    - name: Stop existing agent container if running
+      command: docker rm -f agent
+      ignore_errors: yes
+
+    - name: Start agent container
+      shell: |
+        cd {{ script_dir }}
+        CONFIG_DIR={{ config_dir }} nohup ./gpu-cluster.sh run agent {{ server_ip }} {{ cluster_token }} > /tmp/gpu-cluster-agent.log 2>&1 &
+        sleep 5
+      args:
+        executable: /bin/bash
+
+    - name: Wait for agent to be ready
+      wait_for:
+        timeout: 15
+      delegate_to: localhost
+
+    - name: Check agent container status
+      shell: 'docker ps --filter name=agent --format "{{ ''{{'' }}.Names{{ ''}}'' }}: {{ ''{{'' }}.Status{{ ''}}'' }}"'
+      register: agent_status
+      changed_when: false
+
+    - name: Display agent status
+      debug:
+        msg: "{{ agent_status.stdout }}"
+
+- name: Verify cluster setup
+  hosts: server_nodes
+  gather_facts: no
+
+  tasks:
+    - name: Wait for all nodes to join
+      wait_for:
+        timeout: 30
+      delegate_to: localhost
+
+    - name: Get all nodes in cluster
+      command: docker exec server kubectl get nodes -o wide
+      register: cluster_nodes
+      changed_when: false
+
+    - name: Display cluster nodes
+      debug:
+        msg: "{{ cluster_nodes.stdout_lines }}"
+
+    - name: Get cluster info
+      command: docker exec server kubectl cluster-info
+      register: cluster_info
+      changed_when: false
+
+    - name: Display cluster info
+      debug:
+        msg: "{{ cluster_info.stdout_lines }}"
+
+- name: Summary
+  hosts: localhost
+  connection: local
+  gather_facts: no
+
+  tasks:
+    - name: Display setup summary
+      debug:
+        msg: |
+          ============================================================
+          GPU Validation Cluster Setup Complete!
+          ============================================================
+
+          Server Node: {{ hostvars[groups['server_nodes'][0]].get('ansible_host', 'localhost') }}
+          Agent Nodes: {{ groups['agent_nodes'] | length }}
+
+          To check cluster status:
+            ansible-playbook playbooks/check-status.yml
+
+          To teardown cluster:
+            ansible-playbook playbooks/teardown-cluster.yml
+
+          To access server node:
+            docker exec -it server bash
+          ============================================================

@@ -1,0 +1,228 @@
+---
+# Remove agent nodes from an existing GPU Validation Cluster
+# Usage: ansible-playbook playbooks/remove-agent-nodes.yml --limit node-to-remove
+#
+# Prerequisites:
+# 1. Cluster is already deployed
+# 2. Server node is running and accessible
+# 3. Target agent nodes to remove are specified via --limit
+#
+# This playbook will:
+# - Drain workloads from the target nodes
+# - Delete nodes from the Kubernetes cluster
+# - Stop and remove agent containers on target nodes
+# - Clean up cluster state on target nodes
+# - Verify successful removal
+
+- name: Validate existing cluster
+  hosts: server_nodes
+  gather_facts: no
+  become: no
+
+  tasks:
+    - name: Check if server container is running
+      shell: docker ps --filter name=server --format "{{ '{{' }}.Names{{ '}}' }}"
+      register: server_container
+      changed_when: false
+      failed_when: server_container.stdout != "server"
+
+    - name: Display server status
+      debug:
+        msg: "Server container is running, proceeding with node removal"
+
+    - name: Get current cluster nodes
+      command: docker exec server kubectl get nodes -o jsonpath='{.items[*].metadata.name}'
+      register: current_nodes
+      changed_when: false
+
+    - name: Display current cluster nodes
+      debug:
+        msg: "Current cluster nodes: {{ current_nodes.stdout }}"
+
+- name: Drain and delete nodes from Kubernetes cluster
+  hosts: agent_nodes
+  gather_facts: yes
+  become: no
+  serial: 1  # Process nodes one at a time
+
+  tasks:
+    - name: Get node name from Kubernetes (by IP)
+      shell: |
+        docker exec server kubectl get nodes -o json | \
+        jq -r --arg ip "{{ ansible_host | default(ansible_default_ipv4.address) }}" \
+        '.items[] | select(.status.addresses[] | select(.type=="InternalIP" and .address==$ip)) | .metadata.name'
+      register: k8s_node_name_by_ip
+      delegate_to: "{{ groups['server_nodes'][0] }}"
+      changed_when: false
+      failed_when: false
+
+    - name: Get node name from Kubernetes (by hostname prefix - try inventory_hostname)
+      shell: |
+        docker exec server kubectl get nodes -o json | \
+        jq -r --arg hostname "{{ inventory_hostname }}" \
+        '.items[] | select(.metadata.name | startswith($hostname)) | .metadata.name'
+      register: k8s_node_name_by_inventory
+      delegate_to: "{{ groups['server_nodes'][0] }}"
+      changed_when: false
+      failed_when: false
+      when: k8s_node_name_by_ip.stdout == ''
+
+    - name: Get node name from Kubernetes (by hostname prefix - try ansible_hostname)
+      shell: |
+        docker exec server kubectl get nodes -o json | \
+        jq -r --arg hostname "{{ ansible_hostname }}" \
+        '.items[] | select(.metadata.name | startswith($hostname)) | .metadata.name'
+      register: k8s_node_name_by_ansible_hostname
+      delegate_to: "{{ groups['server_nodes'][0] }}"
+      changed_when: false
+      failed_when: false
+      when:
+        - k8s_node_name_by_ip.stdout == ''
+        - k8s_node_name_by_inventory.stdout == ''
+
+    - name: Get node name from Kubernetes (by hostname prefix - try ansible_host if defined)
+      shell: |
+        docker exec server kubectl get nodes -o json | \
+        jq -r --arg hostname "{{ ansible_host }}" \
+        '.items[] | select(.metadata.name | startswith($hostname)) | .metadata.name'
+      register: k8s_node_name_by_ansible_host
+      delegate_to: "{{ groups['server_nodes'][0] }}"
+      changed_when: false
+      failed_when: false
+      when:
+        - ansible_host is defined
+        - k8s_node_name_by_ip.stdout == ''
+        - k8s_node_name_by_inventory.stdout == ''
+        - k8s_node_name_by_ansible_hostname.stdout == ''
+
+    - name: Determine final node name
+      set_fact:
+        k8s_node_name: >-
+          {{
+            k8s_node_name_by_ip.stdout if k8s_node_name_by_ip.stdout != ''
+            else k8s_node_name_by_inventory.stdout if k8s_node_name_by_inventory.stdout != ''
+            else k8s_node_name_by_ansible_hostname.stdout if k8s_node_name_by_ansible_hostname.stdout | default('') != ''
+            else k8s_node_name_by_ansible_host.stdout | default('')
+          }}
+
+    - name: Check if node exists in cluster
+      set_fact:
+        node_exists: "{{ k8s_node_name != '' }}"
+
+    - name: Display node removal info
+      debug:
+        msg: |
+          Removing node:
+            Inventory name: {{ inventory_hostname }}
+            Ansible host: {{ ansible_host | default(ansible_default_ipv4.address) }}
+            K8s node name: {{ k8s_node_name | default('Not found in cluster') }}
+      when: node_exists | bool
+
+    - name: Drain node (move workloads to other nodes)
+      command: docker exec server kubectl drain {{ k8s_node_name }} --ignore-daemonsets --delete-emptydir-data --force --timeout=60s
+      delegate_to: "{{ groups['server_nodes'][0] }}"
+      when: node_exists | bool
+      ignore_errors: yes
+
+    - name: Delete node from cluster
+      command: docker exec server kubectl delete node {{ k8s_node_name }}
+      delegate_to: "{{ groups['server_nodes'][0] }}"
+      when: node_exists | bool
+
+    - name: Display removal confirmation
+      debug:
+        msg: "Node {{ k8s_node_name }} drained and deleted from cluster"
+      when: node_exists | bool
+
+    - name: Skip if node not in cluster
+      debug:
+        msg: "SKIPPING {{ inventory_hostname }} - not found in cluster"
+      when: not (node_exists | bool)
+
+- name: Stop and remove agent containers
+  hosts: agent_nodes
+  gather_facts: no
+  become: yes
+
+  tasks:
+    - name: Check if agent container exists
+      command: docker ps -a --filter name=agent --format "{{ '{{' }}.Names{{ '}}' }}"
+      register: agent_container
+      changed_when: false
+
+    - name: Stop agent container
+      command: docker stop agent
+      when: agent_container.stdout == "agent"
+      ignore_errors: yes
+
+    - name: Remove agent container
+      command: docker rm agent
+      when: agent_container.stdout == "agent"
+      ignore_errors: yes
+
+    - name: Display container removal status
+      debug:
+        msg: "{{ 'Agent container removed from ' + inventory_hostname if agent_container.stdout == 'agent' else 'No agent container found on ' + inventory_hostname }}"
+
+- name: Clean up cluster state on removed nodes
+  hosts: agent_nodes
+  gather_facts: no
+  become: yes
+
+  tasks:
+    - name: Run teardown to clean up cluster state
+      shell: |
+        cd {{ script_dir }}
+        CONFIG_DIR={{ config_dir }} ./gpu-cluster.sh teardown
+      args:
+        executable: /bin/bash
+      ignore_errors: yes
+
+    - name: Verify cleanup
+      command: docker ps -a --filter name=agent --format "{{ '{{' }}.Names{{ '}}' }}"
+      register: final_check
+      changed_when: false
+
+    - name: Display cleanup status
+      debug:
+        msg: "{{ 'Cleanup complete on ' + inventory_hostname if final_check.stdout == '' else 'WARNING: Agent container still exists on ' + inventory_hostname }}"
+
+- name: Verify nodes removed from cluster
+  hosts: server_nodes
+  gather_facts: no
+
+  tasks:
+    - name: Get updated cluster nodes
+      command: docker exec server kubectl get nodes -o wide
+      register: updated_nodes
+      changed_when: false
+
+    - name: Display updated cluster nodes
+      debug:
+        msg: "{{ updated_nodes.stdout_lines }}"
+
+    - name: Count remaining nodes
+      shell: docker exec server kubectl get nodes --no-headers | wc -l
+      register: node_count
+      changed_when: false
+
+    - name: Display summary
+      debug:
+        msg: |
+          ============================================================
+          Agent Nodes Removed Successfully!
+          ============================================================
+          Remaining cluster nodes: {{ node_count.stdout }}
+
+          Removed nodes have been:
+            - Drained (workloads moved to other nodes)
+            - Deleted from Kubernetes cluster
+            - Agent containers stopped and removed
+            - Cluster state cleaned up
+
+          To verify:
+            ansible-playbook playbooks/check-status.yml
+
+          To re-add nodes:
+            ansible-playbook playbooks/add-agent-nodes.yml --limit node-name
+          ============================================================

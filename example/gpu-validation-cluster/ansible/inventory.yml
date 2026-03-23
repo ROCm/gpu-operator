@@ -1,0 +1,45 @@
+---
+# GPU Validation Cluster Inventory
+# Update the hosts below with your actual server and agent node details
+
+all:
+  vars:
+    # Common variables for all nodes
+    ansible_user: vm  # Change to your SSH user, can be overridden per host
+    ansible_python_interpreter: /usr/bin/python3
+
+    # Docker image settings
+    gpu_cluster_image_name: gpu-validation-cluster
+    gpu_cluster_image_tag: latest
+    gpu_cluster_image_tar: gpu-validation-cluster-latest.tar
+
+    # Paths
+    script_dir: /home/{{ ansible_user }}/gpu-validation-cluster
+    config_dir: "{{ script_dir }}/configs"
+
+  children:
+    # Server node (control plane) - only one server
+    server_nodes:
+      hosts:
+        server-node:
+          ansible_connection: local  # Enable this line if ansible playbook is running on the server node itself
+          ansible_host: 192.168.0.10  # Replace with your server node IP
+          ansible_user: vm  # Override if needed
+          # ansible_ssh_private_key_file: ~/.ssh/id_rsa  # Override if needed
+
+    # Agent nodes (workers) - can have multiple
+    agent_nodes:
+      hosts:
+        agent-node-1:
+          ansible_host: 192.168.0.11  # Replace with your agent node IP
+          ansible_user: vm
+        #agent-node-2:
+        #  ansible_host: 192.168.0.12
+        #  ansible_user: vm
+        # Add more agent nodes as needed
+
+    # Group for all cluster nodes
+    cluster_nodes:
+      children:
+        server_nodes:
+        agent_nodes:
