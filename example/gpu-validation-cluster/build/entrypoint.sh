@@ -11,7 +11,12 @@ AGENT_REGISTRIES_CONFIG="${AGENT_REGISTRIES_CONFIG:-}"
 move_preloaded_images() {
   echo "[INFO] Move preloaded images to /var/lib/rancher/k3s/agent/images/"
   mkdir -p /var/lib/rancher/k3s/agent/images/
-  mv /images/* /var/lib/rancher/k3s/agent/images/
+  if [ -d "/images" ] && [ -n "$(ls -A /images 2>/dev/null)" ]; then
+    mv /images/* /var/lib/rancher/k3s/agent/images/
+    echo "[INFO] Moved preloaded images successfully"
+  else
+    echo "[INFO] No preloaded images found in /images/, skipping"
+  fi
 }
 
 start_k3s_server() {
@@ -20,6 +25,7 @@ start_k3s_server() {
     --embedded-registry \
     --disable=traefik \
     --disable=servicelb \
+    --kubelet-arg=serialize-image-pulls=true \
     ${K3S_EXTRA_ARGS} > /var/log/k3s.log 2>&1 &
 }
 
@@ -42,6 +48,8 @@ EOF
   k3s agent \
     --server="$K3S_URL" \
     --token="$K3S_TOKEN" \
+    --with-node-id \
+    --kubelet-arg=serialize-image-pulls=true \
     ${K3S_EXTRA_ARGS} > /var/log/k3s.log 2>&1 &
 }
 

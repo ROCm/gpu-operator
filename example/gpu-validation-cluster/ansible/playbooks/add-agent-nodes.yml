@@ -1,0 +1,414 @@
+---
+# Add new agent nodes to an existing GPU Validation Cluster
+# Usage: ansible-playbook playbooks/add-agent-nodes.yml --limit new-node-name
+#
+# Prerequisites:
+# 1. Cluster is already deployed via setup-cluster.yml
+# 2. Server node is running and accessible
+# 3. New agent nodes added to inventory.yml
+#
+# This playbook will:
+# - Validate the existing cluster is healthy
+# - Install prerequisites on new nodes
+# - Copy image and project files to new nodes
+# - Join new nodes to the existing cluster
+# - Verify successful join
+
+- name: Validate existing cluster
+  hosts: server_nodes
+  gather_facts: yes
+  become: no
+
+  tasks:
+    - name: Check if server container is running
+      shell: docker ps --filter name=server --format "{{ '{{' }}.Names{{ '}}' }}"
+      register: server_container
+      changed_when: false
+      failed_when: server_container.stdout != "server"
+
+    - name: Display server status
+      debug:
+        msg: "Server container is running"
+
+    - name: Get k3s token from server
+      command: docker exec server cat /var/lib/rancher/k3s/server/agent-token
+      register: k3s_token
+      changed_when: false
+
+    - name: Get existing cluster nodes
+      command: docker exec server kubectl get nodes -o jsonpath='{.items[*].metadata.name}'
+      register: existing_nodes_cmd
+      changed_when: false
+
+    - name: Get existing cluster node IPs
+      shell: docker exec server kubectl get nodes -o jsonpath='{.items[*].status.addresses[?(@.type=="InternalIP")].address}'
+      register: existing_node_ips_cmd
+      changed_when: false
+
+    - name: Save cluster info for agent nodes
+      set_fact:
+        server_ip: "{{ ansible_host | default(ansible_default_ipv4.address) }}"
+        cluster_token: "{{ k3s_token.stdout }}"
+        existing_nodes: "{{ existing_nodes_cmd.stdout }}"
+        existing_node_ips: "{{ existing_node_ips_cmd.stdout }}"
+        cacheable: yes
+
+    - name: Display existing cluster info
+      debug:
+        msg: |
+          Existing cluster found:
+            Server IP: {{ server_ip }}
+            Existing nodes: {{ existing_nodes }}
+            Existing node IPs: {{ existing_node_ips }}
+
+- name: Install prerequisites on new agent nodes
+  hosts: agent_nodes
+  gather_facts: yes
+  become: yes
+
+  tasks:
+    - name: Check if Docker is installed
+      command: docker --version
+      register: docker_check
+      ignore_errors: yes
+      changed_when: false
+
+    - name: Install Docker prerequisites
+      apt:
+        name:
+          - ca-certificates
+          - curl
+          - gnupg
+          - lsb-release
+        state: present
+      when:
+        - ansible_os_family == "Debian"
+        - docker_check.rc != 0
+
+    - name: Add Docker GPG key
+      apt_key:
+        url: https://download.docker.com/linux/ubuntu/gpg
+        state: present
+      when:
+        - ansible_os_family == "Debian"
+        - docker_check.rc != 0
+
+    - name: Add Docker repository
+      apt_repository:
+        repo: "deb [arch=amd64] https://download.docker.com/linux/ubuntu {{ ansible_distribution_release }} stable"
+        state: present
+      when:
+        - ansible_os_family == "Debian"
+        - docker_check.rc != 0
+
+    - name: Install Docker
+      apt:
+        name:
+          - docker-ce
+          - docker-ce-cli
+          - containerd.io
+        state: present
+        update_cache: yes
+      when:
+        - ansible_os_family == "Debian"
+        - docker_check.rc != 0
+
+    - name: Start and enable Docker service
+      systemd:
+        name: docker
+        state: started
+        enabled: yes
+      when: docker_check.rc != 0
+
+    - name: Add user to docker group
+      user:
+        name: "{{ ansible_user }}"
+        groups: docker
+        append: yes
+
+    - name: Check if jq is installed
+      command: which jq
+      register: jq_check
+      ignore_errors: yes
+      changed_when: false
+      failed_when: false
+
+    - name: Install jq (Debian/Ubuntu)
+      apt:
+        name: jq
+        state: present
+        update_cache: yes
+      when:
+        - jq_check.rc != 0
+        - ansible_os_family == "Debian"
+      ignore_errors: yes
+
+    - name: Install jq (RHEL/CentOS)
+      yum:
+        name: jq
+        state: present
+      when:
+        - jq_check.rc != 0
+        - ansible_os_family == "RedHat"
+      ignore_errors: yes
+
+    - name: Verify Docker installation
+      command: docker ps
+      changed_when: false
+
+- name: Copy Docker image to new agent nodes
+  hosts: agent_nodes
+  gather_facts: no
+  vars:
+    image_tar_src: "/tmp/{{ gpu_cluster_image_tar }}"
+    image_tar_dest: "/tmp/{{ gpu_cluster_image_tar }}"
+
+  tasks:
+    - name: Check if image already exists
+      shell: 'docker images {{ gpu_cluster_image_name }}:{{ gpu_cluster_image_tag }} --format "{{ ''{{'' }}.Repository{{ ''}}'' }}"'
+      register: image_check
+      changed_when: false
+      failed_when: false
+
+    - name: Check if image tar exists on localhost
+      stat:
+        path: "{{ image_tar_src }}"
+      register: local_tar_stat
+      delegate_to: localhost
+      become: no
+      when: image_check.stdout == ""
+
+    - name: Fail if image tar not found
+      fail:
+        msg: "Docker image tar not found at {{ image_tar_src }}. Please run setup-cluster.yml first or build the image manually."
+      when:
+        - image_check.stdout == ""
+        - not local_tar_stat.stat.exists
+
+    - name: Copy Docker image tar to new nodes
+      copy:
+        src: "{{ image_tar_src }}"
+        dest: "{{ image_tar_dest }}"
+        mode: '0644'
+      when: image_check.stdout == ""
+
+    - name: Load Docker image
+      command: docker load -i {{ image_tar_dest }}
+      when: image_check.stdout == ""
+
+    - name: Verify image is loaded
+      shell: 'docker images {{ gpu_cluster_image_name }}:{{ gpu_cluster_image_tag }} --format "{{ ''{{'' }}.Repository{{ ''}}'' }}:{{ ''{{'' }}.Tag{{ ''}}'' }}"'
+      register: final_image_check
+      changed_when: false
+
+    - name: Display loaded image
+      debug:
+        msg: "Image ready: {{ final_image_check.stdout }}"
+
+    - name: Clean up image tar file
+      file:
+        path: "{{ image_tar_dest }}"
+        state: absent
+      when: image_check.stdout == ""
+
+- name: Copy project files to new agent nodes
+  hosts: agent_nodes
+  gather_facts: no
+  vars:
+    project_dir: "{{ playbook_dir }}/../../"
+
+  tasks:
+    - name: Create script directory
+      file:
+        path: "{{ script_dir }}"
+        state: directory
+        mode: '0755'
+
+    - name: Copy gpu-cluster.sh script
+      copy:
+        src: "{{ project_dir }}/gpu-cluster.sh"
+        dest: "{{ script_dir }}/gpu-cluster.sh"
+        mode: '0755'
+
+    - name: Copy configs directory
+      copy:
+        src: "{{ project_dir }}/configs/"
+        dest: "{{ config_dir }}/"
+        mode: '0644'
+        directory_mode: '0755'
+
+    - name: Verify config.json exists
+      stat:
+        path: "{{ config_dir }}/config.json"
+      register: config_json_stat
+
+    - name: Fail if config.json is missing
+      fail:
+        msg: "config.json not found at {{ config_dir }}/config.json - required for cluster setup"
+      when: not config_json_stat.stat.exists
+
+- name: Start agent nodes and join cluster
+  hosts: agent_nodes
+  gather_facts: yes
+  become: yes
+  serial: 1  # Start agents one at a time
+
+  tasks:
+    - name: Get server IP
+      set_fact:
+        server_ip: "{{ hostvars[groups['server_nodes'][0]].ansible_host | default(hostvars[groups['server_nodes'][0]].ansible_default_ipv4.address) }}"
+
+    - name: Get k3s token from server
+      command: docker exec server cat /var/lib/rancher/k3s/server/agent-token
+      register: k3s_token_result
+      delegate_to: "{{ groups['server_nodes'][0] }}"
+      changed_when: false
+
+    - name: Get existing cluster nodes
+      command: docker exec server kubectl get nodes -o jsonpath='{.items[*].metadata.name}'
+      register: existing_nodes_result
+      delegate_to: "{{ groups['server_nodes'][0] }}"
+      changed_when: false
+
+    - name: Get existing cluster node IPs
+      shell: docker exec server kubectl get nodes -o jsonpath='{.items[*].status.addresses[?(@.type=="InternalIP")].address}'
+      register: existing_node_ips_result
+      delegate_to: "{{ groups['server_nodes'][0] }}"
+      changed_when: false
+
+    - name: Set cluster info facts
+      set_fact:
+        cluster_token: "{{ k3s_token_result.stdout }}"
+        existing_cluster_nodes: "{{ existing_nodes_result.stdout }}"
+        existing_cluster_ips: "{{ existing_node_ips_result.stdout }}"
+
+    - name: Get this node's IP address
+      set_fact:
+        this_node_ip: "{{ ansible_host | default(ansible_default_ipv4.address) }}"
+
+    - name: Check if agent container is already running on this node
+      command: docker ps --filter name=agent --filter status=running --format "{{ '{{' }}.Names{{ '}}' }}"
+      register: running_agent_check
+      changed_when: false
+      failed_when: false
+
+    - name: Check if this node is already in the cluster (by IP or partial hostname match)
+      set_fact:
+        node_in_cluster: >-
+          {{
+            this_node_ip in existing_cluster_ips.split()
+            or existing_cluster_nodes is search(ansible_hostname)
+            or existing_cluster_nodes is search(ansible_fqdn)
+            or existing_cluster_nodes is search(inventory_hostname)
+            or (ansible_host is defined and existing_cluster_nodes is search(ansible_host))
+            or running_agent_check.stdout == "agent"
+          }}
+
+    - name: Get matched node name from cluster (if any)
+      shell: |
+        docker exec server kubectl get nodes -o json | jq -r '.items[] | select(.status.addresses[] | select(.type=="InternalIP" and .address=="{{ this_node_ip }}")) | .metadata.name'
+      register: matched_node_name
+      delegate_to: "{{ groups['server_nodes'][0] }}"
+      changed_when: false
+      failed_when: false
+      when: node_in_cluster | bool
+
+    - name: Skip node if already in cluster
+      debug:
+        msg: "SKIPPING {{ inventory_hostname }} ({{ ansible_hostname }}) - already in cluster{{ ' as ' + matched_node_name.stdout if (matched_node_name.stdout is defined and matched_node_name.stdout != '') else '' }}"
+      when: node_in_cluster | bool
+
+    - name: Display connection info (masked)
+      debug:
+        msg: "Joining cluster at {{ server_ip }}"
+      when: not (node_in_cluster | bool)
+
+    - name: Check if agent container already exists
+      command: docker ps -a --filter name=agent --format "{{ '{{' }}.Names{{ '}}' }}"
+      register: existing_agent
+      changed_when: false
+      when: not (node_in_cluster | bool)
+
+    - name: Stop and remove existing agent container if present
+      command: docker rm -f agent
+      when:
+        - not (node_in_cluster | bool)
+        - existing_agent.stdout == "agent"
+      ignore_errors: yes
+
+    - name: Start agent container
+      shell: |
+        cd {{ script_dir }}
+        CONFIG_DIR={{ config_dir }} nohup ./gpu-cluster.sh run agent {{ server_ip }} {{ cluster_token }} > /tmp/gpu-cluster-agent.log 2>&1 &
+        sleep 5
+      args:
+        executable: /bin/bash
+      when: not (node_in_cluster | bool)
+
+    - name: Wait for agent to start
+      wait_for:
+        timeout: 15
+      delegate_to: localhost
+      when: not (node_in_cluster | bool)
+
+    - name: Check agent container status
+      shell: 'docker ps --filter name=agent --format "{{ ''{{'' }}.Names{{ ''}}'' }}: {{ ''{{'' }}.Status{{ ''}}'' }}"'
+      register: agent_status
+      changed_when: false
+      when: not (node_in_cluster | bool)
+
+    - name: Display agent status
+      debug:
+        msg: "{{ agent_status.stdout }}"
+      when: not (node_in_cluster | bool)
+
+    - name: Wait for agent to join cluster
+      pause:
+        seconds: 10
+        prompt: "Waiting for agent to complete k3s registration..."
+      when: not (node_in_cluster | bool)
+
+- name: Verify new nodes joined cluster
+  hosts: server_nodes
+  gather_facts: no
+
+  tasks:
+    - name: Wait for nodes to register
+      wait_for:
+        timeout: 20
+      delegate_to: localhost
+
+    - name: Get all nodes in cluster
+      command: docker exec server kubectl get nodes -o wide
+      register: all_nodes
+      changed_when: false
+
+    - name: Display updated cluster nodes
+      debug:
+        msg: "{{ all_nodes.stdout_lines }}"
+
+    - name: Get cluster info
+      command: docker exec server kubectl cluster-info
+      register: cluster_info
+      changed_when: false
+
+    - name: Count total nodes
+      shell: docker exec server kubectl get nodes --no-headers | wc -l
+      register: node_count
+      changed_when: false
+
+    - name: Display summary
+      debug:
+        msg: |
+          ============================================================
+          New Agent Nodes Added Successfully!
+          ============================================================
+          Total cluster nodes: {{ node_count.stdout }}
+
+          To verify:
+            ansible-playbook playbooks/check-status.yml
+
+          To check validation status:
+            ./gpu-cluster.sh status
+            ./gpu-cluster.sh node-status
+          ============================================================
