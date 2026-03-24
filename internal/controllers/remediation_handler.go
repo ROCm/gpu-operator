@@ -155,6 +155,11 @@ func (n *remediationMgr) HandleRemediation(ctx context.Context, devConfig *amdv1
 		return ctrl.Result{}, nil
 	}
 
+	if err := n.helper.validateUserConfigMap(ctx, devConfig); err != nil {
+		logger.Error(err, "User provided configmap validation failed, skipping remediation")
+		return res, err
+	}
+
 	var configMap *v1.ConfigMap
 	if configMap, err = n.helper.createDefaultObjects(ctx, devConfig); err != nil {
 		return res, err
@@ -171,12 +176,6 @@ func (n *remediationMgr) HandleRemediation(ctx context.Context, devConfig *amdv1
 		return res, err
 	}
 
-	if err := n.helper.syncInternalMapFromStatusCR(ctx, devConfig.Namespace); err != nil {
-		logger.Error(err, "Failed to sync internal map from status CR")
-		return res, err
-	}
-	logger.Info("Internal map synced from status CR successfully")
-
 	var mappingsList []ConditionWorkflowMapping
 	if err = yaml.Unmarshal([]byte(configMap.Data["workflow"]), &mappingsList); err != nil {
 		return res, fmt.Errorf("failed to parse workflows from ConfigMap: %w", err)
@@ -186,6 +185,12 @@ func (n *remediationMgr) HandleRemediation(ctx context.Context, devConfig *amdv1
 	for _, m := range mappingsList {
 		mappings[m.NodeCondition] = m
 	}
+
+	if err := n.helper.syncInternalMapFromStatusCR(ctx, devConfig.Namespace, mappings); err != nil {
+		logger.Error(err, "Failed to sync internal map from status CR")
+		return res, err
+	}
+	logger.Info("Internal map synced from status CR successfully")
 
 	var errs error
 	for _, node := range nodes.Items {
@@ -315,7 +320,7 @@ type remediationMgrHelperAPI interface {
 	getWindowSize(recoveryPolicy *RecoveryPolicyConfig) string
 	isRecoveryPolicyViolated(ctx context.Context, nodeName string, mapping *ConditionWorkflowMapping) bool
 	canResumeWorkflowOnNode(ctx context.Context, node *v1.Node, mapping *ConditionWorkflowMapping, stageName string) bool
-	syncInternalMapFromStatusCR(ctx context.Context, namespace string) error
+	syncInternalMapFromStatusCR(ctx context.Context, namespace string, mappings map[string]ConditionWorkflowMapping) error
 	isNodeLabelledForForceResume(ctx context.Context, node *v1.Node) bool
 	removeForceResumeWorkflowLabelFromNode(ctx context.Context, node *v1.Node) error
 	isNodeLabelledForAbortWorkflow(node *v1.Node) bool
@@ -330,6 +335,7 @@ type remediationMgrHelperAPI interface {
 	getNodeTaints(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig, nodeCondition string) []string
 	applyTolerationsToWorkflow(wf *workflowv1alpha1.Workflow, devConfig *amdv1alpha1.DeviceConfig, nodeCondition string)
 	handleDeviceConfigChanges(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig)
+	validateUserConfigMap(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig) error
 	updateCustomTolerations(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig) error
 	updateCustomTolerationsCache(devConfig *amdv1alpha1.DeviceConfig)
 	updateCustomTolerationsOnDeployment(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig, deploymentSelector labels.Selector, tolerations []v1.Toleration) error
@@ -403,6 +409,46 @@ func (h *remediationMgrHelper) isRemediationDisabled(ctx context.Context, devCon
 		}
 	}
 	return false, nil
+}
+
+func (h *remediationMgrHelper) validateUserConfigMap(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig) error {
+	if devConfig.Spec.RemediationWorkflow.Config == nil || devConfig.Spec.RemediationWorkflow.Config.Name == "" {
+		return nil
+	}
+	cfgMap := &v1.ConfigMap{}
+	if err := h.client.Get(ctx, client.ObjectKey{Name: devConfig.Spec.RemediationWorkflow.Config.Name, Namespace: devConfig.Namespace}, cfgMap); err != nil {
+		return fmt.Errorf("failed to get configmap: %w", err)
+	}
+	var mappingsList []ConditionWorkflowMapping
+	if err := yaml.Unmarshal([]byte(cfgMap.Data["workflow"]), &mappingsList); err != nil {
+		return fmt.Errorf("failed to parse workflows from config map %s: %v", devConfig.Spec.RemediationWorkflow.Config.Name, err)
+	}
+	//validate all node conditions are unique
+	nodeConditions := make(map[string]struct{})
+	for _, mapping := range mappingsList {
+		nodeConditions[mapping.NodeCondition] = struct{}{}
+	}
+	if len(nodeConditions) != len(mappingsList) {
+		return fmt.Errorf("node conditions are not unique in config map %s", devConfig.Spec.RemediationWorkflow.Config.Name)
+	}
+	for _, mapping := range mappingsList {
+		if mapping.NodeCondition == "" {
+			return fmt.Errorf("node condition cannot be empty in config map %s", devConfig.Spec.RemediationWorkflow.Config.Name)
+		}
+		if mapping.RecoveryPolicy.WindowSize != "" {
+			d, err := time.ParseDuration(mapping.RecoveryPolicy.WindowSize)
+			if err != nil {
+				return fmt.Errorf("failed to parse window size %s: %w", mapping.RecoveryPolicy.WindowSize, err)
+			}
+			if d < 0 {
+				return fmt.Errorf("window size %s is negative in config map %s", mapping.RecoveryPolicy.WindowSize, devConfig.Spec.RemediationWorkflow.Config.Name)
+			}
+		}
+		if mapping.RecoveryPolicy.MaxAllowedRunsPerWindow < 0 {
+			return fmt.Errorf("max allowed runs per window %d is negative in config map %s", mapping.RecoveryPolicy.MaxAllowedRunsPerWindow, devConfig.Spec.RemediationWorkflow.Config.Name)
+		}
+	}
+	return nil
 }
 
 func (h *remediationMgrHelper) resumeSuspendedWorkflow(ctx context.Context, wfName, namespace string) error {
@@ -1535,7 +1581,7 @@ func (h *remediationMgrHelper) getRemediationWorkflowStatus(ctx context.Context,
 	return wfstatus, nil
 }
 
-func (h *remediationMgrHelper) syncInternalMapFromStatusCR(ctx context.Context, namespace string) error {
+func (h *remediationMgrHelper) syncInternalMapFromStatusCR(ctx context.Context, namespace string, mappings map[string]ConditionWorkflowMapping) error {
 	wfStatus, err := h.getRemediationWorkflowStatus(ctx, namespace)
 	if err != nil {
 		return fmt.Errorf("failed to get remediation workflow status: %w", err)
@@ -1545,17 +1591,27 @@ func (h *remediationMgrHelper) syncInternalMapFromStatusCR(ctx context.Context, 
 
 	for nodeName, conditions := range wfStatus.Status {
 		for nodeCondition, attempts := range conditions {
-			key := h.getRecoveryTrackerKey(nodeName, nodeCondition)
-
-			attemptTimes := make([]time.Time, len(attempts))
-			for i, attempt := range attempts {
+			// For each node condition, filter out the attempts that are older than the window size
+			windowSize := DefaultRecoveryPolicyWindowSize
+			if mappings[nodeCondition].RecoveryPolicy.WindowSize != "" {
+				windowSize = mappings[nodeCondition].RecoveryPolicy.WindowSize
+			}
+			windowSizeDuration, err := time.ParseDuration(windowSize)
+			if err != nil {
+				return fmt.Errorf("failed to parse window size %s: %w", windowSize, err)
+			}
+			attemptTimes := make([]time.Time, 0)
+			for _, attempt := range attempts {
 				attemptTime, err := time.Parse(DefaultTimeFormatLayout, attempt.StartTime)
 				if err != nil {
 					return fmt.Errorf("failed to parse attempt start time %s: %w", attempt.StartTime, err)
 				}
-				attemptTimes[i] = attemptTime
+				if attemptTime.Before(time.Now().UTC().Add(-windowSizeDuration)) {
+					continue
+				}
+				attemptTimes = append(attemptTimes, attemptTime)
 			}
-			h.recoveryTracker.Store(key, attemptTimes)
+			h.recoveryTracker.Store(h.getRecoveryTrackerKey(nodeName, nodeCondition), attemptTimes)
 		}
 	}
 

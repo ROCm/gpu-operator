@@ -1,6 +1,8 @@
 set -e
 NODE_NAME='{{inputs.parameters.node_name}}'
 DRAIN_POLICY='{{inputs.parameters.drain_policy}}'
+INSTANCE_ID_LABEL='workflows.argoproj.io/controller-instanceid'
+INSTANCE_ID_VALUE='amd-gpu-operator-remediation-workflow'
 
 # Check if jq is installed
 if ! command -v jq &> /dev/null; then
@@ -34,10 +36,11 @@ echo "Finding pods on node $NODE_NAME matching the drain policy criteria..."
 # Convert IGNORE_NAMESPACES array to JSON array for jq
 IGNORE_NAMESPACES_JSON=$(printf '%s\n' "${IGNORE_NAMESPACES[@]}" | jq -R . | jq -s .)
 
-PODS=$(kubectl get pods --all-namespaces -o json | jq --argjson ignoreNs "$IGNORE_NAMESPACES_JSON" --arg ignoreDaemonSets "$IGNORE_DAEMONSETS" -r '
+PODS=$(kubectl get pods --all-namespaces -o json | jq --argjson ignoreNs "$IGNORE_NAMESPACES_JSON" --arg ignoreDaemonSets "$IGNORE_DAEMONSETS" --arg instanceIdLabel "$INSTANCE_ID_LABEL" --arg instanceIdValue "$INSTANCE_ID_VALUE" -r '
   .items[] |
     select(.spec.nodeName == "'"$NODE_NAME"'") |
     select((.metadata.namespace as $ns | $ignoreNs | index($ns) | not)) |
+    select((.metadata.labels // {} | .[$instanceIdLabel] // "") != $instanceIdValue) |
     select(
       if $ignoreDaemonSets == "true" then
         ([.metadata.ownerReferences[]? | select(.kind == "DaemonSet")] | length) == 0

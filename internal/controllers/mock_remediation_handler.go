@@ -749,17 +749,17 @@ func (mr *MockremediationMgrHelperAPIMockRecorder) resumeSuspendedWorkflow(ctx, 
 }
 
 // syncInternalMapFromStatusCR mocks base method.
-func (m *MockremediationMgrHelperAPI) syncInternalMapFromStatusCR(ctx context.Context, namespace string) error {
+func (m *MockremediationMgrHelperAPI) syncInternalMapFromStatusCR(ctx context.Context, namespace string, mappings map[string]ConditionWorkflowMapping) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "syncInternalMapFromStatusCR", ctx, namespace)
+	ret := m.ctrl.Call(m, "syncInternalMapFromStatusCR", ctx, namespace, mappings)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // syncInternalMapFromStatusCR indicates an expected call of syncInternalMapFromStatusCR.
-func (mr *MockremediationMgrHelperAPIMockRecorder) syncInternalMapFromStatusCR(ctx, namespace any) *gomock.Call {
+func (mr *MockremediationMgrHelperAPIMockRecorder) syncInternalMapFromStatusCR(ctx, namespace, mappings any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "syncInternalMapFromStatusCR", reflect.TypeOf((*MockremediationMgrHelperAPI)(nil).syncInternalMapFromStatusCR), ctx, namespace)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "syncInternalMapFromStatusCR", reflect.TypeOf((*MockremediationMgrHelperAPI)(nil).syncInternalMapFromStatusCR), ctx, namespace, mappings)
 }
 
 // updateCustomTolerations mocks base method.
@@ -843,4 +843,18 @@ func (m *MockremediationMgrHelperAPI) validateNodeConditions(ctx context.Context
 func (mr *MockremediationMgrHelperAPIMockRecorder) validateNodeConditions(ctx, devConfig, node, mappings any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "validateNodeConditions", reflect.TypeOf((*MockremediationMgrHelperAPI)(nil).validateNodeConditions), ctx, devConfig, node, mappings)
+}
+
+// validateUserConfigMap mocks base method.
+func (m *MockremediationMgrHelperAPI) validateUserConfigMap(ctx context.Context, devConfig *v1alpha1.DeviceConfig) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "validateUserConfigMap", ctx, devConfig)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// validateUserConfigMap indicates an expected call of validateUserConfigMap.
+func (mr *MockremediationMgrHelperAPIMockRecorder) validateUserConfigMap(ctx, devConfig any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "validateUserConfigMap", reflect.TypeOf((*MockremediationMgrHelperAPI)(nil).validateUserConfigMap), ctx, devConfig)
 }
