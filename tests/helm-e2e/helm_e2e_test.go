@@ -701,7 +701,7 @@ deviceConfig:
       imagePullPolicy: "Always"
     configManager:
       enable: true
-      image: test.io/test/device-config-manager:v1.3.0
+      image: test.io/test/device-config-manager:v1.4.1
       imagePullPolicy: "Always"
       imageRegistrySecret:
         name: mySecret456
@@ -725,7 +725,7 @@ deviceConfig:
 			expectSpec: &v1alpha1.DeviceConfigSpec{
 				ConfigManager: v1alpha1.ConfigManagerSpec{
 					Enable:          &boolTrue,
-					Image:           "test.io/test/device-config-manager:v1.3.0",
+					Image:           "test.io/test/device-config-manager:v1.4.1",
 					ImagePullPolicy: "Always",
 					ImageRegistrySecret: &corev1.LocalObjectReference{
 						Name: "mySecret456",
@@ -778,7 +778,7 @@ deviceConfig:
       imagePullPolicy: "Always"
     configManager:
       enable: true
-      image: test.io/test/device-config-manager:v1.3.0
+      image: test.io/test/device-config-manager:v1.4.1
     metricsExporter:
       enable: false
       serviceType: NodePort

@@ -74,7 +74,7 @@ mirror:
     - name: docker.io/busybox:1.36
     - name: docker.io/rocm/device-metrics-exporter:v1.3.1
     - name: docker.io/rocm/test-runner:v1.3.1
-    - name: docker.io/rocm/device-config-manager:v1.3.1
+    - name: docker.io/rocm/device-config-manager:v1.4.1
     - name: docker.io/rocm/rocm-terminal:latest
     - name: docker.io/rocm/k8s-device-plugin:latest
     - name: docker.io/rocm/k8s-node-labeller:latest

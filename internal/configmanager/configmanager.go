@@ -51,7 +51,7 @@ import (
 
 const (
 	// TODO: determine where to host the config manager image and put the registry URL here
-	defaultConfigManagerImage = "docker.io/rocm/device-config-manager:v1.4.0"
+	defaultConfigManagerImage = "docker.io/rocm/device-config-manager:v1.4.1"
 	ConfigManagerName         = "device-config-manager"
 	defaultSAName             = "amd-gpu-operator-config-manager"
 	defaultInitContainerImage = "busybox:1.36"
