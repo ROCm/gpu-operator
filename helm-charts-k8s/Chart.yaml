@@ -19,8 +19,8 @@ keywords:
   - monitoring
 
 kubeVersion: ">= 1.29.0-0"
-version: v0.0.1-v0.0.1
-appVersion: "v0.0.1-v0.0.1"
+version: v0.0.1
+appVersion: "dev"
 
 dependencies:
 - name: node-feature-discovery

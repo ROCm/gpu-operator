@@ -9,8 +9,8 @@ patches:
 
 images:
 - name: controller
-  newName: docker.io/rocm/amd-gpu-operator
-  newTag: v0.0.1
+  newName: registry.test.pensando.io:5000/amd-gpu-operator
+  newTag: dev
 
 configurations:
 - kustomizeconfig.yaml

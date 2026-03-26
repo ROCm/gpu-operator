@@ -5,11 +5,6 @@ endif
 
 # Default version for the project.
 PROJECT_VERSION ?= v0.0.1
-# CI/CD sets RELEASE to the full release version; defaults to PROJECT_VERSION for local builds.
-RELEASE ?= $(PROJECT_VERSION)
-# VERSION follows RELEASE unless explicitly set.
-# "or" treats "" as false, so VERSION will be PROJECT_VERSION if RELEASE is not set or empty.
-VERSION ?= $(or $(RELEASE),$(PROJECT_VERSION))
 
 ####################################
 # GPU Operator Image Build variables
@@ -21,14 +16,12 @@ GIT_COMMIT ?= $(shell git rev-parse --short HEAD)
 DOCKER_REGISTRY ?= docker.io/rocm
 IMAGE_NAME ?= amd-gpu-operator
 IMAGE_TAG_BASE ?= $(DOCKER_REGISTRY)/$(IMAGE_NAME)
-# If RELEASE is set and different from PROJECT_VERSION, use RELEASE as IMAGE_TAG;
-# otherwise, use PROJECT_VERSION as IMAGE_TAG.
 IMAGE_TAG ?= dev
 IMG ?= $(IMAGE_TAG_BASE):$(IMAGE_TAG)
-HOURLY_TAG_LABEL = $(VERSION)
+HOURLY_TAG_LABEL ?= latest
 
 # KMM related images
-KMM_IMAGE_TAG ?= $(PROJECT_VERSION)
+KMM_IMAGE_TAG ?= latest
 KMM_SIGNER_IMG ?= $(DOCKER_REGISTRY)/kernel-module-management-signimage:$(KMM_IMAGE_TAG)
 KMM_WORKER_IMG ?= $(DOCKER_REGISTRY)/kernel-module-management-worker:$(KMM_IMAGE_TAG)
 KMM_BUILDER_IMG ?= gcr.io/kaniko-project/executor:v1.23.2
@@ -36,16 +29,16 @@ KMM_WEBHOOK_IMG_NAME ?= $(DOCKER_REGISTRY)/kernel-module-management-webhook-serv
 KMM_OPERATOR_IMG_NAME ?= $(DOCKER_REGISTRY)/kernel-module-management-operator
 
 # Operand related images
-EXPORTER_IMAGE_TAG ?= $(PROJECT_VERSION)
+EXPORTER_IMAGE_TAG ?= latest
 METRICS_EXPORTER_IMG = $(DOCKER_REGISTRY)/device-metrics-exporter:$(EXPORTER_IMAGE_TAG)
-DEVICE_CONFIG_MANAGER_IMAGE_TAG ?= $(PROJECT_VERSION)
+DEVICE_CONFIG_MANAGER_IMAGE_TAG ?= latest
 DEVICE_CONFIG_MANAGER_IMG = $(DOCKER_REGISTRY)/device-config-manager:$(DEVICE_CONFIG_MANAGER_IMAGE_TAG)
-TEST_RUNNER_IMAGE_TAG ?= $(PROJECT_VERSION)
+TEST_RUNNER_IMAGE_TAG ?= latest
 TEST_RUNNER_IMG = $(DOCKER_REGISTRY)/test-runner:$(TEST_RUNNER_IMAGE_TAG)
-UTILS_IMAGE_TAG ?= $(IMAGE_TAG)
+UTILS_IMAGE_TAG ?= latest
 UTILS_IMAGE_NAME ?= $(IMAGE_NAME)-utils
 UTILS_IMG ?= $(DOCKER_REGISTRY)/$(UTILS_IMAGE_NAME):$(UTILS_IMAGE_TAG)
-DRA_DRIVER_IMAGE_TAG ?= $(PROJECT_VERSION)
+DRA_DRIVER_IMAGE_TAG ?= latest
 DRA_DRIVER_IMG = $(DOCKER_REGISTRY)/k8s-gpu-dra-driver:$(DRA_DRIVER_IMAGE_TAG)
 
 #######################
@@ -55,8 +48,8 @@ CRD_YAML_FILES = deviceconfig-crd.yaml remediationworkflowstatus-crd.yaml
 K8S_KMM_CRD_YAML_FILES=module-crd.yaml nodemodulesconfig-crd.yaml
 DEFAULT_VALUES_FILES=helm-charts-k8s/values.yaml hack/k8s-patch/metadata-patch/values.yaml
 REMEDIATION_CRD_YAML_FILES=clusterworkflowtemplate-crd.yaml cronworkflow-crd.yaml workflowartifactgctask-crd.yaml workflow-crd.yaml workfloweventbinding-crd.yaml workflowtaskresult-crd.yaml workflowtaskset-crd.yaml workflowtemplate-crd.yaml
-HELM_CHART_VERSION ?= $(IMAGE_TAG)
-HELM_APP_VERSION ?= $(HELM_CHART_VERSION)
+HELM_CHART_VERSION ?= $(PROJECT_VERSION)
+HELM_APP_VERSION ?= $(IMAGE_TAG)
 
 HELM_OUTPUT_FILE_NAME ?= gpu-operator-helm-k8s-$(HELM_CHART_VERSION).tgz
 GPU_OPERATOR_CHART ?= $(shell pwd)/helm-charts-k8s/$(HELM_OUTPUT_FILE_NAME)
@@ -242,8 +235,8 @@ update-helm-metadata: ## Update helm Chart.yaml version and appVersion based on 
 .PHONY: update-version
 update-version: update-helm-metadata ## Update the Project version in helm charts based on ${PROJECT_VERSION}
 	# updating project version in Dockerfile metadata
-	sed -i 's/release="[^"]*"/release="${VERSION}"/g' Dockerfile internal/utils_container/Dockerfile
-	sed -i 's/version="[^"]*"/version="${VERSION}"/g' Dockerfile internal/utils_container/Dockerfile
+	sed -i 's/release="[^"]*"/release="${IMAGE_TAG}"/g' Dockerfile internal/utils_container/Dockerfile
+	sed -i 's/version="[^"]*"/version="${IMAGE_TAG}"/g' Dockerfile internal/utils_container/Dockerfile
 	# updating default image tags in Go source files
 	sed -i 's|defaultConfigManagerImage.*=.*"docker.io/rocm/device-config-manager:[^"]*"|defaultConfigManagerImage = "docker.io/rocm/device-config-manager:${PROJECT_VERSION}"|' internal/configmanager/configmanager.go
 	sed -i 's|defaultMetricsExporterImage.*=.*"docker.io/rocm/device-metrics-exporter:[^"]*"|defaultMetricsExporterImage = "docker.io/rocm/device-metrics-exporter:${PROJECT_VERSION}"|' internal/metricsexporter/metricsexporter.go
@@ -336,7 +329,7 @@ docs-lint: ## Run docs Markdown lint + spelling (full ROCm-style docs lint).
 ##@ Build
 
 manager: $(shell find -name "*.go") go.mod go.sum  ## Build manager binary.
-	go build -ldflags="-X main.Version=$(VERSION) -X main.GitCommit=$(GIT_COMMIT) -X main.BuildTag=$(HOURLY_TAG_LABEL)" -o $@ ./cmd
+	go build -ldflags="-X main.Version=$(PROJECT_VERSION) -X main.GitCommit=$(GIT_COMMIT) -X main.BuildTag=$(HOURLY_TAG_LABEL)" -o $@ ./cmd
 
 .PHONY: docker-build
 docker-build: ## Build docker image with the manager.
@@ -413,7 +406,7 @@ helm-k8s: helmify manifests kustomize clean-helm gen-kmm-charts gen-remediation-
 .PHONY: bundle-build
 bundle-build: operator-sdk manifests kustomize ## OpenShift Build OLM bundle.
 	rm -fr ./bundle
-	VERSION=$(VERSION) ${OPERATOR_SDK} generate kustomize manifests --apis-dir api
+	VERSION=$(shell echo $(PROJECT_VERSION) | sed 's/^v//') ${OPERATOR_SDK} generate kustomize manifests --apis-dir api
 	cd config/manager && $(KUSTOMIZE) edit set image controller=$(IMG)
 	cd config/manager-base && $(KUSTOMIZE) edit set image controller=$(IMG)
 	OPERATOR_SDK="${OPERATOR_SDK}" \
