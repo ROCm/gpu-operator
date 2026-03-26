@@ -157,7 +157,7 @@ Kubernetes: `>= 1.29.0-0`
 |-----|------|---------|-------------|
 | global.imagePullSecrets | list | `[]` | Global image pull secret(s) applied to all component pods and subcharts. If specified, these secrets will be used by: - GPU operator controller manager deployment - Remediation workflow controller - All helm hooks (pre-upgrade, pre-delete, post-delete) - DeviceConfig-managed components (via commonConfig.imageRegistrySecrets) - KMM controller and webhook pods (automatically inherited) - KMM builder/signer/worker pods (automatically uses first secret as fallback)  Format: [{"name": "myGlobalSecret"}] or [{"name": "secret1"}, {"name": "secret2"}]  Note: For NFD subchart, you must manually set the field to match global secrets:   node-feature-discovery.imagePullSecrets: [{"name": "myGlobalSecret"}] |
 | controllerManager.affinity | object | `{"nodeAffinity":{"preferredDuringSchedulingIgnoredDuringExecution":[{"preference":{"matchExpressions":[{"key":"node-role.kubernetes.io/control-plane","operator":"Exists"}]},"weight":1}]}}` | Deployment affinity configs for controller manager |
-| controllerManager.manager.image.repository | string | `"registry.test.pensando.io:5000/amd-gpu-operator"` | AMD GPU operator controller manager image repository |
+| controllerManager.manager.image.repository | string | `"docker.io/rocm/amd-gpu-operator"` | AMD GPU operator controller manager image repository |
 | controllerManager.manager.image.tag | string | `"dev"` | AMD GPU operator controller manager image tag |
 | controllerManager.manager.imagePullPolicy | string | `"Always"` | Image pull policy for AMD GPU operator controller manager pod |
 | controllerManager.manager.imagePullSecrets | string | `""` | Image pull secret name for pulling AMD GPU operator controller manager image if registry needs credential to pull image |
@@ -165,13 +165,13 @@ Kubernetes: `>= 1.29.0-0`
 | crds.defaultCR.install | bool | `true` | Deploy default DeviceConfig during helm chart installation |
 | crds.defaultCR.upgrade | bool | `false` | Deploy / Patch default DeviceConfig during helm chart upgrade. Be careful about this option: 1. Your customized change on default DeviceConfig may be overwritten 2. Your existing DeviceConfig may conflict with upgraded default DeviceConfig  |
 | deviceConfig.spec.commonConfig.initContainerImage | string | `"busybox:1.36"` | init container image |
-| deviceConfig.spec.commonConfig.utilsContainer.image | string | `"registry.test.pensando.io:5000/amd-gpu-operator-utils:latest"` | gpu operator utility container image |
+| deviceConfig.spec.commonConfig.utilsContainer.image | string | `"docker.io/rocm/amd-gpu-operator-utils:latest"` | gpu operator utility container image |
 | deviceConfig.spec.commonConfig.utilsContainer.imagePullPolicy | string | `"IfNotPresent"` | utility container image pull policy |
 | deviceConfig.spec.commonConfig.utilsContainer.imageRegistrySecret | object | `{}` | utility container image pull secret, e.g. {"name": "mySecretName"} |
 | deviceConfig.spec.configManager.config | object | `{}` | config map for config manager, e.g. {"name": "myConfigMap"} |
 | deviceConfig.spec.configManager.configManagerTolerations | list | `[]` | config manager tolerations |
 | deviceConfig.spec.configManager.enable | bool | `false` | enable/disable the config manager  |
-| deviceConfig.spec.configManager.image | string | `"registry.test.pensando.io:5000/device-config-manager:latest"` | config manager image |
+| deviceConfig.spec.configManager.image | string | `"docker.io/rocm/device-config-manager:latest"` | config manager image |
 | deviceConfig.spec.configManager.imagePullPolicy | string | `"IfNotPresent"` | image pull policy for config manager image |
 | deviceConfig.spec.configManager.imageRegistrySecret | object | `{}` | image pull secret for config manager image, e.g. {"name": "myPullSecret"} |
 | deviceConfig.spec.configManager.selector | object | `{}` | node selector for config manager, if not specified it will reuse spec.selector |
@@ -194,7 +194,7 @@ Kubernetes: `>= 1.29.0-0`
 | deviceConfig.spec.devicePlugin.upgradePolicy.upgradeStrategy | string | `"RollingUpdate"` | the type of daemonset upgrade, RollingUpdate or OnDelete |
 | deviceConfig.spec.draDriver.cmdLineArguments | object | `{}` | pass supported flags and their values while starting DRA driver daemonset |
 | deviceConfig.spec.draDriver.enable | bool | `false` | enable/disable the DRA (Dynamic Resource Allocation) driver. Cannot be enabled at the same time as devicePlugin. |
-| deviceConfig.spec.draDriver.image | string | `"registry.test.pensando.io:5000/k8s-gpu-dra-driver:latest"` | DRA driver image |
+| deviceConfig.spec.draDriver.image | string | `"docker.io/rocm/k8s-gpu-dra-driver:latest"` | DRA driver image |
 | deviceConfig.spec.draDriver.imagePullPolicy | string | `"IfNotPresent"` | DRA driver image pull policy |
 | deviceConfig.spec.draDriver.imageRegistrySecret | object | `{}` | DRA driver image pull secret, e.g. {"name": "mySecretName"} |
 | deviceConfig.spec.draDriver.selector | object | `{}` | DRA driver node selector, if not specified it will reuse spec.selector |
@@ -224,7 +224,7 @@ Kubernetes: `>= 1.29.0-0`
 | deviceConfig.spec.metricsExporter.config | object | `{}` | name of the metrics exporter config map, e.g. {"name": "metricConfigMapName"} |
 | deviceConfig.spec.metricsExporter.enable | bool | `true` | enable / disable device metrics exporter |
 | deviceConfig.spec.metricsExporter.hostNetwork | bool | `false` | specify whether to use host network for metrics exporter daemonset |
-| deviceConfig.spec.metricsExporter.image | string | `"registry.test.pensando.io:5000/device-metrics-exporter:latest"` | metrics exporter image |
+| deviceConfig.spec.metricsExporter.image | string | `"docker.io/rocm/device-metrics-exporter:latest"` | metrics exporter image |
 | deviceConfig.spec.metricsExporter.imagePullPolicy | string | `"IfNotPresent"` | metrics exporter image pull policy |
 | deviceConfig.spec.metricsExporter.imageRegistrySecret | object | `{}` | metrics exporter image pull secret, e.g. {"name": "pullSecretName"} |
 | deviceConfig.spec.metricsExporter.nodePort | int | `32500` | external port for pulling metrics from outside the cluster for NodePort service, in the range 30000-32767 (assigned automatically by default) |
@@ -258,12 +258,12 @@ Kubernetes: `>= 1.29.0-0`
 | deviceConfig.spec.remediationWorkflow.nodeDrainPolicy | object | `{}` | Policy for draining nodes during remediation |
 | deviceConfig.spec.remediationWorkflow.nodeRemediationLabels | object | `{}` | Labels to apply to nodes during remediation |
 | deviceConfig.spec.remediationWorkflow.nodeRemediationTaints | list | `[]` | Taints to apply to nodes during remediation |
-| deviceConfig.spec.remediationWorkflow.testerImage | string | `"registry.test.pensando.io:5000/test-runner:latest"` | Container image used for testing during remediation |
+| deviceConfig.spec.remediationWorkflow.testerImage | string | `"docker.io/rocm/test-runner:latest"` | Container image used for testing during remediation |
 | deviceConfig.spec.remediationWorkflow.ttlForFailedWorkflows | string | `"24h"` | Time-to-live duration for failed workflows before cleanup (e.g., 1h, 24h) |
 | deviceConfig.spec.selector | object | `{"feature.node.kubernetes.io/amd-gpu":"true"}` | Set node selector for the default DeviceConfig |
 | deviceConfig.spec.testRunner.config | object | `{}` | test runner config map, e.g. {"name": "myConfigMap"} |
 | deviceConfig.spec.testRunner.enable | bool | `false` | enable / disable test runner |
-| deviceConfig.spec.testRunner.image | string | `"registry.test.pensando.io:5000/test-runner:latest"` | test runner image |
+| deviceConfig.spec.testRunner.image | string | `"docker.io/rocm/test-runner:latest"` | test runner image |
 | deviceConfig.spec.testRunner.imagePullPolicy | string | `"IfNotPresent"` | test runner image pull policy |
 | deviceConfig.spec.testRunner.imageRegistrySecret | object | `{}` | test runner image pull secret |
 | deviceConfig.spec.testRunner.logsLocation.hostPath | string | `"/var/log/amd-test-runner"` | host directory to save test run logs |
@@ -291,11 +291,11 @@ Kubernetes: `>= 1.29.0-0`
 | kmm.controller.manager.containerSecurityContext.allowPrivilegeEscalation | bool | `false` |  |
 | kmm.controller.manager.env.relatedImageBuild | string | `"gcr.io/kaniko-project/executor:v1.23.2"` | KMM kaniko builder image for building driver image within cluster |
 | kmm.controller.manager.env.relatedImageBuildPullSecret | string | `""` | Image pull secret name for pulling KMM kaniko builder image if registry needs credential to pull image |
-| kmm.controller.manager.env.relatedImageSign | string | `"registry.test.pensando.io:5000/kernel-module-management-signimage:latest"` | KMM signer image for signing driver image's kernel module with given key pairs within cluster |
+| kmm.controller.manager.env.relatedImageSign | string | `"docker.io/rocm/kernel-module-management-signimage:latest"` | KMM signer image for signing driver image's kernel module with given key pairs within cluster |
 | kmm.controller.manager.env.relatedImageSignPullSecret | string | `""` | Image pull secret name for pulling KMM signer image if registry needs credential to pull image. If not set and global.imagePullSecrets is configured, the first global secret will be used automatically. |
-| kmm.controller.manager.env.relatedImageWorker | string | `"registry.test.pensando.io:5000/kernel-module-management-worker:latest"` | KMM worker image for loading / unloading driver kernel module on worker nodes |
+| kmm.controller.manager.env.relatedImageWorker | string | `"docker.io/rocm/kernel-module-management-worker:latest"` | KMM worker image for loading / unloading driver kernel module on worker nodes |
 | kmm.controller.manager.env.relatedImageWorkerPullSecret | string | `""` | Image pull secret name for pulling KMM worker image if registry needs credential to pull image. If not set and global.imagePullSecrets is configured, the first global secret will be used automatically. |
-| kmm.controller.manager.image.repository | string | `"registry.test.pensando.io:5000/kernel-module-management-operator"` | KMM controller manager image repository |
+| kmm.controller.manager.image.repository | string | `"docker.io/rocm/kernel-module-management-operator"` | KMM controller manager image repository |
 | kmm.controller.manager.image.tag | string | `"latest"` | KMM controller manager image tag |
 | kmm.controller.manager.imagePullPolicy | string | `"Always"` | Image pull policy for KMM controller manager pod |
 | kmm.controller.manager.imagePullSecrets | string | `""` | Image pull secret name for pulling KMM controller manager image if registry needs credential to pull image |
@@ -329,7 +329,7 @@ Kubernetes: `>= 1.29.0-0`
 | kmm.webhookServer.webhookServer.args[2] | string | `"--enable-namespace"` |  |
 | kmm.webhookServer.webhookServer.args[3] | string | `"--enable-preflightvalidation"` |  |
 | kmm.webhookServer.webhookServer.containerSecurityContext.allowPrivilegeEscalation | bool | `false` |  |
-| kmm.webhookServer.webhookServer.image.repository | string | `"registry.test.pensando.io:5000/kernel-module-management-webhook-server"` | KMM webhook image repository |
+| kmm.webhookServer.webhookServer.image.repository | string | `"docker.io/rocm/kernel-module-management-webhook-server"` | KMM webhook image repository |
 | kmm.webhookServer.webhookServer.image.tag | string | `"latest"` | KMM webhook image tag |
 | kmm.webhookServer.webhookServer.imagePullPolicy | string | `"Always"` | Image pull policy for KMM webhook pod |
 | kmm.webhookServer.webhookServer.imagePullSecrets | string | `""` | Image pull secret name for pulling KMM webhook image if registry needs credential to pull image |
