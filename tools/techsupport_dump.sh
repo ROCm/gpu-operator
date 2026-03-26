@@ -336,6 +336,14 @@ for node in "${nodeList[@]}"; do
 		fi
 	fi
 
+	# kmm builder/signer pod logs
+	KMM_BUILDER_SIGNER_PODS=$(${KNS} get pods -o name --field-selector spec.nodeName=${node} -l "kmm.node.kubernetes.io/pod-type" 2>/dev/null || true)
+	if [ -n "$KMM_BUILDER_SIGNER_PODS" ]; then
+		if ! pod_logs $KMM_NS "kmm-builder-signer" $node "$KMM_BUILDER_SIGNER_PODS"; then
+			log "Failed to collect logs for KMM builder/signer pods on node ${node}"
+		fi
+	fi
+
 	# metrics exporter pod logs
 	KNS="${KUBECTL} -n ${GPUOPER_NS}"
 	EXPORTER_PODS=$(${KNS} get pods -o name --field-selector spec.nodeName=${node} -l "app.kubernetes.io/name=metrics-exporter" 2>/dev/null || true)
