@@ -155,7 +155,7 @@ spec:
     # To enable/disable the config manager, enable to partition
     enable: True
     # image for the device-config-manager container
-    image: rocm/device-config-manager:v1.4.1
+    image: docker.io/rocm/device-config-manager:v1.4.1
     # image pull policy for config manager set to always to pull image of latest version
     imagePullPolicy: IfNotPresent
     # specify configmap name which stores profile config info
