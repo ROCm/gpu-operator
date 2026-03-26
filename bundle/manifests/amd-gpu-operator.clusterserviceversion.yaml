@@ -36,7 +36,7 @@ metadata:
     capabilities: Seamless Upgrades
     categories: AI/Machine Learning,Monitoring
     containerImage: docker.io/rocm/gpu-operator:v0.0.1
-    createdAt: "2026-03-25T01:30:52Z"
+    createdAt: "2026-03-26T04:06:46Z"
     description: |-
       Operator responsible for deploying AMD GPU kernel drivers, device plugin, device test runner and device metrics exporter
       For more information, visit [documentation](https://instinct.docs.amd.com/projects/gpu-operator/en/latest/)
@@ -1495,7 +1495,7 @@ spec:
                   valueFrom:
                     fieldRef:
                       fieldPath: metadata.namespace
-                image: docker.io/rocm/gpu-operator:v0.0.1
+                image: docker.io/rocm/amd-gpu-operator:v0.0.1
                 imagePullPolicy: Always
                 livenessProbe:
                   httpGet:

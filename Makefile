@@ -19,11 +19,11 @@ TOP_DIR = $(PWD)
 GOFLAGS := "-mod=mod"
 GIT_COMMIT ?= $(shell git rev-parse --short HEAD)
 DOCKER_REGISTRY ?= docker.io/rocm
-IMAGE_NAME ?= gpu-operator
+IMAGE_NAME ?= amd-gpu-operator
 IMAGE_TAG_BASE ?= $(DOCKER_REGISTRY)/$(IMAGE_NAME)
 # If RELEASE is set and different from PROJECT_VERSION, use RELEASE as IMAGE_TAG;
 # otherwise, use PROJECT_VERSION as IMAGE_TAG.
-IMAGE_TAG ?= $(if $(filter-out $(PROJECT_VERSION),$(RELEASE)),$(RELEASE),$(PROJECT_VERSION))
+IMAGE_TAG ?= dev
 IMG ?= $(IMAGE_TAG_BASE):$(IMAGE_TAG)
 HOURLY_TAG_LABEL = $(VERSION)
 
@@ -586,6 +586,7 @@ HELMIFY = $(shell pwd)/bin/helmify
 helmify:
 	@if [ ! -f "$(shell pwd)/bin/helmify" ]; then \
 		echo "helmify not found. Downloading..."; \
+		mkdir -p $(shell pwd)/bin/; \
 		curl -Lo $(shell pwd)/bin/helmify.tar.gz https://github.com/arttor/helmify/releases/download/v0.4.13/helmify_Linux_x86_64.tar.gz; \
 		tar -xzf $(shell pwd)/bin/helmify.tar.gz -C $(shell pwd)/bin; \
 		chmod +x $(shell pwd)/bin/helmify; \

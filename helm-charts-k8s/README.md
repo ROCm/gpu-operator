@@ -125,7 +125,7 @@ The AMD GPU Operator is licensed under the [Apache License 2.0](LICENSE).
 
 ## gpu-operator-charts
 
-![Version: v0.0.1](https://img.shields.io/badge/Version-v0.0.1-informational?style=flat-square) ![Type: application](https://img.shields.io/badge/Type-application-informational?style=flat-square) ![AppVersion: v0.0.1](https://img.shields.io/badge/AppVersion-v0.0.1-informational?style=flat-square)
+![Version: v0.0.1-v0.0.1](https://img.shields.io/badge/Version-v0.0.1--v0.0.1-informational?style=flat-square) ![Type: application](https://img.shields.io/badge/Type-application-informational?style=flat-square) ![AppVersion: v0.0.1-v0.0.1](https://img.shields.io/badge/AppVersion-v0.0.1--v0.0.1-informational?style=flat-square)
 
 AMD GPU Operator simplifies the deployment and management of AMD Instinct GPU accelerators within Kubernetes clusters.
 
@@ -157,7 +157,7 @@ Kubernetes: `>= 1.29.0-0`
 |-----|------|---------|-------------|
 | global.imagePullSecrets | list | `[]` | Global image pull secret(s) applied to all component pods and subcharts. If specified, these secrets will be used by: - GPU operator controller manager deployment - Remediation workflow controller - All helm hooks (pre-upgrade, pre-delete, post-delete) - DeviceConfig-managed components (via commonConfig.imageRegistrySecrets) - KMM controller and webhook pods (automatically inherited) - KMM builder/signer/worker pods (automatically uses first secret as fallback)  Format: [{"name": "myGlobalSecret"}] or [{"name": "secret1"}, {"name": "secret2"}]  Note: For NFD subchart, you must manually set the field to match global secrets:   node-feature-discovery.imagePullSecrets: [{"name": "myGlobalSecret"}] |
 | controllerManager.affinity | object | `{"nodeAffinity":{"preferredDuringSchedulingIgnoredDuringExecution":[{"preference":{"matchExpressions":[{"key":"node-role.kubernetes.io/control-plane","operator":"Exists"}]},"weight":1}]}}` | Deployment affinity configs for controller manager |
-| controllerManager.manager.image.repository | string | `"docker.io/rocm/gpu-operator"` | AMD GPU operator controller manager image repository |
+| controllerManager.manager.image.repository | string | `"docker.io/rocm/amd-gpu-operator"` | AMD GPU operator controller manager image repository |
 | controllerManager.manager.image.tag | string | `"v0.0.1"` | AMD GPU operator controller manager image tag |
 | controllerManager.manager.imagePullPolicy | string | `"Always"` | Image pull policy for AMD GPU operator controller manager pod |
 | controllerManager.manager.imagePullSecrets | string | `""` | Image pull secret name for pulling AMD GPU operator controller manager image if registry needs credential to pull image |
@@ -165,7 +165,7 @@ Kubernetes: `>= 1.29.0-0`
 | crds.defaultCR.install | bool | `true` | Deploy default DeviceConfig during helm chart installation |
 | crds.defaultCR.upgrade | bool | `false` | Deploy / Patch default DeviceConfig during helm chart upgrade. Be careful about this option: 1. Your customized change on default DeviceConfig may be overwritten 2. Your existing DeviceConfig may conflict with upgraded default DeviceConfig  |
 | deviceConfig.spec.commonConfig.initContainerImage | string | `"busybox:1.36"` | init container image |
-| deviceConfig.spec.commonConfig.utilsContainer.image | string | `"docker.io/rocm/gpu-operator-utils:v0.0.1"` | gpu operator utility container image |
+| deviceConfig.spec.commonConfig.utilsContainer.image | string | `"docker.io/rocm/amd-gpu-operator-utils:v0.0.1"` | gpu operator utility container image |
 | deviceConfig.spec.commonConfig.utilsContainer.imagePullPolicy | string | `"IfNotPresent"` | utility container image pull policy |
 | deviceConfig.spec.commonConfig.utilsContainer.imageRegistrySecret | object | `{}` | utility container image pull secret, e.g. {"name": "mySecretName"} |
 | deviceConfig.spec.configManager.config | object | `{}` | config map for config manager, e.g. {"name": "myConfigMap"} |

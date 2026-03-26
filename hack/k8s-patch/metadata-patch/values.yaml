@@ -111,7 +111,7 @@ deviceConfig:
       initContainerImage: busybox:1.36
       utilsContainer:
         # -- gpu operator utility container image
-        image: docker.io/rocm/gpu-operator-utils:v0.0.1
+        image: docker.io/rocm/amd-gpu-operator-utils:v0.0.1
         # -- utility container image pull policy
         imagePullPolicy: IfNotPresent
         # -- utility container image pull secret, e.g. {"name": "mySecretName"}
@@ -309,7 +309,7 @@ controllerManager:
       allowPrivilegeEscalation: false
     image:
       # -- AMD GPU operator controller manager image repository
-      repository: docker.io/rocm/gpu-operator
+      repository: docker.io/rocm/amd-gpu-operator
       # -- AMD GPU operator controller manager image tag
       tag: v0.0.1
     # -- Image pull policy for AMD GPU operator controller manager pod
