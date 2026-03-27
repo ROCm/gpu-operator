@@ -28,8 +28,17 @@ if [[ -n "${USER_NAME:-}" && -n "${USER_UID:-}" && -n "${USER_GID:-}" ]]; then
 		chmod 0440 /etc/sudoers.d/$USER_NAME
 	fi
 
+	# Use DOCKER_GID from environment if set, otherwise default to 999
+	DOCKER_GROUP_ID="${DOCKER_GID:-999}"
+
 	if ! getent group docker >/dev/null; then
-		groupadd -g 999 docker
+		groupadd -g "$DOCKER_GROUP_ID" docker
+	else
+		# If docker group exists but with wrong GID, modify it
+		EXISTING_GID=$(getent group docker | cut -d: -f3)
+		if [ "$EXISTING_GID" != "$DOCKER_GROUP_ID" ]; then
+			groupmod -g "$DOCKER_GROUP_ID" docker
+		fi
 	fi
 	usermod -aG docker "$USER_NAME"
 

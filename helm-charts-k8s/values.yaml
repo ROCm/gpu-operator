@@ -111,7 +111,7 @@ deviceConfig:
       initContainerImage: busybox:1.36
       utilsContainer:
         # -- gpu operator utility container image
-        image: docker.io/rocm/gpu-operator-utils:latest
+        image: docker.io/rocm/amd-gpu-operator-utils:latest
         # -- utility container image pull policy
         imagePullPolicy: IfNotPresent
         # -- utility container image pull secret, e.g. {"name": "mySecretName"}
@@ -265,7 +265,7 @@ deviceConfig:
       # -- enable/disable the DRA (Dynamic Resource Allocation) driver. Cannot be enabled at the same time as devicePlugin.
       enable: false
       # -- DRA driver image
-      image: "rocm/k8s-gpu-dra-driver:latest"
+      image: "docker.io/rocm/k8s-gpu-dra-driver:latest"
       # -- DRA driver image pull policy
       imagePullPolicy: IfNotPresent
       # -- DRA driver tolerations
@@ -284,8 +284,22 @@ deviceConfig:
     remediationWorkflow:
       # -- enable/disable remediation workflow controller
       enable: false
+      # -- Configuration for remediation workflow
+      config: {}
+      # -- Time-to-live duration for failed workflows before cleanup (e.g., 1h, 24h)
+      ttlForFailedWorkflows: "24h"
+      # -- Container image used for testing during remediation
+      testerImage: "docker.io/rocm/test-runner:latest"
       # -- Set maximum number of remediation workflows that can run in parallel. Default is 0 which means no limit
       maxParallelWorkflows: 0
+      # -- Labels to apply to nodes during remediation
+      nodeRemediationLabels: {}
+      # -- Taints to apply to nodes during remediation
+      nodeRemediationTaints: []
+      # -- Policy for draining nodes during remediation
+      nodeDrainPolicy: {}
+      # -- Enable/disable automatic workflow start on node issues
+      autoStartWorkflow: true
 # AMD GPU operator controller related configs
 controllerManager:
   manager:
@@ -295,7 +309,7 @@ controllerManager:
       allowPrivilegeEscalation: false
     image:
       # -- AMD GPU operator controller manager image repository
-      repository: docker.io/rocm/gpu-operator
+      repository: docker.io/rocm/amd-gpu-operator
       # -- AMD GPU operator controller manager image tag
       tag: dev
     # -- Image pull policy for AMD GPU operator controller manager pod

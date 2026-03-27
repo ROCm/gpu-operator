@@ -9,7 +9,7 @@ patches:
 
 images:
 - name: controller
-  newName: docker.io/rocm/gpu-operator
+  newName: docker.io/rocm/amd-gpu-operator
   newTag: dev
 
 configurations:

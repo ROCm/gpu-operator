@@ -3,9 +3,8 @@ ifneq ("$(wildcard dev.env)","")
     include dev.env
 endif
 
-# PROJECT_VERSION defines the project version.
-# Update this value when you upgrade the version of your project.
-PROJECT_VERSION ?= v1.4.0
+# Default version for the project.
+PROJECT_VERSION ?= v0.0.1
 
 ####################################
 # GPU Operator Image Build variables
@@ -15,12 +14,10 @@ TOP_DIR = $(PWD)
 GOFLAGS := "-mod=mod"
 GIT_COMMIT ?= $(shell git rev-parse --short HEAD)
 DOCKER_REGISTRY ?= docker.io/rocm
-IMAGE_NAME ?= gpu-operator
+IMAGE_NAME ?= amd-gpu-operator
 IMAGE_TAG_BASE ?= $(DOCKER_REGISTRY)/$(IMAGE_NAME)
 IMAGE_TAG ?= dev
 IMG ?= $(IMAGE_TAG_BASE):$(IMAGE_TAG)
-# name used for saving the container images as tar.gz
-DOCKER_CONTAINER_IMG = $(IMAGE_NAME)-$(IMAGE_TAG)
 HOURLY_TAG_LABEL ?= latest
 
 # KMM related images
@@ -41,6 +38,8 @@ TEST_RUNNER_IMG = $(DOCKER_REGISTRY)/test-runner:$(TEST_RUNNER_IMAGE_TAG)
 UTILS_IMAGE_TAG ?= latest
 UTILS_IMAGE_NAME ?= $(IMAGE_NAME)-utils
 UTILS_IMG ?= $(DOCKER_REGISTRY)/$(UTILS_IMAGE_NAME):$(UTILS_IMAGE_TAG)
+DRA_DRIVER_IMAGE_TAG ?= latest
+DRA_DRIVER_IMG = $(DOCKER_REGISTRY)/k8s-gpu-dra-driver:$(DRA_DRIVER_IMAGE_TAG)
 
 #######################
 # Helm Charts variables
@@ -49,8 +48,11 @@ CRD_YAML_FILES = deviceconfig-crd.yaml remediationworkflowstatus-crd.yaml
 K8S_KMM_CRD_YAML_FILES=module-crd.yaml nodemodulesconfig-crd.yaml
 DEFAULT_VALUES_FILES=helm-charts-k8s/values.yaml hack/k8s-patch/metadata-patch/values.yaml
 REMEDIATION_CRD_YAML_FILES=clusterworkflowtemplate-crd.yaml cronworkflow-crd.yaml workflowartifactgctask-crd.yaml workflow-crd.yaml workfloweventbinding-crd.yaml workflowtaskresult-crd.yaml workflowtaskset-crd.yaml workflowtemplate-crd.yaml
+HELM_CHART_VERSION ?= $(PROJECT_VERSION)
+HELM_APP_VERSION ?= $(IMAGE_TAG)
 
-GPU_OPERATOR_CHART ?= $(shell pwd)/helm-charts-k8s/gpu-operator-helm-k8s-$(PROJECT_VERSION).tgz
+HELM_OUTPUT_FILE_NAME ?= gpu-operator-helm-k8s-$(HELM_CHART_VERSION).tgz
+GPU_OPERATOR_CHART ?= $(shell pwd)/helm-charts-k8s/$(HELM_OUTPUT_FILE_NAME)
 KUBECTL_CMD ?= kubectl
 
 ifdef SKIP_NFD
@@ -81,8 +83,8 @@ endif
 # OpenShift OLM Bundle varaiables
 # BUNDLE_IMG defines the image:tag used for the bundle.
 # You can use it as an arg. (E.g make bundle-build BUNDLE_IMG=<some-registry>/<project-name-bundle>:<tag>)
-BUNDLE_IMG ?= $(IMAGE_TAG_BASE)-bundle:$(PROJECT_VERSION)
-INDEX_IMG := $(IMAGE_TAG_BASE)-index:$(PROJECT_VERSION)
+BUNDLE_IMG ?= $(IMAGE_TAG_BASE)-bundle:$(IMAGE_TAG)
+INDEX_IMG := $(IMAGE_TAG_BASE)-index:$(IMAGE_TAG)
 BUNDLE_NAMESPACE ?= default # the namespace to deploy the OLM bundle 
 
 # Add a new line here if you would like to change its default config. (E.g CHANNELS = "candidate,fast,stable")
@@ -115,7 +117,9 @@ ENVTEST_K8S_VERSION = 1.23
 # Options are set to exit when a recipe line exits non-zero or a piped command fails.
 SHELL = /usr/bin/env bash -o pipefail
 .SHELLFLAGS = -ec
-DOCKER_GID := $(shell stat -c '%g' /var/run/docker.sock)
+HOST_DOCKER_SOCKET ?= /var/run/docker.sock
+CONTAINER_DOCKER_SOCKET ?= /var/run/docker.sock
+DOCKER_GID := $(shell stat -c '%g' $(HOST_DOCKER_SOCKET))
 USER_UID := $(shell id -u)
 USER_GID := $(shell id -g)
 DOCKER_BUILDER_TAG := v1.4
@@ -143,10 +147,11 @@ default: docker-build-env ## Quick start to build everything from docker shell c
 		-e "USER_NAME=$(shell whoami)" \
 		-e "USER_UID=$(shell id -u)" \
 		-e "USER_GID=$(shell id -g)" \
+		-e "DOCKER_GID=$(DOCKER_GID)" \
 		-v $(CURDIR):/gpu-operator \
 		-v $(CURDIR):/home/$(shell whoami)/go/src/github.com/ROCm/gpu-operator \
 		-v $(HOME)/.ssh:/home/$(shell whoami)/.ssh \
-		-v /var/run/docker.sock:/var/run/docker.sock \
+		-v $(HOST_DOCKER_SOCKET):$(CONTAINER_DOCKER_SOCKET) \
 		-w $(CONTAINER_WORKDIR) \
 		$(DOCKER_BUILDER_IMAGE) \
 		'bash -ic "source ~/.bashrc && cd /gpu-operator && git config --global --add safe.directory /gpu-operator && make all && GOFLAGS=-mod=mod go run tools/build/copyright/main.go && make fmt"'
@@ -159,10 +164,11 @@ docker/shell: docker-build-env ## Bring up and attach to a container that has de
 		-e "USER_NAME=$(shell whoami)" \
 		-e "USER_UID=$(shell id -u)" \
 		-e "USER_GID=$(shell id -g)" \
+		-e "DOCKER_GID=$(DOCKER_GID)" \
 		-v $(CURDIR):/gpu-operator \
 		-v $(CURDIR):/home/$(shell whoami)/go/src/github.com/ROCm/gpu-operator \
 		-v $(HOME)/.ssh:/home/$(shell whoami)/.ssh \
-		-v /var/run/docker.sock:/var/run/docker.sock \
+		-v $(HOST_DOCKER_SOCKET):$(CONTAINER_DOCKER_SOCKET) \
 		-w $(CONTAINER_WORKDIR) \
 		$(DOCKER_BUILDER_IMAGE) \
 		"cd /gpu-operator && git config --global --add safe.directory /gpu-operator && bash"
@@ -193,6 +199,10 @@ help: ## Display this help.
 update-registry:
 	# updating registry information in yaml files
 	sed -i -e 's|image:.*$$|image: ${IMG}|' bundle/manifests/amd-gpu-operator.clusterserviceversion.yaml
+	sed -i -e 's|containerImage:.*$$|containerImage: ${IMG}|' config/manifests/bases/amd-gpu-operator.clusterserviceversion.yaml
+	sed -i -e 's|metricsExporterImage:.*$$|metricsExporterImage: ${METRICS_EXPORTER_IMG}|' \
+	bundle/manifests/amd-gpu-operator.clusterserviceversion.yaml \
+	config/manifests/bases/amd-gpu-operator.clusterserviceversion.yaml
 	sed -i -e 's|repository:.*$$|repository: ${IMAGE_TAG_BASE}|' \
 	hack/k8s-patch/metadata-patch/values.yaml
 	sed -i -e "s/newTag:.*$$/newTag: ${IMAGE_TAG}/" -e "s/tag:.*$$/tag: ${IMAGE_TAG}/" \
@@ -206,6 +216,8 @@ update-registry:
 		yq eval -i '.deviceConfig.spec.configManager.image = "$(DEVICE_CONFIG_MANAGER_IMG)"' $$file; \
 		yq eval -i '.deviceConfig.spec.testRunner.image = "$(TEST_RUNNER_IMG)"' $$file; \
 		yq eval -i '.deviceConfig.spec.commonConfig.utilsContainer.image = "$(UTILS_IMG)"' $$file; \
+		yq eval -i '.deviceConfig.spec.draDriver.image = "$(DRA_DRIVER_IMG)"' $$file; \
+		yq eval -i '.deviceConfig.spec.remediationWorkflow.testerImage = "$(TEST_RUNNER_IMG)"' $$file; \
 	done
 	sed -i -e 's|tag:.*$$|tag: ${KMM_IMAGE_TAG}|' \
 	-e 's|repository:.*operator.*$$|repository: ${KMM_OPERATOR_IMG_NAME}|' \
@@ -215,19 +227,28 @@ update-registry:
 	-e 's|relatedImageWorker:.*$$|relatedImageWorker: ${KMM_WORKER_IMG}|' \
 	hack/k8s-patch/k8s-kmm-patch/metadata-patch/values.yaml
 
+.PHONY: update-helm-metadata
+update-helm-metadata: ## Update helm Chart.yaml version and appVersion based on HELM_CHART_VERSION
+	sed -i -e 's|appVersion:.*$$|appVersion: "$(HELM_APP_VERSION)"|' hack/k8s-patch/metadata-patch/Chart.yaml
+	sed -i '0,/version:/s|version:.*|version: $(HELM_CHART_VERSION)|' hack/k8s-patch/metadata-patch/Chart.yaml
+
 .PHONY: update-version
-update-version:
-	# updating project version in manifests
-	sed -i -e 's|appVersion:.*$$|appVersion: "${PROJECT_VERSION}"|' hack/k8s-patch/metadata-patch/Chart.yaml
-	sed -i '0,/version:/s|version:.*|version: ${PROJECT_VERSION}|' hack/k8s-patch/metadata-patch/Chart.yaml
+update-version: update-helm-metadata ## Update the Project version in helm charts based on ${PROJECT_VERSION}
 	# updating project version in Dockerfile metadata
-	sed -i 's/release="[^"]*"/release="${PROJECT_VERSION}"/g' Dockerfile internal/utils_container/Dockerfile
-	sed -i 's/version="[^"]*"/version="${PROJECT_VERSION}"/g' Dockerfile internal/utils_container/Dockerfile
+	sed -i 's/release="[^"]*"/release="${IMAGE_TAG}"/g' Dockerfile internal/utils_container/Dockerfile
+	sed -i 's/version="[^"]*"/version="${IMAGE_TAG}"/g' Dockerfile internal/utils_container/Dockerfile
 	# updating default image tags in Go source files
 	sed -i 's|defaultConfigManagerImage.*=.*"docker.io/rocm/device-config-manager:[^"]*"|defaultConfigManagerImage = "docker.io/rocm/device-config-manager:${PROJECT_VERSION}"|' internal/configmanager/configmanager.go
 	sed -i 's|defaultMetricsExporterImage.*=.*"docker.io/rocm/device-metrics-exporter:[^"]*"|defaultMetricsExporterImage = "docker.io/rocm/device-metrics-exporter:${PROJECT_VERSION}"|' internal/metricsexporter/metricsexporter.go
 	sed -i 's|defaultTestRunnerImage.*=.*"docker.io/rocm/test-runner:[^"]*"|defaultTestRunnerImage = "docker.io/rocm/test-runner:${PROJECT_VERSION}"|' internal/testrunner/testrunner.go
 	${MAKE} fmt
+
+.PHONY: update-version-in-ci
+update-version-in-ci: ## Update project version and helm chart references in CI job config (.job.yml) and asset-push script
+	# updating project version in CI job config
+	sed -i -e 's|PROJECT_VERSION=[^ ]*|PROJECT_VERSION=${PROJECT_VERSION}|' .job.yml
+	sed -i '0,/HELM_CHARTS_VERSION=/s|HELM_CHARTS_VERSION=[^ ]*|HELM_CHARTS_VERSION=${PROJECT_VERSION}-$${RELEASE:-dev}|' .job.yml
+	sed -i 's|PROJECT_VERSION:-.*$$|PROJECT_VERSION:-${PROJECT_VERSION}\}|' asset-build/gpuoperator-asset-push.sh
 
 .PHONY: manifests
 manifests: controller-gen update-registry update-version ## Generate ClusterRole and CustomResourceDefinition objects.
@@ -320,7 +341,7 @@ docker-push: ## Push docker image with the manager.
 
 .PHONY: docker-save
 docker-save: ## Save the container image with the manager.
-	docker save $(IMG) | gzip > $(DOCKER_CONTAINER_IMG).tar.gz
+	docker save $(IMG) | gzip > $(IMAGE_NAME).tar.gz
 
 .PHONY: docker-build-utils
 docker-build-utils: ## Build docker image for utils container.
@@ -332,7 +353,7 @@ docker-push-utils: ## Push docker image for utils container.
 
 .PHONY: docker-save-utils
 docker-save-utils: ## Save the utils container image as tar.gz.
-	docker save $(UTILS_IMG) | gzip > $(IMAGE_NAME)-utils-$(IMAGE_TAG).tar.gz
+	docker save $(UTILS_IMG) | gzip > $(IMAGE_NAME)-utils.tar.gz
 
 .PHONY: docker-build-env
 docker-build-env: ## Build the docker shell container.
@@ -368,6 +389,7 @@ helm-k8s: helmify manifests kustomize clean-helm gen-kmm-charts gen-remediation-
 	# Patching k8s helm chart kmm subchart
 	cp $(shell pwd)/hack/k8s-patch/k8s-kmm-patch/metadata-patch/*.yaml $(shell pwd)/helm-charts-k8s/charts/kmm/
 	cp $(shell pwd)/hack/k8s-patch/k8s-kmm-patch/template-patch/*.yaml $(shell pwd)/helm-charts-k8s/charts/kmm/templates/
+	# Patching k8s helm chart remediation subchart
 	cp $(shell pwd)/hack/k8s-patch/k8s-remediation-patch/metadata-patch/*.yaml $(shell pwd)/helm-charts-k8s/charts/remediation-crds/
 	cd $(shell pwd)/helm-charts-k8s; helm dependency update; helm lint .; cd ..;
 	mkdir $(shell pwd)/helm-charts-k8s/crds
@@ -379,7 +401,7 @@ helm-k8s: helmify manifests kustomize clean-helm gen-kmm-charts gen-remediation-
 	$(MAKE) helm-docs
 	echo "dependency update, lint and pack charts"
 	cd $(shell pwd)/helm-charts-k8s; helm dependency update; helm lint .; cd ..; helm package helm-charts-k8s/ --destination ./helm-charts-k8s
-	mv $(shell pwd)/helm-charts-k8s/gpu-operator-charts-$(PROJECT_VERSION).tgz $(shell pwd)/helm-charts-k8s/gpu-operator-helm-k8s-$(PROJECT_VERSION).tgz
+	mv $(shell pwd)/helm-charts-k8s/gpu-operator-charts-$(HELM_CHART_VERSION).tgz $(GPU_OPERATOR_CHART)
 
 .PHONY: bundle-build
 bundle-build: operator-sdk manifests kustomize ## OpenShift Build OLM bundle.
@@ -394,7 +416,7 @@ bundle-build: operator-sdk manifests kustomize ## OpenShift Build OLM bundle.
 		     KUBECTL_CMD=${KUBECTL_CMD} ./hack/generate-bundle
 	cp $(shell pwd)/hack/openshift-patch/olm-bundle-patch/*.yaml $(shell pwd)/bundle/manifests/
 	${OPERATOR_SDK} bundle validate ./bundle
-	docker build -f bundle.Dockerfile -t $(BUNDLE_IMG) .
+	docker build --label HOURLY_TAG=$(HOURLY_TAG_LABEL) -f bundle.Dockerfile -t $(BUNDLE_IMG) .
 
 .PHONY: dep-docs
 dep-docs:
@@ -498,21 +520,6 @@ rm -f $(1); \
 fi
 endef
 
-# remove-wrong-version-tool will use $1 $2 to check binary version
-# any binary with mismatched version compared to $3 will be removed
-# 1 - Path to the binary
-# 2 - Version argument (e.g., --version)
-# 3 - Expected version string (e.g., v0.17.0)
-define remove-wrong-version-tool
-@if [ -f $(1) ]; then \
-version_output=`$(1) $(2) 2>/dev/null || echo "not found"`; \
-echo "$$version_output" | grep -q $(3) || { \
-echo "Incorrect version ($$version_output), removing $(1)"; \
-rm -f $(1); \
-}; \
-fi
-endef
-
 OPERATOR_SDK = $(shell pwd)/bin/operator-sdk
 OPERATOR_SDK_VERSION=v1.32.0
 .PHONY: operator-sdk
@@ -572,6 +579,7 @@ HELMIFY = $(shell pwd)/bin/helmify
 helmify:
 	@if [ ! -f "$(shell pwd)/bin/helmify" ]; then \
 		echo "helmify not found. Downloading..."; \
+		mkdir -p $(shell pwd)/bin/; \
 		curl -Lo $(shell pwd)/bin/helmify.tar.gz https://github.com/arttor/helmify/releases/download/v0.4.13/helmify_Linux_x86_64.tar.gz; \
 		tar -xzf $(shell pwd)/bin/helmify.tar.gz -C $(shell pwd)/bin; \
 		chmod +x $(shell pwd)/bin/helmify; \
