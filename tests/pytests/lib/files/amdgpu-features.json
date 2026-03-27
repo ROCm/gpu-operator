@@ -1,0 +1,98 @@
+{
+    "amd-gpu-devs" : [
+        {
+            "device-id" : [
+                "0x7408"
+            ],
+            "series" : "MI250X"
+        },
+        {
+            "device-id" : [
+                "0x740f"
+            ],
+            "series" : "MI210"
+        },
+        {
+            "device-id" : [
+                "0x7410"
+            ],
+            "series" : "MI210-VF"
+        },
+        {
+            "device-id" : [
+                "0x740c"
+            ],
+            "series" : "MI250"
+        },
+        {
+            "device-id" : [
+                "0x74a1"
+            ],
+            "series" : "MI300X"
+        },
+        {
+            "device-id" : [
+                "0x74b5"
+            ],
+            "series" : "MI300X-VF"
+        },
+        {
+            "device-id" : [
+                "0x74a2",
+                "0x74a8"
+            ],
+            "series" : "MI308X"
+        },
+        {
+            "device-id" : [
+                "0x74b5",
+                "0x74b6",
+                "0x74bc"
+            ],
+            "series" : "MI308X-VF"
+        },
+        {
+            "device-id" : [
+                "0x75a0"
+            ],
+            "series" : "MI350X"
+        },
+        {
+            "device-id" : [
+                "0x75a5",
+                "0x74a5"
+            ],
+            "series" : "MI325X"
+        },
+        {
+            "device-id" : [
+                "0x75b0"
+            ],
+            "series" : "MI350X-VF"
+        },
+        {
+            "device-id" : [
+                "0x74b9"
+            ],
+            "series" : "MI325X-VF"
+        },
+        {
+            "device-id" : [
+                "0x75a8"
+            ],
+            "series" : "MI350P"
+        },
+        {
+            "device-id" : [
+                "0x75a3"
+            ],
+            "series" : "MI355X"
+        },
+        {
+            "device-id" : [
+                "0x75b3"
+            ],
+            "series" : "MI355X-VF"
+        }
+    ]
+}
