@@ -1,0 +1,266 @@
+---
+
+images:
+    meta:
+        registry:
+            default: docker.io
+            mirror:
+                enable: no
+    k8:
+        driver:
+            key         : driver.image
+            location    : container://registry.test.pensando.io:5000/amdgpu_kmod
+            kind        : container
+
+        gpu-operator:
+            location    : file:///gpu-operator/tests/pytests/downloads/gpu-operator-helm-k8s-1.5.0-345.tgz
+            version     : v1.5.0-345
+            kind        : helm-chart
+
+        exporter:
+            location    : file:///gpu-operator/tests/pytests/downloads/amdpsdo-device-metrics-exporter-charts-1.5.0-294.tgz
+            kind        : helm-chart
+            version     : v1.5.0-294
+
+        gpu-controller-manager:
+            key         : controllerManager.manager.image
+            location    : container://<registry>/amdpsdo/gpu-operator
+            version     : v1.5.0-345
+            kind        : container
+            secret      : docker-amdpsdo-auth
+
+        device-metrics-exporter:
+            key         : metricsExporter.image
+            location    : container://<registry>/amdpsdo/device-metrics-exporter
+            version     : 1.5.0-294
+            kind        : container
+            secret      : docker-amdpsdo-auth
+
+        test-runner:
+            key         : testRunner.image
+            location    : container://<registry>/amdpsdo/test-runner
+            version     : 1.5.0-294
+            kind        : container
+            secret      : docker-amdpsdo-auth
+
+        test-runner-agfhc:
+            key         : testRunnerAgfhc.image
+            location    : container://<registry>/amdpsdo/test-runner
+            version     : agfhc-1.5.0-294
+            kind        : container
+            secret      : docker-amdpsdo-auth
+
+        config-manager:
+            key         : configManager.image
+            location    : container://<registry>/amdpsdo/device-config-manager
+            version     : v1.5.0-8
+            kind        : container
+            secret      : docker-amdpsdo-auth
+        
+        device-plugin:
+            key         : devicePlugin.devicePluginImage
+            location    : container://<registry>/rocm/k8s-device-plugin
+            version     : latest
+            kind        : container
+
+        node-labeller:
+            key         : devicePlugin.nodeLabellerImage
+            location    : container://<registry>/rocm/k8s-device-plugin
+            version     : labeller-latest
+            kind        : container
+
+        kmm-controller-manager-image-sign:
+            key         : kmm.controller.manager.env.relatedImageSign
+            location    : container://<registry>/amdpsdo/kernel-module-management-signimage
+            version     : 1.5.0-25
+            kind        : container
+            secret      : docker-amdpsdo-auth
+
+        kmm-controller-manager-worker:
+            key         : kmm.controller.manager.env.relatedImageWorker
+            location    : container://<registry>/amdpsdo/kernel-module-management-worker
+            version     : 1.5.0-25
+            kind        : container
+            secret      : docker-amdpsdo-auth
+
+        kmm-controller-manager:
+            key         : kmm.controller.manager.image
+            location    : container://<registry>/amdpsdo/kernel-module-management-operator
+            version     : 1.5.0-25
+            kind        : container
+            secret      : docker-amdpsdo-auth
+
+        kmm-webhook-server:
+            key         : kmm.webhookServer.webhookServer.image
+            location    : container://<registry>/amdpsdo/kernel-module-management-webhook-server
+            version     : 1.5.0-25
+            kind        : container
+            secret      : docker-amdpsdo-auth
+
+        init-container-image:
+            key         : commonConfig.initContainerImage
+            location    : container://registry.test.pensando.io:5000/busybox
+            version     : 1.36
+            kind        : container
+
+        dra-driver-image:
+            key         : draDriver.image
+            location    : container://<registry>/amdpsdo/k8s-gpu-dra-driver
+            version     : v1.5.0-345
+            kind        : container
+            secret      : docker-amdpsdo-auth
+
+    openshift:
+        driver:
+            key         : driver.image
+            location    : container://image-registry.openshift-image-registry.svc:5000/openshift-amd-gpu/amdgpu_kmod
+            kind        : container
+
+        gpu-operator:
+            location    : container://<registry>/amdpsdo/amd-gpu-operator-bundle
+            version     : v1.5.0
+            kind        : olm-bundle
+
+        gpu-controller-manager:
+            key         : controllerManager.manager.image
+            location    : container://<registry>/amdpsdo/gpu-operator
+            version     : v1.5.0-28
+            kind        : container
+            secret      : docker-amdpsdo-auth
+
+        device-metrics-exporter:
+            key         : metricsExporter.image
+            location    : container://<registry>/amdpsdo/device-metrics-exporter
+            version     : v1.5.0-20
+            kind        : container
+            secret      : docker-amdpsdo-auth
+
+        test-runner:
+            key         : testRunner.image
+            location    : container://<registry>/amdpsdo/test-runner
+            version     : v1.5.0-20
+            kind        : container
+            secret      : docker-amdpsdo-auth
+
+        test-runner-agfhc:
+            key         : testRunnerAgfhc.image
+            location    : container://<registry>/amdpsdo/test-runner
+            version     : agfhc-v1.5.0-20
+            kind        : container
+            secret      : docker-amdpsdo-auth
+
+        config-manager:
+            key         : configManager.image
+            location    : container://<registry>/amdpsdo/device-config-manager
+            version     : v1.5.0-8
+            kind        : container
+            secret      : docker-amdpsdo-auth
+        
+        device-plugin:
+            key         : devicePlugin.devicePluginImage
+            location    : container://<registry>/rocm/k8s-device-plugin
+            version     : latest
+            kind        : container
+
+        node-labeller:
+            key         : devicePlugin.nodeLabellerImage
+            location    : container://<registry>/rocm/k8s-device-plugin
+            version     : labeller-latest
+            kind        : container
+
+        init-container-image:
+            key         : commonConfig.initContainerImage
+            location    : container://registry.test.pensando.io:5000/busybox
+            version     : 1.36
+            kind        : container
+
+        dra-driver-image:
+            key         : draDriver.image
+            location    : container://registry.test.pensando.io:5000/k8s-gpu-dra-driver
+            version     : 5a66d18e
+            kind        : container
+            secret      : docker-amdpsdo-auth
+
+    standalone:
+        driver:
+            key         : driver.image
+            location    : container://registry.test.pensando.io:5000/amdgpu_kmod
+            kind        : container
+
+        gpu-operator:
+            location    : file:///gpu-operator/tests/pytests/downloads/gpu-operator-helm-k8s-v1.5.0-v1.4.1-28.tgz
+            version     : v1.5.0-28
+            kind        : helm-chart
+
+        gpu-controller-manager:
+            key         : controllerManager.manager.image
+            location    : container://<registry>/amdpsdo/gpu-operator
+            version     : v1.5.0-28
+            kind        : container
+            secret      : docker-amdpsdo-auth
+
+        device-metrics-exporter:
+            key         : metricsExporter.image
+            location    : container://<registry>/amdpsdo/device-metrics-exporter
+            version     : v1.5.0-20
+            kind        : container
+            secret      : docker-amdpsdo-auth
+
+        exporter-debian-Ubuntu-22.04:
+            location    : file:///gpu-operator/tests/pytests/downloads/amdgpu-exporter_1.4.1-20~22.04_amd64.deb
+            version     : v1.5.0-20
+            kind        : debian
+
+        exporter-debian-Ubuntu-24.04:
+            location    : file:///gpu-operator/tests/pytests/downloads/amdgpu-exporter_1.4.1-20~24.04_amd64.deb
+            version     : v1.5.0-20
+            kind        : debian
+
+        device-plugin:
+            key         : devicePlugin.devicePluginImage
+            location    : container://<registry>/rocm/k8s-device-plugin
+            version     : latest
+            kind        : container
+
+        kmm-controller-manager-image-sign:
+            key         : kmm.controller.manager.env.relatedImageSign
+            location    : container://<registry>/amdpsdo/kernel-module-management-signimage
+            version     : v1.5.0-1
+            kind        : container
+            secret      : docker-amdpsdo-auth
+
+        kmm-controller-manager-worker:
+            key         : kmm.controller.manager.env.relatedImageWorker
+            location    : container://<registry>/amdpsdo/kernel-module-management-worker
+            version     : v1.5.0-1
+            kind        : container
+            secret      : docker-amdpsdo-auth
+
+        kmm-controller-manager:
+            key         : kmm.controller.manager.image
+            location    : container://<registry>/amdpsdo/kernel-module-management-operator
+            version     : v1.5.0-1
+            kind        : container
+            secret      : docker-amdpsdo-auth
+
+        kmm-webhook-server:
+            key         : kmm.webhookServer.webhookServer.image
+            location    : container://<registry>/amdpsdo/kernel-module-management-webhook-server
+            version     : v1.5.0-1
+            kind        : container
+            secret      : docker-amdpsdo-auth
+
+        init-container-image:
+            key         : commonConfig.initContainerImage
+            location    : container://registry.test.pensando.io:5000/busybox
+            version     : 1.36
+            kind        : container
+
+        dra-driver-image:
+            key         : draDriver.image
+            location    : container://registry.test.pensando.io:5000/k8s-gpu-dra-driver
+            version     : 5a66d18e
+
+            kind        : container
+            secret      : docker-amdpsdo-auth
+
