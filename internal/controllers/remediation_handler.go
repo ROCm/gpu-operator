@@ -689,7 +689,7 @@ func (h *remediationMgrHelper) createDefaultWorkflowTemplate(ctx context.Context
 					Name:     "inbuilt",
 					Metadata: instanceIDMeta,
 					Steps: []workflowv1alpha1.ParallelSteps{
-						{Steps: []workflowv1alpha1.WorkflowStep{{Name: "autostart", Template: "suspend", When: "{{workflow.parameters.auto_start}} == false"}}}, // If auto start is disabled, workflow will be created in suspended state and needs to be manually resumed by user
+						{Steps: []workflowv1alpha1.WorkflowStep{{Name: "awaitapproval", Template: "suspend", When: "{{workflow.parameters.auto_start}} == false"}}}, // If auto start is disabled, workflow will be created in suspended state and needs to be manually resumed by user
 						{Steps: []workflowv1alpha1.WorkflowStep{{Name: "applylabels", Template: "applylabels"}}},
 						{Steps: []workflowv1alpha1.WorkflowStep{{Name: "taint", Template: "taint"}}},
 						{Steps: []workflowv1alpha1.WorkflowStep{{Name: "drain", Template: "drain"}}},
