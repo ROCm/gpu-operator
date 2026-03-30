@@ -114,7 +114,7 @@ kubectl get daemonsets -n kube-amd-gpu
 You should see a daemonset named `<deviceconfig-name>-dra-driver` (e.g., `default-dra-driver`) with pods running on each GPU node:
 
 ```bash
-$ kubectl get pods -n kube-amd-gpu -l app=dra-driver
+$ kubectl get pods -n kube-amd-gpu -l daemonset-name=default-dra-driver
 NAME                           READY   STATUS    RESTARTS   AGE
 default-dra-driver-abc12       1/1     Running   0          2m
 ```
