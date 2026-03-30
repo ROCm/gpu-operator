@@ -1,4 +1,5 @@
-ARG GOLANG_BASE_IMG=golang:1.23
+ARG GOLANG_BASE_IMG=golang:1.25.8
+ARG OPERATOR_CONTROLLER_BASE_IMAGE=registry.access.redhat.com/ubi9/ubi-minimal:9.7
 
 # Build the manager binary
 FROM ${GOLANG_BASE_IMG} AS builder
@@ -39,10 +40,10 @@ ARG TARGET
 # Build
 RUN git config --global --add safe.directory ${PWD} && make ${TARGET}
 
-RUN curl -LO https://storage.googleapis.com/kubernetes-release/release/$(curl -s https://storage.googleapis.com/kubernetes-release/release/stable.txt)/bin/linux/amd64/kubectl && \
+RUN curl -LO https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl && \
     chmod +x ./kubectl
 
-FROM registry.access.redhat.com/ubi9/ubi-minimal:9.3
+FROM ${OPERATOR_CONTROLLER_BASE_IMAGE}
 
 ARG TARGET
 
