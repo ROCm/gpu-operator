@@ -237,16 +237,7 @@ spec:
       ARG KERNEL_VERSION
       ARG DRIVERS_VERSION
       ARG REPO_URL
-      RUN dnf install https://dl.fedoraproject.org/pub/epel/epel-release-latest-9.noarch.rpm -y && \
-          crb enable && \
-          sed -i "s/\$releasever/9/g" /etc/yum.repos.d/epel*.repo && \
-          dnf install dnf-plugin-config-manager -y && \
-          dnf clean all
-      RUN dnf install -y 'dnf-command(config-manager)' && \
-          dnf config-manager --add-repo=https://mirror.stream.centos.org/9-stream/BaseOS/x86_64/os/ && \
-          dnf config-manager --add-repo=https://mirror.stream.centos.org/9-stream/AppStream/x86_64/os/ && \
-          rpm --import https://www.centos.org/keys/RPM-GPG-KEY-CentOS-Official && \
-          dnf clean all
+
       RUN source /etc/os-release && \
           echo -e "[amdgpu] \n\
       name=amdgpu \n\
