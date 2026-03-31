@@ -13,6 +13,7 @@ PROJECT_VERSION ?= v0.0.1
 TOP_DIR = $(PWD)
 GOFLAGS := "-mod=mod"
 GIT_COMMIT ?= $(shell git rev-parse --short HEAD)
+CONTAINER_TOOL ?= docker
 DOCKER_REGISTRY ?= docker.io/rocm
 IMAGE_NAME ?= amd-gpu-operator
 IMAGE_TAG_BASE ?= $(DOCKER_REGISTRY)/$(IMAGE_NAME)
@@ -141,7 +142,7 @@ HTML_DIR := $(BUILD_DIR)/html
 .PHONY: default
 default: docker-build-env ## Quick start to build everything from docker shell container.
 	@echo "Starting a shell in the Docker build container..."
-	@docker run --rm -it --privileged \
+	@$(CONTAINER_TOOL) run --rm -it --privileged \
 	    --network host \
 		--name gpu-operator-build \
 		-e "USER_NAME=$(shell whoami)" \
@@ -159,7 +160,7 @@ default: docker-build-env ## Quick start to build everything from docker shell c
 .PHONY: docker/shell
 docker/shell: docker-build-env ## Bring up and attach to a container that has dev environment configured.
 	@echo "Starting a shell in the Docker build container..."
-	@docker run --rm -it --privileged \
+	@$(CONTAINER_TOOL) run --rm -it --privileged \
 		--name gpu-operator-build \
 		-e "USER_NAME=$(shell whoami)" \
 		-e "USER_UID=$(shell id -u)" \
@@ -172,6 +173,11 @@ docker/shell: docker-build-env ## Bring up and attach to a container that has de
 		-w $(CONTAINER_WORKDIR) \
 		$(DOCKER_BUILDER_IMAGE) \
 		"cd /gpu-operator && git config --global --add safe.directory /gpu-operator && bash"
+
+.PHONY: distrobox/shell
+distrobox/shell: distrobox-build-env ## Bring up and attach to a container that has dev environment configured.
+	@echo "Starting a shell in the Distrobox build container..."
+	@distrobox enter --name gpu-operator-build
 
 .PHONY: all
 all: generate manager manifests helm-k8s bundle-build docker-build
@@ -333,15 +339,15 @@ manager: $(shell find -name "*.go") go.mod go.sum  ## Build manager binary.
 
 .PHONY: docker-build
 docker-build: ## Build docker image with the manager.
-	DOCKER_BUILDKIT=1 docker build -t $(IMG) --label HOURLY_TAG=$(HOURLY_TAG_LABEL) --build-arg TARGET=manager --build-arg GOLANG_BASE_IMG=$(GOLANG_BASE_IMG) .
+	DOCKER_BUILDKIT=1 $(CONTAINER_TOOL) build -t $(IMG) --label HOURLY_TAG=$(HOURLY_TAG_LABEL) --build-arg TARGET=manager --build-arg GOLANG_BASE_IMG=$(GOLANG_BASE_IMG) .
 
 .PHONY: docker-push
 docker-push: ## Push docker image with the manager.
-	docker push $(IMG)
+	$(CONTAINER_TOOL) push $(IMG)
 
 .PHONY: docker-save
 docker-save: ## Save the container image with the manager.
-	docker save $(IMG) | gzip > $(IMAGE_NAME).tar.gz
+	$(CONTAINER_TOOL) save $(IMG) | gzip > $(IMAGE_NAME).tar.gz
 
 .PHONY: docker-build-utils
 docker-build-utils: ## Build docker image for utils container.
@@ -349,26 +355,36 @@ docker-build-utils: ## Build docker image for utils container.
 
 .PHONY: docker-push-utils
 docker-push-utils: ## Push docker image for utils container.
-	docker push $(UTILS_IMG)
+	$(CONTAINER_TOOL) push $(UTILS_IMG)
 
 .PHONY: docker-save-utils
 docker-save-utils: ## Save the utils container image as tar.gz.
-	docker save $(UTILS_IMG) | gzip > $(IMAGE_NAME)-utils.tar.gz
+	$(CONTAINER_TOOL) save $(UTILS_IMG) | gzip > $(IMAGE_NAME)-utils.tar.gz
 
 .PHONY: docker-build-env
 docker-build-env: ## Build the docker shell container.
 	@echo "Building the Docker environment..."
 	@if [ -n $(INSECURE_REGISTRY) ]; then \
-    docker build \
+    $(CONTAINER_TOOL) build \
         -t $(DOCKER_BUILDER_IMAGE) \
         --build-arg BUILD_BASE_IMG=$(BUILD_BASE_IMG) \
         --build-arg INSECURE_REGISTRY=$(INSECURE_REGISTRY) \
         -f Dockerfile.build .; \
 	else \
-		docker build \
+		$(CONTAINER_TOOL) build \
 			-t $(DOCKER_BUILDER_IMAGE) \
 			--build-arg BUILD_BASE_IMG=$(BUILD_BASE_IMG) \
 			-f Dockerfile.build .; \
+	fi
+
+.PHONY: distrobox-build-env
+distrobox-build-env: docker-build-env
+	@echo "Creating the distrobox environment..."
+	@if [ -f "/usr/bin/distrobox" ]; then \
+		distrobox create --image $(DOCKER_BUILDER_IMAGE) gpu-operator-build; \
+	else \
+		echo "ERROR: distrobox not found in PATH" >&2; \
+		exit 1; \
 	fi
 
 .PHONY: helm
@@ -416,7 +432,7 @@ bundle-build: operator-sdk manifests kustomize ## OpenShift Build OLM bundle.
 		     KUBECTL_CMD=${KUBECTL_CMD} ./hack/generate-bundle
 	cp $(shell pwd)/hack/openshift-patch/olm-bundle-patch/*.yaml $(shell pwd)/bundle/manifests/
 	${OPERATOR_SDK} bundle validate ./bundle
-	docker build --label HOURLY_TAG=$(HOURLY_TAG_LABEL) -f bundle.Dockerfile -t $(BUNDLE_IMG) .
+	$(CONTAINER_TOOL) build --label HOURLY_TAG=$(HOURLY_TAG_LABEL) -f bundle.Dockerfile -t $(BUNDLE_IMG) .
 
 .PHONY: dep-docs
 dep-docs:
@@ -535,11 +551,11 @@ operator-sdk:
 
 .PHONY: bundle-push
 bundle-push:
-	docker push $(BUNDLE_IMG)
+	$(CONTAINER_TOOL) push $(BUNDLE_IMG)
 
 .PHONY: bundle-save
 bundle-save:
-	docker save $(BUNDLE_IMG) | gzip > $(IMAGE_NAME)-olm-bundle.tar.gz
+	$(CONTAINER_TOOL) save $(BUNDLE_IMG) | gzip > $(IMAGE_NAME)-olm-bundle.tar.gz
 
 .PHONY: bundle-scorecard-test
 bundle-scorecard-test:
