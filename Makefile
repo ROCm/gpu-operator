@@ -174,6 +174,11 @@ docker/shell: docker-build-env ## Bring up and attach to a container that has de
 		$(DOCKER_BUILDER_IMAGE) \
 		"cd /gpu-operator && git config --global --add safe.directory /gpu-operator && bash"
 
+.PHONY: distrobox/shell
+distrobox/shell: distrobox-build-env ## Bring up and attach to a container that has dev environment configured.
+	@echo "Starting a shell in the Distrobox build container..."
+	@distrobox enter --name gpu-operator-build
+
 .PHONY: all
 all: generate manager manifests helm-k8s bundle-build docker-build
 
@@ -370,6 +375,16 @@ docker-build-env: ## Build the docker shell container.
 			-t $(DOCKER_BUILDER_IMAGE) \
 			--build-arg BUILD_BASE_IMG=$(BUILD_BASE_IMG) \
 			-f Dockerfile.build .; \
+	fi
+
+.PHONY: distrobox-build-env
+distrobox-build-env: docker-build-env
+	@echo "Creating the distrobox environment..."
+	@if [ -f "/usr/bin/distrobox" ]; then \
+		distrobox create --image $(DOCKER_BUILDER_IMAGE) gpu-operator-build; \
+	else \
+		echo "ERROR: distrobox not found in PATH" >&2; \
+		exit 1; \
 	fi
 
 .PHONY: helm
