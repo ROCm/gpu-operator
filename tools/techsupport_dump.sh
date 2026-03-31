@@ -225,6 +225,19 @@ for resource in ${GPUOPER_RESOURCES}; do
 	fi
 done
 
+# dra cluster-scoped resources (ResourceSlices and DeviceClasses are not namespaced)
+log "dra:"
+mkdir -p ${TECH_SUPPORT_FILE}/dra/
+${KUBECTL} get resourceslices ${WIDE} >${TECH_SUPPORT_FILE}/dra/resourceslices.txt 2>&1 || true
+${KUBECTL} describe resourceslices >>${TECH_SUPPORT_FILE}/dra/resourceslices.txt 2>&1 || true
+${KUBECTL} get resourceslices -o ${OUTPUT_FORMAT} >${TECH_SUPPORT_FILE}/dra/resourceslices.${OUTPUT_FORMAT} 2>&1 || true
+${KUBECTL} get deviceclasses ${WIDE} >${TECH_SUPPORT_FILE}/dra/deviceclasses.txt 2>&1 || true
+${KUBECTL} describe deviceclasses >>${TECH_SUPPORT_FILE}/dra/deviceclasses.txt 2>&1 || true
+${KUBECTL} get deviceclasses -o ${OUTPUT_FORMAT} >${TECH_SUPPORT_FILE}/dra/deviceclasses.${OUTPUT_FORMAT} 2>&1 || true
+${KUBECTL} get resourceclaims -A ${WIDE} >${TECH_SUPPORT_FILE}/dra/resourceclaims.txt 2>&1 || true
+${KUBECTL} describe resourceclaims -A >>${TECH_SUPPORT_FILE}/dra/resourceclaims.txt 2>&1 || true
+${KUBECTL} get resourceclaims -A -o ${OUTPUT_FORMAT} >${TECH_SUPPORT_FILE}/dra/resourceclaims.${OUTPUT_FORMAT} 2>&1 || true
+
 # node-problem-detector (often in kube-system): configuration and cluster-level resources
 if [ -n "${NPD_NS}" ]; then
 	log "node-problem-detector:"
@@ -384,6 +397,14 @@ for node in "${nodeList[@]}"; do
 	if [ -n "$DEVICE_PLUGIN_PODS" ]; then
 		if ! pod_logs $GPUOPER_NS "device-plugin" $node "$DEVICE_PLUGIN_PODS"; then
 			log "Failed to collect logs for device-plugin on node ${node}"
+		fi
+	fi
+
+	# dra driver pod logs
+	DRA_DRIVER_PODS=$(${KNS} get pods -o name --field-selector spec.nodeName=${node} 2>/dev/null | grep -i dra-driver- || true)
+	if [ -n "$DRA_DRIVER_PODS" ]; then
+		if ! pod_logs $GPUOPER_NS "dra-driver" $node "$DRA_DRIVER_PODS"; then
+			log "Failed to collect logs for dra-driver on node ${node}"
 		fi
 	fi
 

@@ -142,6 +142,7 @@ rules:
   resources:
   - configmaps
   - nodes
+  - namespaces
   verbs:
   - get
   - watch

@@ -689,7 +689,7 @@ func (h *remediationMgrHelper) createDefaultWorkflowTemplate(ctx context.Context
 					Name:     "inbuilt",
 					Metadata: instanceIDMeta,
 					Steps: []workflowv1alpha1.ParallelSteps{
-						{Steps: []workflowv1alpha1.WorkflowStep{{Name: "autostart", Template: "suspend", When: "{{workflow.parameters.auto_start}} == false"}}}, // If auto start is disabled, workflow will be created in suspended state and needs to be manually resumed by user
+						{Steps: []workflowv1alpha1.WorkflowStep{{Name: "awaitapproval", Template: "suspend", When: "{{workflow.parameters.auto_start}} == false"}}}, // If auto start is disabled, workflow will be created in suspended state and needs to be manually resumed by user
 						{Steps: []workflowv1alpha1.WorkflowStep{{Name: "applylabels", Template: "applylabels"}}},
 						{Steps: []workflowv1alpha1.WorkflowStep{{Name: "taint", Template: "taint"}}},
 						{Steps: []workflowv1alpha1.WorkflowStep{{Name: "drain", Template: "drain"}}},
@@ -1111,6 +1111,18 @@ func (h *remediationMgrHelper) populateWorkflow(ctx context.Context, wfTemplate 
 		drainPolicyJSONBytes = []byte("{}")
 	}
 
+	testrunnerImageSecret := ""
+	secretNames := make([]string, 0)
+	if devConfig.Spec.TestRunner.ImageRegistrySecret != nil {
+		secretNames = append(secretNames, devConfig.Spec.TestRunner.ImageRegistrySecret.Name)
+	}
+	if len(devConfig.Spec.CommonConfig.ImageRegistrySecrets) > 0 {
+		for _, s := range devConfig.Spec.CommonConfig.ImageRegistrySecrets {
+			secretNames = append(secretNames, s.Name)
+		}
+	}
+	testrunnerImageSecret = strings.Join(secretNames, ",")
+
 	// Pass the args required to be used in the template
 	wf.Spec.Arguments = workflowv1alpha1.Arguments{
 		Parameters: []workflowv1alpha1.Parameter{
@@ -1189,6 +1201,10 @@ func (h *remediationMgrHelper) populateWorkflow(ctx context.Context, wfTemplate 
 			{
 				Name:  "auto_start",
 				Value: workflowv1alpha1.AnyStringPtr(strconv.FormatBool(*devConfig.Spec.RemediationWorkflow.AutoStartWorkflow)),
+			},
+			{
+				Name:  "testRunnerImageSecret",
+				Value: workflowv1alpha1.AnyStringPtr(testrunnerImageSecret),
 			},
 		},
 	}
