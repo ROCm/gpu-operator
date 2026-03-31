@@ -79,6 +79,60 @@ kubectl logs -n kube-amd-gpu <build-pod-name>
 kubectl get events -n kube-amd-gpu
 ```
 
+## Helm Uninstall Hangs or Times Out
+
+If `helm uninstall` hangs and eventually times out with an error like:
+
+```text
+Error: 1 error occurred:
+        * timed out waiting for the condition
+```
+
+This is caused by the pre-delete hook Job that runs before uninstall. The hook uses the same operator manager image specified during `helm install`. If that image does not exist or cannot be pulled (e.g., due to a typo in the image repository or tag), the hook Job will be stuck in `ImagePullBackOff` and the uninstall will never complete.
+
+To work around this, run uninstall with `--no-hooks` to skip the pre-delete hook:
+
+```bash
+helm uninstall -n kube-amd-gpu amd-gpu-operator --no-hooks
+```
+
+```{note}
+The pre-delete hook is responsible for cleaning up `DeviceConfig` custom resources. When using `--no-hooks`, you may need to manually delete any remaining `DeviceConfig` resources. See the next section for details.
+```
+
+## DeviceConfig Stuck in Terminating State
+
+When the operator is not running (e.g., after `helm uninstall --no-hooks`, or if the operator pod was deleted), deleting a `DeviceConfig` CR will hang indefinitely:
+
+```bash
+# This will hang because the finalizer cannot be removed
+kubectl delete deviceconfigs.amd.com --all -A
+```
+
+The operator adds a finalizer (`amd.node.kubernetes.io/deviceconfig-finalizer`) to every `DeviceConfig` resource. During normal deletion the operator's controller removes this finalizer after cleaning up owned resources (DaemonSets, KMM Modules, node labels, etc.). If the operator is not running, nothing removes the finalizer and the resource is stuck in `Terminating`.
+
+To resolve this, patch the resource to remove the finalizer manually:
+
+```bash
+kubectl patch deviceconfig <name> -n kube-amd-gpu --type=json \
+  -p '[{"op": "remove", "path": "/metadata/finalizers"}]'
+```
+
+Or, to remove the finalizer from all `DeviceConfig` resources at once:
+
+```bash
+kubectl get deviceconfigs.amd.com -A -o name | \
+  xargs -I{} kubectl patch {} -n kube-amd-gpu --type=json \
+  -p '[{"op": "remove", "path": "/metadata/finalizers"}]'
+```
+
+```{warning}
+Removing the finalizer skips the operator's cleanup logic. Resources that were managed by the operator (DaemonSets, Services, KMM Modules, node labels) will not be automatically deleted. After removing the finalizer, verify that no orphaned resources remain:
+
+    kubectl get daemonsets -n kube-amd-gpu
+    kubectl get modules -n kube-amd-gpu
+```
+
 ## Using Techsupport-dump Tool
 
 The [techsupport-dump script](https://github.com/ROCm/gpu-operator/blob/main/tools/techsupport_dump.sh) can be used to collect system state and logs for debugging:
