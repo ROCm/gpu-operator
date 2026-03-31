@@ -78,7 +78,7 @@ mirror:
     - name: docker.io/rocm/rocm-terminal:latest
     - name: docker.io/rocm/k8s-device-plugin:latest
     - name: docker.io/rocm/k8s-node-labeller:latest
-    - name: quay.io/argoproj/workflow-controller:v3.6.5
+    - name: quay.io/argoproj/workflow-controller:v4.0.3
     # adjust RHEL version and ROCm version if needed for source image
     # image tag format for CoreOS is coreos-<RHEL version>-<ROCm version>
     - name: docker.io/rocm/amdgpu-driver:coreos-9.6-7.0.2
