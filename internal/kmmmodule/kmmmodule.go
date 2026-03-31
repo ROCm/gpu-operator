@@ -369,7 +369,11 @@ func setKMMModuleLoader(ctx context.Context, mod *kmmv1beta1.Module, devConfig *
 		mod.Spec.ModuleLoader.Container.Version = driversVersion
 	}
 	mod.Spec.ModuleLoader.ServiceAccountName = "amd-gpu-operator-kmm-module-loader"
-	mod.Spec.ImageRepoSecret = devConfig.Spec.Driver.ImageRegistrySecret
+	if devConfig.Spec.Driver.ImageRegistrySecret != nil {
+		mod.Spec.ImageRepoSecret = devConfig.Spec.Driver.ImageRegistrySecret
+	} else if len(devConfig.Spec.CommonConfig.ImageRegistrySecrets) > 0 {
+		mod.Spec.ImageRepoSecret = &devConfig.Spec.CommonConfig.ImageRegistrySecrets[0]
+	}
 	mod.Spec.Selector = getNodeSelector(devConfig)
 	mod.Spec.Tolerations = append(devConfig.Spec.Driver.Tolerations,
 		v1.Toleration{

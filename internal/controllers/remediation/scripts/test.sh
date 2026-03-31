@@ -32,6 +32,21 @@ NAMESPACE='{{inputs.parameters.namespace}}'
 INITCONTAINERIMAGE='{{inputs.parameters.initContainerImage}}'
 WFNAME='{{workflow.name}}'
 WFUID='{{workflow.uid}}'
+TESTRUNNERIMAGESECRET='{{inputs.parameters.testRunnerImageSecret}}'
+
+if [ -n "$TESTRUNNERIMAGESECRET" ]; then
+  IMAGE_PULL_SECRETS="          imagePullSecrets:"
+  OLD_IFS="$IFS"
+  IFS=','
+  for secret in $TESTRUNNERIMAGESECRET; do
+    secret=$(echo "$secret" | xargs)
+    IMAGE_PULL_SECRETS="${IMAGE_PULL_SECRETS}
+            - name: ${secret}"
+  done
+  IFS="$OLD_IFS"
+else
+  IMAGE_PULL_SECRETS=""
+fi
 
 if [ -z "$FRAMEWORK" ] || [ -z "$RECIPE" ] || [ -z "$ITERATIONS" ] || [ -z "$STOPONFAILURE" ] || [ -z "$TIMEOUTSECONDS" ]; then
   echo "Validation profile incomplete, skipping configmap and job creation. Please enter framework, recipe, iterations, stopOnFailure, timeoutSeconds as per testrunner requirements"
@@ -128,6 +143,7 @@ spec:
         - name: driver-init
           image: "${INITCONTAINERIMAGE}"
           imagePullPolicy: IfNotPresent
+${IMAGE_PULL_SECRETS}
           command: ['sh', '-c', 'while [ ! -d /host-sys/class/kfd ] || [ ! -d /host-sys/module/amdgpu/drivers/ ]; do echo \"amdgpu driver is not loaded \"; sleep 2 ;done; echo \"amdgpu driver is loaded\"']
           securityContext:
             privileged: true
@@ -138,6 +154,7 @@ spec:
         - name: amd-test-runner
           image: "${TESTRUNNERIMAGE}"
           imagePullPolicy: IfNotPresent
+${IMAGE_PULL_SECRETS}
           securityContext:
             privileged: true
           volumeMounts:
