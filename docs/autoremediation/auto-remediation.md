@@ -70,7 +70,7 @@ The GPU Operator Helm installation includes the following Argo Workflows compone
 1. Argo workflow controller (deployed as a Kubernetes deployment)
 2. Argo CRDs for defining workflow templates and workflows
 
-The GPU Operator installs Argo Workflows v3.6.5, using a [customized installation YAML](https://github.com/argoproj/argo-workflows/releases/download/v3.6.5/install.yaml) tailored for auto-remediation requirements. This customization excludes components not needed for remediation, such as the Argo workflow server. For more information about Argo Workflows concepts, refer to the [official documentation](https://argo-workflows.readthedocs.io/en/release-3.6/workflow-concepts/).
+The GPU Operator installs Argo Workflows v4.0.3, using a [customized installation YAML](https://github.com/argoproj/argo-workflows/releases/download/v4.0.3/install.yaml) tailored for auto-remediation requirements. This customization excludes components not needed for remediation, such as the Argo workflow server. For more information about Argo Workflows concepts, refer to the [official documentation](https://argo-workflows.readthedocs.io/en/release-4.0/workflow-concepts/).
 
 > **Note:** By default, the GPU Operator installs auto-remediation components (the workflow controller and CRDs) during Helm deployment. If Argo Workflows is already present in the cluster, you can skip installation of only the CRDs by setting:
 >
@@ -95,7 +95,7 @@ For OpenShift users: To use the auto remediation feature, additonal steps are re
       a. Install CRDs (must be executed separately due to CRD size):
 
         ```bash
-        oc apply --server-side --force-conflicts -k "https://github.com/argoproj/argo-workflows/manifests/base/crds/full?ref=v3.7.10"
+        oc apply --server-side --force-conflicts -k "https://github.com/argoproj/argo-workflows/manifests/base/crds/full?ref=v4.0.3"
         ```
 
       b. Add the Argo Helm repository:
@@ -110,7 +110,7 @@ For OpenShift users: To use the auto remediation feature, additonal steps are re
         helm install argo-workflow argo/argo-workflows \
           -n argo-workflow \
           --create-namespace \
-          --version=v3.6.5 \
+          --version=v4.0.3 \
           --set crds.install=false
         ```
 

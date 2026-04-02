@@ -41,7 +41,7 @@ import (
 	"github.com/ROCm/gpu-operator/internal/conditions"
 	"github.com/ROCm/gpu-operator/internal/kmmmodule"
 	"github.com/ROCm/gpu-operator/tests/e2e/utils"
-	wfv1 "github.com/argoproj/argo-workflows/v3/pkg/apis/workflow/v1alpha1"
+	wfv1 "github.com/argoproj/argo-workflows/v4/pkg/apis/workflow/v1alpha1"
 	monitoringv1 "github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring/v1"
 	"github.com/stretchr/testify/assert"
 	. "gopkg.in/check.v1"

@@ -30,7 +30,7 @@ import (
 	time "time"
 
 	v1alpha1 "github.com/ROCm/gpu-operator/api/v1alpha1"
-	v1alpha10 "github.com/argoproj/argo-workflows/v3/pkg/apis/workflow/v1alpha1"
+	v1alpha10 "github.com/argoproj/argo-workflows/v4/pkg/apis/workflow/v1alpha1"
 	gomock "go.uber.org/mock/gomock"
 	v1 "k8s.io/api/core/v1"
 	labels "k8s.io/apimachinery/pkg/labels"

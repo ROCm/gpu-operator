@@ -34,7 +34,7 @@ remediation:
   installCRDs: true
   # -- Set the controller image for remediation workflow controller deployment
   controller:
-    image: "quay.io/argoproj/workflow-controller:v3.6.5"
+    image: "quay.io/argoproj/workflow-controller:v4.0.3"
     # -- Node selector for remediation workflow controller deployment
     nodeSelector: {}
     # -- Deployment affinity configs for remediation workflow controller

@@ -31,7 +31,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/ROCm/gpu-operator/tests/e2e/client"
-	workflowclient "github.com/argoproj/argo-workflows/v3/pkg/client/clientset/versioned"
+	workflowclient "github.com/argoproj/argo-workflows/v4/pkg/client/clientset/versioned"
 	monitoringClient "github.com/prometheus-operator/prometheus-operator/pkg/client/versioned"
 	"github.com/sirupsen/logrus"
 	. "gopkg.in/check.v1"
