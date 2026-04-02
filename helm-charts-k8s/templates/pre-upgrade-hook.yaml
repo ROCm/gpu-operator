@@ -226,24 +226,24 @@ spec:
           - /bin/sh
           - -c
           - |
-            kubectl apply -f /opt/helm-charts-crds-k8s/deviceconfig-crd.yaml
-            kubectl apply -f /opt/helm-charts-crds-k8s/remediationworkflowstatus-crd.yaml
+            kubectl apply --server-side --force-conflicts -f /opt/helm-charts-crds-k8s/deviceconfig-crd.yaml
+            kubectl apply --server-side --force-conflicts -f /opt/helm-charts-crds-k8s/remediationworkflowstatus-crd.yaml
             {{- if index .Values "node-feature-discovery" "enabled" }}
-            kubectl apply -f /opt/helm-charts-crds-k8s/nfd-api-crds.yaml
+            kubectl apply --server-side --force-conflicts -f /opt/helm-charts-crds-k8s/nfd-api-crds.yaml
             {{- end }}
             {{- if .Values.kmm.enabled }}
-            kubectl apply -f /opt/helm-charts-crds-k8s/module-crd.yaml
-            kubectl apply -f /opt/helm-charts-crds-k8s/nodemodulesconfig-crd.yaml
+            kubectl apply --server-side --force-conflicts -f /opt/helm-charts-crds-k8s/module-crd.yaml
+            kubectl apply --server-side --force-conflicts -f /opt/helm-charts-crds-k8s/nodemodulesconfig-crd.yaml
             {{- end }}
             {{- if and .Values.remediation.enabled .Values.remediation.installCRDs }}
-            kubectl apply -f /opt/helm-charts-crds-k8s/clusterworkflowtemplate-crd.yaml
-            kubectl apply -f /opt/helm-charts-crds-k8s/cronworkflow-crd.yaml
-            kubectl apply -f /opt/helm-charts-crds-k8s/workflowartifactgctask-crd.yaml
-            kubectl apply -f /opt/helm-charts-crds-k8s/workflow-crd.yaml
-            kubectl apply -f /opt/helm-charts-crds-k8s/workfloweventbinding-crd.yaml
-            kubectl apply -f /opt/helm-charts-crds-k8s/workflowtaskresult-crd.yaml
-            kubectl apply -f /opt/helm-charts-crds-k8s/workflowtaskset-crd.yaml
-            kubectl apply -f /opt/helm-charts-crds-k8s/workflowtemplate-crd.yaml
+            kubectl apply --server-side --force-conflicts -f /opt/helm-charts-crds-k8s/clusterworkflowtemplate-crd.yaml
+            kubectl apply --server-side --force-conflicts -f /opt/helm-charts-crds-k8s/cronworkflow-crd.yaml
+            kubectl apply --server-side --force-conflicts -f /opt/helm-charts-crds-k8s/workflowartifactgctask-crd.yaml
+            kubectl apply --server-side --force-conflicts -f /opt/helm-charts-crds-k8s/workflow-crd.yaml
+            kubectl apply --server-side --force-conflicts -f /opt/helm-charts-crds-k8s/workfloweventbinding-crd.yaml
+            kubectl apply --server-side --force-conflicts -f /opt/helm-charts-crds-k8s/workflowtaskresult-crd.yaml
+            kubectl apply --server-side --force-conflicts -f /opt/helm-charts-crds-k8s/workflowtaskset-crd.yaml
+            kubectl apply --server-side --force-conflicts -f /opt/helm-charts-crds-k8s/workflowtemplate-crd.yaml
             {{- end }}
       restartPolicy: OnFailure
 {{- end }}
