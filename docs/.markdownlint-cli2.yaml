@@ -1,2 +1,9 @@
 ignores:
   - CHANGELOG.md
+  - "**/vendor/**"
+  - "**/.git/**"
+  - "**/ci-internal/**"
+  - "**/docs/cicd/**"
+  - "**/tests/e2e/**"
+  - "**/helm-charts-k8s/README.md"
+  - "**/internal-example/**"
