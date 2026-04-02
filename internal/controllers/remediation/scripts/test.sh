@@ -7,14 +7,14 @@ WORKFLOW_NAME='{{workflow.name}}'
 WORKFLOW_UID='{{workflow.uid}}'
 
 # Extract last 8 characters of workflow UID for uniqueness
-SHORT_UID="${WORKFLOW_UID: -8}"
+SHORT_UID=$(printf '%s' "$WORKFLOW_UID" | tail -c 8)
 
 # Calculate max length for workflow name prefix (63 - 8 (uid) - 1 (dash) - 5 ("-test") - 1 (dash) = 48)
 MAX_PREFIX_LEN=48
 
 # Truncate workflow name if needed
 if [ ${#WORKFLOW_NAME} -gt $MAX_PREFIX_LEN ]; then
-  WORKFLOW_PREFIX="${WORKFLOW_NAME:0:$MAX_PREFIX_LEN}"
+  WORKFLOW_PREFIX=$(printf '%.48s' "$WORKFLOW_NAME")
 else
   WORKFLOW_PREFIX="$WORKFLOW_NAME"
 fi
@@ -39,7 +39,6 @@ if [ -n "$TESTRUNNERIMAGESECRET" ]; then
   OLD_IFS="$IFS"
   IFS=','
   for secret in $TESTRUNNERIMAGESECRET; do
-    secret=$(echo "$secret" | xargs)
     IMAGE_PULL_SECRETS="${IMAGE_PULL_SECRETS}
             - name: ${secret}"
   done
@@ -188,7 +187,7 @@ EOF
 sleep 20
 
 echo "Verifying Job creation..."
-if ! kubectl get job "$JOB_NAME" -n "$NAMESPACE" &>/dev/null; then
+if ! kubectl get job "$JOB_NAME" -n "$NAMESPACE" >/dev/null 2>&1; then
   echo "Error: Job $JOB_NAME was not created in namespace $NAMESPACE"
   exit 1
 fi
@@ -199,7 +198,7 @@ echo "Overall timeout for the job is set to $timeout seconds."
 echo "Waiting for Job $JOB_NAME to complete..."
 
 while true; do
-  if ! kubectl get job "$JOB_NAME" -n "$NAMESPACE" &>/dev/null; then
+  if ! kubectl get job "$JOB_NAME" -n "$NAMESPACE" >/dev/null 2>&1; then
     echo "Error: Job $JOB_NAME is not found in namespace $NAMESPACE"
     exit 1
   fi
