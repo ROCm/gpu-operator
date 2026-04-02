@@ -146,6 +146,7 @@ func main() {
 	dcr := controllers.NewDeviceConfigReconciler(
 		mgr.GetConfig(),
 		client,
+		mgr.GetAPIReader(),
 		kmmHandler,
 		dpHandler,
 		nlHandler,
