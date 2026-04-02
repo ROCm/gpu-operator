@@ -269,6 +269,15 @@ fmt: ## Run go fmt against code.
 vet: ## Run go vet against code.
 	go vet ./...
 
+.PHONY: mod
+mod: ## Run go mod tidy and go mod edit to set up the go mod packages.
+	@echo "setting up go mod packages"
+	@go mod tidy
+	#CVE-2026-33186
+	@go mod edit -replace google.golang.org/grpc@v1.72.2=google.golang.org/grpc@v1.79.3
+	@go mod tidy
+	@go mod vendor
+
 UNIT_TEST ?= ./internal ./internal/controllers ./internal/kmmmodule
 
 .PHONY: unit-test
