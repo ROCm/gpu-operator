@@ -12,3 +12,14 @@ nodeapp
 # Sphinx documentation
 _build/
 .venv/
+
+.job.yml
+branch_policy.yml
+dev.env
+box.rb
+entrypoint.sh
+asset-build/*
+ci-internal/*
+devops/*
+tests/jobs/*
+tests/pytests/*
