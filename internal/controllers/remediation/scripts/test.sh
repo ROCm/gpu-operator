@@ -205,6 +205,25 @@ while true; do
   fi
   isComplete=$(kubectl get job "$JOB_NAME" -n "$NAMESPACE" -o jsonpath='{.status.conditions[?(@.type=="Complete")].status}')
   isFailure=$(kubectl get job "$JOB_NAME" -n "$NAMESPACE" -o jsonpath='{.status.conditions[?(@.type=="Failed")].status}')
+
+  # Check for ImagePullBackOff or ErrImagePull in pod status
+  podStatus=$(kubectl get pods -n "$NAMESPACE" -l "job-name=$JOB_NAME" -o jsonpath='{.items[*].status.containerStatuses[*].state.waiting.reason}' 2>/dev/null || true)
+  initContainerStatus=$(kubectl get pods -n "$NAMESPACE" -l "job-name=$JOB_NAME" -o jsonpath='{.items[*].status.initContainerStatuses[*].state.waiting.reason}' 2>/dev/null || true)
+
+  if [[ "$podStatus" == *"ImagePullBackOff"* ]] || [[ "$podStatus" == *"ErrImagePull"* ]]; then
+    echo "Error: Image pull failure detected in container."
+    kubectl describe pods -n "$NAMESPACE" -l "job-name=$JOB_NAME" || true
+    kubectl logs -n $NAMESPACE job/$JOB_NAME 2>/dev/null || true
+    exit 1
+  fi
+
+  if [[ "$initContainerStatus" == *"ImagePullBackOff"* ]] || [[ "$initContainerStatus" == *"ErrImagePull"* ]]; then
+    echo "Error: Image pull failure detected in init container."
+    kubectl describe pods -n "$NAMESPACE" -l "job-name=$JOB_NAME" || true
+    kubectl logs -n $NAMESPACE job/$JOB_NAME 2>/dev/null || true
+    exit 1
+  fi
+
   if [ "$isComplete" = "True" ]; then
     echo "Test runner job completed successfully."
 	kubectl logs -n $NAMESPACE job/$JOB_NAME
