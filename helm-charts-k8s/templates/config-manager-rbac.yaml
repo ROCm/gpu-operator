@@ -25,10 +25,12 @@ rules:
   - list
   - watch
   - update
+  - patch
 - apiGroups:
   - "apps"
   resources:
   - daemonsets
+  - deployments
   verbs:
   - get
   - list

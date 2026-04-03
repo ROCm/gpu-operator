@@ -18,6 +18,8 @@ fi
 
 echo "Removing $LENGTH labels from node '$NODE_NAME'..."
 
+FAILED=0
+
 # Loop through each label in the JSON array
 for i in $(seq 0 $((LENGTH - 1))); do
     LABEL=$(echo "$NODE_LABELS" | jq -r ".[$i]")
@@ -41,7 +43,13 @@ for i in $(seq 0 $((LENGTH - 1))); do
         echo "Successfully removed label '$LABEL_KEY'"
     else
         echo "Failed to remove label '$LABEL_KEY'"
+        FAILED=1
     fi
 done
+
+if [ "$FAILED" -eq 1 ]; then
+    echo "One or more labels failed to be removed from node '$NODE_NAME'"
+    exit 1
+fi
 
 echo "Done removing all labels from node '$NODE_NAME'"

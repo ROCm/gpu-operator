@@ -18,6 +18,8 @@ fi
 
 echo "Applying $LENGTH labels to node '$NODE_NAME'..."
 
+FAILED=0
+
 # Loop through each label in the JSON array
 for i in $(seq 0 $((LENGTH - 1))); do
     LABEL=$(echo "$NODE_LABELS" | jq -r ".[$i]")
@@ -33,7 +35,13 @@ for i in $(seq 0 $((LENGTH - 1))); do
         echo "Successfully applied label '$LABEL'"
     else
         echo "Failed to apply label '$LABEL'"
+        FAILED=1
     fi
 done
+
+if [ "$FAILED" -eq 1 ]; then
+    echo "One or more labels failed to apply on node '$NODE_NAME'"
+    exit 1
+fi
 
 echo "Done applying all labels to node '$NODE_NAME'"

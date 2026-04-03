@@ -271,14 +271,11 @@ func (n *remediationMgr) HandleDelete(ctx context.Context, deviceConfig *amdv1al
 		log.FromContext(ctx).Info(fmt.Sprintf("Deleted workflow: %s", wf.Name))
 	}
 
-	var cfgMapName string
-	if deviceConfig.Spec.RemediationWorkflow.Config != nil {
-		cfgMapName = deviceConfig.Spec.RemediationWorkflow.Config.Name
-	} else {
-		cfgMapName = deviceConfig.Name + "-" + DefaultConfigMapSuffix
-	}
-	if err := n.helper.deleteConfigMap(ctx, cfgMapName, deviceConfig.Namespace); err == nil {
-		log.FromContext(ctx).Info(fmt.Sprintf("Deleted ConfigMap: %s", cfgMapName))
+	if deviceConfig.Spec.RemediationWorkflow.Config == nil || deviceConfig.Spec.RemediationWorkflow.Config.Name == "" {
+		cfgMapName := deviceConfig.Name + "-" + DefaultConfigMapSuffix
+		if err := n.helper.deleteConfigMap(ctx, cfgMapName, deviceConfig.Namespace); err == nil {
+			log.FromContext(ctx).Info(fmt.Sprintf("Deleted ConfigMap: %s", cfgMapName))
+		}
 	}
 
 	return
@@ -527,7 +524,10 @@ func (h *remediationMgrHelper) checkIfTaintExists(node *v1.Node, devConfig *amdv
 
 func (h *remediationMgrHelper) getWorkflowList(ctx context.Context, namespace string) (*workflowv1alpha1.WorkflowList, error) {
 	wfList := &workflowv1alpha1.WorkflowList{}
-	if err := h.client.List(ctx, wfList, &client.ListOptions{Namespace: namespace}); err != nil {
+	labelSelector := labels.SelectorFromSet(map[string]string{
+		ArgoWorkflowInstaceIDLabelKey: ArgoWorkflowInstaceIDLabelValue,
+	})
+	if err := h.client.List(ctx, wfList, &client.ListOptions{Namespace: namespace, LabelSelector: labelSelector}); err != nil {
 		return nil, err
 	}
 	return wfList, nil
@@ -690,7 +690,7 @@ func (h *remediationMgrHelper) createDefaultWorkflowTemplate(ctx context.Context
 					Metadata: instanceIDMeta,
 					Steps: []workflowv1alpha1.ParallelSteps{
 						{Steps: []workflowv1alpha1.WorkflowStep{{Name: "awaitapproval", Template: "suspend", When: "{{workflow.parameters.auto_start}} == false"}}}, // If auto start is disabled, workflow will be created in suspended state and needs to be manually resumed by user
-						{Steps: []workflowv1alpha1.WorkflowStep{{Name: "applylabels", Template: "applylabels"}}},
+						{Steps: []workflowv1alpha1.WorkflowStep{{Name: "applylabels", Template: "applylabels", When: "{{workflow.parameters.node_labels}} != []"}}},
 						{Steps: []workflowv1alpha1.WorkflowStep{{Name: "taint", Template: "taint"}}},
 						{Steps: []workflowv1alpha1.WorkflowStep{{Name: "drain", Template: "drain"}}},
 						{Steps: []workflowv1alpha1.WorkflowStep{
@@ -725,7 +725,7 @@ func (h *remediationMgrHelper) createDefaultWorkflowTemplate(ctx context.Context
 							},
 						},
 						},
-						{Steps: []workflowv1alpha1.WorkflowStep{{Name: "failurecleanup", Template: "removelabels", When: "{{steps.test.exitCode}} != 0"}}},
+						{Steps: []workflowv1alpha1.WorkflowStep{{Name: "failurecleanup", Template: "removelabels", When: "{{steps.test.exitCode}} != 0 && {{workflow.parameters.node_labels}} != []"}}},
 						{Steps: []workflowv1alpha1.WorkflowStep{{Name: "failworkflow", Template: "failworkflow", When: "{{steps.test.exitCode}} != 0"}}},
 						{Steps: []workflowv1alpha1.WorkflowStep{{Name: "wait", Template: "wait", When: "{{steps.test.exitCode}} == 0"}}},
 						{Steps: []workflowv1alpha1.WorkflowStep{{Name: "untaint", Template: "untaint", When: "{{steps.test.exitCode}} == 0"}}},
@@ -744,7 +744,7 @@ func (h *remediationMgrHelper) createDefaultWorkflowTemplate(ctx context.Context
 							},
 						},
 						},
-						{Steps: []workflowv1alpha1.WorkflowStep{{Name: "successcleanup", Template: "removelabels", When: "{{steps.test.exitCode}} == 0"}}},
+						{Steps: []workflowv1alpha1.WorkflowStep{{Name: "successcleanup", Template: "removelabels", When: "{{steps.test.exitCode}} == 0 && {{workflow.parameters.node_labels}} != []"}}},
 					},
 				},
 				{
@@ -853,6 +853,10 @@ containers:
 							{
 								Name:  "initContainerImage",
 								Value: workflowv1alpha1.AnyStringPtr("{{workflow.parameters.initContainerImage}}"),
+							},
+							{
+								Name:  "testRunnerImageSecret",
+								Value: workflowv1alpha1.AnyStringPtr("{{workflow.parameters.testRunnerImageSecret}}"),
 							},
 						},
 					},
@@ -1672,13 +1676,6 @@ func (h *remediationMgrHelper) removeForceResumeWorkflowLabelFromNode(ctx contex
 
 func (h *remediationMgrHelper) canResumeWorkflowOnNode(ctx context.Context, node *v1.Node, mapping *ConditionWorkflowMapping, stageName string) bool {
 	logger := log.FromContext(ctx)
-
-	// Check if the recovery policy is violated, if so, do not allow resumption
-	recoveryPolicyViolated := h.isRecoveryPolicyViolated(ctx, node.Name, mapping)
-	if recoveryPolicyViolated {
-		logger.Info(fmt.Sprintf("Recovery policy is violated for node %s with condition %s, not allowing workflow resumption", node.Name, mapping.NodeCondition))
-		return false
-	}
 
 	// if no physical action is needed, allow resumption of workflow
 	if !mapping.PhysicalActionNeeded && stageName != "autostart" {

@@ -523,9 +523,10 @@ spec:
       {{- toYaml . | nindent 6 }}
     {{- end }}
 
-    {{- with .autoStartWorkflow }}
-    autoStartWorkflow: {{ . }}
+    {{- if hasKey . "autoStartWorkflow" }}
+    autoStartWorkflow: {{ .autoStartWorkflow }}
     {{- end }}
+
   {{- end }}
 
 {{- end }}
