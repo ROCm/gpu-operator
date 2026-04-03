@@ -128,13 +128,13 @@ type remediationMgrAPI interface {
 	HandleDelete(ctx context.Context, deviceConfig *amdv1alpha1.DeviceConfig, nodes *v1.NodeList) (ctrl.Result, error)
 }
 
-func newRemediationMgrHandler(client client.Client, k8sConfig *rest.Config, isOpenShift bool) remediationMgrAPI {
+func newRemediationMgrHandler(client client.Client, apiReader client.Reader, k8sConfig *rest.Config, isOpenShift bool) remediationMgrAPI {
 	k8sIntf, err := kubernetes.NewForConfig(k8sConfig)
 	if err != nil {
 		return nil
 	}
 	return &remediationMgr{
-		helper: newRemediationMgrHelperHandler(client, k8sIntf, isOpenShift),
+		helper: newRemediationMgrHelperHandler(client, apiReader, k8sIntf, isOpenShift),
 	}
 }
 
@@ -342,6 +342,7 @@ type remediationMgrHelperAPI interface {
 
 type remediationMgrHelper struct {
 	client               client.Client
+	apiReader            client.Reader
 	k8sInterface         kubernetes.Interface
 	recoveryTracker      *sync.Map
 	serviceAccountName   string
@@ -351,9 +352,10 @@ type remediationMgrHelper struct {
 }
 
 // Initialize remediation manager helper interface
-func newRemediationMgrHelperHandler(client client.Client, k8sInterface kubernetes.Interface, isOpenShift bool) remediationMgrHelperAPI {
+func newRemediationMgrHelperHandler(client client.Client, apiReader client.Reader, k8sInterface kubernetes.Interface, isOpenShift bool) remediationMgrHelperAPI {
 	return &remediationMgrHelper{
 		client:           client,
+		apiReader:        apiReader,
 		k8sInterface:     k8sInterface,
 		recoveryTracker:  new(sync.Map),
 		tolerationsCache: new(sync.Map),
@@ -1594,7 +1596,9 @@ func (h *remediationMgrHelper) createRemediationWorkflowStatus(ctx context.Conte
 
 func (h *remediationMgrHelper) getRemediationWorkflowStatus(ctx context.Context, namespace string) (*amdv1alpha1.RemediationWorkflowStatus, error) {
 	wfstatus := &amdv1alpha1.RemediationWorkflowStatus{}
-	err := h.client.Get(ctx, client.ObjectKey{Name: "default", Namespace: namespace}, wfstatus)
+	// Use apiReader to bypass cache and always get the latest state from the API server
+	// This prevents race conditions where multiple reconciles read stale cached data
+	err := h.apiReader.Get(ctx, client.ObjectKey{Name: "default", Namespace: namespace}, wfstatus)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get remediation workflow status: %w", err)
 	}

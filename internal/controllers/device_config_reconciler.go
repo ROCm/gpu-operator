@@ -96,6 +96,7 @@ type DeviceConfigReconciler struct {
 func NewDeviceConfigReconciler(
 	k8sConfig *rest.Config,
 	client client.Client,
+	apiReader client.Reader,
 	kmmHandler kmmmodule.KMMModuleAPI,
 	dpHandler plugin.DevicePluginAPI,
 	nlHandler nodelabeller.NodeLabeller,
@@ -106,7 +107,7 @@ func NewDeviceConfigReconciler(
 	isOpenShift bool,
 	kmmWatchEnabled bool) *DeviceConfigReconciler {
 	upgradeMgrHandler := newUpgradeMgrHandler(client, k8sConfig, isOpenShift)
-	remediationMgrHandler := newRemediationMgrHandler(client, k8sConfig, isOpenShift)
+	remediationMgrHandler := newRemediationMgrHandler(client, apiReader, k8sConfig, isOpenShift)
 	helper := newDeviceConfigReconcilerHelper(client, kmmHandler, dpHandler, nlHandler, upgradeMgrHandler, remediationMgrHandler, metricsHandler, testrunnerHandler, configmanagerHandler, workerMgr, kmmWatchEnabled)
 	podEventHandler := watchers.NewPodEventHandler(client, workerMgr)
 	nodeEventHandler := watchers.NewNodeEventHandler(client, workerMgr)
