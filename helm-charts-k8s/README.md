@@ -125,7 +125,7 @@ The AMD GPU Operator is licensed under the [Apache License 2.0](LICENSE).
 
 ## gpu-operator-charts
 
-![Version: v0.0.1](https://img.shields.io/badge/Version-v0.0.1-informational?style=flat-square) ![Type: application](https://img.shields.io/badge/Type-application-informational?style=flat-square) ![AppVersion: dev](https://img.shields.io/badge/AppVersion-dev-informational?style=flat-square)
+![Version: v0.0.1](https://img.shields.io/badge/Version-v0.0.1-informational?style=flat-square) ![Type: application](https://img.shields.io/badge/Type-application-informational?style=flat-square) ![AppVersion: dev](https://img.shields.io/badge/AppVersion-test--img-informational?style=flat-square)
 
 AMD GPU Operator simplifies the deployment and management of AMD Instinct GPU accelerators within Kubernetes clusters.
 
@@ -164,6 +164,9 @@ Kubernetes: `>= 1.29.0-0`
 | controllerManager.nodeSelector | object | `{}` | Node selector for AMD GPU operator controller manager deployment |
 | crds.defaultCR.install | bool | `true` | Deploy default DeviceConfig during helm chart installation |
 | crds.defaultCR.upgrade | bool | `false` | Deploy / Patch default DeviceConfig during helm chart upgrade. Be careful about this option: 1. Your customized change on default DeviceConfig may be overwritten 2. Your existing DeviceConfig may conflict with upgraded default DeviceConfig  |
+| defaultDCMConfigMap.data | object | `{"config.json":"{\n  \"gpu-config-profiles\": {\n    \"default\": {\n      \"profiles\": [\n        {\n          \"computePartition\": \"SPX\",\n          \"memoryPartition\": \"NPS1\"\n        }\n      ]\n    },\n    \"cpx_nps1_all\": {\n      \"profiles\": [\n        {\n          \"computePartition\": \"CPX\",\n          \"memoryPartition\": \"NPS1\"\n        }\n      ]\n    },\n    \"cpx_nps4_all\": {\n      \"profiles\": [\n        {\n          \"computePartition\": \"CPX\",\n          \"memoryPartition\": \"NPS4\"\n        }\n      ]\n    },\n    \"dpx_nps2_all\": {\n      \"profiles\": [\n        {\n          \"computePartition\": \"DPX\",\n          \"memoryPartition\": \"NPS2\"\n        }\n      ]\n    },\n    \"qpx_nps1_all\": {\n      \"profiles\": [\n        {\n          \"computePartition\": \"QPX\",\n          \"memoryPartition\": \"NPS1\"\n        }\n      ]\n    },\n    \"heterogeneous_example\": {\n      \"profiles\": [\n        {\n          \"computePartition\": \"CPX\",\n          \"memoryPartition\": \"NPS1\",\n          \"numGPUsAssigned\": 2\n        },\n        {\n          \"computePartition\": \"SPX\",\n          \"memoryPartition\": \"NPS1\"\n        }\n      ]\n    }\n  },\n  \"gpuClientSystemdServices\": {\n    \"names\": [\"amd-metrics-exporter\", \"gpuagent\"]\n  }\n}\n"}` | Keys become ConfigMap data keys (typically config.json with DCM JSON content). |
+| defaultDCMConfigMap.install | bool | `true` | Install the default ConfigMap in the operator release namespace (recommended when using DCM without an explicit config reference). |
+| defaultDCMConfigMap.name | string | `"default-dcm-config"` | ConfigMap metadata.name; must stay aligned with the operator default mount name. |
 | deviceConfig.spec.commonConfig.initContainerImage | string | `"busybox:1.36"` | init container image |
 | deviceConfig.spec.commonConfig.utilsContainer.image | string | `"docker.io/rocm/amd-gpu-operator-utils:latest"` | gpu operator utility container image |
 | deviceConfig.spec.commonConfig.utilsContainer.imagePullPolicy | string | `"IfNotPresent"` | utility container image pull policy |
