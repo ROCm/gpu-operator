@@ -292,20 +292,27 @@ Each entry in the ConfigMap maps a unique error code (AFID) to its remediation w
 The following example demonstrates a complete error mapping configuration:
 
 ```yaml
-- nodeCondition: AMDGPUXgmi
-  workflowTemplate: default-template
-  validationTestsProfile:
-    framework: AGFHC
-    recipe: all_lvl4
-    iterations: 1
-    stopOnFailure: true
-    timeoutSeconds: 4800
-  physicalActionNeeded: true
-  notifyRemediationMessage: Remove GPU tray from node.Confirm that all four screws on all eight OAMs are torqued as described in OAM Removal and Installation guideRe-install the GPU tray into node.
-  notifyTestFailureMessage: 'Remove the failing UBB assembly and return to AMD, along with the relevant failure details: at a minimum this should be the RF event that indicated the original fail, and if that RF event includes an additional data URI, the CPER and/or the decoded JSON from the CPER as pointed by the additional data.Install a new or known-good UBB assembly to the GPU tray.'
-  recoveryPolicy:
-    maxAllowedRunsPerWindow: 3
-    windowSize: 15m
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: auto-remediation-custom-config
+  namespace: kube-amd-gpu
+data:
+  workflow: |
+    - nodeCondition: AMDGPUXgmi
+      workflowTemplate: default-template
+      validationTestsProfile:
+        framework: AGFHC
+        recipe: all_lvl4
+        iterations: 1
+        stopOnFailure: true
+        timeoutSeconds: 4800
+      physicalActionNeeded: true
+      notifyRemediationMessage: Remove GPU tray from node.Confirm that all four screws on all eight OAMs are torqued as described in OAM Removal and Installation guideRe-install the GPU tray into node.
+      notifyTestFailureMessage: 'Remove the failing UBB assembly and return to AMD, along with the relevant failure details: at a minimum this should be the RF event that indicated the original fail, and if that RF event includes an additional data URI, the CPER and/or the decoded JSON from the CPER as pointed by the additional data.Install a new or known-good UBB assembly to the GPU tray.'
+      recoveryPolicy:
+        maxAllowedRunsPerWindow: 3
+        windowSize: 15m
 ```
 
 ### ConfigMap Field Descriptions

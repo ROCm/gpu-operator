@@ -643,6 +643,15 @@ func (h *remediationMgrHelper) createDefaultWorkflowTemplate(ctx context.Context
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "event-notify-template",
 			Namespace: devConfig.Namespace,
+			OwnerReferences: []metav1.OwnerReference{
+				{
+					APIVersion: devConfig.APIVersion,
+					Kind:       devConfig.Kind,
+					Name:       devConfig.Name,
+					UID:        devConfig.UID,
+					Controller: ptr.To(true),
+				},
+			},
 		},
 		Spec: workflowv1alpha1.WorkflowSpec{
 			Entrypoint: "notify",

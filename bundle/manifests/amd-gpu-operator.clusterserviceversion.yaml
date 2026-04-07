@@ -1245,6 +1245,18 @@ spec:
           - update
           - watch
         - apiGroups:
+          - apps
+          resources:
+          - deployments
+          verbs:
+          - create
+          - delete
+          - get
+          - list
+          - patch
+          - update
+          - watch
+        - apiGroups:
           - kmm.sigs.x-k8s.io
           resources:
           - modules
