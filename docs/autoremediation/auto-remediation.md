@@ -262,7 +262,14 @@ Each entry in the ConfigMap maps a unique error code (AFID) to its remediation w
 The following example demonstrates a complete error mapping configuration:
 
 ```yaml
-- nodeCondition: AMDGPUXgmi
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: auto-remediation-custom-config
+  namespace: kube-amd-gpu
+data:
+  workflow: |
+    - nodeCondition: AMDGPUXgmi
   workflowTemplate: default-template
   validationTestsProfile:
     framework: AGFHC
