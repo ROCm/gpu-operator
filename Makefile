@@ -40,6 +40,9 @@ UTILS_IMAGE_NAME ?= $(IMAGE_NAME)-utils
 UTILS_IMG ?= $(DOCKER_REGISTRY)/$(UTILS_IMAGE_NAME):$(UTILS_IMAGE_TAG)
 DRA_DRIVER_IMAGE_TAG ?= latest
 DRA_DRIVER_IMG = $(DOCKER_REGISTRY)/k8s-gpu-dra-driver:$(DRA_DRIVER_IMAGE_TAG)
+VALIDATOR_IMAGE_TAG ?= latest
+VALIDATOR_IMAGE_NAME ?= gpu-operator-validator
+VALIDATOR_IMG ?= $(DOCKER_REGISTRY)/$(VALIDATOR_IMAGE_NAME):$(VALIDATOR_IMAGE_TAG)
 
 #######################
 # Helm Charts variables
@@ -364,6 +367,22 @@ docker-push-utils: ## Push docker image for utils container.
 .PHONY: docker-save-utils
 docker-save-utils: ## Save the utils container image as tar.gz.
 	docker save $(UTILS_IMG) | gzip > $(IMAGE_NAME)-utils.tar.gz
+
+.PHONY: validator-build
+validator-build: ## Build validator binary locally
+	CGO_ENABLED=0 GOOS=linux go build -o bin/validator ./cmd/validator
+
+.PHONY: docker-build-validator
+docker-build-validator: ## Build docker image for validator.
+	DOCKER_BUILDKIT=1 docker build -t $(VALIDATOR_IMG) --label HOURLY_TAG=$(HOURLY_TAG_LABEL) -f Dockerfile.validator .
+
+.PHONY: docker-push-validator
+docker-push-validator: ## Push docker image for validator.
+	docker push $(VALIDATOR_IMG)
+
+.PHONY: docker-save-validator
+docker-save-validator: ## Save the validator container image as tar.gz.
+	docker save $(VALIDATOR_IMG) | gzip > $(VALIDATOR_IMAGE_NAME).tar.gz
 
 .PHONY: docker-build-env
 docker-build-env: ## Build the docker shell container.

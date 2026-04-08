@@ -95,3 +95,95 @@ func validateServiceMonitorCRD(ctx context.Context, c client.Client) error {
 	}
 	return nil
 }
+
+// PodIssue represents a problem found with a pod
+type PodIssue struct {
+	PodName       string
+	ContainerName string
+	Reason        string
+	Message       string
+}
+
+// checkPodsForImagePullErrors inspects pods for image pull and crash errors
+func checkPodsForImagePullErrors(ctx context.Context, k8sClient client.Client, namespace string, labelSelector map[string]string) []PodIssue {
+	issues := []PodIssue{}
+
+	// List pods with the given label selector
+	podList := &v1.PodList{}
+	listOpts := []client.ListOption{
+		client.InNamespace(namespace),
+		client.MatchingLabels(labelSelector),
+	}
+
+	if err := k8sClient.List(ctx, podList, listOpts...); err != nil {
+		// If we can't list pods, return empty - the component check will catch this
+		return issues
+	}
+
+	// Check each pod's container statuses
+	for _, pod := range podList.Items {
+		for _, containerStatus := range pod.Status.ContainerStatuses {
+			// Check for waiting state with errors
+			if containerStatus.State.Waiting != nil {
+				reason := containerStatus.State.Waiting.Reason
+				// Check for common error states
+				if reason == "ImagePullBackOff" || reason == "ErrImagePull" ||
+				   reason == "CrashLoopBackOff" || reason == "CreateContainerError" ||
+				   reason == "InvalidImageName" {
+					issues = append(issues, PodIssue{
+						PodName:       pod.Name,
+						ContainerName: containerStatus.Name,
+						Reason:        reason,
+						Message:       containerStatus.State.Waiting.Message,
+					})
+				}
+			}
+		}
+
+		// Also check init container statuses
+		for _, containerStatus := range pod.Status.InitContainerStatuses {
+			if containerStatus.State.Waiting != nil {
+				reason := containerStatus.State.Waiting.Reason
+				if reason == "ImagePullBackOff" || reason == "ErrImagePull" ||
+				   reason == "CrashLoopBackOff" || reason == "CreateContainerError" ||
+				   reason == "InvalidImageName" {
+					issues = append(issues, PodIssue{
+						PodName:       pod.Name,
+						ContainerName: containerStatus.Name + " (init)",
+						Reason:        reason,
+						Message:       containerStatus.State.Waiting.Message,
+					})
+				}
+			}
+		}
+	}
+
+	return issues
+}
+
+// checkNodesForDriverVersion scans GPU nodes for driver version labels
+func checkNodesForDriverVersion(ctx context.Context, k8sClient client.Client) map[string]string {
+	nodeVersions := make(map[string]string)
+
+	// List all nodes with AMD GPU label
+	nodeList := &v1.NodeList{}
+	listOpts := []client.ListOption{
+		client.MatchingLabels(map[string]string{
+			"feature.node.kubernetes.io/amd-gpu": "true",
+		}),
+	}
+
+	if err := k8sClient.List(ctx, nodeList, listOpts...); err != nil {
+		return nodeVersions
+	}
+
+	// Check each node for driver version label
+	for _, node := range nodeList.Items {
+		// Check for node labeler driver version
+		if version, ok := node.Labels["amd.com/gpu.driver-version"]; ok {
+			nodeVersions[node.Name] = version
+		}
+	}
+
+	return nodeVersions
+}

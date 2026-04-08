@@ -85,6 +85,11 @@ type DeviceConfigSpec struct {
 	//+operator-sdk:csv:customresourcedefinitions:type=spec,displayName="RemediationWorkflow",xDescriptors={"urn:alm:descriptor:com.amd.deviceconfigs:remediationWorkflow"}
 	// +optional
 	RemediationWorkflow RemediationWorkflowSpec `json:"remediationWorkflow,omitempty"`
+
+	// validation
+	//+operator-sdk:csv:customresourcedefinitions:type=spec,displayName="Validation",xDescriptors={"urn:alm:descriptor:com.amd.deviceconfigs:validation"}
+	// +optional
+	Validation ValidationSpec `json:"validation,omitempty"`
 }
 
 // RemediationWorkflowSpec defines workflows to run based on node conditions
@@ -141,6 +146,45 @@ type RemediationWorkflowSpec struct {
 	//+operator-sdk:csv:customresourcedefinitions:type=spec,displayName="AutoStartWorkflow",xDescriptors={"urn:alm:descriptor:com.amd.deviceconfigs:autoStartWorkflow"}
 	// +kubebuilder:default:=true
 	AutoStartWorkflow *bool `json:"autoStartWorkflow,omitempty"`
+}
+
+// ValidationSpec defines the configuration for cluster validation
+type ValidationSpec struct {
+	// Image is the validator container image
+	//+operator-sdk:csv:customresourcedefinitions:type=spec,displayName="Image",xDescriptors={"urn:alm:descriptor:com.amd.deviceconfigs:image"}
+	// +optional
+	// +kubebuilder:validation:Pattern=`^([a-z0-9]+(?:[._-][a-z0-9]+)*(:[0-9]+)?)(/[a-z0-9]+(?:[._-][a-z0-9]+)*)*(?::[a-z0-9._-]+)?(?:@[a-zA-Z0-9]+:[a-f0-9]+)?$`
+	Image string `json:"image,omitempty"`
+
+	// ImagePullPolicy for validator image
+	//+operator-sdk:csv:customresourcedefinitions:type=spec,displayName="ImagePullPolicy",xDescriptors={"urn:alm:descriptor:com.amd.deviceconfigs:imagePullPolicy"}
+	// +optional
+	// +kubebuilder:validation:Enum=Always;IfNotPresent;Never
+	ImagePullPolicy v1.PullPolicy `json:"imagePullPolicy,omitempty"`
+
+	// ImageRegistrySecret for pulling validator image from private registry
+	//+operator-sdk:csv:customresourcedefinitions:type=spec,displayName="ImageRegistrySecret",xDescriptors={"urn:alm:descriptor:com.amd.deviceconfigs:imageRegistrySecret"}
+	// +optional
+	ImageRegistrySecret *v1.LocalObjectReference `json:"imageRegistrySecret,omitempty"`
+
+	// Tolerations for validator Job pods
+	//+operator-sdk:csv:customresourcedefinitions:type=spec,displayName="Tolerations",xDescriptors={"urn:alm:descriptor:com.amd.deviceconfigs:tolerations"}
+	// +optional
+	Tolerations []v1.Toleration `json:"tolerations,omitempty"`
+
+	// TTLSecondsAfterFinished - how long to keep Job after completion (default: 1800s / 30min)
+	//+operator-sdk:csv:customresourcedefinitions:type=spec,displayName="TTLSecondsAfterFinished",xDescriptors={"urn:alm:descriptor:com.amd.deviceconfigs:ttlSecondsAfterFinished"}
+	// +optional
+	// +kubebuilder:default:=1800
+	// +kubebuilder:validation:Minimum:=0
+	TTLSecondsAfterFinished *int32 `json:"ttlSecondsAfterFinished,omitempty"`
+
+	// ActiveDeadlineSeconds - max validation time before Job is killed (default: 600s / 10min)
+	//+operator-sdk:csv:customresourcedefinitions:type=spec,displayName="ActiveDeadlineSeconds",xDescriptors={"urn:alm:descriptor:com.amd.deviceconfigs:activeDeadlineSeconds"}
+	// +optional
+	// +kubebuilder:default:=600
+	// +kubebuilder:validation:Minimum:=1
+	ActiveDeadlineSeconds *int64 `json:"activeDeadlineSeconds,omitempty"`
 }
 
 type RegistryTLS struct {
@@ -959,6 +1003,80 @@ type CommonConfigSpec struct {
 
 // DeploymentStatus contains the status for a daemonset deployed during
 // reconciliation loop
+// ValidationStatus contains the status of cluster validation
+type ValidationStatus struct {
+	// RequestedAt - annotation value that triggered this validation
+	RequestedAt string `json:"requestedAt,omitempty"`
+
+	// State - current state of validation
+	// +kubebuilder:validation:Enum=InProgress;Completed;Failed
+	State string `json:"state,omitempty"`
+
+	// JobName - validation Job name for log access
+	JobName string `json:"jobName,omitempty"`
+
+	// StartedAt timestamp when validation Job started
+	StartedAt *metav1.Time `json:"startedAt,omitempty"`
+
+	// CompletedAt timestamp when validation Job completed
+	CompletedAt *metav1.Time `json:"completedAt,omitempty"`
+
+	// OverallStatus - aggregated health status across all components
+	// +kubebuilder:validation:Enum=healthy;degraded;warning;failed
+	OverallStatus string `json:"overallStatus,omitempty"`
+
+	// Components - per-component validation results
+	Components []ComponentValidationResult `json:"components,omitempty"`
+
+	// Recommendations - actionable next steps based on validation findings
+	Recommendations []string `json:"recommendations,omitempty"`
+}
+
+// ComponentValidationResult contains validation results for a single component
+type ComponentValidationResult struct {
+	// Name of the component being validated
+	// +kubebuilder:validation:Enum=DeviceConfig;Driver;DevicePlugin;DRADriver;MetricsExporter;ConfigManager;TestRunner;RemediationWorkflow;Dependencies
+	Name string `json:"name"`
+
+	// Status of the component validation
+	// +kubebuilder:validation:Enum=healthy;degraded;warning;failed
+	Status string `json:"status"`
+
+	// Checks performed on this component
+	Checks []ValidationCheck `json:"checks,omitempty"`
+}
+
+// ValidationCheck represents a single validation check with detailed results
+type ValidationCheck struct {
+	// Type of validation check performed
+	// ResourceExistence: validates that required Kubernetes resources exist (DaemonSet, Deployment, ConfigMaps, Secrets, Services)
+	// ConfigurationMatch: validates that actual configuration matches DeviceConfig spec (images, tolerations, node selectors, resources, args)
+	// DeploymentHealth: validates deployment health (pod status, readiness, events)
+	// NodeCoverage: validates node-specific aspects (node coverage, driver status, node labels, GPU resources, kernel modules)
+	// MutualExclusion: validates that mutually exclusive components are not both enabled (DevicePlugin vs DRADriver)
+	// DependencyCheck: validates that required external dependencies are installed (NFD, KMM, Argo Workflows)
+	// +kubebuilder:validation:Enum=ResourceExistence;ConfigurationMatch;DeploymentHealth;NodeCoverage;MutualExclusion;DependencyCheck
+	Type string `json:"type"`
+
+	// Name is a human-readable identifier for this specific check
+	Name string `json:"name"`
+
+	// Passed indicates whether the check passed
+	Passed bool `json:"passed"`
+
+	// Message provides a summary of the check result
+	Message string `json:"message,omitempty"`
+
+	// Details provides additional diagnostic information for failed checks
+	Details string `json:"details,omitempty"`
+
+	// ExpectedValue shows what was expected (for ConfigurationMatch checks)
+	ExpectedValue string `json:"expectedValue,omitempty"`
+
+	// ActualValue shows what was actually found (for ConfigurationMatch checks)
+	ActualValue string `json:"actualValue,omitempty"`
+}
+
 type DeploymentStatus struct {
 	// number of nodes that are targeted by the DeviceConfig selector
 	//+operator-sdk:csv:customresourcedefinitions:type=status,displayName="NodesMatchingSelectorNumber",xDescriptors="urn:alm:descriptor:com.amd.deviceconfigs:nodesMatchingSelectorNumber"
@@ -1000,6 +1118,9 @@ type DeviceConfigStatus struct {
 	Conditions []metav1.Condition `json:"conditions,omitempty"`
 	// ObservedGeneration is the latest spec generation successfully processed by the controller
 	ObservedGeneration int64 `json:"observedGeneration,omitempty"`
+	// Validation contains the status of cluster validation
+	//+operator-sdk:csv:customresourcedefinitions:type=status,displayName="Validation",xDescriptors="urn:alm:descriptor:com.amd.deviceconfigs:validation"
+	Validation ValidationStatus `json:"validation,omitempty"`
 }
 
 //+kubebuilder:object:root=true

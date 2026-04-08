@@ -1,0 +1,207 @@
+/*
+Copyright (c) Advanced Micro Devices, Inc. All rights reserved.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+     http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
+package checks
+
+import (
+	"context"
+	"fmt"
+
+	gpuev1alpha1 "github.com/ROCm/gpu-operator/api/v1alpha1"
+	appsv1 "k8s.io/api/apps/v1"
+	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/types"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+)
+
+// ValidateNodeLabeller validates the node labeller component
+func ValidateNodeLabeller(ctx context.Context, k8sClient client.Client, devConfig *gpuev1alpha1.DeviceConfig) gpuev1alpha1.ComponentValidationResult {
+	result := gpuev1alpha1.ComponentValidationResult{
+		Name:   "NodeLabeller",
+		Status: "healthy",
+		Checks: []gpuev1alpha1.ValidationCheck{},
+	}
+
+	// Check 1: DaemonSet exists
+	dsName := fmt.Sprintf("%s-node-labeller-daemonset", devConfig.Name)
+	ds := &appsv1.DaemonSet{}
+	err := k8sClient.Get(ctx, types.NamespacedName{
+		Namespace: devConfig.Namespace,
+		Name:      dsName,
+	}, ds)
+	if err != nil {
+		result.Status = "failed"
+		result.Checks = append(result.Checks, gpuev1alpha1.ValidationCheck{
+			Type:    "ResourceExistence",
+			Name:    "DaemonSet exists",
+			Passed:  false,
+			Message: "Node Labeller DaemonSet not found",
+			Details: fmt.Sprintf("Expected DaemonSet %s/%s not found", devConfig.Namespace, dsName),
+		})
+		return result
+	}
+
+	result.Checks = append(result.Checks, gpuev1alpha1.ValidationCheck{
+		Type:    "ResourceExistence",
+		Name:    "DaemonSet exists",
+		Passed:  true,
+		Message: "Node Labeller DaemonSet found",
+	})
+
+	// Check 2: DaemonSet health
+	if ds.Status.NumberReady < ds.Status.DesiredNumberScheduled {
+		result.Status = "degraded"
+		result.Checks = append(result.Checks, gpuev1alpha1.ValidationCheck{
+			Type:    "DeploymentHealth",
+			Name:    "DaemonSet health",
+			Passed:  false,
+			Message: fmt.Sprintf("Only %d/%d pods ready", ds.Status.NumberReady, ds.Status.DesiredNumberScheduled),
+			Details: "Check pod logs and events for issues",
+		})
+	} else {
+		result.Checks = append(result.Checks, gpuev1alpha1.ValidationCheck{
+			Type:    "DeploymentHealth",
+			Name:    "DaemonSet health",
+			Passed:  true,
+			Message: fmt.Sprintf("All %d pods ready", ds.Status.NumberReady),
+		})
+	}
+
+	// Check 3: Configuration matches spec - Image
+	if devConfig.Spec.DevicePlugin.NodeLabellerImage != "" {
+		if len(ds.Spec.Template.Spec.Containers) > 0 {
+			actualImage := ds.Spec.Template.Spec.Containers[0].Image
+			expectedImage := devConfig.Spec.DevicePlugin.NodeLabellerImage
+
+			if actualImage != expectedImage {
+				result.Status = "degraded"
+				result.Checks = append(result.Checks, gpuev1alpha1.ValidationCheck{
+					Type:          "ConfigurationMatch",
+					Name:          "Node Labeller image matches spec",
+					Passed:        false,
+					Message:       "Image drift detected",
+					ExpectedValue: expectedImage,
+					ActualValue:   actualImage,
+					Details:       "Update DeviceConfig spec or restart rollout to sync configuration",
+				})
+			} else {
+				result.Checks = append(result.Checks, gpuev1alpha1.ValidationCheck{
+					Type:    "ConfigurationMatch",
+					Name:    "Node Labeller image matches spec",
+					Passed:  true,
+					Message: fmt.Sprintf("Image matches: %s", expectedImage),
+				})
+			}
+		}
+	}
+
+	// Check 4: ImagePullPolicy matches spec
+	if devConfig.Spec.DevicePlugin.NodeLabellerImagePullPolicy != "" {
+		if len(ds.Spec.Template.Spec.Containers) > 0 {
+			actualPolicy := string(ds.Spec.Template.Spec.Containers[0].ImagePullPolicy)
+			expectedPolicy := devConfig.Spec.DevicePlugin.NodeLabellerImagePullPolicy
+
+			if actualPolicy != expectedPolicy {
+				result.Status = "warning"
+				result.Checks = append(result.Checks, gpuev1alpha1.ValidationCheck{
+					Type:          "ConfigurationMatch",
+					Name:          "ImagePullPolicy matches spec",
+					Passed:        false,
+					Message:       "ImagePullPolicy drift detected",
+					ExpectedValue: expectedPolicy,
+					ActualValue:   actualPolicy,
+				})
+			} else {
+				result.Checks = append(result.Checks, gpuev1alpha1.ValidationCheck{
+					Type:    "ConfigurationMatch",
+					Name:    "ImagePullPolicy matches spec",
+					Passed:  true,
+					Message: fmt.Sprintf("ImagePullPolicy matches: %s", expectedPolicy),
+				})
+			}
+		}
+	}
+
+	// Check 5: Pod-level issues (image pull errors, crashes)
+	labelSelector := map[string]string{
+		"app": fmt.Sprintf("%s-node-labeller", devConfig.Name),
+	}
+	podIssues := checkPodsForImagePullErrors(ctx, k8sClient, devConfig.Namespace, labelSelector)
+	if len(podIssues) > 0 {
+		result.Status = "failed"
+		for _, issue := range podIssues {
+			result.Checks = append(result.Checks, gpuev1alpha1.ValidationCheck{
+				Type:    "PodHealth",
+				Name:    fmt.Sprintf("Pod %s container health", issue.PodName),
+				Passed:  false,
+				Message: fmt.Sprintf("Container %s: %s", issue.ContainerName, issue.Reason),
+				Details: issue.Message,
+			})
+		}
+	}
+
+	// Check 6: Verify node labels are being applied
+	nodeList := &corev1.NodeList{}
+	listOpts := []client.ListOption{
+		client.MatchingLabels(map[string]string{
+			"feature.node.kubernetes.io/amd-gpu": "true",
+		}),
+	}
+
+	if err := k8sClient.List(ctx, nodeList, listOpts...); err == nil {
+		if len(nodeList.Items) > 0 {
+			// Check if nodes have AMD GPU labels applied by node labeller
+			labeledNodes := 0
+			for _, node := range nodeList.Items {
+				// Check for common node labeller labels
+				if _, hasDriverVersion := node.Labels["amd.com/gpu.driver-version"]; hasDriverVersion {
+					labeledNodes++
+				} else if _, hasGpuFamily := node.Labels["amd.com/gpu.family"]; hasGpuFamily {
+					labeledNodes++
+				}
+			}
+
+			if labeledNodes == 0 && ds.Status.NumberReady > 0 {
+				result.Status = "warning"
+				result.Checks = append(result.Checks, gpuev1alpha1.ValidationCheck{
+					Type:    "LabelApplication",
+					Name:    "Node labeller applying labels",
+					Passed:  false,
+					Message: fmt.Sprintf("No AMD GPU labels found on %d GPU nodes", len(nodeList.Items)),
+					Details: "Node labeller DaemonSet is running but labels are not being applied. Check pod logs for errors.",
+				})
+			} else if labeledNodes > 0 {
+				result.Checks = append(result.Checks, gpuev1alpha1.ValidationCheck{
+					Type:    "LabelApplication",
+					Name:    "Node labeller applying labels",
+					Passed:  true,
+					Message: fmt.Sprintf("AMD GPU labels found on %d/%d nodes", labeledNodes, len(nodeList.Items)),
+				})
+			}
+		} else {
+			// No GPU nodes found
+			result.Checks = append(result.Checks, gpuev1alpha1.ValidationCheck{
+				Type:    "LabelApplication",
+				Name:    "GPU nodes present",
+				Passed:  false,
+				Message: "No nodes with AMD GPU label found",
+				Details: "Ensure NFD is running and detecting AMD GPUs, or nodes are manually labeled",
+			})
+		}
+	}
+
+	return result
+}

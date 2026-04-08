@@ -203,6 +203,8 @@ func (r *DeviceConfigReconciler) init(ctx context.Context) {
 //+kubebuilder:rbac:groups=core,resources=pods/eviction,verbs=delete;get;list;create
 //+kubebuilder:rbac:groups=apiextensions.k8s.io,resources=customresourcedefinitions,verbs=get;list;watch;delete
 //+kubebuilder:rbac:groups=monitoring.coreos.com,resources=servicemonitors,verbs=get;list;watch;create;update;patch;delete
+//+kubebuilder:rbac:groups=batch,resources=jobs,verbs=create;delete;get;list;watch
+//+kubebuilder:rbac:groups=batch,resources=jobs/status,verbs=get;list;watch
 
 func (r *DeviceConfigReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	res := ctrl.Result{}
@@ -352,6 +354,13 @@ func (r *DeviceConfigReconciler) Reconcile(ctx context.Context, req ctrl.Request
 		return finalRes, fmt.Errorf("failed to update status for DeviceConfig %s: %v", req.NamespacedName, err)
 	}
 
+	// Handle cluster validation annotation (if present)
+	logger.Info("checking for validation annotation")
+	if err := r.helper.handleValidationAnnotation(ctx, devConfig); err != nil {
+		logger.Error(err, "failed to handle validation annotation")
+		// Don't fail the reconciliation - validation is optional
+	}
+
 	// Update nodeAssignments after DeviceConfig status update
 	r.helper.updateNodeAssignments(req.NamespacedName.String(), nodes, false)
 
@@ -387,6 +396,7 @@ type deviceConfigReconcilerHelperAPI interface {
 	validateDeviceConfig(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig) []string
 	handleModuleUpgrade(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig, nodes *v1.NodeList, delete bool) (ctrl.Result, error)
 	shouldReconcile(ctx context.Context, ugpgradeRes, remediationRes ctrl.Result) ctrl.Result
+	handleValidationAnnotation(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig) error
 }
 
 type deviceConfigReconcilerHelper struct {

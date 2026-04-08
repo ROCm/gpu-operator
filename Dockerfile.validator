@@ -1,0 +1,27 @@
+# Build stage
+FROM golang:1.22 AS builder
+ARG TARGETOS
+ARG TARGETARCH
+
+WORKDIR /workspace
+
+# Copy go mod files
+COPY go.mod go.sum ./
+RUN go mod download
+
+# Copy source code
+COPY api/ api/
+COPY cmd/validator/ cmd/validator/
+COPY internal/validator/ internal/validator/
+
+# Build validator binary
+RUN CGO_ENABLED=0 GOOS=${TARGETOS:-linux} GOARCH=${TARGETARCH} \
+    go build -a -o validator ./cmd/validator
+
+# Final stage
+FROM gcr.io/distroless/static:nonroot
+WORKDIR /
+COPY --from=builder /workspace/validator .
+USER 65532:65532
+
+ENTRYPOINT ["/validator"]

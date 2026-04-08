@@ -132,6 +132,24 @@ rules:
   - update
   - watch
 - apiGroups:
+  - batch
+  resources:
+  - jobs
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - watch
+- apiGroups:
+  - batch
+  resources:
+  - jobs/status
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
   - kmm.sigs.x-k8s.io
   resources:
   - modules

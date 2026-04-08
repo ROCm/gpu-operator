@@ -1799,6 +1799,89 @@ spec:
                         type: string
                     type: object
                 type: object
+              validation:
+                description: validation
+                properties:
+                  activeDeadlineSeconds:
+                    default: 600
+                    description: 'ActiveDeadlineSeconds - max validation time before
+                      Job is killed (default: 600s / 10min)'
+                    format: int64
+                    minimum: 1
+                    type: integer
+                  image:
+                    description: Image is the validator container image
+                    pattern: ^([a-z0-9]+(?:[._-][a-z0-9]+)*(:[0-9]+)?)(/[a-z0-9]+(?:[._-][a-z0-9]+)*)*(?::[a-z0-9._-]+)?(?:@[a-zA-Z0-9]+:[a-f0-9]+)?$
+                    type: string
+                  imagePullPolicy:
+                    description: ImagePullPolicy for validator image
+                    enum:
+                    - Always
+                    - IfNotPresent
+                    - Never
+                    type: string
+                  imageRegistrySecret:
+                    description: ImageRegistrySecret for pulling validator image from
+                      private registry
+                    properties:
+                      name:
+                        default: ""
+                        description: |-
+                          Name of the referent.
+                          This field is effectively required, but due to backwards compatibility is
+                          allowed to be empty. Instances of this type with an empty value here are
+                          almost certainly wrong.
+                          More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                        type: string
+                    type: object
+                    x-kubernetes-map-type: atomic
+                  tolerations:
+                    description: Tolerations for validator Job pods
+                    items:
+                      description: |-
+                        The pod this Toleration is attached to tolerates any taint that matches
+                        the triple <key,value,effect> using the matching operator <operator>.
+                      properties:
+                        effect:
+                          description: |-
+                            Effect indicates the taint effect to match. Empty means match all taint effects.
+                            When specified, allowed values are NoSchedule, PreferNoSchedule and NoExecute.
+                          type: string
+                        key:
+                          description: |-
+                            Key is the taint key that the toleration applies to. Empty means match all taint keys.
+                            If the key is empty, operator must be Exists; this combination means to match all values and all keys.
+                          type: string
+                        operator:
+                          description: |-
+                            Operator represents a key's relationship to the value.
+                            Valid operators are Exists and Equal. Defaults to Equal.
+                            Exists is equivalent to wildcard for value, so that a pod can
+                            tolerate all taints of a particular category.
+                          type: string
+                        tolerationSeconds:
+                          description: |-
+                            TolerationSeconds represents the period of time the toleration (which must be
+                            of effect NoExecute, otherwise this field is ignored) tolerates the taint. By default,
+                            it is not set, which means tolerate the taint forever (do not evict). Zero and
+                            negative values will be treated as 0 (evict immediately) by the system.
+                          format: int64
+                          type: integer
+                        value:
+                          description: |-
+                            Value is the taint value the toleration matches to.
+                            If the operator is Exists, the value should be empty, otherwise just a regular string.
+                          type: string
+                      type: object
+                    type: array
+                  ttlSecondsAfterFinished:
+                    default: 1800
+                    description: 'TTLSecondsAfterFinished - how long to keep Job after
+                      completion (default: 1800s / 30min)'
+                    format: int32
+                    minimum: 0
+                    type: integer
+                type: object
             type: object
           status:
             description: DeviceConfigStatus defines the observed state of Module.
@@ -1977,6 +2060,131 @@ spec:
                       selector
                     format: int32
                     type: integer
+                type: object
+              validation:
+                description: Validation contains the status of cluster validation
+                properties:
+                  completedAt:
+                    description: CompletedAt timestamp when validation Job completed
+                    format: date-time
+                    type: string
+                  components:
+                    description: Components - per-component validation results
+                    items:
+                      description: ComponentValidationResult contains validation results
+                        for a single component
+                      properties:
+                        checks:
+                          description: Checks performed on this component
+                          items:
+                            description: ValidationCheck represents a single validation
+                              check with detailed results
+                            properties:
+                              actualValue:
+                                description: ActualValue shows what was actually found
+                                  (for ConfigurationMatch checks)
+                                type: string
+                              details:
+                                description: Details provides additional diagnostic
+                                  information for failed checks
+                                type: string
+                              expectedValue:
+                                description: ExpectedValue shows what was expected
+                                  (for ConfigurationMatch checks)
+                                type: string
+                              message:
+                                description: Message provides a summary of the check
+                                  result
+                                type: string
+                              name:
+                                description: Name is a human-readable identifier for
+                                  this specific check
+                                type: string
+                              passed:
+                                description: Passed indicates whether the check passed
+                                type: boolean
+                              type:
+                                description: |-
+                                  Type of validation check performed
+                                  ResourceExistence: validates that required Kubernetes resources exist (DaemonSet, Deployment, ConfigMaps, Secrets, Services)
+                                  ConfigurationMatch: validates that actual configuration matches DeviceConfig spec (images, tolerations, node selectors, resources, args)
+                                  DeploymentHealth: validates deployment health (pod status, readiness, events)
+                                  NodeCoverage: validates node-specific aspects (node coverage, driver status, node labels, GPU resources, kernel modules)
+                                  MutualExclusion: validates that mutually exclusive components are not both enabled (DevicePlugin vs DRADriver)
+                                  DependencyCheck: validates that required external dependencies are installed (NFD, KMM, Argo Workflows)
+                                enum:
+                                - ResourceExistence
+                                - ConfigurationMatch
+                                - DeploymentHealth
+                                - NodeCoverage
+                                - MutualExclusion
+                                - DependencyCheck
+                                type: string
+                            required:
+                            - name
+                            - passed
+                            - type
+                            type: object
+                          type: array
+                        name:
+                          description: Name of the component being validated
+                          enum:
+                          - DeviceConfig
+                          - Driver
+                          - DevicePlugin
+                          - DRADriver
+                          - MetricsExporter
+                          - ConfigManager
+                          - TestRunner
+                          - RemediationWorkflow
+                          - Dependencies
+                          type: string
+                        status:
+                          description: Status of the component validation
+                          enum:
+                          - healthy
+                          - degraded
+                          - warning
+                          - failed
+                          type: string
+                      required:
+                      - name
+                      - status
+                      type: object
+                    type: array
+                  jobName:
+                    description: JobName - validation Job name for log access
+                    type: string
+                  overallStatus:
+                    description: OverallStatus - aggregated health status across all
+                      components
+                    enum:
+                    - healthy
+                    - degraded
+                    - warning
+                    - failed
+                    type: string
+                  recommendations:
+                    description: Recommendations - actionable next steps based on
+                      validation findings
+                    items:
+                      type: string
+                    type: array
+                  requestedAt:
+                    description: RequestedAt - annotation value that triggered this
+                      validation
+                    type: string
+                  startedAt:
+                    description: StartedAt timestamp when validation Job started
+                    format: date-time
+                    type: string
+                  state:
+                    description: State - current state of validation
+                    enum:
+                    - InProgress
+                    - Completed
+                    - Failed
+                    type: string
                 type: object
             type: object
         type: object
