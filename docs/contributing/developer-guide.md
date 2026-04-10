@@ -99,6 +99,73 @@ To run e2e test only:
 make -C tests/e2e # run e2e tests only
 ```
 
+## GPU Operator E2E Tests
+
+The `tests/k8s-e2e/` directory contains an e2e test suite that installs the GPU Operator via Helm and verifies metrics and health. Tests run against a live Kubernetes cluster.
+
+### Prerequisites
+
+- A running Kubernetes cluster with at least one AMD GPU node
+- `kubectl` configured (`~/.kube/config` or a custom kubeconfig)
+- Docker (to build the test runner image)
+
+### Test runner image
+
+```bash
+docker build -t gpu-op-k8s-e2e:latest -f tests/k8s-e2e/Dockerfile.e2e tests/k8s-e2e/
+```
+
+### Running tests
+
+#### Full install + verify + teardown
+
+Pass the helm chart as a local directory path (the `helm-charts-k8s/` directory in the repository root) or an OCI/repo reference if publishing to a registry:
+
+```bash
+docker run --rm \
+  -v /path/to/kubeconfig:/kubeconfig:ro \
+  -v /path/to/gpu-operator/helm-charts-k8s:/helm-charts:ro \
+  gpu-op-k8s-e2e:latest \
+  -kubeconfig /kubeconfig \
+  -operatorchart /helm-charts \
+  -operatortag v1.5.0 \
+  -test.timeout 60m
+```
+
+#### Verify only (pre-deployed cluster)
+
+```bash
+docker run --rm -v /path/to/kubeconfig:/kubeconfig:ro \
+  gpu-op-k8s-e2e:latest \
+  -kubeconfig /kubeconfig -existing \
+  -check.f 'TestOp010|TestOp020|TestOp030|TestOp040|TestOp050|TestOp060|TestOp065|TestOp070' \
+  -test.timeout 30m
+```
+
+#### Using make
+
+```bash
+# Full install+verify+teardown
+make -C tests/k8s-e2e all KUBECONFIG=/path/to/kubeconfig OPERATOR_TAG=v1.5.0
+
+# Verify only (pre-deployed)
+make -C tests/k8s-e2e verify KUBECONFIG=/path/to/kubeconfig
+```
+
+### Common flags
+
+| Flag | Default | Description |
+| --- | --- | --- |
+| `-kubeconfig` | `~/.kube/config` | Path to kubeconfig |
+| `-operatorchart` | OCI registry chart | GPU Operator helm chart (OCI ref or local path) |
+| `-operatortag` | `v1.4.1` | GPU Operator chart version |
+| `-namespace` | `kube-amd-gpu` | Kubernetes namespace |
+| `-existing` | `false` | Skip install/teardown — verify only against pre-deployed cluster |
+| `-noteardown` | `false` | Skip teardown after tests (leave operator installed) |
+| `-helmset` | _(none)_ | Extra helm `--set` override (repeatable) |
+| `-check.f` | _(all)_ | Regex filter for test names (gocheck syntax) |
+| `-test.timeout` | `30m` | Overall test timeout |
+
 ## Creating a Pull Request
 
 1. Fork the repository on GitHub.

@@ -2,6 +2,14 @@
   "globs": ["**/*.md"],
   "ignores": [
     "**/vendor/**",
-    "**/.git/**"
+    "**/.git/**",
+    "**/ci-internal/**",
+    "**/docs/cicd/**",
+    "**/tests/e2e/**",
+    "**/helm-charts-k8s/README.md",
+    "**/internal-example/**",
+    "**/.claude/**",
+    "**/tests/pytests/**",
+    "**/knowledge/**"
   ]
 }
