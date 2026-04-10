@@ -141,6 +141,14 @@ type RemediationWorkflowSpec struct {
 	//+operator-sdk:csv:customresourcedefinitions:type=spec,displayName="AutoStartWorkflow",xDescriptors={"urn:alm:descriptor:com.amd.deviceconfigs:autoStartWorkflow"}
 	// +kubebuilder:default:=true
 	AutoStartWorkflow *bool `json:"autoStartWorkflow,omitempty"`
+
+	// ConfigMapImage specifies a container image that contains the remediation
+	// ConfigMap. When set, the operator runs a Job from this image to apply
+	// the ConfigMap to the cluster before the remediation workflow proceeds.
+	//+operator-sdk:csv:customresourcedefinitions:type=spec,displayName="ConfigMapImage",xDescriptors={"urn:alm:descriptor:com.amd.deviceconfigs:configMapImage"}
+	// +optional
+	// +kubebuilder:validation:Pattern=`^([a-z0-9]+(?:[._-][a-z0-9]+)*(:[0-9]+)?)(/[a-z0-9]+(?:[._-][a-z0-9]+)*)*(?::[a-z0-9._-]+)?(?:@[a-zA-Z0-9]+:[a-f0-9]+)?$`
+	ConfigMapImage string `json:"configMapImage,omitempty"`
 }
 
 type RegistryTLS struct {

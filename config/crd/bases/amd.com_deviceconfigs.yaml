@@ -1551,6 +1551,13 @@ spec:
                         type: string
                     type: object
                     x-kubernetes-map-type: atomic
+                  configMapImage:
+                    description: |-
+                      ConfigMapImage specifies a container image that contains the remediation
+                      ConfigMap. When set, the operator runs a Job from this image to apply
+                      the ConfigMap to the cluster before the remediation workflow proceeds.
+                    pattern: ^([a-z0-9]+(?:[._-][a-z0-9]+)*(:[0-9]+)?)(/[a-z0-9]+(?:[._-][a-z0-9]+)*)*(?::[a-z0-9._-]+)?(?:@[a-zA-Z0-9]+:[a-f0-9]+)?$
+                    type: string
                   enable:
                     description: |-
                       enable remediation workflows. disabled by default

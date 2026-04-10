@@ -527,6 +527,9 @@ spec:
     autoStartWorkflow: {{ .autoStartWorkflow }}
     {{- end }}
 
+    {{- with .configMapImage }}
+    configMapImage: {{ . }}
+    {{- end }}
   {{- end }}
 
 {{- end }}

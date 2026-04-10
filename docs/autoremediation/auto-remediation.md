@@ -225,6 +225,11 @@ remediationWorkflow:
   # This field gives users more control and flexibility on when to start the remediation workflow.
   # Default value is set to true if not specified and the remediation workflow automatically starts when the node condition matches.
   autoStartWorkflow: true
+
+  # ConfigMapImage specifies a container image that contains the remediation
+  # ConfigMap. When set, the operator runs a Job using this image to apply
+  # the ConfigMap to the cluster before the remediation workflow proceeds.
+  configMapImage: yourregistry/configmap-image:version
 ```
 
 **Enable** - Controls whether automatic node remediation is enabled. Set this field to `true` to activate the auto-remediation feature in the cluster.
@@ -283,9 +288,15 @@ The GPU Operator automatically applies this toleration to internal components su
 
 ## Remediation Workflow ConfigMap
 
-The AMD GPU Operator comes with a default ConfigMap named `default-conditional-workflow-mappings` that is embedded in the operator code. This ConfigMap is derived by parsing the latest AMD Service Action Guide (SAG) JSON offline and translating it into error-to-workflow mappings.
+The remediation ConfigMap defines error-to-workflow mappings. The default ConfigMap is derived from the AMD Service Action Guide (SAG). Each entry maps a unique error code (AFID) to a remediation workflow, specifying the Argo Workflow template to run and any workflow-specific parameters. For details on AFID values and event lists, see the [AMD Instinct AFID Event List documentation](https://docs.amd.com/r/en-US/AMD_Field_ID_70122_v1.0/AFID-Event-List).
 
-Each entry in the ConfigMap maps a unique error code (AFID) to its remediation workflow, specifying the Argo Workflow template to run and any workflow-specific parameters. The default ConfigMap covers all node conditions managed by the Operator and is available in the [GPU Operator repository](https://github.com/ROCm/gpu-operator/blob/main/internal/controllers/remediation/configs/default-configmap.yaml). For details on AFID values and event lists, see the [AMD Instinct AFID Event List documentation](https://docs.amd.com/r/en-US/AMD_Field_ID_70122_v1.0/AFID-Event-List).
+The ConfigMap can be provided in one of the following ways:
+
+1. **ConfigMap Image (recommended)** - Set `spec.remediationWorkflow.configMapImage` in the DeviceConfig to reference a container image that packages the ConfigMap. The operator runs a Job from this image to create the ConfigMap in the cluster. This decouples the SAG version from the operator version, allowing the ConfigMap to be updated independently.
+
+2. **User-created ConfigMap** - Create a ConfigMap manually and reference it via `spec.remediationWorkflow.config.name` in the DeviceConfig. The operator will use the referenced ConfigMap as-is and will not modify or delete it during cleanup.
+
+> **Note:** If neither `configMapImage` nor `config` is specified, the operator will not create a default ConfigMap and remediation will not proceed until one is provided.
 
 ### Example Error Mapping Section
 
@@ -295,9 +306,10 @@ The following example demonstrates a complete error mapping configuration:
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: auto-remediation-custom-config
-  namespace: kube-amd-gpu
+  name: <CM_NAME>
+  namespace: <CM_NAMESPACE>
 data:
+  Version: 0.9.0
   workflow: |
     - nodeCondition: AMDGPUXgmi
       workflowTemplate: default-template
@@ -308,8 +320,18 @@ data:
         stopOnFailure: true
         timeoutSeconds: 4800
       physicalActionNeeded: true
-      notifyRemediationMessage: Remove GPU tray from node.Confirm that all four screws on all eight OAMs are torqued as described in OAM Removal and Installation guideRe-install the GPU tray into node.
-      notifyTestFailureMessage: 'Remove the failing UBB assembly and return to AMD, along with the relevant failure details: at a minimum this should be the RF event that indicated the original fail, and if that RF event includes an additional data URI, the CPER and/or the decoded JSON from the CPER as pointed by the additional data.Install a new or known-good UBB assembly to the GPU tray.'
+      notifyRemediationMessage: >-
+        Remove GPU tray from node.
+        Confirm that all four screws on all eight OAMs are torqued
+        as described in OAM Removal and Installation guide.
+        Re-install the GPU tray into node.
+      notifyTestFailureMessage: >-
+        Remove the failing UBB assembly and return to AMD, along with the
+        relevant failure details: at a minimum this should be the RF event
+        that indicated the original fail, and if that RF event includes an
+        additional data URI, the CPER and/or the decoded JSON from the CPER
+        as pointed by the additional data. Install a new or known-good UBB
+        assembly to the GPU tray.
       recoveryPolicy:
         maxAllowedRunsPerWindow: 3
         windowSize: 15m

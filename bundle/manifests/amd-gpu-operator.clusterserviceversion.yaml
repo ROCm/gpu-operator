@@ -821,6 +821,13 @@ spec:
         path: remediationWorkflow.config
         x-descriptors:
         - urn:alm:descriptor:com.amd.deviceconfigs:config
+      - description: ConfigMapImage specifies a container image that contains the
+          remediation ConfigMap. When set, the operator runs a Job from this image
+          to apply the ConfigMap to the cluster before the remediation workflow proceeds.
+        displayName: ConfigMapImage
+        path: remediationWorkflow.configMapImage
+        x-descriptors:
+        - urn:alm:descriptor:com.amd.deviceconfigs:configMapImage
       - description: enable remediation workflows. disabled by default enable if operator
           should automatically handle remediation of node incase of gpu issues
         displayName: Enable

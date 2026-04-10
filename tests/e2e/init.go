@@ -37,6 +37,7 @@ var (
 	kubeVirtHostDevicePluginImage string
 	kubeVirtHostNodeLabellerImage string
 	utilsContainerImage           string
+	anrConfigMapImage             string
 	draDriverImage                string
 	draDriverImageDefined         bool
 )
@@ -103,6 +104,10 @@ func init() {
 	utilsContainerImage, ok = os.LookupEnv("E2E_UTILS_CONTAINER_IMAGE")
 	if !ok {
 		log.Fatalf("E2E_UTILS_CONTAINER_IMAGE is not defined.")
+	}
+	anrConfigMapImage, ok = os.LookupEnv("E2E_ANR_CONFIGMAP_IMAGE")
+	if !ok {
+		log.Fatalf("E2E_ANR_CONFIGMAP_IMAGE is not defined.")
 	}
 	draDriverImage, draDriverImageDefined = os.LookupEnv("E2E_DRA_DRIVER_IMAGE")
 }

@@ -50,6 +50,7 @@ import (
 
 	workflowv1alpha1 "github.com/argoproj/argo-workflows/v4/pkg/apis/workflow/v1alpha1"
 	appsv1 "k8s.io/api/apps/v1"
+	batchv1 "k8s.io/api/batch/v1"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -88,6 +89,8 @@ const (
 	AbortWorkflowLabelValue         = "true"
 	RemediationFilesPath            = "/remediation"
 	DefaultInitContainerImage       = "busybox:1.36"
+	ConfigMapImageJobSuffix         = "remediation-configmap-job"
+	ConfigMapImageAnnotationKey     = "operator.amd.com/configmap-source-image"
 	ArgoWorkflowControllerConfigMap = "amd-gpu-operator-workflow-controller-config"
 	ArgoWorkflowInstaceIDLabelKey   = "workflows.argoproj.io/controller-instanceid"
 	ArgoWorkflowInstaceIDLabelValue = "amd-gpu-operator-remediation-workflow"
@@ -156,13 +159,34 @@ func (n *remediationMgr) HandleRemediation(ctx context.Context, devConfig *amdv1
 		return ctrl.Result{}, nil
 	}
 
+	//if user provided a custom configmap, validate it
 	if err := n.helper.validateUserConfigMap(ctx, devConfig); err != nil {
 		logger.Error(err, "User provided configmap validation failed, skipping remediation")
 		return res, err
 	}
 
-	var configMap *v1.ConfigMap
-	if configMap, err = n.helper.createDefaultObjects(ctx, devConfig); err != nil {
+	//if user did not provide a custom configmap, create a default one from the config image
+	if devConfig.Spec.RemediationWorkflow.Config == nil || devConfig.Spec.RemediationWorkflow.Config.Name == "" {
+		if result, err := n.helper.createConfigMapFromImage(ctx, devConfig); err != nil {
+			return res, err
+		} else if result.Requeue {
+			return result, nil
+		}
+	}
+
+	if err := n.helper.createDefaultObjects(ctx, devConfig); err != nil {
+		return res, err
+	}
+
+	var cfgMapName string
+	if devConfig.Spec.RemediationWorkflow.Config != nil {
+		cfgMapName = devConfig.Spec.RemediationWorkflow.Config.Name
+	} else {
+		cfgMapName = devConfig.Name + "-" + DefaultConfigMapSuffix
+	}
+	configMap, err := n.helper.getConfigMap(ctx, cfgMapName, devConfig.Namespace)
+	if err != nil {
+		logger.Error(err, "Failed to get remediation ConfigMap", "name", cfgMapName)
 		return res, err
 	}
 
@@ -306,9 +330,8 @@ type remediationMgrHelperAPI interface {
 	getWorkflowTemplate(ctx context.Context, workflowTemplateName, namespace string) (*workflowv1alpha1.WorkflowTemplate, error)
 	getConfigMap(ctx context.Context, configmapName string, namespace string) (*v1.ConfigMap, error)
 	deleteConfigMap(ctx context.Context, name, namespace string) error
-	createDefaultConfigMap(ctx context.Context, name, namespace string) (*v1.ConfigMap, error)
 	createDefaultWorkflowTemplate(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig) (*workflowv1alpha1.WorkflowTemplate, error)
-	createDefaultObjects(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig) (*v1.ConfigMap, error)
+	createDefaultObjects(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig) error
 	populateWorkflow(ctx context.Context, wfTemplate *workflowv1alpha1.WorkflowTemplate, mapping *ConditionWorkflowMapping, nodeName string, devCfg *amdv1alpha1.DeviceConfig) *workflowv1alpha1.Workflow
 	createWorkflow(ctx context.Context, workflow *workflowv1alpha1.Workflow) error
 	deleteWorkflow(ctx context.Context, workflow *workflowv1alpha1.Workflow) error
@@ -350,6 +373,7 @@ type remediationMgrHelperAPI interface {
 	updateCustomTolerationsOnDeployment(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig, deploymentSelector labels.Selector, tolerations []v1.Toleration) error
 	updateCustomTolerationsOnDaemonset(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig, daemonsetLabelSelector labels.Selector, tolerations []v1.Toleration) error
 	customTaintsChanged(devConfig *amdv1alpha1.DeviceConfig) bool
+	createConfigMapFromImage(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig) (ctrl.Result, error)
 }
 
 type remediationMgrHelper struct {
@@ -567,39 +591,6 @@ func (h *remediationMgrHelper) getConfigMap(ctx context.Context, configmapName s
 		Namespace: namespace,
 	}, cm)
 	return cm, err
-}
-
-func (h *remediationMgrHelper) createDefaultConfigMap(ctx context.Context, name string, namespace string) (*v1.ConfigMap, error) {
-	logger := log.FromContext(ctx)
-
-	yamlBytes, err := os.ReadFile(filepath.Join(RemediationFilesPath, "configs/default-configmap.yaml"))
-	if err != nil {
-		logger.Error(err, "Failed to read default remediation workflows file")
-		return nil, err
-	}
-
-	workflowYaml := string(yamlBytes)
-
-	defaultCfgMap := &v1.ConfigMap{
-		TypeMeta: metav1.TypeMeta{
-			Kind:       "ConfigMap",
-			APIVersion: "v1",
-		},
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      name,
-			Namespace: namespace,
-		},
-		Data: map[string]string{
-			"workflow": workflowYaml,
-		},
-	}
-
-	err = h.client.Create(ctx, defaultCfgMap)
-	if err != nil {
-		logger.Error(err, "Failed to create default remediation configmap")
-		return nil, err
-	}
-	return defaultCfgMap, nil
 }
 
 func (h *remediationMgrHelper) deleteConfigMap(ctx context.Context, name, namespace string) error {
@@ -1000,38 +991,16 @@ containers:
 	return template, nil
 }
 
-func (h *remediationMgrHelper) createDefaultObjects(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig) (*v1.ConfigMap, error) {
+func (h *remediationMgrHelper) createDefaultObjects(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig) error {
 
 	logger := log.FromContext(ctx)
-	var cfgMapName string
-	if devConfig.Spec.RemediationWorkflow.Config != nil {
-		cfgMapName = devConfig.Spec.RemediationWorkflow.Config.Name
-	} else {
-		cfgMapName = devConfig.Name + "-" + DefaultConfigMapSuffix
-	}
-	// Create default configmap if required
-	cm, err := h.getConfigMap(ctx, cfgMapName, devConfig.Namespace)
-	if err != nil {
-		if devConfig.Spec.RemediationWorkflow.Config == nil {
-			cm, err = h.createDefaultConfigMap(ctx, cfgMapName, devConfig.Namespace)
-			if err != nil {
-				logger.Error(err, "Failed to create default configmap")
-				return nil, err
-			}
-			logger.Info("Created default configmap successfully")
-		} else {
-			logger.Error(err, fmt.Sprintf("Configmap: %s not found", cfgMapName))
-			return nil, err
-		}
-	}
-
 	// Create Default WorkflowTemplate if required
-	_, err = h.getWorkflowTemplate(ctx, DefaultTemplate, devConfig.Namespace)
+	_, err := h.getWorkflowTemplate(ctx, DefaultTemplate, devConfig.Namespace)
 	if err != nil {
 		logger.Error(err, fmt.Sprintf("Failed to fetch WorkflowTemplate %s", DefaultTemplate))
 		if _, err = h.createDefaultWorkflowTemplate(ctx, devConfig); err != nil {
 			logger.Error(err, "Failed to create default workflow template")
-			return nil, err
+			return err
 		}
 		logger.Info("Created default workflow template successfully")
 	}
@@ -1042,12 +1011,12 @@ func (h *remediationMgrHelper) createDefaultObjects(ctx context.Context, devConf
 		logger.Error(err, fmt.Sprintf("Failed to fetch RemediationWorkflowStatus %s", "default"))
 		if _, err = h.createRemediationWorkflowStatus(ctx, devConfig.Namespace); err != nil {
 			logger.Error(err, "Failed to create default remediation workflow status")
-			return nil, err
+			return err
 		}
 		logger.Info("Created default remediation workflow status successfully")
 	}
 
-	return cm, nil
+	return nil
 }
 
 func (h *remediationMgrHelper) updateMaxParallelWorkflows(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig) error {

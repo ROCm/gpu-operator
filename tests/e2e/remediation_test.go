@@ -93,12 +93,11 @@ func (s *E2ESuite) isWorkflowSuspended(c *C, nodeName string) bool {
 }
 
 func (s *E2ESuite) populateDeviceConfig(c *C) *v1alpha1.DeviceConfig {
-	driverEnable := false
 	remediationEnable := true
 	devCfg := s.getDeviceConfig(c)
-	devCfg.Spec.Driver.Enable = &driverEnable
 	devCfg.Spec.RemediationWorkflow.Enable = &remediationEnable
 	devCfg.Spec.RemediationWorkflow.TesterImage = agfhcTestRunnerImage
+	devCfg.Spec.RemediationWorkflow.ConfigMapImage = anrConfigMapImage
 	devCfg.Spec.MetricsExporter.Enable = &remediationEnable
 	devCfg.Spec.MetricsExporter.Image = exporterMockImage
 	devCfg.Spec.MetricsExporter.ImagePullPolicy = "Always"
