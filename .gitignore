@@ -23,3 +23,11 @@ ci-internal/*
 devops/*
 tests/jobs/*
 tests/pytests/*
+
+.cline_storage
+.vscode
+branch_policy.yml
+tools-internal/*
+CLAUDE.md
+.claude/*
+.copilot/*
