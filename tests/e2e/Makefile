@@ -18,6 +18,7 @@ E2E_TEST_RUNNER_IMAGE ?= rocm/test-runner:v1.4.0
 E2E_KUBEVIRT_DEVICE_PLUGIN_IMAGE ?= rocm/k8s-device-plugin:latest
 E2E_KUBEVIRT_NODE_LABELLER_IMAGE ?= rocm/k8s-device-plugin:labeller-latest
 E2E_UTILS_CONTAINER_IMAGE ?= docker.io/rocm/gpu-operator-utils:v1.4.0
+E2E_ANR_CONFIGMAP_IMAGE ?= docker.io/rocm/amd-gpu-operator-remediation-config-utils:latest
 E2E_NODE_DIAG_IMAGE ?= busybox:1.36
 E2E_DRA_DRIVER_IMAGE ?= rocm/k8s-gpu-dra-driver:latest
 
@@ -38,6 +39,7 @@ export E2E_AGFHC_TEST_RUNNER_IMAGE
 export E2E_KUBEVIRT_DEVICE_PLUGIN_IMAGE
 export E2E_KUBEVIRT_NODE_LABELLER_IMAGE
 export E2E_UTILS_CONTAINER_IMAGE
+export E2E_ANR_CONFIGMAP_IMAGE
 export E2E_NODE_DIAG_IMAGE
 export E2E_DRA_DRIVER_IMAGE
 
