@@ -15,7 +15,7 @@ Users could prepare pre-compiled driver images in advance and import them into t
 KMM determines the appropriate driver image based on the combination of:
 
 1. Worker node OS information
-2. Requested ROCm driver version
+2. Requested amdgpu driver version
 
 ### Image Tag Format
 
