@@ -87,6 +87,17 @@ Below is an example of a full DeviceConfig CR that can be used to install the AM
           # NOTE: currently only work for OpenShift cluster
           # NOTE: will be used when spec.driver.useSourceImage is true
           sourceImageRepo: docker.io/rocm/amdgpu-driver
+          # (Optional) packageRepoURL: specify the full URL to the package repository for driver packages
+          # When specified, this overrides the default repo.radeon.com URL construction
+          # This is useful when using custom mirrors or when repo.radeon.com changes structure
+          # Examples:
+          #   Ubuntu: "https://custom-mirror.example.com/amdgpu/30.20.1/ubuntu jammy main"
+          #   CoreOS/RHEL: "https://custom-mirror.example.com/amdgpu/30.20.1/el/9.4/main/x86_64"
+          # packageRepoURL: ""
+          # (Optional) gpgKeyURL: specify the full URL to the GPG key for package verification
+          # When specified, this overrides the default GPG key URL
+          # Example: "https://custom-mirror.example.com/rocm/rocm.gpg.key"
+          # gpgKeyURL: ""
           baseImageRegistryTLS:
             insecure: False # If True, check for the container image using plain HTTP
             insecureSkipTLSVerify: False # If True, skip any TLS server certificate validation (useful for self-signed certificates)

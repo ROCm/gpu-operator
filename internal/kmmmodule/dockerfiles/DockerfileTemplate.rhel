@@ -6,17 +6,29 @@ ARG DRIVERS_VERSION
 
 ARG REPO_URL
 
+ARG PACKAGE_REPO_URL
+
+ARG GPG_KEY_URL
+
 RUN yum update -y
 
 RUN subscription-manager register --username $$REDHAT_SUBSCRIPTION_USERNAME --password $$REDHAT_SUBSCRIPTION_PASSWORD; exit 0
 RUN cat /var/log/rhsm/rhsm.log && \
     echo "[amdgpu]" > /etc/yum.repos.d/amdgpu.repo && \
     echo "name=amdgpu" >> /etc/yum.repos.d/amdgpu.repo && \
-    echo "baseurl=$REPO_URL/amdgpu/$DRIVERS_VERSION/rhel/$$VERSION/main/x86_64/" >> /etc/yum.repos.d/amdgpu.repo && \
+    if [ -n "${PACKAGE_REPO_URL}" ]; then \
+        echo "baseurl=${PACKAGE_REPO_URL}" >> /etc/yum.repos.d/amdgpu.repo; \
+    else \
+        echo "baseurl=$REPO_URL/amdgpu/$DRIVERS_VERSION/rhel/$$VERSION/main/x86_64/" >> /etc/yum.repos.d/amdgpu.repo; \
+    fi && \
     echo "enabled=1" >> /etc/yum.repos.d/amdgpu.repo && \
     echo "priority=50" >> /etc/yum.repos.d/amdgpu.repo && \
     echo "gpgcheck=1" >> /etc/yum.repos.d/amdgpu.repo && \
-    echo "gpgkey=$REPO_URL/rocm/rocm.gpg.key" >> /etc/yum.repos.d/amdgpu.repo
+    if [ -n "${GPG_KEY_URL}" ]; then \
+        echo "gpgkey=${GPG_KEY_URL}" >> /etc/yum.repos.d/amdgpu.repo; \
+    else \
+        echo "gpgkey=$REPO_URL/rocm/rocm.gpg.key" >> /etc/yum.repos.d/amdgpu.repo; \
+    fi
 
 RUN dnf clean all && \
     dnf install -y "kernel-headers-$KERNEL_FULL_VERSION" "kernel-devel-$KERNEL_FULL_VERSION" "kernel-modules-extra-$KERNEL_FULL_VERSION" && \

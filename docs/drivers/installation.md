@@ -140,6 +140,11 @@ spec:
       # NOTE: currently only work for OpenShift cluster
       # NOTE: will be used when spec.driver.useSourceImage is true
       sourceImageRepo: docker.io/rocm/amdgpu-driver
+      # (Optional) packageRepoURL: specify the full URL to override the default package repository
+      # Useful for custom mirrors or when repo.radeon.com structure changes
+      # packageRepoURL: "https://custom-mirror.example.com/amdgpu/30.20.1/ubuntu jammy main"
+      # (Optional) gpgKeyURL: specify the full URL to override the default GPG key
+      # gpgKeyURL: "https://custom-mirror.example.com/rocm/rocm.gpg.key"
       baseImageRegistryTLS:
         insecure: False # If True, check for the container image using plain HTTP
         insecureSkipTLSVerify: False # If True, skip any TLS server certificate validation (useful for self-signed certificates)

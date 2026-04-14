@@ -322,3 +322,40 @@ kubectl create secret docker-registry docker-auth \
 ```
 
 - if you are hosting driver images in DockerHub, you don't need to specify the parameter `--docker-server`
+
+## Using Custom Package Repositories
+
+If you need to use a custom package repository mirror (when `repo.radeon.com` is not accessible or you want to use a different mirror), you can configure custom package repository URLs in your DeviceConfig:
+
+```yaml
+apiVersion: amd.com/v1alpha1
+kind: DeviceConfig
+metadata:
+  name: test-deviceconfig
+  namespace: kube-amd-gpu
+spec:
+  driver:
+    enable: true
+    version: "30.20.1"
+    imageBuild:
+      # Full URL to the package repository (overrides default repo.radeon.com construction)
+      packageRepoURL: "https://custom-mirror.example.com/amdgpu/30.20.1/ubuntu jammy main"
+      # Full URL to the GPG key for package verification
+      gpgKeyURL: "https://custom-mirror.example.com/rocm/rocm.gpg.key"
+```
+
+This is useful when:
+
+- Using a corporate mirror or proxy
+- The default `repo.radeon.com` structure changes
+- Operating in air-gapped environments with local mirrors
+- Using alternative package repositories
+
+The `packageRepoURL` should point to the complete package repository URL:
+
+- **Ubuntu**: `https://your-mirror.com/amdgpu/30.20.1/ubuntu jammy main` (will be used as: `deb [arch=amd64 ...] ${PACKAGE_REPO_URL}`)
+- **RHEL/CoreOS**: `https://your-mirror.com/amdgpu/30.20.1/el/9.4/main/x86_64` (will be used as: `baseurl=${PACKAGE_REPO_URL}`)
+
+The `gpgKeyURL` should point to the GPG key file (e.g., `https://your-mirror.com/rocm/rocm.gpg.key`)
+
+Both fields are optional. If not specified, the operator constructs URLs using the default `repo.radeon.com` scheme.

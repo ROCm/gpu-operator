@@ -125,7 +125,7 @@ The AMD GPU Operator is licensed under the [Apache License 2.0](LICENSE).
 
 ## gpu-operator-charts
 
-![Version: v0.0.1](https://img.shields.io/badge/Version-v0.0.1-informational?style=flat-square) ![Type: application](https://img.shields.io/badge/Type-application-informational?style=flat-square) ![AppVersion: dev](https://img.shields.io/badge/AppVersion-test--img-informational?style=flat-square)
+![Version: v0.0.1](https://img.shields.io/badge/Version-v0.0.1-informational?style=flat-square) ![Type: application](https://img.shields.io/badge/Type-application-informational?style=flat-square) ![AppVersion: dev](https://img.shields.io/badge/AppVersion-dev-informational?style=flat-square)
 
 AMD GPU Operator simplifies the deployment and management of AMD Instinct GPU accelerators within Kubernetes clusters.
 
@@ -207,7 +207,9 @@ Kubernetes: `>= 1.29.0-0`
 | deviceConfig.spec.driver.blacklist | bool | `false` | enable/disable putting a blacklist amdgpu entry in modprobe config, which requires node labeller to run |
 | deviceConfig.spec.driver.enable | bool | `false` | enable/disable out-of-tree driver management, set to false to use inbox driver |
 | deviceConfig.spec.driver.image | string | `"docker.io/myUserName/driverImage"` | image repository to store out-of-tree driver image, DO NOT put image tag since operator automatically manage it for users |
-| deviceConfig.spec.driver.imageBuild | object | `{}` | configure the out-of-tree driver image build within the cluster. e.g. {"baseImageRegistry":"docker.io","baseImageRegistryTLS":{"baseImageRegistry":"docker.io","baseImageRegistryTLS":{"insecure":"false","insecureSkipTLSVerify":"false"}}} |
+| deviceConfig.spec.driver.imageBuild | object | `{"gpgKeyURL":"","packageRepoURL":""}` | configure the out-of-tree driver image build within the cluster. e.g. {"baseImageRegistry":"docker.io","packageRepoURL":"","gpgKeyURL":"","baseImageRegistryTLS":{"insecure":"false","insecureSkipTLSVerify":"false"}} |
+| deviceConfig.spec.driver.imageBuild.gpgKeyURL | string | `""` | Full URL to override the default GPG key location (optional). When specified, overrides the default GPG key URL |
+| deviceConfig.spec.driver.imageBuild.packageRepoURL | string | `""` | Full URL to override the default package repository (optional). When specified, overrides repo.radeon.com URL construction |
 | deviceConfig.spec.driver.imageRegistrySecret | object | `{}` | image pull secret for pull/push access of the driver image repository, input secret name like {"name": "mysecret"} |
 | deviceConfig.spec.driver.imageRegistryTLS.insecure | bool | `false` | set to true to use plain HTTP for driver image repository |
 | deviceConfig.spec.driver.imageRegistryTLS.insecureSkipTLSVerify | bool | `false` | set to true to skip TLS validation for driver image repository |
