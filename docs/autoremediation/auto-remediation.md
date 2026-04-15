@@ -1,6 +1,8 @@
 # Auto Remediation of GPU nodes
 
-The GPU Operator provides automatic remediation for GPU worker nodes that become unhealthy due to GPU-related issues. When such problems are detected, the operator triggers a workflow—a series of automated steps designed to restore the node to a healthy state. This functionality is powered by Argo Workflows, a lightweight and scalable open-source workflow engine for Kubernetes. Through the DeviceConfig Custom Resource, the GPU Operator offers extensive customization options for configuring remediation behavior.
+The GPU Operator provides automatic remediation for GPU worker nodes that become unhealthy due to GPU-related issues. When such problems are detected, the operator triggers a workflow - a series of automated steps designed to restore the node to a healthy state. This functionality is powered by Argo Workflows, a lightweight and scalable open-source workflow engine for Kubernetes. Through the DeviceConfig Custom Resource, the GPU Operator offers extensive customization options for configuring remediation behavior.
+
+> **Note:** The auto node remediation feature currently supports bare metal deployments. Support for VM-based deployments will be coming in the near future.
 
 ## Auto-Remediation Workflow Overview
 
@@ -354,6 +356,12 @@ data:
 **recoveryPolicy** - Defines limits on remediation attempts to prevent excessive recovery cycles. Includes `maxAllowedRunsPerWindow` (maximum retry attempts) and `windowSize` (time window for counting attempts). Once the number of remediation workflows crosses `maxAllowedRunsPerWindow`, no new workflow is triggered for the same node condition within `windowSize`. After the window elapses, if the issue still persists, a new remediation workflow is allowed to start again.
 
 **skipRebootStep** - Controls whether the node reboot step is executed during the remediation workflow. The default workflow template includes an automatic reboot step to reinitialize GPU hardware after performing the recommended remediation actions. Set this field to `true` to skip the reboot step when the node has already been rebooted manually as part of the remediation process or when a reboot is not desired for the specific error condition. Default value is `false`.
+
+## Remediation of Partitioned GPUs
+
+The auto node remediation feature fully supports nodes with partitioned GPUs. When GPUs are partitioned using the Device Config Manager (DCM) with compute and memory partition profiles (e.g., CPX+NPS4), the remediation workflow operates seamlessly on these nodes.
+
+> **Important:** After the remediation workflow completes, the GPU partition profile on the affected node is reset to the default **SPX+NPS1** mode (no partitions). Users must manually re-apply the desired partition profile on the remediated node by following the steps described in the [GPU Partitioning via DCM](../dcm/applying-partition-profiles.rst) documentation.
 
 ## Default Workflow Template
 
