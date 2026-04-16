@@ -63,7 +63,7 @@ func (s *E2ESuite) checkWorkflowExistence(c *C, nodeName string, shouldExist boo
 	}
 	exists := false
 	for _, wf := range wfs.Items {
-		if strings.Contains(wf.Name, nodeName) {
+		if strings.Contains(wf.Name, fmt.Sprintf("%s-%s", nodeName, "default-template")) {
 			exists = true
 			break
 		}
@@ -95,6 +95,7 @@ func (s *E2ESuite) isWorkflowSuspended(c *C, nodeName string) bool {
 func (s *E2ESuite) populateDeviceConfig(c *C) *v1alpha1.DeviceConfig {
 	remediationEnable := true
 	devCfg := s.getDeviceConfig(c)
+	devCfg.Spec.Driver.Enable = &remediationEnable
 	devCfg.Spec.RemediationWorkflow.Enable = &remediationEnable
 	devCfg.Spec.RemediationWorkflow.TesterImage = agfhcTestRunnerImage
 	devCfg.Spec.RemediationWorkflow.ConfigMapImage = anrConfigMapImage
@@ -102,6 +103,7 @@ func (s *E2ESuite) populateDeviceConfig(c *C) *v1alpha1.DeviceConfig {
 	devCfg.Spec.MetricsExporter.Image = exporterMockImage
 	devCfg.Spec.MetricsExporter.ImagePullPolicy = "Always"
 	devCfg.Spec.MetricsExporter.Port = 5000
+	devCfg.Spec.MetricsExporter.SvcType = v1alpha1.ServiceTypeClusterIP
 	devCfg.Spec.CommonConfig.UtilsContainer.Image = utilsContainerImage
 	devCfg.Spec.CommonConfig.UtilsContainer.ImagePullPolicy = "Always"
 	return devCfg
@@ -194,7 +196,7 @@ func (s *E2ESuite) TestAutoNodeRemediationWithoutPhysicalAction(c *C) {
 
 	// Trigger error condition by modifying NPD config
 	logger.Infof("Edit Node Problem Detector (NPD) thresholds to simulate error condition")
-	s.updateConfigForNPD(c, npdInbandRASConfigPath, npdInbandRASErrorConfigPath)
+	s.updateConfigForNPD(c, npdInbandRASConfigPath, npdInband2RASErrorConfigPath)
 
 	s.verifyNodeCondition(c, conditionHWAssertion, corev1.ConditionTrue)
 
@@ -204,7 +206,7 @@ func (s *E2ESuite) TestAutoNodeRemediationWithoutPhysicalAction(c *C) {
 
 	time.Sleep(4 * time.Minute) // wait for workflow to progress
 	logger.Infof("Reverting Node Problem Detector (NPD) thresholds to original configuration")
-	s.updateConfigForNPD(c, npdInbandRASErrorConfigPath, npdInbandRASConfigPath)
+	s.updateConfigForNPD(c, npdInband2RASErrorConfigPath, npdInbandRASConfigPath)
 
 	//verify workflow succeeded
 	logger.Infof("Waiting for remediation workflow to complete on the node %s", nodeName)
@@ -255,7 +257,7 @@ func (s *E2ESuite) TestAutoNodeRemediationWithPhysicalAction(c *C) {
 
 	// Trigger error condition by modifying NPD config
 	logger.Infof("Edit Node Problem Detector (NPD) thresholds to simulate error condition")
-	s.updateConfigForNPD(c, npdInbandRASConfigPath, npdInband2RASErrorConfigPath)
+	s.updateConfigForNPD(c, npdInbandRASConfigPath, npdInbandRASErrorConfigPath)
 
 	s.verifyNodeCondition(c, conditionInternalError, corev1.ConditionTrue)
 
@@ -274,7 +276,7 @@ func (s *E2ESuite) TestAutoNodeRemediationWithPhysicalAction(c *C) {
 	assert.NoError(c, err, "Failed to add label to resume workflow")
 
 	logger.Infof("Reverting Node Problem Detector (NPD) thresholds to original configuration")
-	s.updateConfigForNPD(c, npdInband2RASErrorConfigPath, npdInbandRASConfigPath)
+	s.updateConfigForNPD(c, npdInbandRASErrorConfigPath, npdInbandRASConfigPath)
 
 	logger.Infof("Waiting for remediation workflow to complete on the node %s", nodeName)
 	s.verifyRemediationWorkflowStatus(c, nodeName, string(wfv1alpha1.WorkflowSucceeded), 70)
@@ -283,7 +285,7 @@ func (s *E2ESuite) TestAutoNodeRemediationWithPhysicalAction(c *C) {
 	s.verifyNodeCondition(c, conditionInternalError, corev1.ConditionFalse)
 }
 
-func (s *E2ESuite) TestAutoNodeRemediationAbortWorkflow(c *C) {
+func (s *E2ESuite) TestRemediationAbortWorkflow(c *C) {
 	logger.Infof("Starting Auto Node Remediation abort workflow test")
 
 	nodes, err := s.clientSet.CoreV1().Nodes().List(context.Background(), metav1.ListOptions{
@@ -293,6 +295,9 @@ func (s *E2ESuite) TestAutoNodeRemediationAbortWorkflow(c *C) {
 	if len(nodes.Items) == 0 {
 		c.Fatalf("No nodes found with AMD GPU label")
 	}
+	for _, node := range nodes.Items {
+		s.untaintNode(node.Name)
+	}
 	nodeName := nodes.Items[0].Name
 
 	_, err = s.dClient.DeviceConfigs(s.ns).Get(s.cfgName, metav1.GetOptions{})
@@ -300,9 +305,16 @@ func (s *E2ESuite) TestAutoNodeRemediationAbortWorkflow(c *C) {
 
 	devCfg := s.populateDeviceConfig(c)
 
-	logger.Infof("Creating DeviceConfig with remediation enabled and driver disabled")
+	logger.Infof("Creating DeviceConfig with remediation enabled")
 	s.createDeviceConfig(devCfg, c)
 	s.checkMetricsExporterStatus(devCfg, s.ns, corev1.ServiceTypeClusterIP, c)
+
+	defer func() {
+		for _, node := range nodes.Items {
+			s.untaintNode(node.Name)
+		}
+		s.clearRemediationWorkflowStatusMetaData(devCfg.Namespace, c)
+	}()
 
 	// Wait for cluster to be up
 	logger.Infof("Waiting for device config to be applied")
@@ -317,45 +329,55 @@ func (s *E2ESuite) TestAutoNodeRemediationAbortWorkflow(c *C) {
 	logger.Infof("Verify if Node Problem Detector (NPD) is running on all GPU nodes")
 	s.verifyNPDRunning(c)
 
-	logger.Infof("Verifying that node condition %s is added for the node %s", conditionInternalError, nodeName)
-	s.verifyNodeCondition(c, conditionInternalError, corev1.ConditionFalse)
+	logger.Infof("Verifying that node condition %s is added for the node %s", conditionHWAssertion, nodeName)
+	s.verifyNodeCondition(c, conditionHWAssertion, corev1.ConditionFalse)
 
 	// Trigger error condition by modifying NPD config
 	logger.Infof("Edit Node Problem Detector (NPD) thresholds to simulate error condition")
-	s.updateConfigForNPD(c, npdInbandRASConfigPath, npdInband2RASErrorConfigPath)
-	defer func() {
-		s.untaintNode(nodeName)
-		s.clearRemediationWorkflowStatusMetaData(devCfg.Namespace, c)
-	}()
+	s.updateConfigForNPD(c, npdInbandRASConfigPath, npdInbandRASErrorConfigPath)
 
-	s.verifyNodeCondition(c, conditionInternalError, corev1.ConditionTrue)
+	s.verifyNodeCondition(c, conditionHWAssertion, corev1.ConditionTrue)
 
 	// Verify remediation workflow started
-	logger.Infof("Verifying remediation workflow started on the node %s", nodeName)
-	s.verifyRemediationWorkflowStatus(c, nodeName, string(wfv1alpha1.WorkflowRunning), 5)
+	logger.Infof("Verifying remediation workflow started on all GPU nodes")
+	for _, node := range nodes.Items {
+		s.verifyRemediationWorkflowStatus(c, node.Name, string(wfv1alpha1.WorkflowRunning), 5)
+	}
 
 	//verify workflow is suspended waiting for physical action
-	logger.Infof("Verifying remediation workflow is suspended on the node %s", nodeName)
+	logger.Infof("Verifying remediation workflow is suspended on all GPU nodes")
 	assert.Eventually(c, func() bool {
-		return s.isWorkflowSuspended(c, nodeName)
+		for _, node := range nodes.Items {
+			if !s.isWorkflowSuspended(c, node.Name) {
+				return false
+			}
+		}
+		return true
 	}, 5*time.Minute, 10*time.Second, "Remediation workflow did not reach suspended state")
 
 	// abort workflow by adding label to node
-	err = utils.AddNodeLabel(s.clientSet, nodeName, "operator.amd.com/gpu-abort-workflow", "true")
-	assert.NoError(c, err, "Failed to add label to abort workflow")
+	for _, node := range nodes.Items {
+		err = utils.AddNodeLabel(s.clientSet, node.Name, "operator.amd.com/gpu-abort-workflow", "true")
+		assert.NoError(c, err, "Failed to add label to abort workflow")
+	}
 
 	logger.Infof("Reverting Node Problem Detector (NPD) thresholds to original configuration")
-	s.updateConfigForNPD(c, npdInband2RASErrorConfigPath, npdInbandRASConfigPath)
-	s.verifyNodeCondition(c, conditionInternalError, corev1.ConditionFalse)
+	s.updateConfigForNPD(c, npdInbandRASErrorConfigPath, npdInbandRASConfigPath)
+	s.verifyNodeCondition(c, conditionHWAssertion, corev1.ConditionFalse)
 
 	//verify workflow is aborted and deleted
-	logger.Infof("Verifying remediation workflow is aborted and deleted on the node %s", nodeName)
+	logger.Infof("Verifying remediation workflow is aborted and deleted on all GPU nodes")
 	assert.Eventually(c, func() bool {
-		return s.checkWorkflowExistence(c, nodeName, false)
+		for _, node := range nodes.Items {
+			if !s.checkWorkflowExistence(c, node.Name, false) {
+				return false
+			}
+		}
+		return true
 	}, 2*time.Minute, 10*time.Second, "Remediation workflow was not aborted and deleted")
 }
 
-func (s *E2ESuite) TestAutoNodeRemediationRecoveryPolicy(c *C) {
+func (s *E2ESuite) TestRemediationRecoveryPolicy(c *C) {
 	logger.Infof("Starting Auto Node Remediation recovery policy test")
 	nodes, err := s.clientSet.CoreV1().Nodes().List(context.Background(), metav1.ListOptions{
 		LabelSelector: "feature.node.kubernetes.io/amd-gpu=true",
@@ -363,6 +385,9 @@ func (s *E2ESuite) TestAutoNodeRemediationRecoveryPolicy(c *C) {
 	assert.NoError(c, err, "Failed to list nodes with AMD GPU label")
 	if len(nodes.Items) == 0 {
 		c.Fatalf("No nodes found with AMD GPU label")
+	}
+	for _, node := range nodes.Items {
+		s.untaintNode(node.Name)
 	}
 	nodeName := nodes.Items[0].Name
 
@@ -376,12 +401,19 @@ func (s *E2ESuite) TestAutoNodeRemediationRecoveryPolicy(c *C) {
 	s.clearRemediationWorkflowStatusMetaData(devCfg.Namespace, c)
 
 	// Pre-populate RemediationWorkflowStatus with max retries
-	logger.Infof("Pre-populate RemediationWorkflowStatus with max retries for node %s and condition %s", nodeName, conditionInternalError)
-	s.addRemediationWorkflowStatusMetaData(devCfg.Namespace, nodeName, conditionInternalError, 4, c)
+	logger.Infof("Pre-populate RemediationWorkflowStatus with max retries for node %s and condition %s", nodeName, conditionHWAssertion)
+	s.addRemediationWorkflowStatusMetaData(devCfg.Namespace, nodeName, conditionHWAssertion, 4, c)
 
-	logger.Infof("Creating DeviceConfig with remediation enabled and driver disabled")
+	logger.Infof("Creating DeviceConfig with remediation enabled")
 	s.createDeviceConfig(devCfg, c)
 	s.checkMetricsExporterStatus(devCfg, s.ns, corev1.ServiceTypeClusterIP, c)
+
+	defer func() {
+		for _, node := range nodes.Items {
+			s.untaintNode(node.Name)
+		}
+		s.clearRemediationWorkflowStatusMetaData(devCfg.Namespace, c)
+	}()
 
 	// Wait for cluster to be up
 	logger.Infof("Waiting for device config to be applied")
@@ -395,14 +427,14 @@ func (s *E2ESuite) TestAutoNodeRemediationRecoveryPolicy(c *C) {
 	logger.Infof("Verify if Node Problem Detector (NPD) is running on all GPU nodes")
 	s.verifyNPDRunning(c)
 
-	logger.Infof("Verifying that node condition %s is added for the node %s", conditionInternalError, nodeName)
-	s.verifyNodeCondition(c, conditionInternalError, corev1.ConditionFalse)
+	logger.Infof("Verifying that node condition %s is added for the node %s", conditionHWAssertion, nodeName)
+	s.verifyNodeCondition(c, conditionHWAssertion, corev1.ConditionFalse)
 
 	// Trigger error condition by modifying NPD config
 	logger.Infof("Edit Node Problem Detector (NPD) thresholds to simulate error condition")
-	s.updateConfigForNPD(c, npdInbandRASConfigPath, npdInband2RASErrorConfigPath)
+	s.updateConfigForNPD(c, npdInbandRASConfigPath, npdInbandRASErrorConfigPath)
 
-	s.verifyNodeCondition(c, conditionInternalError, corev1.ConditionTrue)
+	s.verifyNodeCondition(c, conditionHWAssertion, corev1.ConditionTrue)
 
 	// Verify remediation workflow is not started due to max retries reached
 	logger.Infof("Verifying remediation workflow is not started on the node %s due to max retries reached", nodeName)
@@ -411,39 +443,46 @@ func (s *E2ESuite) TestAutoNodeRemediationRecoveryPolicy(c *C) {
 	}, 2*time.Minute, 10*time.Second, "Remediation workflow was started despite max retries reached")
 
 	// Clear RemediationWorkflowStatus metadata
-	logger.Infof("Clearing RemediationWorkflowStatus metadata for node %s and condition %s", nodeName, conditionInternalError)
+	logger.Infof("Clearing RemediationWorkflowStatus metadata for node %s and condition %s", nodeName, conditionHWAssertion)
 	s.clearRemediationWorkflowStatusMetaData(devCfg.Namespace, c)
 
 	// Verify remediation workflow is started and running now
 	logger.Infof("Verifying remediation workflow is started on the node %s after clearing metadata", nodeName)
 	assert.Eventually(c, func() bool {
 		return s.checkWorkflowExistence(c, nodeName, true)
-	}, 2*time.Minute, 10*time.Second, "Remediation workflow was started despite max retries reached")
-
-	defer func() {
-		s.untaintNode(nodeName)
-		s.clearRemediationWorkflowStatusMetaData(devCfg.Namespace, c)
-	}()
+	}, 2*time.Minute, 10*time.Second, "Remediation workflow not started after clearing metadata")
 
 	//verify workflow is suspended waiting for physical action
-	logger.Infof("Verifying remediation workflow is suspended on the node %s", nodeName)
+	logger.Infof("Verifying remediation workflow is suspended on all GPU nodes")
 	assert.Eventually(c, func() bool {
-		return s.isWorkflowSuspended(c, nodeName)
+		for _, node := range nodes.Items {
+			if !s.isWorkflowSuspended(c, node.Name) {
+				return false
+			}
+		}
+		return true
 	}, 3*time.Minute, 10*time.Second, "Remediation workflow did not reach suspended state")
 
 	// abort workflow by adding label to node
 	logger.Infof("Aborting the suspended workflow")
-	err = utils.AddNodeLabel(s.clientSet, nodeName, "operator.amd.com/gpu-abort-workflow", "true")
-	assert.NoError(c, err, "Failed to add label to abort workflow")
+	for _, node := range nodes.Items {
+		err = utils.AddNodeLabel(s.clientSet, node.Name, "operator.amd.com/gpu-abort-workflow", "true")
+		assert.NoError(c, err, "Failed to add label to abort workflow")
+	}
 
 	logger.Infof("Reverting Node Problem Detector (NPD) thresholds to original configuration")
-	s.updateConfigForNPD(c, npdInband2RASErrorConfigPath, npdInbandRASConfigPath)
-	s.verifyNodeCondition(c, conditionInternalError, corev1.ConditionFalse)
+	s.updateConfigForNPD(c, npdInbandRASErrorConfigPath, npdInbandRASConfigPath)
+	s.verifyNodeCondition(c, conditionHWAssertion, corev1.ConditionFalse)
 
 	//verify workflow is aborted and deleted
-	logger.Infof("Verifying remediation workflow is aborted and deleted on the node %s", nodeName)
+	logger.Infof("Verifying remediation workflow is aborted and deleted on all the nodes")
 	assert.Eventually(c, func() bool {
-		return s.checkWorkflowExistence(c, nodeName, false)
+		for _, node := range nodes.Items {
+			if !s.checkWorkflowExistence(c, node.Name, false) {
+				return false
+			}
+		}
+		return true
 	}, 2*time.Minute, 10*time.Second, "Remediation workflow was not aborted and deleted")
 
 }
@@ -504,13 +543,28 @@ func (s *E2ESuite) TestRemediationSpecValidation(c *C) {
 	s.createDeviceConfig(devCfg, c)
 	s.verifyDeviceConfigErrorStatus(devCfg, c, "validating remediation workflow config map")
 
-	logger.Infof("patching DeviceConfig with remediation workflow spec with invalid nodeRemediationTaints")
+	logger.Infof("patching DeviceConfig with remediation workflow spec without config or configMapImage")
 	patch := map[string]interface{}{
 		"spec": map[string]interface{}{
 			"remediationWorkflow": map[string]interface{}{
 				"enable":                true,
 				"config":                nil,
 				"ttlForFailedWorkflows": "24h",
+			},
+		},
+	}
+	_, err = s.dClient.DeviceConfigs(s.ns).PatchRemediationWorkflowSpec(devCfg, patch)
+	assert.NoError(c, err, "failed to patch DeviceConfig with remediation workflow spec without config or configMapImage")
+	s.verifyDeviceConfigErrorStatus(devCfg, c, "either spec.remediationWorkflow.config or spec.remediationWorkflow.configMapImage must be specified when remediation is enabled")
+
+	logger.Infof("patching DeviceConfig with remediation workflow spec with invalid nodeRemediationTaints")
+	patch = map[string]interface{}{
+		"spec": map[string]interface{}{
+			"remediationWorkflow": map[string]interface{}{
+				"enable":                true,
+				"config":                nil,
+				"ttlForFailedWorkflows": "24h",
+				"configMapImage":        anrConfigMapImage,
 				"nodeRemediationTaints": []interface{}{
 					map[string]interface{}{
 						"key":    "amd-gpu-unhealthy",
