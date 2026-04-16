@@ -28,5 +28,8 @@ resources:
   - config_manager_role.yaml
   - config_manager_role_binding.yaml
   - config_manager_service_account.yaml
+  - dra_driver_service_account.yaml
+  - dra_driver_cluster_role.yaml
+  - dra_driver_role_binding.yaml
   - openshift-monitoring-role.yaml
   - openshift-monitoring-rolebinding.yaml
