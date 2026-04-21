@@ -169,7 +169,7 @@ func (r *DeviceConfigReconciler) init(ctx context.Context) {
 		r.initErr = err
 		return
 	}
-	r.initErr = r.helper.buildNodeAssignments(deviceConfigList)
+	r.initErr = r.helper.buildNodeAssignments(ctx, deviceConfigList)
 }
 
 //+kubebuilder:rbac:groups=amd.com,resources=deviceconfigs,verbs=get;list;watch;create;patch;update
@@ -362,7 +362,7 @@ func (r *DeviceConfigReconciler) Reconcile(ctx context.Context, req ctrl.Request
 type deviceConfigReconcilerHelperAPI interface {
 	getRequestedDeviceConfig(ctx context.Context, namespacedName types.NamespacedName) (*amdv1alpha1.DeviceConfig, error)
 	listDeviceConfigs(ctx context.Context) (*amdv1alpha1.DeviceConfigList, error)
-	buildNodeAssignments(deviceConfigList *amdv1alpha1.DeviceConfigList) error
+	buildNodeAssignments(ctx context.Context, deviceConfigList *amdv1alpha1.DeviceConfigList) error
 	validateNodeAssignments(namespacedName string, nodes *v1.NodeList) error
 	updateNodeAssignments(namespacedName string, nodes *v1.NodeList, isFinalizer bool)
 	getDeviceConfigOwnedKMMModule(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig) (*kmmv1beta1.Module, error)
@@ -916,6 +916,23 @@ func (dcrh *deviceConfigReconcilerHelper) finalizeDeviceConfig(ctx context.Conte
 		}
 	}
 
+	// finalize DRA driver
+	draDS := appsv1.DaemonSet{}
+	namespacedName = types.NamespacedName{
+		Namespace: devConfig.Namespace,
+		Name:      devConfig.Name + utils.DRADriverNameSuffix,
+	}
+	if err := dcrh.client.Get(ctx, namespacedName, &draDS); err != nil {
+		if !k8serrors.IsNotFound(err) {
+			return fmt.Errorf("failed to get dra-driver daemonset %s: %v", namespacedName, err)
+		}
+	} else {
+		logger.Info("deleting dra-driver daemonset", "daemonset", namespacedName)
+		if err := dcrh.client.Delete(ctx, &draDS); err != nil {
+			return fmt.Errorf("failed to delete dra-driver daemonset %s: %v", namespacedName, err)
+		}
+	}
+
 	// finalize node labeller
 	nlDS := appsv1.DaemonSet{}
 	namespacedName = types.NamespacedName{
@@ -996,9 +1013,6 @@ func (dcrh *deviceConfigReconcilerHelper) finalizeDeviceConfig(ctx context.Conte
 	if err := dcrh.updateNodeLabels(ctx, devConfig, nodes, true); err != nil {
 		logger.Error(err, "failed to update node labels")
 	}
-
-	// Update nodeAssignments after DeviceConfig status update
-	dcrh.updateNodeAssignments(namespacedName.String(), nodes, true)
 
 	return nil
 }
@@ -1526,10 +1540,12 @@ func (dcrh *deviceConfigReconcilerHelper) validateNodeAssignments(namespacedName
 	return err
 }
 
-func (dcrh *deviceConfigReconcilerHelper) buildNodeAssignments(deviceConfigList *amdv1alpha1.DeviceConfigList) error {
+func (dcrh *deviceConfigReconcilerHelper) buildNodeAssignments(ctx context.Context, deviceConfigList *amdv1alpha1.DeviceConfigList) error {
 	if deviceConfigList == nil {
 		return nil
 	}
+
+	logger := log.FromContext(ctx)
 
 	isReady := func(devConfig *amdv1alpha1.DeviceConfig) bool {
 		ready := dcrh.conditionUpdater.GetReadyCondition(devConfig)
@@ -1552,7 +1568,8 @@ func (dcrh *deviceConfigReconcilerHelper) buildNodeAssignments(deviceConfigList 
 			}
 			err := dcrh.validateNodeAssignments(namespacedName.String(), &v1.NodeList{Items: nodeItems})
 			if err != nil {
-				return err
+				logger.Error(err, "node assignment conflict detected during initialization, skipping DeviceConfig", "DeviceConfig", namespacedName)
+				continue
 			}
 			dcrh.updateNodeAssignments(namespacedName.String(), &v1.NodeList{Items: nodeItems}, false)
 		}
