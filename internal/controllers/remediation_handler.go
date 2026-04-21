@@ -599,8 +599,11 @@ func (h *remediationMgrHelper) createDefaultWorkflowTemplate(ctx context.Context
 	utilityContainer := h.getWorkflowUtilityImage(devConfig)
 	utilityContainer.Command = []string{"sh"}
 
+	// Reboot is implemented as a ScriptTemplate so we can capture the node's pre-reboot
+	// bootID as an output parameter for downstream steps (e.g. waitfornodeready) to
+	// confirm that the host actually rebooted.
 	rebootContainer := h.getWorkflowUtilityImage(devConfig)
-	rebootContainer.Command = []string{"/nsenter", "--all", "--target=1", "--", "/sbin/reboot", "-f"}
+	rebootContainer.Command = []string{"sh"}
 	rebootContainer.SecurityContext = &v1.SecurityContext{Privileged: ptr.To(true)}
 
 	notifySrc, err := h.getWorkflowTaskScriptSource("notify.sh")
@@ -666,6 +669,14 @@ func (h *remediationMgrHelper) createDefaultWorkflowTemplate(ctx context.Context
 	if err != nil {
 		return nil, err
 	}
+	waitForNodeReadySrc, err := h.getWorkflowTaskScriptSource("waitfornodeready.sh")
+	if err != nil {
+		return nil, err
+	}
+	rebootSrc, err := h.getWorkflowTaskScriptSource("reboot.sh")
+	if err != nil {
+		return nil, err
+	}
 	untaintSrc, err := h.getWorkflowTaskScriptSource("untaint.sh")
 	if err != nil {
 		return nil, err
@@ -711,6 +722,19 @@ func (h *remediationMgrHelper) createDefaultWorkflowTemplate(ctx context.Context
 						},
 						{Steps: []workflowv1alpha1.WorkflowStep{{Name: "suspend", Template: "suspend"}}},
 						{Steps: []workflowv1alpha1.WorkflowStep{{Name: "reboot", Template: "reboot", ContinueOn: &workflowv1alpha1.ContinueOn{Failed: true}, When: "{{workflow.parameters.skipRebootStep}} == false"}}},
+						{Steps: []workflowv1alpha1.WorkflowStep{{
+							Name:     "waitfornodeready",
+							Template: "waitfornodeready",
+							When:     "{{workflow.parameters.skipRebootStep}} == false",
+							Arguments: workflowv1alpha1.Arguments{
+								Parameters: []workflowv1alpha1.Parameter{
+									{Name: "node_name", Value: workflowv1alpha1.AnyStringPtr("{{workflow.parameters.node_name}}")},
+									// Pass the bootID captured by the reboot step so we can verify
+									// the host actually rebooted (not just transiently NotReady).
+									{Name: "old_boot_id", Value: workflowv1alpha1.AnyStringPtr("{{steps.reboot.outputs.parameters.boot_id}}")},
+								},
+							},
+						}}},
 						{Steps: []workflowv1alpha1.WorkflowStep{{Name: "test", Template: "test", ContinueOn: &workflowv1alpha1.ContinueOn{Failed: true}}}},
 						{Steps: []workflowv1alpha1.WorkflowStep{
 							{
@@ -801,7 +825,32 @@ func (h *remediationMgrHelper) createDefaultWorkflowTemplate(ctx context.Context
 				{
 					Name:      "reboot",
 					Metadata:  instanceIDMeta,
-					Container: &rebootContainer,
+					Inputs: workflowv1alpha1.Inputs{
+						Parameters: []workflowv1alpha1.Parameter{
+							{
+								Name:  "node_name",
+								Value: workflowv1alpha1.AnyStringPtr("{{workflow.parameters.node_name}}"),
+							},
+						},
+					},
+					Outputs: workflowv1alpha1.Outputs{
+						Parameters: []workflowv1alpha1.Parameter{
+							{
+								Name: "boot_id",
+								ValueFrom: &workflowv1alpha1.ValueFrom{
+									Path: "/tmp/boot_id",
+									// If the pod is killed by the reboot before the file is
+									// finalized, fall back to an empty value; the wait step
+									// gracefully degrades to a Ready-only check in that case.
+									Default: workflowv1alpha1.AnyStringPtr(""),
+								},
+							},
+						},
+					},
+					Script: &workflowv1alpha1.ScriptTemplate{
+						Source:    rebootSrc,
+						Container: rebootContainer,
+					},
 					PodSpecPatch: `
 hostPID: true
 hostNetwork: true
@@ -810,6 +859,28 @@ containers:
   stdin: true
   tty: true
 `,
+				},
+				{
+					Name:     "waitfornodeready",
+					Metadata: instanceIDMeta,
+					Inputs: workflowv1alpha1.Inputs{
+						Parameters: []workflowv1alpha1.Parameter{
+							{
+								Name:  "node_name",
+								Value: workflowv1alpha1.AnyStringPtr("{{workflow.parameters.node_name}}"),
+							},
+							{
+								// Pre-reboot bootID supplied by the reboot step. Empty when the
+								// reboot step was skipped or its bootID capture failed.
+								Name:    "old_boot_id",
+								Default: workflowv1alpha1.AnyStringPtr(""),
+							},
+						},
+					},
+					Script: &workflowv1alpha1.ScriptTemplate{
+						Source:    waitForNodeReadySrc,
+						Container: utilityContainer,
+					},
 				},
 				{
 					Name:     "test",
@@ -1068,10 +1139,43 @@ func (h *remediationMgrHelper) populateWorkflow(ctx context.Context, wfTemplate 
 		SecondsAfterCompletion: &ttlSeconds,
 	}
 
+	wf.Spec.NodeSelector = make(map[string]string)
 	for i := range wf.Spec.Templates {
-		if wf.Spec.Templates[i].NodeSelector == nil {
-			wf.Spec.Templates[i].NodeSelector = map[string]string{}
+		if wf.Spec.Templates[i].Name == "waitfornodeready" {
+			wf.Spec.Templates[i].NodeSelector = make(map[string]string)
+			wf.Spec.Templates[i].Affinity = &v1.Affinity{
+				NodeAffinity: &v1.NodeAffinity{
+					RequiredDuringSchedulingIgnoredDuringExecution: &v1.NodeSelector{
+						NodeSelectorTerms: []v1.NodeSelectorTerm{
+							{
+								MatchExpressions: []v1.NodeSelectorRequirement{
+									{
+										Key:      "kubernetes.io/hostname",
+										Operator: v1.NodeSelectorOpNotIn,
+										Values:   []string{nodeName},
+									},
+								},
+							},
+						},
+					},
+				},
 		}
+			wf.Spec.Templates[i].Tolerations = append(wf.Spec.Templates[i].Tolerations,
+				v1.Toleration{
+					Key:      "node-role.kubernetes.io/control-plane",
+					Operator: v1.TolerationOpExists,
+					Effect:   v1.TaintEffectNoSchedule,
+				},
+				v1.Toleration{
+					Key:      "node-role.kubernetes.io/master",
+					Operator: v1.TolerationOpExists,
+					Effect:   v1.TaintEffectNoSchedule,
+				},
+			)
+			wf.Spec.Templates[i].PodSpecPatch = `{"nodeSelector":null}`
+			continue
+		}
+		wf.Spec.Templates[i].NodeSelector = make(map[string]string)
 		wf.Spec.Templates[i].NodeSelector["kubernetes.io/hostname"] = nodeName
 	}
 	// apply tolerations based on node taints
