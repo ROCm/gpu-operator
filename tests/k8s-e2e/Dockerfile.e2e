@@ -1,0 +1,41 @@
+# Dockerfile.e2e — containerized runner for GPU Operator e2e tests
+#
+# Build (from gpu-operator repo root):
+#   docker build -t gpu-op-k8s-e2e:latest -f tests/k8s-e2e/Dockerfile.e2e tests/k8s-e2e/
+#
+# Run full install+verify+teardown:
+#   docker run --rm \
+#     -v /path/to/kubeconfig:/kubeconfig:ro \
+#     -v /path/to/gpu-operator/helm-charts-k8s:/helm-charts:ro \
+#     gpu-op-k8s-e2e:latest \
+#     -kubeconfig /kubeconfig \
+#     -operatorchart /helm-charts \
+#     -operatortag v1.4.1 -test.timeout 60m
+#
+# Run verify only (pre-deployed cluster):
+#   docker run --rm -v /path/to/kubeconfig:/kubeconfig:ro \
+#     gpu-op-k8s-e2e:latest \
+#     -kubeconfig /kubeconfig -existing \
+#     -check.f 'TestOp010|TestOp020|TestOp030|TestOp040|TestOp050|TestOp060|TestOp065|TestOp070' \
+#     -test.timeout 30m
+
+FROM golang:1.25-bookworm
+
+# Install kubectl
+RUN curl -fsSL "https://dl.k8s.io/release/$(curl -Ls https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl" \
+    -o /usr/local/bin/kubectl && chmod +x /usr/local/bin/kubectl
+
+WORKDIR /src
+
+# Copy module files first for caching, then download deps
+COPY go.mod go.sum ./
+RUN go mod download
+
+# Copy test sources
+COPY clients/ clients/
+COPY doc.go suite_test.go operator_test.go ./
+
+# Pre-compile tests to catch errors in _test.go files at image build time
+RUN go test -run=^$ ./...
+
+ENTRYPOINT ["go", "test", "-v", "-test.timeout=30m"]
