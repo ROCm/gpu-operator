@@ -379,19 +379,21 @@ The `default-template` workflow performs the following remediation steps:
 
 5. **Suspend Workflow** - Pause workflow execution pending manual intervention or automatic resumption based on configured policies.
 
-6. **Reboot Node** - Perform node reboot to clear transient errors and reinitialize GPU hardware.
+6. **Reboot Node** - Issue a reboot command on the affected node to clear transient errors and reinitialize GPU hardware. This step exits gracefully after triggering the reboot, ensuring the workflow pod is not disrupted by the node shutdown.
 
-7. **Validate GPUs** - Execute AGFHC/RVS validation tests to confirm GPU health after reboot.
+7. **Wait for Node Ready** - Monitor the rebooted node until it comes back online and reports a Ready condition in the Kubernetes cluster before proceeding to validation.
 
-8. **Verify Condition** - Confirm that the triggering node condition has been resolved (status changed to False).
+8. **Validate GPUs** - Execute AGFHC/RVS validation tests to confirm GPU health after reboot.
 
-9. **Remove Taint** - Remove the node taint to restore GPU availability for workload scheduling.
+9. **Verify Condition** - Confirm that the triggering node condition has been resolved (status changed to False).
 
-10. **Remove Labels** - Removes all custom labels that were applied to the node in Step 1, restoring the node to its original label state.
+10. **Remove Taint** - Remove the node taint to restore GPU availability for workload scheduling.
+
+11. **Remove Labels** - Removes all custom labels that were applied to the node in Step 1, restoring the node to its original label state.
 
 Each workflow step is executed as a separate Kubernetes pod. For advanced use cases, users can create custom workflow templates using the Argo CRDs available on the cluster and reference them in the ConfigMap.
 
-While most workflow steps are self-explanatory, Steps 4, 5, and 7 require additional clarification.
+While most workflow steps are self-explanatory, Steps 4, 5, and 8 require additional clarification.
 
 ### Workflow Step 4: Physical Intervention Check
 
@@ -432,7 +434,7 @@ To resume a suspended workflow, apply the label `operator.amd.com/gpu-force-resu
 
 To abort the workflow entirely, apply the label `operator.amd.com/gpu-abort-workflow=true` to the node. This keeps the node in a tainted state for manual remediation. This option is useful when automatic remediation is no longer desired and the workflow should be deleted while paused.
 
-### Workflow Step 7: GPU Validation Testing
+### Workflow Step 8: GPU Validation Testing
 
 This step executes comprehensive GPU health validation tests using the test runner:
 
