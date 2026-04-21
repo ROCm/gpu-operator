@@ -1,0 +1,297 @@
+---
+version: 2.0
+builds:
+  build-gpu-operator:
+    commands: ["sh", "-c", "cd /usr/src/github.com/pensando/gpu-operator && make && \
+               DOCKER_REGISTRY=docker.io/amdpsdo HOURLY_TAG_LABEL=$RELEASE IMAGE_TAG=${RELEASE:-latest} IMAGE_NAME=gpu-operator make docker-build && \
+               DOCKER_REGISTRY=docker.io/amdpsdo HOURLY_TAG_LABEL=$RELEASE IMAGE_TAG=${RELEASE:-latest} IMAGE_NAME=gpu-operator make docker-save && \
+               DOCKER_REGISTRY=docker.io/amdpsdo HOURLY_TAG_LABEL=$RELEASE UTILS_IMAGE_TAG=${RELEASE:-latest} IMAGE_NAME=gpu-operator make docker-build-utils && \
+               DOCKER_REGISTRY=docker.io/amdpsdo HOURLY_TAG_LABEL=$RELEASE UTILS_IMAGE_TAG=${RELEASE:-latest} IMAGE_NAME=gpu-operator make docker-save-utils && \
+               DOCKER_REGISTRY=docker.io/amdpsdo HOURLY_TAG_LABEL=$RELEASE IMAGE_TAG=${RELEASE:-latest} IMAGE_NAME=gpu-operator make bundle-build && \
+               DOCKER_REGISTRY=docker.io/amdpsdo HOURLY_TAG_LABEL=$RELEASE IMAGE_TAG=${RELEASE:-latest} IMAGE_NAME=gpu-operator make bundle-save && \
+               DOCKER_REGISTRY=docker.io/amdpsdo HOURLY_TAG_LABEL=$RELEASE REMEDIATION_CONFIGMAP_UTIL_IMAGE_TAG=${RELEASE:-latest} IMAGE_NAME=gpu-operator make docker-build-remediation-configmap-util && \
+               DOCKER_REGISTRY=docker.io/amdpsdo HOURLY_TAG_LABEL=$RELEASE REMEDIATION_CONFIGMAP_UTIL_IMAGE_TAG=${RELEASE:-latest} IMAGE_NAME=gpu-operator make docker-save-remediation-configmap-util"]
+    owners: ["email:mharkara@amd.com"]
+    artifacts:
+     - /gpu-operator/gpu-operator.tar.gz
+     - /gpu-operator/gpu-operator-utils.tar.gz
+     - /gpu-operator/gpu-operator-olm-bundle.tar.gz
+     - /gpu-operator/gpu-operator-remediation-configmap-util.tar.gz
+    repo-dependencies:
+      /ws/builder/kernel-module-management:
+        repository: https://github.com/pensando/kernel-module-management
+        reference: 7de26914947409516d095e89fc4e15c3170b259d
+
+  build-gpu-operator-k8s:
+    commands: ["sh", "-c", "cd /usr/src/github.com/pensando/gpu-operator && \
+               PROJECT_VERSION=v0.0.1 IMAGE_TAG=${RELEASE:-latest} DOCKER_REGISTRY=docker.io/amdpsdo IMAGE_NAME=gpu-operator HELM_CHART_VERSION=v0.0.1-${RELEASE:-dev} KMM_IMAGE_TAG=latest HELM_OUTPUT_FILE_NAME=gpu-operator-helm-k8s.tgz make helm && \
+               mv helm-charts-k8s/gpu-operator-helm-k8s.tgz gpu-operator-helm-k8s.tgz"]
+    owners: ["email:mharkara@amd.com"]
+    artifacts:
+     - /gpu-operator/gpu-operator-helm-k8s.tgz
+    repo-dependencies:
+      /ws/builder/kernel-module-management:
+        repository: https://github.com/pensando/kernel-module-management
+        reference: 7de26914947409516d095e89fc4e15c3170b259d
+
+  build-external-device-metrics-exporter:
+    commands: ["sh", "-c", "export CI_USE_SANITY_BUILD=1 && mkdir -p /device-metrics-exporter &&
+       /gpu-operator/ci-internal/flexibuilder/build.sh build-external-device-metrics-exporter \
+       --alien-repo pensando/device-metrics-exporter --alien-target build-device-metrics-exporter-docker-ubi9.6 --alien-branch ${JOB_BASE_BRANCH}"]
+    owners: ["email:srivatsa.sangli@amd.com"]
+    artifacts:
+     - /device-metrics-exporter/docker/device-metrics-exporter-latest.tar.gz
+     - /device-metrics-exporter/docker/device-metrics-exporter-latest.metadata
+
+  build-external-test-runner:
+    commands: ["sh", "-c", "export CI_USE_SANITY_BUILD=1 && mkdir -p /device-metrics-exporter && \
+       /gpu-operator/ci-internal/flexibuilder/build.sh build-external-test-runner \
+       --alien-repo pensando/device-metrics-exporter --alien-target build-test-runner-docker --alien-branch ${JOB_BASE_BRANCH}"]
+    owners: ["email:srivatsa.sangli@amd.com"]
+    artifacts:
+     - /device-metrics-exporter/docker/testrunner/test-runner-latest.tar.gz
+     - /device-metrics-exporter/docker/testrunner/test-runner-latest.metadata
+
+  build-external-test-runner-agfhc:
+    commands: ["sh", "-c", "export CI_USE_SANITY_BUILD=1 && mkdir -p /device-metrics-exporter && \
+       /gpu-operator/ci-internal/flexibuilder/build.sh build-external-test-runner-agfhc \
+       --alien-repo pensando/device-metrics-exporter --alien-target build-test-runner-docker-agfhc --alien-branch ${JOB_BASE_BRANCH}"]
+    owners: ["email:srivatsa.sangli@amd.com"]
+    artifacts:
+     - /device-metrics-exporter/docker/testrunner/test-runner-latest-agfhc.tar.gz
+     - /device-metrics-exporter/docker/testrunner/test-runner-latest-agfhc.metadata
+
+  build-external-config-manager:
+    commands: ["sh", "-c", "export CI_USE_SANITY_BUILD=1 && mkdir -p /device-config-manager && \
+       /gpu-operator/ci-internal/flexibuilder/build.sh build-external-config-manager \
+       --alien-repo pensando/device-config-manager --alien-target build-device-config-manager-docker-ubi9 --alien-branch ${JOB_BASE_BRANCH}"]
+    owners: ["email:srivatsa.sangli@amd.com"]
+    artifacts:
+      - /device-config-manager/docker/obj/device-config-manager.tgz
+      - /device-config-manager/docker/obj/device-config-manager.metadata
+
+  build-external-kernel-module-manager:
+    commands: ["sh", "-c", "export CI_USE_SANITY_BUILD=1 && mkdir -p /kernel-module-management && \
+       /gpu-operator/ci-internal/flexibuilder/build.sh build-external-kernel-module-manager \
+       --alien-repo pensando/kernel-module-management --alien-target build-kernel-module-management --alien-branch ${JOB_BASE_BRANCH}"]
+    owners: ["email:srivatsa.sangli@amd.com"]
+    artifacts:
+     - /kernel-module-management/kernel-module-management-operator.tar.gz
+     - /kernel-module-management/kernel-module-management-operator.metadata
+
+  build-external-kernel-module-signimage:
+    commands: ["sh", "-c", "export CI_USE_SANITY_BUILD=1 && mkdir -p /kernel-module-management && \
+       /gpu-operator/ci-internal/flexibuilder/build.sh build-external-kernel-module-signimage \
+       --alien-repo pensando/kernel-module-management --alien-target build-signer --alien-branch ${JOB_BASE_BRANCH}"]
+    owners: ["email:srivatsa.sangli@amd.com"]
+    artifacts:
+     - /kernel-module-management/kernel-module-management-signimage.tar.gz
+     - /kernel-module-management/kernel-module-management-signimage.metadata
+
+  build-external-kernel-module-webhook-server:
+    commands: ["sh", "-c", "export CI_USE_SANITY_BUILD=1 && mkdir -p /kernel-module-management && \
+       /gpu-operator/ci-internal/flexibuilder/build.sh build-external-kernel-module-webhook-server \
+       --alien-repo pensando/kernel-module-management --alien-target build-webhook-server --alien-branch ${JOB_BASE_BRANCH}"]
+    owners: ["email:srivatsa.sangli@amd.com"]
+    artifacts:
+     - /kernel-module-management/kernel-module-management-webhook-server.tar.gz
+     - /kernel-module-management/kernel-module-management-webhook-server.metadata
+
+  build-external-kernel-module-worker:
+    commands: ["sh", "-c", "export CI_USE_SANITY_BUILD=1 && mkdir -p /kernel-module-management && \
+       /gpu-operator/ci-internal/flexibuilder/build.sh build-external-kernel-module-worker \
+       --alien-repo pensando/kernel-module-management --alien-target build-worker --alien-branch ${JOB_BASE_BRANCH}"]
+    owners: ["email:srivatsa.sangli@amd.com"]
+    artifacts:
+     - /kernel-module-management/kernel-module-management-worker.tar.gz
+     - /kernel-module-management/kernel-module-management-worker.metadata
+
+  build-external-device-metrics-exporter-helm-artifact:
+    commands: ["sh", "-c", "export CI_USE_SANITY_BUILD=1 && mkdir -p /device-metrics-exporter/helm-charts &&
+       /gpu-operator/ci-internal/flexibuilder/build.sh build-external-device-metrics-exporter-helm-artifact \
+       --alien-repo pensando/device-metrics-exporter --alien-target build-helm-artifact --alien-branch ${JOB_BASE_BRANCH}"]
+    owners: ["email:srivatsa.sangli@amd.com"]
+    artifacts:
+     - /device-metrics-exporter/helm-charts/device-metrics-exporter-charts.tgz
+     - /device-metrics-exporter/helm-charts/device-metrics-exporter-charts.metadata
+     - /device-metrics-exporter/tools/techsupport_dump.sh
+
+  build-external-device-metrics-exporter-debian-package-ub22.04:
+    commands: ["sh", "-c", "export CI_USE_SANITY_BUILD=1 && mkdir -p /device-metrics-exporter/bin &&
+       /gpu-operator/ci-internal/flexibuilder/build.sh build-external-device-metrics-exporter-debian-package-ub22.04 \
+       --alien-repo pensando/device-metrics-exporter --alien-target build-debian-package-ub22.04 --alien-branch ${JOB_BASE_BRANCH}"]
+    owners: ["email:srivatsa.sangli@amd.com"]
+    artifacts:
+     - /device-metrics-exporter/bin/amdgpu-exporter_22.04_amd64.deb
+     - /device-metrics-exporter/bin/amdgpu-exporter_22.04_amd64.metadata
+
+  build-external-device-metrics-exporter-debian-package-ub24.04:
+    commands: ["sh", "-c", "export CI_USE_SANITY_BUILD=1 && mkdir -p /device-metrics-exporter/bin &&
+       /gpu-operator/ci-internal/flexibuilder/build.sh build-external-device-metrics-exporter-debian-package-ub24.04 \
+       --alien-repo pensando/device-metrics-exporter --alien-target build-debian-package-ub24.04 --alien-branch ${JOB_BASE_BRANCH}"]
+    owners: ["email:srivatsa.sangli@amd.com"]
+    artifacts:
+     - /device-metrics-exporter/bin/amdgpu-exporter_24.04_amd64.deb
+     - /device-metrics-exporter/bin/amdgpu-exporter_24.04_amd64.metadata
+
+  gpu-operator-olm-bundle-sanity-build:
+    commands: ["sh", "-c", "export CI_USE_SANITY_BUILD=1 && mkdir -p /device-metrics-exporter/bin &&
+       /gpu-operator/ci-internal/flexibuilder/build.sh gpu-operator-olm-bundle-sanity-build \
+       --alien-repo pensando/gpu-operator --alien-target build-gpu-operator --alien-branch ${JOB_BASE_BRANCH}"]
+    owners: ["email:srivatsa.sangli@amd.com"]
+    artifacts:
+     - /gpu-operator/artifacts.metadata
+     - /gpu-operator/gpu-operator-olm-bundle.tar.gz
+
+  # Following are added for specific v1.4.2 DME release
+  build-external-device-metrics-exporter-v1.4.2:
+    commands: ["sh", "-c", "export CI_USE_SANITY_BUILD=1 && mkdir -p /device-metrics-exporter &&
+       /gpu-operator/ci-internal/flexibuilder/build.sh build-external-device-metrics-exporter \
+       --alien-repo pensando/device-metrics-exporter --alien-target build-device-metrics-exporter-docker-ubi9.6 --alien-branch v1.4.2"]
+    owners: ["email:srivatsa.sangli@amd.com"]
+    artifacts:
+     - /device-metrics-exporter/docker/device-metrics-exporter-latest.tar.gz
+
+  build-external-device-metrics-exporter-helm-artifact-v1.4.2:
+    commands: ["sh", "-c", "export CI_USE_SANITY_BUILD=1 && mkdir -p /device-metrics-exporter/helm-charts &&
+       /gpu-operator/ci-internal/flexibuilder/build.sh build-external-device-metrics-exporter-helm-artifact \
+       --alien-repo pensando/device-metrics-exporter --alien-target build-helm-artifact --alien-branch v1.4.2"]
+    owners: ["email:srivatsa.sangli@amd.com"]
+    artifacts:
+     - /device-metrics-exporter/helm-charts/device-metrics-exporter-charts.tgz
+     - /device-metrics-exporter/tools/techsupport_dump.sh
+
+  build-external-device-metrics-exporter-debian-package-ub22.04-v1.4.2:
+    commands: ["sh", "-c", "export CI_USE_SANITY_BUILD=1 && mkdir -p /device-metrics-exporter/bin &&
+       /gpu-operator/ci-internal/flexibuilder/build.sh build-external-device-metrics-exporter-debian-package-ub22.04 \
+       --alien-repo pensando/device-metrics-exporter --alien-target build-debian-package-ub22.04 --alien-branch v1.4.2"]
+    owners: ["email:srivatsa.sangli@amd.com"]
+    artifacts:
+     - /device-metrics-exporter/bin/amdgpu-exporter_22.04_amd64.deb
+
+  build-external-device-metrics-exporter-debian-package-ub24.04-v1.4.2:
+    commands: ["sh", "-c", "export CI_USE_SANITY_BUILD=1 && mkdir -p /device-metrics-exporter/bin &&
+       /gpu-operator/ci-internal/flexibuilder/build.sh build-external-device-metrics-exporter-debian-package-ub24.04 \
+       --alien-repo pensando/device-metrics-exporter --alien-target build-debian-package-ub24.04 --alien-branch v1.4.2"]
+    owners: ["email:srivatsa.sangli@amd.com"]
+    artifacts:
+     - /device-metrics-exporter/bin/amdgpu-exporter_24.04_amd64.deb
+
+  # Following are added for specific v1.4.0.x DME patch-release
+  build-external-device-metrics-exporter-v1.4.0:
+    commands: ["sh", "-c", "export CI_USE_SANITY_BUILD=1 && mkdir -p /device-metrics-exporter &&
+       /gpu-operator/ci-internal/flexibuilder/build.sh build-external-device-metrics-exporter \
+       --alien-repo pensando/device-metrics-exporter --alien-target build-device-metrics-exporter-docker-ubi9.6 --alien-branch v1.4.0"]
+    owners: ["email:srivatsa.sangli@amd.com"]
+    artifacts:
+     - /device-metrics-exporter/docker/device-metrics-exporter-latest.tar.gz
+
+  build-external-device-metrics-exporter-helm-artifact-v1.4.0:
+    commands: ["sh", "-c", "export CI_USE_SANITY_BUILD=1 && mkdir -p /device-metrics-exporter/helm-charts &&
+       /gpu-operator/ci-internal/flexibuilder/build.sh build-external-device-metrics-exporter-helm-artifact \
+       --alien-repo pensando/device-metrics-exporter --alien-target build-helm-artifact --alien-branch v1.4.0"]
+    owners: ["email:srivatsa.sangli@amd.com"]
+    artifacts:
+     - /device-metrics-exporter/helm-charts/device-metrics-exporter-charts.tgz
+     - /device-metrics-exporter/tools/techsupport_dump.sh
+
+  build-external-device-metrics-exporter-debian-package-ub22.04-v1.4.0:
+    commands: ["sh", "-c", "export CI_USE_SANITY_BUILD=1 && mkdir -p /device-metrics-exporter/bin &&
+       /gpu-operator/ci-internal/flexibuilder/build.sh build-external-device-metrics-exporter-debian-package-ub22.04 \
+       --alien-repo pensando/device-metrics-exporter --alien-target build-debian-package-ub22.04 --alien-branch v1.4.0"]
+    owners: ["email:srivatsa.sangli@amd.com"]
+    artifacts:
+     - /device-metrics-exporter/bin/amdgpu-exporter_22.04_amd64.deb
+
+  build-external-device-metrics-exporter-debian-package-ub24.04-v1.4.0:
+    commands: ["sh", "-c", "export CI_USE_SANITY_BUILD=1 && mkdir -p /device-metrics-exporter/bin &&
+       /gpu-operator/ci-internal/flexibuilder/build.sh build-external-device-metrics-exporter-debian-package-ub24.04 \
+       --alien-repo pensando/device-metrics-exporter --alien-target build-debian-package-ub24.04 --alien-branch v1.4.0"]
+    owners: ["email:srivatsa.sangli@amd.com"]
+    artifacts:
+     - /device-metrics-exporter/bin/amdgpu-exporter_24.04_amd64.deb
+
+targets:
+  gpu-operator-sanity:
+    commands: [ "/bin/sh", "-c", "cd /usr/src/github.com/pensando/gpu-operator && make generate && make vet && make lint && make unit-test"]
+    owners: ["email:mharkara@amd.com"]
+    area:
+    sub-area:
+  copyright-checks:
+    commands: [ "/bin/sh", "-c", "cd /usr/src/github.com/pensando/gpu-operator && make copyrights"]
+    owners: ["email:sajmera@amd.com"]
+    area:
+    sub-area:
+    feature:
+  docs-sanity:
+    commands: [ "/bin/sh", "-c", "cd /usr/src/github.com/pensando/gpu-operator && make docs"]
+    owners: ["email:yan.sun3@amd.com"]
+    area:
+    sub-area:
+    feature:
+  docs-lint:
+    commands: [ "/bin/sh", "-c", "cd /usr/src/github.com/pensando/gpu-operator && make docs-lint"]
+    owners: ["email:udayb@amd.com"]
+    area:
+    sub-area:
+    feature:
+image:
+  bind_dir: "/gpu-operator"
+  work_dir: "/gpu-operator"
+
+logfiles:
+  - /gpu-operator/techsupport.tgz
+  - /gpu-operator/e2e-artifacts.tgz
+
+jobs:
+  api:
+    labels: ["CI-Precheckin-Gpuoperator"]
+  asset-build:
+    labels: ["CI-Sanity-Build"]
+  tests/jobs/sim:
+    labels: ["CI-Sanity-Build"]
+  tests/jobs/sanity:
+    labels: ["CI-Pytest-Sanity"]
+  tests/jobs/regression:
+    labels: ["CI-Sanity-Build", "CI-Pytest-Regression"]
+  tests/jobs/upgrade:
+    labels: ["CI-Pytest-Upgrade"]
+  tests/jobs/operand-release/v1.4.2:
+    labels: ["CI-Pytest-Operand-Release-v1.4.2"]
+  tests/jobs/operand-release/v1.4.0.x:
+    labels: ["CI-Pytest-Operand-Release-v1.4.0"]
+  tests/jobs/k8s-compat/1.29.14:
+    labels: ["CI-Pytest-K8-Compat", "CI-Pytest-K8-Compat-1.29"]
+  tests/jobs/k8s-compat/1.30.14:
+    labels: ["CI-Pytest-K8-Compat", "CI-Pytest-K8-Compat-1.30"]
+  tests/jobs/k8s-compat/1.31.14:
+    labels: ["CI-Pytest-K8-Compat", "CI-Pytest-K8-Compat-1.31"]
+  tests/jobs/k8s-compat/1.32.13:
+    labels: ["CI-Pytest-K8-Compat", "CI-Pytest-K8-Compat-1.32"]
+  tests/jobs/k8s-compat/1.33.9:
+    labels: ["CI-Pytest-K8-Compat", "CI-Pytest-K8-Compat-1.33"]
+  tests/jobs/k8s-compat/1.34.5:
+    labels: ["CI-Pytest-K8-Compat", "CI-Pytest-K8-Compat-1.34"]
+  tests/jobs/k8s-compat/1.35.2:
+    labels: ["CI-Pytest-K8-Compat", "CI-Pytest-K8-Compat-1.35"]
+  devops/jobs/security_scan/sanity:
+    labels: ["CI-Sanity-Build"]
+
+dependencies:
+  api:
+  - reference: tests/jobs/sim
+  ci-internal:
+  - reference: tests/jobs/sim
+  cmd:
+  - reference: tests/jobs/sim
+  config:
+  - reference: tests/jobs/sim
+  hack:
+  - reference: tests/jobs/sim
+  helm-charts-k8s:
+  - reference: tests/jobs/sim
+  internal:
+  - reference: tests/jobs/sim
+  tests/e2e:
+  - reference: tests/jobs/sim
+
