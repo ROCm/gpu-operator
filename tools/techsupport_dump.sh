@@ -31,6 +31,7 @@ NFD_RESOURCES="pods daemonsets deployments configmap"
 KMM_RESOURCES="pods daemonsets deployments modules configmap"
 GPUOPER_RESOURCES="pods daemonsets deployments deviceconfig configmap"
 NPD_RESOURCES="pods daemonsets configmap"
+WORKFLOW_RESOURCES="workflows"
 
 OUTPUT_FORMAT="json"
 WIDE=""
@@ -66,8 +67,8 @@ pod_logs() {
 	for lpod in ${PODS}; do
 		pod=$(basename ${lpod})
 		log "   ${NS}/${pod}"
-		${KNS} logs "${pod}" --all-containers >${TECH_SUPPORT_FILE}/${NODE}/${FEATURE}/${NS}_${pod}.txt
-		${KNS} logs -p "${pod}" --all-containers --tail 1 >/dev/null 2>&1 && ${KNS} logs -p "${pod}" >${TECH_SUPPORT_FILE}/${NODE}/${FEATURE}/${NS}_${pod}_previous.txt
+		${KNS} logs "${pod}" --all-containers >${TECH_SUPPORT_FILE}/${NODE}/${FEATURE}/${NS}_${pod}.txt 2>&1 || true
+		${KNS} logs -p "${pod}" --all-containers --tail 1 >/dev/null 2>&1 && ${KNS} logs -p "${pod}" >${TECH_SUPPORT_FILE}/${NODE}/${FEATURE}/${NS}_${pod}_previous.txt 2>&1 || true
 	done
 	echo "${PODS}" >${TECH_SUPPORT_FILE}/${node}/${FEATURE}/pods.txt
 }
@@ -250,6 +251,49 @@ if [ -n "${NPD_NS}" ]; then
 	done
 fi
 
+# workflow resources (auto node remediation feature)
+log "workflows:"
+for resource in ${WORKFLOW_RESOURCES}; do
+	log "   ${GPUOPER_NS}/${resource}"
+	mkdir -p ${TECH_SUPPORT_FILE}/workflow/
+	${KUBECTL} get -n ${GPUOPER_NS} ${resource} ${WIDE} >${TECH_SUPPORT_FILE}/workflow/${resource}.txt 2>&1 || true
+	${KUBECTL} describe -n ${GPUOPER_NS} ${resource} >>${TECH_SUPPORT_FILE}/workflow/${resource}.txt 2>&1 || true
+	${KUBECTL} get -n ${GPUOPER_NS} ${resource} -o ${OUTPUT_FORMAT} >${TECH_SUPPORT_FILE}/workflow/${resource}.${OUTPUT_FORMAT} 2>&1 || true
+done
+
+# workflow controller pod
+log "workflow controller:"
+mkdir -p ${TECH_SUPPORT_FILE}/workflow/
+WORKFLOW_CONTROLLER_PODS=$(${KUBECTL} get pods -n ${GPUOPER_NS} -l app=amd-gpu-operator-workflow-controller --no-headers -o custom-columns=NAME:.metadata.name 2>/dev/null || true)
+if [ -n "$WORKFLOW_CONTROLLER_PODS" ]; then
+	echo "" >${TECH_SUPPORT_FILE}/workflow/workflow-controller-pods.txt
+	echo "" >${TECH_SUPPORT_FILE}/workflow/workflow-controller-pods.${OUTPUT_FORMAT}
+	while IFS= read -r pod_name; do
+		[ -z "$pod_name" ] && continue
+		log "   ${GPUOPER_NS}/${pod_name}"
+		${KUBECTL} describe -n ${GPUOPER_NS} pod "$pod_name" >>${TECH_SUPPORT_FILE}/workflow/workflow-controller-pods.txt 2>&1 || true
+		${KUBECTL} get -n ${GPUOPER_NS} pod "$pod_name" -o ${OUTPUT_FORMAT} >>${TECH_SUPPORT_FILE}/workflow/workflow-controller-pods.${OUTPUT_FORMAT} 2>&1 || true
+	done <<< "$WORKFLOW_CONTROLLER_PODS"
+fi
+
+# workflow-triggered test runner pods (pods with workflow labels)
+log "workflow-triggered pods:"
+mkdir -p ${TECH_SUPPORT_FILE}/workflow/
+WORKFLOW_PODS=$(${KUBECTL} get pods -n ${GPUOPER_NS} -l workflows.argoproj.io/workflow --no-headers -o custom-columns=NAME:.metadata.name 2>/dev/null || true)
+if [ -n "$WORKFLOW_PODS" ]; then
+	echo "" >${TECH_SUPPORT_FILE}/workflow/workflow-pods.txt
+	echo "" >${TECH_SUPPORT_FILE}/workflow/workflow-pods.${OUTPUT_FORMAT}
+	POD_COUNT=$(echo "$WORKFLOW_PODS" | wc -l)
+	POD_NUM=0
+	while IFS= read -r pod_name; do
+		[ -z "$pod_name" ] && continue
+		POD_NUM=$((POD_NUM + 1))
+		log "   ($POD_NUM/$POD_COUNT) ${GPUOPER_NS}/${pod_name}"
+		${KUBECTL} describe -n ${GPUOPER_NS} pod "$pod_name" >>${TECH_SUPPORT_FILE}/workflow/workflow-pods.txt 2>&1 || true
+		${KUBECTL} get -n ${GPUOPER_NS} pod "$pod_name" -o ${OUTPUT_FORMAT} >>${TECH_SUPPORT_FILE}/workflow/workflow-pods.${OUTPUT_FORMAT} 2>&1 || true
+	done <<< "$WORKFLOW_PODS"
+fi
+
 CONTROL_PLANE=$(${KUBECTL} get nodes -l node-role.kubernetes.io/control-plane | grep -w Ready | awk '{print $1}')
 # logs
 if [ "${NODES}" == "all" ]; then
@@ -421,6 +465,22 @@ for node in "${nodeList[@]}"; do
 	if [ -n "$TEST_RUNNER_PODS" ]; then
 		if ! pod_logs $GPUOPER_NS "test-runner" $node "$TEST_RUNNER_PODS"; then
 			log "Failed to collect logs for test-runner on node ${node}"
+		fi
+	fi
+
+	# workflow controller pod logs
+	WORKFLOW_CONTROLLER_PODS=$(${KNS} get pods -o name --field-selector spec.nodeName=${node} -l app=amd-gpu-operator-workflow-controller 2>/dev/null || true)
+	if [ -n "$WORKFLOW_CONTROLLER_PODS" ]; then
+		if ! pod_logs $GPUOPER_NS "workflow-controller" $node "$WORKFLOW_CONTROLLER_PODS"; then
+			log "Failed to collect logs for workflow controller on node ${node}"
+		fi
+	fi
+
+	# workflow-triggered pod logs (pods with workflow labels on this node)
+	WORKFLOW_NODE_PODS=$(${KNS} get pods -o name --field-selector spec.nodeName=${node} -l workflows.argoproj.io/workflow 2>/dev/null || true)
+	if [ -n "$WORKFLOW_NODE_PODS" ]; then
+		if ! pod_logs $GPUOPER_NS "workflow-pods" $node "$WORKFLOW_NODE_PODS"; then
+			log "Failed to collect logs for workflow-triggered pods on node ${node}"
 		fi
 	fi
 
