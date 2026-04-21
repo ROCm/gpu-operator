@@ -56,7 +56,7 @@ ID      Health  Associated Workload
 
 ### 4. Inject ECC Errors on GPU 0
 
-In order to simulate errors on a GPU we will be using a json file that specifies a GPU ID along with counters for several ECC Uncorrectable error fields that are being monitored by the Device Metrics Exporter. In the below example you can see that we are specifying `GPU 0` and injecting 1 `GPU_ECC_UNCORRECT_SEM` error and 2 `GPU_ECC_UNCORRECT_FUSE` errors. We use the `metricslient -ecc-file-path <file.json>` command to specify the json file we want to inject into the metrics table. To create the json file and execute the metricsclient command all in in one go run the following:
+In order to simulate errors on a GPU we will be using a json file that specifies a GPU ID along with counters for several ECC Uncorrectable error fields that are being monitored by the Device Metrics Exporter. In the below example you can see that we are specifying `GPU 0` and injecting 1 `GPU_ECC_UNCORRECT_SEM` error and 2 `GPU_ECC_UNCORRECT_FUSE` errors. We use the `metricsclient --ecc-file-path <file.json>` command to specify the json file we want to inject into the metrics table. To create the json file and execute the metricsclient command all in in one go run the following:
 
 ```bash
 kubectl exec -n kube-amd-gpu $METRICS_POD -c metrics-exporter-container -- sh -c 'cat > /tmp/ecc.json <<EOF
@@ -71,7 +71,7 @@ kubectl exec -n kube-amd-gpu $METRICS_POD -c metrics-exporter-container -- sh -c
         ]
 }
 EOF
-metricsclient -ecc-file-path /tmp/ecc.json'
+metricsclient --ecc-file-path /tmp/ecc.json'
 ```
 
 The metricsclient should report back the current status of the GPUs as well as the new json string you just injected.
@@ -161,7 +161,7 @@ kubectl exec -n kube-amd-gpu $METRICS_POD -c metrics-exporter-container -- sh -c
         ]
 }
 EOF
-metricsclient -ecc-file-path /tmp/delete_ecc.json'
+metricsclient --ecc-file-path /tmp/delete_ecc.json'
 ```
 
 ### 9. Check to see GPU 0 Become Healthy Again

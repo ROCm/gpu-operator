@@ -1727,7 +1727,7 @@ func SetGPUHealthOnNode(cl *kubernetes.Clientset, ns, gpuid, health, nodeName st
 	if err != nil {
 		return err
 	}
-	cmd2 := "metricsclient -ecc-file-path /tmp/ecc.json"
+	cmd2 := "metricsclient --ecc-file-path /tmp/ecc.json"
 	_, err = ExecPodCmd(cmd2, ns, pods.Items[0].Name, metricsexporter.ExporterName+"-container")
 	return err
 }
