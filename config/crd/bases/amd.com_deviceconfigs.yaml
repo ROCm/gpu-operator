@@ -107,8 +107,10 @@ spec:
                 description: config manager
                 properties:
                   config:
-                    description: config map to customize the config for config manager,
-                      if not specified default config will be applied
+                    description: |-
+                      ConfigMap holding DCM config.json. When set, the operator mounts this ConfigMap and does not create it.
+                      When omitted or name is empty, the operator mounts ConfigMap "default-dcm-config" and creates it in the
+                      DeviceConfig namespace if it does not already exist (same default payload as chart defaultDCMConfigMap).
                     properties:
                       name:
                         default: ""

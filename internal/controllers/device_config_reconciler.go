@@ -1471,6 +1471,10 @@ func (dcrh *deviceConfigReconcilerHelper) handleConfigManager(ctx context.Contex
 		return dcrh.finalizeConfigManager(ctx, devConfig)
 	}
 
+	if err := configmanager.EnsureDefaultDCMConfigMap(ctx, dcrh.client, devConfig); err != nil {
+		return fmt.Errorf("ensure default DCM ConfigMap: %w", err)
+	}
+
 	opRes, err := controllerutil.CreateOrPatch(ctx, dcrh.client, ds, func() error {
 		return dcrh.configmanagerHandler.SetConfigManagerAsDesired(ds, devConfig)
 	})

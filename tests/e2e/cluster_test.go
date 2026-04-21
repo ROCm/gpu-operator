@@ -353,6 +353,64 @@ func (s *E2ESuite) checkDeviceConfigManagerStatus(devCfg *v1alpha1.DeviceConfig,
 	}, 5*time.Minute, 5*time.Second)
 }
 
+func podSpecHasDCMConfigVolumeMount(spec *v1.PodSpec) bool {
+	check := func(mounts []v1.VolumeMount) bool {
+		for _, m := range mounts {
+			if m.Name == configmanager.ConfigManagerConfigVolumeName && m.MountPath == configmanager.DefaultDCMConfigMountPath {
+				return true
+			}
+		}
+		return false
+	}
+	for i := range spec.Containers {
+		if check(spec.Containers[i].VolumeMounts) {
+			return true
+		}
+	}
+	for i := range spec.InitContainers {
+		if check(spec.InitContainers[i].VolumeMounts) {
+			return true
+		}
+	}
+	return false
+}
+
+// verifyDCMConfigMapVolumeRef asserts the DCM DaemonSet has a ConfigMap volume
+// (configmanager.ConfigManagerConfigVolumeName) pointing at expectedConfigMapName, and that some
+// workload or init container mounts that volume at configmanager.DefaultDCMConfigMountPath.
+func (s *E2ESuite) verifyDCMConfigMapVolumeRef(devCfg *v1alpha1.DeviceConfig, ns string, expectedConfigMapName string, c *C) {
+	dsName := devCfg.Name + "-" + configmanager.ConfigManagerName
+	assert.Eventually(c, func() bool {
+		ds, err := s.clientSet.AppsV1().DaemonSets(ns).Get(context.TODO(), dsName, metav1.GetOptions{})
+		if err != nil {
+			logger.Errorf("verifyDCMConfigMapVolumeRef: get DS %s: %v", dsName, err)
+			return false
+		}
+		spec := &ds.Spec.Template.Spec
+		var volOK bool
+		for _, vol := range spec.Volumes {
+			if vol.Name != configmanager.ConfigManagerConfigVolumeName || vol.ConfigMap == nil {
+				continue
+			}
+			volOK = true
+			if vol.ConfigMap.Name != expectedConfigMapName {
+				logger.Errorf("verifyDCMConfigMapVolumeRef: want ConfigMap %q, got %q", expectedConfigMapName, vol.ConfigMap.Name)
+				return false
+			}
+			break
+		}
+		if !volOK {
+			logger.Errorf("verifyDCMConfigMapVolumeRef: volume %q not found or not a ConfigMap", configmanager.ConfigManagerConfigVolumeName)
+			return false
+		}
+		if !podSpecHasDCMConfigVolumeMount(spec) {
+			logger.Errorf("verifyDCMConfigMapVolumeRef: no container VolumeMount for volume %q at %q", configmanager.ConfigManagerConfigVolumeName, configmanager.DefaultDCMConfigMountPath)
+			return false
+		}
+		return true
+	}, 2*time.Minute, 3*time.Second)
+}
+
 func (s *E2ESuite) checkDRADriverStatus(devCfg *v1alpha1.DeviceConfig, ns string, c *C) {
 	dsName := utils.DRADriverName(devCfg.Name)
 	assert.Eventually(c, func() bool {
@@ -1397,9 +1455,7 @@ func (s *E2ESuite) TestWorkloadRequestedGPUs(c *C) {
 }
 
 func (s *E2ESuite) TestWorkloadRequestedGPUsHomogeneousSingle(c *C) {
-	if s.simEnable {
-		skipTest(c, "Skipping for non amd gpu testbed")
-	}
+	s.skipDCMTestIfSIMRequiresGPU(c)
 	if !dcmImageDefined {
 		skipTest(c, "skip DCM test because E2E_DCM_IMAGE is not defined")
 	}
@@ -1477,9 +1533,7 @@ func (s *E2ESuite) TestWorkloadRequestedGPUsHomogeneousSingle(c *C) {
 }
 
 func (s *E2ESuite) TestWorkloadRequestedGPUsHomogeneousMixed(c *C) {
-	if s.simEnable {
-		skipTest(c, "Skipping for non amd gpu testbed")
-	}
+	s.skipDCMTestIfSIMRequiresGPU(c)
 	if !dcmImageDefined {
 		skipTest(c, "skip DCM test because E2E_DCM_IMAGE is not defined")
 	}
@@ -1556,9 +1610,7 @@ func (s *E2ESuite) TestWorkloadRequestedGPUsHomogeneousMixed(c *C) {
 }
 
 func (s *E2ESuite) TestWorkloadRequestedGPUsHeterogeneousMixed(c *C) {
-	if s.simEnable {
-		skipTest(c, "Skipping for non amd gpu testbed")
-	}
+	s.skipDCMTestIfSIMRequiresGPU(c)
 	if !dcmImageDefined {
 		skipTest(c, "skip DCM test because E2E_DCM_IMAGE is not defined")
 	}

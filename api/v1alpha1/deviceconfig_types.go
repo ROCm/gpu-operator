@@ -602,7 +602,9 @@ type ConfigManagerSpec struct {
 	// +optional
 	ImageRegistrySecret *v1.LocalObjectReference `json:"imageRegistrySecret,omitempty"`
 
-	// config map to customize the config for config manager, if not specified default config will be applied
+	// ConfigMap holding DCM config.json. When set, the operator mounts this ConfigMap and does not create it.
+	// When omitted or name is empty, the operator mounts ConfigMap "default-dcm-config" and creates it in the
+	// DeviceConfig namespace if it does not already exist (same default payload as chart defaultDCMConfigMap).
 	//+operator-sdk:csv:customresourcedefinitions:type=spec,displayName="Config",xDescriptors={"urn:alm:descriptor:com.amd.deviceconfigs:configmap"}
 	// +optional
 	Config *v1.LocalObjectReference `json:"config,omitempty"`
