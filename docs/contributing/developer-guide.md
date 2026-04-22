@@ -142,7 +142,6 @@ docker run --rm -v /path/to/kubeconfig:/kubeconfig:ro \
   -test.timeout 30m
 ```
 
-
 #### Using make
 
 ```bash
