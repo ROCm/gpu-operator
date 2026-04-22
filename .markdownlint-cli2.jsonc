@@ -10,6 +10,7 @@
     "**/internal-example/**",
     "**/.claude/**",
     "**/tests/pytests/**",
-    "**/knowledge/**"
+    "**/knowledge/**",
+    "**/tests/test-plan/**"
   ]
 }

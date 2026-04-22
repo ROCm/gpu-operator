@@ -77,17 +77,17 @@ func (mr *MockdeviceConfigReconcilerHelperAPIMockRecorder) buildDeviceConfigStat
 }
 
 // buildNodeAssignments mocks base method.
-func (m *MockdeviceConfigReconcilerHelperAPI) buildNodeAssignments(deviceConfigList *v1alpha1.DeviceConfigList) error {
+func (m *MockdeviceConfigReconcilerHelperAPI) buildNodeAssignments(ctx context.Context, deviceConfigList *v1alpha1.DeviceConfigList) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "buildNodeAssignments", deviceConfigList)
+	ret := m.ctrl.Call(m, "buildNodeAssignments", ctx, deviceConfigList)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // buildNodeAssignments indicates an expected call of buildNodeAssignments.
-func (mr *MockdeviceConfigReconcilerHelperAPIMockRecorder) buildNodeAssignments(deviceConfigList any) *gomock.Call {
+func (mr *MockdeviceConfigReconcilerHelperAPIMockRecorder) buildNodeAssignments(ctx, deviceConfigList any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "buildNodeAssignments", reflect.TypeOf((*MockdeviceConfigReconcilerHelperAPI)(nil).buildNodeAssignments), deviceConfigList)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "buildNodeAssignments", reflect.TypeOf((*MockdeviceConfigReconcilerHelperAPI)(nil).buildNodeAssignments), ctx, deviceConfigList)
 }
 
 // deleteCondition mocks base method.

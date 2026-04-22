@@ -179,7 +179,7 @@ spec:
     # For OpenShift, set useSourceImage to true 
     # to enable building driver from source code image in air-gapped environment
     useSourceImage: true
-    version: "7.0"
+    version: "30.20.1"
   devicePlugin:
     enableNodeLabeller: true
   metricsExporter:
