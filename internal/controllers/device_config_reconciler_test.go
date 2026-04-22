@@ -197,7 +197,7 @@ var _ = Describe("getLabelsPerModules", func() {
 	BeforeEach(func() {
 		ctrl := gomock.NewController(GinkgoT())
 		kubeClient = mock_client.NewMockClient(ctrl)
-		dcrh = newDeviceConfigReconcilerHelper(kubeClient, nil, nil, nil, nil, nil, nil, nil, nil, nil, true)
+		dcrh = newDeviceConfigReconcilerHelper(kubeClient, nil, nil, nil, nil, nil, nil, nil, nil, nil, false, true)
 	})
 
 	ctx := context.Background()
@@ -241,7 +241,7 @@ var _ = Describe("deviceConfigReconcilerHelper with KMM watch disabled", func() 
 	BeforeEach(func() {
 		ctrl := gomock.NewController(GinkgoT())
 		kubeClient = mock_client.NewMockClient(ctrl)
-		dcrh = newDeviceConfigReconcilerHelper(kubeClient, nil, nil, nil, nil, nil, nil, nil, nil, nil, true)
+		dcrh = newDeviceConfigReconcilerHelper(kubeClient, nil, nil, nil, nil, nil, nil, nil, nil, nil, false, true)
 	})
 	ctx := context.Background()
 	nn := types.NamespacedName{
@@ -282,7 +282,7 @@ var _ = Describe("setFinalizer", func() {
 	BeforeEach(func() {
 		ctrl := gomock.NewController(GinkgoT())
 		kubeClient = mock_client.NewMockClient(ctrl)
-		dcrh = newDeviceConfigReconcilerHelper(kubeClient, nil, nil, nil, nil, nil, nil, nil, nil, nil, true)
+		dcrh = newDeviceConfigReconcilerHelper(kubeClient, nil, nil, nil, nil, nil, nil, nil, nil, nil, false, true)
 	})
 
 	ctx := context.Background()
@@ -318,7 +318,7 @@ var _ = Describe("finalizeDeviceConfig", func() {
 	BeforeEach(func() {
 		ctrl := gomock.NewController(GinkgoT())
 		kubeClient = mock_client.NewMockClient(ctrl)
-		dcrh = newDeviceConfigReconcilerHelper(kubeClient, nil, nil, nil, nil, nil, nil, nil, nil, nil, true)
+		dcrh = newDeviceConfigReconcilerHelper(kubeClient, nil, nil, nil, nil, nil, nil, nil, nil, nil, false, true)
 	})
 
 	ctx := context.Background()
@@ -539,7 +539,7 @@ var _ = Describe("handleKMMModule", func() {
 		ctrl := gomock.NewController(GinkgoT())
 		kubeClient = mock_client.NewMockClient(ctrl)
 		kmmHelper = kmmmodule.NewMockKMMModuleAPI(ctrl)
-		dcrh = newDeviceConfigReconcilerHelper(kubeClient, kmmHelper, nil, nil, nil, nil, nil, nil, nil, nil, true)
+		dcrh = newDeviceConfigReconcilerHelper(kubeClient, kmmHelper, nil, nil, nil, nil, nil, nil, nil, nil, false, true)
 	})
 
 	ctx := context.Background()
@@ -609,7 +609,7 @@ var _ = Describe("handleBuildConfigMap", func() {
 		ctrl := gomock.NewController(GinkgoT())
 		kubeClient = mock_client.NewMockClient(ctrl)
 		kmmHelper = kmmmodule.NewMockKMMModuleAPI(ctrl)
-		dcrh = newDeviceConfigReconcilerHelper(kubeClient, kmmHelper, nil, nil, nil, nil, nil, nil, nil, nil, true)
+		dcrh = newDeviceConfigReconcilerHelper(kubeClient, kmmHelper, nil, nil, nil, nil, nil, nil, nil, nil, false, true)
 	})
 
 	ctx := context.Background()
@@ -676,7 +676,7 @@ var _ = Describe("handleNodeLabeller", func() {
 		ctrl := gomock.NewController(GinkgoT())
 		kubeClient = mock_client.NewMockClient(ctrl)
 		nodeLabellerHelper = nodelabeller.NewMockNodeLabeller(ctrl)
-		dcrh = newDeviceConfigReconcilerHelper(kubeClient, nil, nil, nodeLabellerHelper, nil, nil, nil, nil, nil, nil, true)
+		dcrh = newDeviceConfigReconcilerHelper(kubeClient, nil, nil, nodeLabellerHelper, nil, nil, nil, nil, nil, nil, false, true)
 	})
 
 	ctx := context.Background()
@@ -762,7 +762,7 @@ var _ = Describe("buildNodeAssignments", func() {
 	BeforeEach(func() {
 		ctrl := gomock.NewController(GinkgoT())
 		kubeClient := mock_client.NewMockClient(ctrl)
-		dcrh = newDeviceConfigReconcilerHelper(kubeClient, nil, nil, nil, nil, nil, nil, nil, nil, nil, true)
+		dcrh = newDeviceConfigReconcilerHelper(kubeClient, nil, nil, nil, nil, nil, nil, nil, nil, nil, false, true)
 	})
 
 	It("skips non-ready DeviceConfigs", func() {
@@ -819,5 +819,83 @@ var _ = Describe("buildNodeAssignments", func() {
 		// Re-running with dc2 should log a conflict but not error
 		err = dcrh.buildNodeAssignments(ctx, dcList2)
 		Expect(err).ToNot(HaveOccurred())
+	})
+})
+
+var _ = Describe("handleDeviceClass", func() {
+	var (
+		kubeClient *mock_client.MockClient
+		dcrh       deviceConfigReconcilerHelperAPI
+	)
+
+	ctx := context.Background()
+	draEnabled := true
+	draDisabled := false
+
+	draEnabledConfig := &amdv1alpha1.DeviceConfig{
+		ObjectMeta: metav1.ObjectMeta{Name: devConfigName, Namespace: devConfigNamespace},
+		Spec: amdv1alpha1.DeviceConfigSpec{
+			DRADriver: amdv1alpha1.DRADriverSpec{Enable: &draEnabled},
+		},
+	}
+
+	draDisabledConfig := &amdv1alpha1.DeviceConfig{
+		ObjectMeta: metav1.ObjectMeta{Name: devConfigName, Namespace: devConfigNamespace},
+		Spec: amdv1alpha1.DeviceConfigSpec{
+			DRADriver: amdv1alpha1.DRADriverSpec{Enable: &draDisabled},
+		},
+	}
+
+	It("should skip when not on OpenShift", func() {
+		ctrl := gomock.NewController(GinkgoT())
+		kubeClient = mock_client.NewMockClient(ctrl)
+		dcrh = newDeviceConfigReconcilerHelper(kubeClient, nil, nil, nil, nil, nil, nil, nil, nil, nil, false, true)
+
+		err := dcrh.handleDeviceClass(ctx, draEnabledConfig)
+		Expect(err).ToNot(HaveOccurred())
+	})
+
+	It("should skip when DRA driver is not enabled", func() {
+		ctrl := gomock.NewController(GinkgoT())
+		kubeClient = mock_client.NewMockClient(ctrl)
+		dcrh = newDeviceConfigReconcilerHelper(kubeClient, nil, nil, nil, nil, nil, nil, nil, nil, nil, true, true)
+
+		err := dcrh.handleDeviceClass(ctx, draDisabledConfig)
+		Expect(err).ToNot(HaveOccurred())
+	})
+
+	It("should create DeviceClass when it does not exist", func() {
+		ctrl := gomock.NewController(GinkgoT())
+		kubeClient = mock_client.NewMockClient(ctrl)
+		dcrh = newDeviceConfigReconcilerHelper(kubeClient, nil, nil, nil, nil, nil, nil, nil, nil, nil, true, true)
+
+		kubeClient.EXPECT().Create(ctx, gomock.Any()).Return(nil)
+
+		err := dcrh.handleDeviceClass(ctx, draEnabledConfig)
+		Expect(err).ToNot(HaveOccurred())
+	})
+
+	It("should succeed when DeviceClass already exists", func() {
+		ctrl := gomock.NewController(GinkgoT())
+		kubeClient = mock_client.NewMockClient(ctrl)
+		dcrh = newDeviceConfigReconcilerHelper(kubeClient, nil, nil, nil, nil, nil, nil, nil, nil, nil, true, true)
+
+		kubeClient.EXPECT().Create(ctx, gomock.Any()).Return(
+			k8serrors.NewAlreadyExists(schema.GroupResource{Group: "resource.k8s.io", Resource: "deviceclasses"}, "gpu.amd.com"),
+		)
+
+		err := dcrh.handleDeviceClass(ctx, draEnabledConfig)
+		Expect(err).ToNot(HaveOccurred())
+	})
+
+	It("should return error when Create fails", func() {
+		ctrl := gomock.NewController(GinkgoT())
+		kubeClient = mock_client.NewMockClient(ctrl)
+		dcrh = newDeviceConfigReconcilerHelper(kubeClient, nil, nil, nil, nil, nil, nil, nil, nil, nil, true, true)
+
+		kubeClient.EXPECT().Create(ctx, gomock.Any()).Return(fmt.Errorf("server error"))
+
+		err := dcrh.handleDeviceClass(ctx, draEnabledConfig)
+		Expect(err).To(HaveOccurred())
 	})
 })
