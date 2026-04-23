@@ -636,6 +636,21 @@ func (mr *MockremediationMgrHelperAPIMockRecorder) isRemediationDisabled(ctx, de
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "isRemediationDisabled", reflect.TypeOf((*MockremediationMgrHelperAPI)(nil).isRemediationDisabled), ctx, devConfig)
 }
 
+// isWorkflowCRDPresent mocks base method.
+func (m *MockremediationMgrHelperAPI) isWorkflowCRDPresent(ctx context.Context) (bool, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "isWorkflowCRDPresent", ctx)
+	ret0, _ := ret[0].(bool)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// isWorkflowCRDPresent indicates an expected call of isWorkflowCRDPresent.
+func (mr *MockremediationMgrHelperAPIMockRecorder) isWorkflowCRDPresent(ctx any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "isWorkflowCRDPresent", reflect.TypeOf((*MockremediationMgrHelperAPI)(nil).isWorkflowCRDPresent), ctx)
+}
+
 // isWorkflowSchedulableOnNode mocks base method.
 func (m *MockremediationMgrHelperAPI) isWorkflowSchedulableOnNode(ctx context.Context, devConfig *v1alpha1.DeviceConfig, node *v1.Node, mapping ConditionWorkflowMapping) bool {
 	m.ctrl.T.Helper()
