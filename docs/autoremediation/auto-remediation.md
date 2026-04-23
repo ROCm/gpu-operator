@@ -94,25 +94,25 @@ For OpenShift users: To use the auto remediation feature, additonal steps are re
 
 2. **If not using OpenShift AI Operator:** Follow these steps to install Argo Workflows on your OpenShift cluster:
 
-      a. Install CRDs (must be executed separately due to CRD size):
+  a. Install CRDs (must be executed separately due to CRD size):
 
 ```bash
 oc apply --server-side --force-conflicts -k "https://github.com/argoproj/argo-workflows/manifests/base/crds/full?ref=v4.0.3"
 ```
 
-      b. Add the Argo Helm repository:
+  b. Add the Argo Helm repository:
 
 ```bash
 helm repo add argo https://argoproj.github.io/argo-helm --force-update
 ```
 
-      c. Install Argo Workflows using Helm:
+  c. Install Argo Workflows using Helm:
 
 ```bash
 helm install argo-workflow argo/argo-workflows \
-          -n argo-workflow \
-          --create-namespace \
-          --version=1.0.6 \
+  -n argo-workflow \
+  --create-namespace \
+  --version=1.0.6 \
   --set crds.install=false \
   --set controller.instanceID.enabled=true \
   --set controller.instanceID.explicitID=amd-gpu-operator-remediation-workflow \
