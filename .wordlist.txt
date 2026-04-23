@@ -453,6 +453,7 @@ NVPTX
 Nano
 Navi
 Noncoherently
+NoSchedule
 NousResearch's
 NumPy
 OAM
