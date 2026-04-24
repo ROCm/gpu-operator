@@ -39,6 +39,7 @@ import (
 	apiextClient "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/tools/clientcmd"
@@ -155,12 +156,19 @@ func (s *E2ESuite) SetUpSuite(c *C) {
 
 	s.clusterType = utils.GetClusterType(config)
 
+	// Create a dynamic client for custom resource snapshots
+	dynClient, err := dynamic.NewForConfig(config)
+	if err != nil {
+		c.Fatalf("Failed to create dynamic client: %v", err)
+	}
+
 	// Initialize the per-test monitor (log collection + periodic snapshots + node diagnostics)
 	s.testMonitor = utils.NewTestMonitor(cs, s.ns, "e2e-artifacts",
 		utils.WithLogCollection(),
 		utils.WithSnapshots(),
 		utils.WithSnapshotInterval(2*time.Minute),
 		utils.WithNodeDiagnostics(),
+		utils.WithDynamicClient(dynClient),
 	)
 
 	if s.openshift == false {
