@@ -992,7 +992,7 @@ func (dcrh *deviceConfigReconcilerHelper) finalizeDeviceConfig(ctx context.Conte
 				}
 			} else {
 				// driver disabled mode won't have KMM CR created
-				// but it still requries the removal of node labels
+				// but it still requires the removal of node labels
 				if err := dcrh.updateNodeLabels(ctx, devConfig, nodes, true); err != nil {
 					logger.Error(err, "failed to update node labels")
 				}
@@ -1267,7 +1267,7 @@ func (dcrh *deviceConfigReconcilerHelper) handleNodeLabeller(ctx context.Context
 		if err := dcrh.updateNodeLabels(ctx, devConfig, nodes, false); err != nil {
 			logger.Error(err, "failed to remove node labeller's labels when node labeller is disabled")
 		}
-		logger.Info("skip handling node labeller as it is disbaled", "namespace", devConfig.Namespace, "name", devConfig.Name)
+		logger.Info("skip handling node labeller as it is disabled", "namespace", devConfig.Namespace, "name", devConfig.Name)
 		return nil
 	}
 

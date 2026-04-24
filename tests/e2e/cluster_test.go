@@ -1195,7 +1195,7 @@ func (s *E2ESuite) TestDeploymentWithPreInstalledKMMAndNFD(c *C) {
 	}
 	utils.RunCommand(kmmInstallCommand)
 
-	logger.Infof("Deploying GPU opertor without NFD and KMM Operator")
+	logger.Infof("Deploying GPU operator without NFD and KMM Operator")
 	// Deploy GPU operator. Skip NFD and KMM
 	utils.RunCommand(deployWithoutNFDKMMCommand)
 

@@ -373,7 +373,7 @@ func (s *E2ESuite) TestHealthCheckFeature(c *C) {
 			LabelSelector: labels.SelectorFromSet(rocmLabel).String(),
 		})
 		if err != nil {
-			logger.Printf("Error occured when trying to get the pod. Error: %v", err)
+			logger.Printf("Error occurred when trying to get the pod. Error: %v", err)
 			return false
 		}
 		if pods == nil || len(pods.Items) == 0 {
@@ -409,7 +409,7 @@ func (s *E2ESuite) TestHealthCheckFeature(c *C) {
 			LabelSelector: labels.SelectorFromSet(rocmLabel).String(),
 		})
 		if err != nil {
-			logger.Printf("Error occured when trying to get the pod. Error: %v", err)
+			logger.Printf("Error occurred when trying to get the pod. Error: %v", err)
 			return false
 		}
 		if pods == nil || len(pods.Items) == 0 {
@@ -443,7 +443,7 @@ func (s *E2ESuite) TestHealthCheckFeature(c *C) {
 			LabelSelector: labels.SelectorFromSet(rocmLabel).String(),
 		})
 		if err != nil {
-			logger.Printf("Error occured when trying to get the pod. Error: %v", err)
+			logger.Printf("Error occurred when trying to get the pod. Error: %v", err)
 			return false
 		}
 		if pods == nil || len(pods.Items) == 0 {

@@ -237,7 +237,7 @@ func TestShouldUseKMM(t *testing.T) {
 			Expect: false,
 		},
 		{
-			Description: "enbale driver management with container driver type",
+			Description: "enable driver management with container driver type",
 			DevConfig: &v1alpha1.DeviceConfig{
 				Spec: v1alpha1.DeviceConfigSpec{
 					Driver: v1alpha1.DriverSpec{
@@ -249,7 +249,7 @@ func TestShouldUseKMM(t *testing.T) {
 			Expect: true,
 		},
 		{
-			Description: "enbale driver management with vf-passthrough driver type",
+			Description: "enable driver management with vf-passthrough driver type",
 			DevConfig: &v1alpha1.DeviceConfig{
 				Spec: v1alpha1.DeviceConfigSpec{
 					Driver: v1alpha1.DriverSpec{
@@ -261,7 +261,7 @@ func TestShouldUseKMM(t *testing.T) {
 			Expect: true,
 		},
 		{
-			Description: "enbale driver management with pf-passthrough driver type",
+			Description: "enable driver management with pf-passthrough driver type",
 			DevConfig: &v1alpha1.DeviceConfig{
 				Spec: v1alpha1.DeviceConfigSpec{
 					Driver: v1alpha1.DriverSpec{
