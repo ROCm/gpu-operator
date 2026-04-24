@@ -878,7 +878,7 @@ type TestRunnerSpec struct {
 	// +optional
 	ImageRegistrySecret *v1.LocalObjectReference `json:"imageRegistrySecret,omitempty"`
 
-	// config map to customize the config for test runner, if not specified default test config will be aplied
+	// config map to customize the config for test runner, if not specified default test config will be applied
 	//+operator-sdk:csv:customresourcedefinitions:type=spec,displayName="Secret",xDescriptors={"urn:alm:descriptor:com.amd.deviceconfigs:configmap"}
 	// +optional
 	Config *v1.LocalObjectReference `json:"config,omitempty"`
