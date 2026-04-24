@@ -52,6 +52,7 @@ import (
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/client-go/discovery"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/util/retry"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -84,11 +85,7 @@ const (
 	deviceClassName            = "gpu.amd.com"
 )
 
-var draDeviceClassGVK = schema.GroupVersionKind{
-	Group:   "resource.k8s.io",
-	Version: "v1",
-	Kind:    "DeviceClass",
-}
+var draAPIVersionPriority = []string{"v1", "v1beta2", "v1beta1"}
 
 // ModuleReconciler reconciles a Module object
 type DeviceConfigReconciler struct {
@@ -1263,8 +1260,15 @@ func (dcrh *deviceConfigReconcilerHelper) handleDeviceClass(ctx context.Context,
 
 	logger := log.FromContext(ctx)
 
+	apiVersion := discoverDRAAPIVersion()
+	logger.Info("Discovered DRA API version", "apiVersion", apiVersion)
+
 	dc := &unstructured.Unstructured{}
-	dc.SetGroupVersionKind(draDeviceClassGVK)
+	dc.SetGroupVersionKind(schema.GroupVersionKind{
+		Group:   "resource.k8s.io",
+		Version: apiVersion,
+		Kind:    "DeviceClass",
+	})
 	dc.SetName(deviceClassName)
 	dc.SetLabels(map[string]string{
 		"app.kubernetes.io/component": "amd-gpu",
@@ -1287,8 +1291,30 @@ func (dcrh *deviceConfigReconcilerHelper) handleDeviceClass(ctx context.Context,
 		return fmt.Errorf("failed to create DeviceClass %s: %v", deviceClassName, err)
 	}
 
-	logger.Info("Created DeviceClass", "name", deviceClassName)
+	logger.Info("Created DeviceClass", "name", deviceClassName, "apiVersion", apiVersion)
 	return nil
+}
+
+// discoverDRAAPIVersion probes the API server to find the highest available
+// version of the resource.k8s.io group (v1 > v1beta2 > v1beta1). This is
+// needed because OpenShift 4.20 / K8s 1.33 only serves v1beta2 while
+// OpenShift 4.21 / K8s 1.34+ serves the GA v1 API.
+func discoverDRAAPIVersion() string {
+	config, err := rest.InClusterConfig()
+	if err != nil {
+		return draAPIVersionPriority[0]
+	}
+	dc, err := discovery.NewDiscoveryClientForConfig(config)
+	if err != nil {
+		return draAPIVersionPriority[0]
+	}
+	for _, version := range draAPIVersionPriority {
+		_, err := dc.ServerResourcesForGroupVersion("resource.k8s.io/" + version)
+		if err == nil {
+			return version
+		}
+	}
+	return draAPIVersionPriority[0]
 }
 
 func (dcrh *deviceConfigReconcilerHelper) handleKMMVersionLabel(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig, nodes *v1.NodeList) error {
