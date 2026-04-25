@@ -135,7 +135,7 @@ builds:
      - /device-metrics-exporter/bin/amdgpu-exporter_24.04_amd64.metadata
 
   gpu-operator-olm-bundle-sanity-build:
-    commands: ["sh", "-c", "export CI_USE_SANITY_BUILD=1 && mkdir -p /device-metrics-exporter/bin &&
+    commands: ["sh", "-c", "export CI_USE_SANITY_BUILD=1 &&
        /gpu-operator/ci-internal/flexibuilder/build.sh gpu-operator-olm-bundle-sanity-build \
        --alien-repo pensando/gpu-operator --alien-target build-gpu-operator --alien-branch ${JOB_BASE_BRANCH}"]
     owners: ["email:srivatsa.sangli@amd.com"]
@@ -151,6 +151,7 @@ builds:
     owners: ["email:srivatsa.sangli@amd.com"]
     artifacts:
      - /device-metrics-exporter/docker/device-metrics-exporter-latest.tar.gz
+     - /device-metrics-exporter/docker/device-metrics-exporter-latest.metadata
 
   build-external-device-metrics-exporter-helm-artifact-v1.4.2:
     commands: ["sh", "-c", "export CI_USE_SANITY_BUILD=1 && mkdir -p /device-metrics-exporter/helm-charts &&
@@ -185,6 +186,7 @@ builds:
     owners: ["email:srivatsa.sangli@amd.com"]
     artifacts:
      - /device-metrics-exporter/docker/device-metrics-exporter-latest.tar.gz
+     - /device-metrics-exporter/docker/device-metrics-exporter-latest.metadata
 
   build-external-device-metrics-exporter-helm-artifact-v1.4.0:
     commands: ["sh", "-c", "export CI_USE_SANITY_BUILD=1 && mkdir -p /device-metrics-exporter/helm-charts &&
@@ -210,6 +212,71 @@ builds:
     owners: ["email:srivatsa.sangli@amd.com"]
     artifacts:
      - /device-metrics-exporter/bin/amdgpu-exporter_24.04_amd64.deb
+
+  # Following are added for specific collab-7.12 release
+  build-external-device-metrics-exporter-collab-7.12:
+    commands: ["sh", "-c", "export CI_USE_SANITY_BUILD=1 && mkdir -p /device-metrics-exporter &&
+       /gpu-operator/ci-internal/flexibuilder/build.sh build-external-device-metrics-exporter-collab-7.12 \
+       --alien-repo pensando/device-metrics-exporter --alien-target build-device-metrics-exporter-docker-ubi9.6 --alien-branch collab-7.12"]
+    owners: ["email:srivatsa.sangli@amd.com"]
+    artifacts:
+     - /device-metrics-exporter/docker/device-metrics-exporter-latest.tar.gz
+     - /device-metrics-exporter/docker/device-metrics-exporter-latest.metadata
+
+  build-external-config-manager-collab-7.12:
+    commands: ["sh", "-c", "export CI_USE_SANITY_BUILD=1 && mkdir -p /device-config-manager && \
+       /gpu-operator/ci-internal/flexibuilder/build.sh build-external-config-manager-collab-7.12 \
+       --alien-repo pensando/device-config-manager --alien-target build-device-config-manager-docker-ubi9 --alien-branch collab-7.12"]
+    owners: ["email:srivatsa.sangli@amd.com"]
+    artifacts:
+      - /device-config-manager/docker/obj/device-config-manager.tgz
+      - /device-config-manager/docker/obj/device-config-manager.metadata
+
+  build-external-test-runner-collab-7.12:
+    commands: ["sh", "-c", "export CI_USE_SANITY_BUILD=1 && mkdir -p /device-metrics-exporter && \
+       /gpu-operator/ci-internal/flexibuilder/build.sh build-external-test-runner-collab-7.12 \
+       --alien-repo pensando/device-metrics-exporter --alien-target build-test-runner-docker --alien-branch collab-7.12"]
+    owners: ["email:srivatsa.sangli@amd.com"]
+    artifacts:
+     - /device-metrics-exporter/docker/testrunner/test-runner-latest.tar.gz
+     - /device-metrics-exporter/docker/testrunner/test-runner-latest.metadata
+
+  build-external-test-runner-agfhc-collab-7.12:
+    commands: ["sh", "-c", "export CI_USE_SANITY_BUILD=1 && mkdir -p /device-metrics-exporter && \
+       /gpu-operator/ci-internal/flexibuilder/build.sh build-external-test-runner-agfhc-collab-7.12 \
+       --alien-repo pensando/device-metrics-exporter --alien-target build-test-runner-docker-agfhc --alien-branch collab-7.12"]
+    owners: ["email:srivatsa.sangli@amd.com"]
+    artifacts:
+     - /device-metrics-exporter/docker/testrunner/test-runner-latest-agfhc.tar.gz
+     - /device-metrics-exporter/docker/testrunner/test-runner-latest-agfhc.metadata
+
+  build-gpu-operator-collab-7.12:
+    commands: ["sh", "-c", "export CI_USE_SANITY_BUILD=1 &&
+       /gpu-operator/ci-internal/flexibuilder/build.sh build-gpu-operator-collab-7.12 \
+       --alien-repo pensando/gpu-operator --alien-target build-gpu-operator --alien-branch collab-7.12"]
+    owners: ["email:mharkara@amd.com"]
+    artifacts:
+     - /gpu-operator/gpu-operator.tar.gz
+     - /gpu-operator/gpu-operator-utils.tar.gz
+     - /gpu-operator/gpu-operator-olm-bundle.tar.gz
+     - /gpu-operator/gpu-operator-remediation-configmap-util.tar.gz
+
+  build-gpu-operator-k8s-collab-7.12:
+    commands: ["sh", "-c", "export CI_USE_SANITY_BUILD=1 &&
+       /gpu-operator/ci-internal/flexibuilder/build.sh build-gpu-operator-k8s-collab-7.12 \
+       --alien-repo pensando/gpu-operator --alien-target build-gpu-operator --alien-branch collab-7.12"]
+    owners: ["email:mharkara@amd.com"]
+    artifacts:
+     - /gpu-operator/gpu-operator-helm-k8s.tgz
+
+  gpu-operator-olm-bundle-sanity-build-collab-7.12:
+    commands: ["sh", "-c", "export CI_USE_SANITY_BUILD=1 &&
+       /gpu-operator/ci-internal/flexibuilder/build.sh gpu-operator-olm-bundle-sanity-build-collab-7.12 \
+       --alien-repo pensando/gpu-operator --alien-target build-gpu-operator --alien-branch collab-7.12"]
+    owners: ["email:srivatsa.sangli@amd.com"]
+    artifacts:
+     - /gpu-operator/artifacts.metadata
+     - /gpu-operator/gpu-operator-olm-bundle.tar.gz
 
 targets:
   gpu-operator-sanity:
@@ -260,6 +327,8 @@ jobs:
     labels: ["CI-Pytest-Operand-Release-v1.4.2"]
   tests/jobs/operand-release/v1.4.0.x:
     labels: ["CI-Pytest-Operand-Release-v1.4.0"]
+  tests/jobs/platform-release/mi350p:
+    labels: ["CI-Platform-Release", "CI-Platform-Release-MI350P", "CI-Sanity-Build"]
   tests/jobs/k8s-compat/1.29.14:
     labels: ["CI-Pytest-K8-Compat", "CI-Pytest-K8-Compat-1.29"]
   tests/jobs/k8s-compat/1.30.14:

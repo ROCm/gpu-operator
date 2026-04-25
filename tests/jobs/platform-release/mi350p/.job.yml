@@ -1,0 +1,38 @@
+---
+version: 2.0
+meta:
+
+
+image:
+  bind_dir: "/gpu-operator"
+  work_dir: "/gpu-operator"
+  
+
+e2e-targets:
+  gpu-operator-pytest-sanity-openshift:
+    commands: [
+        "/bin/sh",
+        "-c",
+        "cat /warmd.json && cd /gpu-operator/tests/pytests && \
+         /gpu-operator/ci-internal/run_sanity.sh --deployment openshift --app gpu-operator \
+         --registry local --testbed /warmd.json --amdgpu-driver default-deviceconfig"
+    ]
+    owners: ["email:srivatsa.sangli@amd.com"]
+    tcp-ports: [5000]
+    area:
+    sub-area:
+    build-dependencies:
+      - build-external-device-metrics-exporter-collab-7.12
+      - build-external-test-runner-collab-7.12
+      - build-external-test-runner-agfhc-collab-7.12
+      - build-external-config-manager-collab-7.12
+      - gpu-operator-olm-bundle-sanity-build-collab-7.12
+    resources:
+    - generic:
+      - type: K8-GPU-Node
+        vendor: Pensando
+        count: 1
+        name: AMD-GPU-MI350P
+
+logfiles:
+  - /gpu-operator/tests/pytests/pytest_logs.tgz
