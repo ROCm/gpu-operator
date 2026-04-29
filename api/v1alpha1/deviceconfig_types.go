@@ -149,6 +149,13 @@ type RemediationWorkflowSpec struct {
 	// +optional
 	// +kubebuilder:validation:Pattern=`^([a-z0-9]+(?:[._-][a-z0-9]+)*(:[0-9]+)?)(/[a-z0-9]+(?:[._-][a-z0-9]+)*)*(?::[a-z0-9._-]+)?(?:@[a-zA-Z0-9]+:[a-f0-9]+)?$`
 	ConfigMapImage string `json:"configMapImage,omitempty"`
+
+	// RebootTimeout specifies the duration to wait for the node to reboot. Accepts duration strings like "30s", "4h", "24h". By default, it is set to 15m.
+	//+operator-sdk:csv:customresourcedefinitions:type=spec,displayName="RebootTimeout",xDescriptors={"urn:alm:descriptor:com.amd.deviceconfigs:rebootTimeout"}
+	// +kubebuilder:default:="15m"
+	// +kubebuilder:validation:Pattern=`^([0-9]+(\.[0-9]+)?(s|m|h))+$`
+	// +optional
+	RebootTimeout string `json:"rebootTimeout,omitempty"`
 }
 
 type RegistryTLS struct {

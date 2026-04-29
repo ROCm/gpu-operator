@@ -1648,6 +1648,13 @@ spec:
                       - key
                       type: object
                     type: array
+                  rebootTimeout:
+                    default: 15m
+                    description: RebootTimeout specifies the duration to wait for the
+                      node to reboot. Accepts duration strings like "30s", "4h", "24h".
+                      By default, it is set to 15m.
+                    pattern: ^([0-9]+(\.[0-9]+)?(s|m|h))+$
+                    type: string
                   testerImage:
                     description: Tester image used to run tests and verify if remediation
                       fixed the reported problem.

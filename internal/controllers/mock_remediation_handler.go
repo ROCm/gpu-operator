@@ -394,6 +394,20 @@ func (mr *MockremediationMgrHelperAPIMockRecorder) getNodeTaints(ctx, devConfig,
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "getNodeTaints", reflect.TypeOf((*MockremediationMgrHelperAPI)(nil).getNodeTaints), ctx, devConfig, nodeCondition)
 }
 
+// getRebootTimeout mocks base method.
+func (m *MockremediationMgrHelperAPI) getRebootTimeout(devConfig *v1alpha1.DeviceConfig) string {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "getRebootTimeout", devConfig)
+	ret0, _ := ret[0].(string)
+	return ret0
+}
+
+// getRebootTimeout indicates an expected call of getRebootTimeout.
+func (mr *MockremediationMgrHelperAPIMockRecorder) getRebootTimeout(devConfig any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "getRebootTimeout", reflect.TypeOf((*MockremediationMgrHelperAPI)(nil).getRebootTimeout), devConfig)
+}
+
 // getRecentRecoveryCount mocks base method.
 func (m *MockremediationMgrHelperAPI) getRecentRecoveryCount(nodeName, nodeCondition string) int {
 	m.ctrl.T.Helper()

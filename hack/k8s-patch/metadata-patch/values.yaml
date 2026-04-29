@@ -302,6 +302,8 @@ deviceConfig:
       autoStartWorkflow: true
       # -- Container image used to create the remediation ConfigMap. This image contains the default remediation ConfigMap configmap.yaml file.
       configMapImage: ""
+      # -- Duration to wait for the node to reboot and remain Ready before timing out. Accepts duration strings like "30s", "4h", "24h". By default, it is set to 15m.
+      waitForRebootDuration: "15m"
 # AMD GPU operator controller related configs
 controllerManager:
   manager:

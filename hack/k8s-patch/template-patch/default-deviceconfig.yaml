@@ -530,6 +530,10 @@ spec:
     {{- with .configMapImage }}
     configMapImage: {{ . }}
     {{- end }}
+
+    {{- with .rebootTimeout }}
+    rebootTimeout: {{ . }}
+    {{- end }}
   {{- end }}
 
 {{- end }}

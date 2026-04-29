@@ -1,19 +1,41 @@
 set -e
 NODE_NAME='{{inputs.parameters.node_name}}'
 OLD_BOOT_ID='{{inputs.parameters.old_boot_id}}'
-TIMEOUT_MINUTES=15
+WAIT_FOR_REBOOT_DURATION='{{inputs.parameters.wait_for_reboot_duration}}'
 POLL_INTERVAL=30
 STABLE_THRESHOLD=4
 
+# Convert a Go-style duration string (e.g. "30s", "15m", "4h", "1h30m") into
+# total seconds. Falls back to 900s (15m) if the value is empty or malformed.
+# Sub-second units (ns/us/µs/ms) round down to 0 seconds.
+MAX_SECONDS=$(awk -v d="$WAIT_FOR_REBOOT_DURATION" 'BEGIN {
+  if (d == "") { print 900; exit }
+  total = 0
+  matched = 0
+  while (match(d, /^[0-9]+(\.[0-9]+)?(ns|us|µs|ms|s|m|h)/)) {
+    token = substr(d, 1, RLENGTH)
+    d = substr(d, RLENGTH + 1)
+    if (match(token, /(ns|us|µs|ms|s|m|h)$/) == 0) { print 900; exit }
+    unit = substr(token, RSTART)
+    num = substr(token, 1, RSTART - 1) + 0
+    if      (unit == "h")  total += num * 3600
+    else if (unit == "m")  total += num * 60
+    else if (unit == "s")  total += num
+    matched = 1
+  }
+  if (!matched || length(d) > 0) { print 900; exit }
+  secs = int(total)
+  if (secs <= 0) { print 900 } else { print secs }
+}')
+
 if [ -n "$OLD_BOOT_ID" ]; then
-  echo "Waiting for node $NODE_NAME to reboot (old bootID: $OLD_BOOT_ID) and remain Ready for at least 2 minutes (timeout: ${TIMEOUT_MINUTES} minutes)..."
+  echo "Waiting for node $NODE_NAME to reboot (old bootID: $OLD_BOOT_ID) and remain Ready for at least 2 minutes (timeout: ${WAIT_FOR_REBOOT_DURATION} / ${MAX_SECONDS}s)..."
 else
-  echo "Old bootID not provided; waiting for node $NODE_NAME to remain Ready for at least 2 minutes (timeout: ${TIMEOUT_MINUTES} minutes)..."
+  echo "Old bootID not provided; waiting for node $NODE_NAME to remain Ready for at least 2 minutes (timeout: ${WAIT_FOR_REBOOT_DURATION} / ${MAX_SECONDS}s)..."
 fi
 
 ELAPSED=0
 STABLE_COUNT=0
-MAX_SECONDS=$((TIMEOUT_MINUTES * 60))
 
 while [ "$ELAPSED" -lt "$MAX_SECONDS" ]; do
   READY=$(kubectl get node "$NODE_NAME" -o jsonpath='{.status.conditions[?(@.type=="Ready")].status}' 2>/dev/null || echo "Unknown")
@@ -49,5 +71,5 @@ while [ "$ELAPSED" -lt "$MAX_SECONDS" ]; do
   ELAPSED=$((ELAPSED + POLL_INTERVAL))
 done
 
-echo "Timeout: Node $NODE_NAME did not reboot and remain Ready within ${TIMEOUT_MINUTES} minutes."
+echo "Timeout: Node $NODE_NAME did not reboot and remain Ready within ${WAIT_FOR_REBOOT_DURATION} (${MAX_SECONDS}s)."
 exit 1

@@ -829,6 +829,13 @@ spec:
         path: remediationWorkflow.nodeRemediationTaints
         x-descriptors:
         - urn:alm:descriptor:com.amd.deviceconfigs:nodeRemediationTaints
+      - description: RebootTimeout specifies the duration to wait for the node to
+          reboot. Accepts duration strings like "30s", "4h", "24h". By default, it
+          is set to 15m.
+        displayName: RebootTimeout
+        path: remediationWorkflow.rebootTimeout
+        x-descriptors:
+        - urn:alm:descriptor:com.amd.deviceconfigs:rebootTimeout
       - description: Tester image used to run tests and verify if remediation fixed
           the reported problem.
         displayName: TesterImage

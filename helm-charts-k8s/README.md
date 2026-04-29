@@ -262,6 +262,7 @@ Kubernetes: `>= 1.29.0-0`
 | deviceConfig.spec.remediationWorkflow.nodeRemediationTaints | list | `[]` | Taints to apply to nodes during remediation |
 | deviceConfig.spec.remediationWorkflow.testerImage | string | `"docker.io/rocm/test-runner:latest"` | Container image used for testing during remediation |
 | deviceConfig.spec.remediationWorkflow.ttlForFailedWorkflows | string | `"24h"` | Time-to-live duration for failed workflows before cleanup (e.g., 1h, 24h) |
+| deviceConfig.spec.remediationWorkflow.waitForRebootDuration | string | `"15m"` | Duration to wait for the node to reboot and remain Ready before timing out. Accepts duration strings like "30s", "4h", "24h". By default, it is set to 15m. |
 | deviceConfig.spec.selector | object | `{"feature.node.kubernetes.io/amd-gpu":"true"}` | Set node selector for the default DeviceConfig |
 | deviceConfig.spec.testRunner.config | object | `{}` | test runner config map, e.g. {"name": "myConfigMap"} |
 | deviceConfig.spec.testRunner.enable | bool | `false` | enable / disable test runner |

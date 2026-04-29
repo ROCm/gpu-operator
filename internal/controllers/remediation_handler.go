@@ -81,6 +81,9 @@ const (
 	DefaultRecoveryPolicyMaxRunsPerWindow = 3
 	DefaultTimeFormatLayout               = "2006-01-02 15:04:05 UTC"
 	DefaultStatusCRCleanupWindowSize      = "72h"
+	// DefaultRebootTimeout - default total time the waitfornodeready
+	// step waits for a node to reboot and remain Ready before timing out.
+	DefaultRebootTimeout = "15m"
 	// Below is the label and value needed to be added to node to force resume a suspended workflow
 	ForceResumeWorkflowLabelKey   = "operator.amd.com/gpu-force-resume-workflow"
 	ForceResumeWorkflowLabelValue = "true"
@@ -365,6 +368,7 @@ type remediationMgrHelperAPI interface {
 	updateMaxParallelWorkflows(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig) error
 	getNodeLabelsFromCR(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig) []string
 	getNodeTaints(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig, nodeCondition string) []string
+	getRebootTimeout(devConfig *amdv1alpha1.DeviceConfig) string
 	applyTolerationsToWorkflow(wf *workflowv1alpha1.Workflow, devConfig *amdv1alpha1.DeviceConfig, nodeCondition string)
 	handleDeviceConfigChanges(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig)
 	validateUserConfigMap(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig) error
@@ -766,6 +770,7 @@ func (h *remediationMgrHelper) createDefaultWorkflowTemplate(ctx context.Context
 									// Pass the bootID captured by the reboot step so we can verify
 									// the host actually rebooted (not just transiently NotReady).
 									{Name: "old_boot_id", Value: workflowv1alpha1.AnyStringPtr("{{steps.reboot.outputs.parameters.boot_id}}")},
+									{Name: "wait_for_reboot_duration", Value: workflowv1alpha1.AnyStringPtr("{{workflow.parameters.wait_for_reboot_duration}}")},
 								},
 							},
 						}}},
@@ -908,6 +913,12 @@ containers:
 								// reboot step was skipped or its bootID capture failed.
 								Name:    "old_boot_id",
 								Default: workflowv1alpha1.AnyStringPtr(""),
+							},
+							{
+								// Total time to wait for the node to reboot and remain Ready.
+								// Accepts Go duration strings such as "30s", "15m", "4h".
+								Name:    "wait_for_reboot_duration",
+								Default: workflowv1alpha1.AnyStringPtr(DefaultRebootTimeout),
 							},
 						},
 					},
@@ -1328,10 +1339,28 @@ func (h *remediationMgrHelper) populateWorkflow(ctx context.Context, wfTemplate 
 				Name:  "testRunnerImageSecret",
 				Value: workflowv1alpha1.AnyStringPtr(testrunnerImageSecret),
 			},
+			{
+				Name:  "wait_for_reboot_duration",
+				Value: workflowv1alpha1.AnyStringPtr(h.getRebootTimeout(devConfig)),
+			},
 		},
 	}
 
 	return wf
+}
+
+// getRebootTimeout returns the configured wait duration for the
+// waitfornodeready step. It validates the value is a parseable Go duration
+// string and falls back to DefaultRebootTimeout otherwise.
+func (h *remediationMgrHelper) getRebootTimeout(devConfig *amdv1alpha1.DeviceConfig) string {
+	d := devConfig.Spec.RemediationWorkflow.RebootTimeout
+	if d == "" {
+		return DefaultRebootTimeout
+	}
+	if _, err := time.ParseDuration(d); err != nil {
+		return DefaultRebootTimeout
+	}
+	return d
 }
 
 func (h *remediationMgrHelper) createWorkflow(ctx context.Context, workflow *workflowv1alpha1.Workflow) error {
