@@ -562,6 +562,33 @@ type ImageBuildSpec struct {
 	//+operator-sdk:csv:customresourcedefinitions:type=spec,displayName="SourceImageRepo",xDescriptors={"urn:alm:descriptor:com.amd.deviceconfigs:sourceImageRepo"}
 	SourceImageRepo string `json:"sourceImageRepo,omitempty"`
 
+	// PackageRepoURL specifies the full URL to the package repository used during driver image build.
+	// When specified, this URL completely overrides the default URL constructed from spec.driver.amdgpuInstallerRepoURL.
+	// This is useful when the package repository does not follow the standard repo.radeon.com URL scheme,
+	// or when using a custom mirror/proxy that requires a different URL structure.
+	// The URL should point directly to the repository base (without trailing slash).
+	// Examples:
+	//   - For Ubuntu: "https://custom-mirror.example.com/repos/amdgpu/6.1.3/ubuntu jammy main"
+	//     This will be used as: "deb [arch=amd64 ...] ${PACKAGE_REPO_URL}"
+	//   - For CoreOS/RHEL: "https://custom-mirror.example.com/repos/amdgpu/6.2.2/el/9.4/main/x86_64"
+	//     This will be used as: "baseurl=${PACKAGE_REPO_URL}"
+	// When empty (default), the URL is constructed as: ${amdgpuInstallerRepoURL}/amdgpu/${DRIVERS_VERSION}/${os}/${distro}
+	//+operator-sdk:csv:customresourcedefinitions:type=spec,displayName="PackageRepoURL",xDescriptors={"urn:alm:descriptor:com.amd.deviceconfigs:packageRepoURL"}
+	// +optional
+	PackageRepoURL string `json:"packageRepoURL,omitempty"`
+
+	// GPGKeyURL specifies the full URL to the GPG key used to verify packages during driver image build.
+	// When specified, this URL completely overrides the default GPG key URL.
+	// This is useful when using a custom package repository that has its own GPG key,
+	// or when the GPG key location does not follow the standard repo.radeon.com scheme.
+	// Examples:
+	//   - "https://custom-mirror.example.com/keys/amdgpu.gpg.key"
+	//   - "https://repo.example.com/rocm/rocm.gpg.key"
+	// When empty (default), the URL is constructed as: ${amdgpuInstallerRepoURL}/rocm/rocm.gpg.key
+	//+operator-sdk:csv:customresourcedefinitions:type=spec,displayName="GPGKeyURL",xDescriptors={"urn:alm:descriptor:com.amd.deviceconfigs:gpgKeyURL"}
+	// +optional
+	GPGKeyURL string `json:"gpgKeyURL,omitempty"`
+
 	// TLS settings for fetching base image
 	// this field will be applied to SourceImageRepo as well
 	//+operator-sdk:csv:customresourcedefinitions:type=spec,displayName="BaseImageRegistryTLS",xDescriptors={"urn:alm:descriptor:com.amd.deviceconfigs:baseImageRegistryTLS"}

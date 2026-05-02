@@ -6,6 +6,10 @@ ARG DRIVERS_VERSION
 
 ARG REPO_URL
 
+ARG PACKAGE_REPO_URL
+
+ARG GPG_KEY_URL
+
 RUN apt-get update && apt-get install -y bc \
     bison \
     flex \
@@ -20,11 +24,19 @@ RUN apt-get update && apt-get install -y bc \
 
 RUN mkdir --parents --mode=0755 /etc/apt/keyrings
 
-RUN wget ${REPO_URL}/rocm/rocm.gpg.key -O - | \
-    gpg --dearmor | tee /etc/apt/keyrings/rocm.gpg > /dev/null
+# Use custom GPG key URL if provided, otherwise use default
+RUN if [ -n "${GPG_KEY_URL}" ]; then \
+        wget ${GPG_KEY_URL} -O - | gpg --dearmor | tee /etc/apt/keyrings/rocm.gpg > /dev/null; \
+    else \
+        wget ${REPO_URL}/rocm/rocm.gpg.key -O - | gpg --dearmor | tee /etc/apt/keyrings/rocm.gpg > /dev/null; \
+    fi
 
-RUN echo "deb [arch=amd64 signed-by=/etc/apt/keyrings/rocm.gpg] ${REPO_URL}/amdgpu/${DRIVERS_VERSION}/ubuntu $$DRIVER_LABEL main" \
-    | tee /etc/apt/sources.list.d/amdgpu.list
+# Use custom package repo URL if provided, otherwise construct from REPO_URL
+RUN if [ -n "${PACKAGE_REPO_URL}" ]; then \
+        echo "deb [arch=amd64 signed-by=/etc/apt/keyrings/rocm.gpg] ${PACKAGE_REPO_URL}" | tee /etc/apt/sources.list.d/amdgpu.list; \
+    else \
+        echo "deb [arch=amd64 signed-by=/etc/apt/keyrings/rocm.gpg] ${REPO_URL}/amdgpu/${DRIVERS_VERSION}/ubuntu $$DRIVER_LABEL main" | tee /etc/apt/sources.list.d/amdgpu.list; \
+    fi
 RUN apt-get update && apt-get install -y amdgpu-dkms
 
 RUN depmod ${KERNEL_FULL_VERSION}

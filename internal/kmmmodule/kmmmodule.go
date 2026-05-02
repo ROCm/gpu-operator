@@ -522,6 +522,20 @@ func getKM(devConfig *amdv1alpha1.DeviceConfig, node v1.Node, inTreeModuleToRemo
 		},
 	}
 
+	// Add optional build args for custom package repo and GPG key URLs
+	if devConfig.Spec.Driver.ImageBuild.PackageRepoURL != "" {
+		kmmBuild.BuildArgs = append(kmmBuild.BuildArgs, kmmv1beta1.BuildArg{
+			Name:  "PACKAGE_REPO_URL",
+			Value: devConfig.Spec.Driver.ImageBuild.PackageRepoURL,
+		})
+	}
+	if devConfig.Spec.Driver.ImageBuild.GPGKeyURL != "" {
+		kmmBuild.BuildArgs = append(kmmBuild.BuildArgs, kmmv1beta1.BuildArg{
+			Name:  "GPG_KEY_URL",
+			Value: devConfig.Spec.Driver.ImageBuild.GPGKeyURL,
+		})
+	}
+
 	// setup base image registry's TLS config
 	if devConfig.Spec.Driver.ImageBuild.BaseImageRegistryTLS.Insecure != nil {
 		kmmBuild.BaseImageRegistryTLS.Insecure = *devConfig.Spec.Driver.ImageBuild.BaseImageRegistryTLS.Insecure
