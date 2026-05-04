@@ -86,6 +86,10 @@ mirror:
 helm: {}
 ```
 
+```{Note}
+If you plan to use the auto node remediation feature, the remediation ConfigMap image (referenced by `spec.remediationWorkflow.configMapImage` in the `DeviceConfig`) must also be mirrored along with the additional images listed above. This image is not publicly available — please contact the AMD support team to obtain it.
+```
+
 - After mirroring setup, users should have installed NFD and KMM, and enabled the internal image registry in the air-gapped cluster. See [OpenShift OLM Installation](../installation/openshift-olm.md#configure-internal-registry) for details.
 
 - Users should have installed the AMD GPU Operator in the air-gapped cluster without creating a `DeviceConfig`.

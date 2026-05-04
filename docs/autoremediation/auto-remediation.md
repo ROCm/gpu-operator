@@ -118,12 +118,18 @@ helm install argo-workflow argo/argo-workflows \
   --set controller.instanceID.explicitID=amd-gpu-operator-remediation-workflow \
   --set 'controller.tolerations[0].key=amd-gpu-unhealthy' \
   --set 'controller.tolerations[0].operator=Exists' \
-  --set 'controller.tolerations[0].effect=NoSchedule'
+  --set 'controller.tolerations[0].effect=NoSchedule' \
+  --set 'controller.tolerations[1].key=amd-dcm' \
+  --set 'controller.tolerations[1].operator=Equal' \
+  --set 'controller.tolerations[1].value=up' \
+  --set 'controller.tolerations[1].effect=NoExecute'
 ```
 
 > **Important:** The `controller.instanceID.explicitID` value must be set to `amd-gpu-operator-remediation-workflow`. The GPU Operator labels every remediation workflow and workflow template it creates with `workflows.argoproj.io/controller-instanceid: amd-gpu-operator-remediation-workflow`. An Argo workflow-controller only reconciles workflows whose `controller-instanceid` label matches its configured `instanceID`, so without this setting the Helm-installed controller will silently ignore the operator's workflows. Refer to the [Argo Workflows controller `instanceID` documentation](https://argo-workflows.readthedocs.io/en/stable/scaling/#instanceid) and the [`argo-workflows` chart values](https://github.com/argoproj/argo-helm/blob/main/charts/argo-workflows/values.yaml) for full details.
 >
 > **Important:** The `controller.tolerations` entry for `amd-gpu-unhealthy:NoSchedule` is required. During remediation the GPU Operator taints the affected node with `amd-gpu-unhealthy:NoSchedule` (see [NodeRemediationTaints](#node-drain-policy-configuration)). If the workflow-controller pod happens to be scheduled on a node that later gets tainted, it will be evicted and remediation will stall. Adding this toleration ensures the controller keeps running on tainted nodes so it can continue driving the workflow to completion. The same toleration is applied to the in-tree workflow controller, metrics-exporter, and other operator-managed components.
+>
+> **Important:** The `controller.tolerations` entry for `amd-dcm=up:NoExecute` is also required when the [Device Config Manager (DCM)](../dcm/device-config-manager.md) is used for GPU partitioning on the cluster. DCM taints the node with `amd-dcm=up:NoExecute` while applying a partition profile (see [Applying Partition Profiles](../dcm/applying-partition-profiles.rst)) to evict non-essential workloads from the GPU node. Without this toleration, the Argo workflow-controller pod would be evicted from any GPU node undergoing a partition change, and any in-flight remediation workflow on that node would stall. Tolerating the DCM taint lets the controller continue driving the workflow even while DCM is reconfiguring partitions.
 >
 > The **same toleration must also be added to the Kernel Module Management (KMM) operator's Helm chart** when KMM is installed separately on OpenShift. KMM is responsible for (re)building and loading the GPU driver kernel module on the node after a remediation reboot — if its controller pod cannot tolerate `amd-gpu-unhealthy:NoSchedule`, it may be evicted from a tainted node and the driver will never be reloaded, blocking the post-reboot validation step of the workflow. When installing the KMM operator via Helm, pass the equivalent flags (the exact key path depends on the KMM chart you use, e.g. `controller.manager.tolerations` for the upstream chart):
 >
@@ -144,6 +150,10 @@ controller:
     - key: amd-gpu-unhealthy
       operator: Exists
       effect: NoSchedule
+    - key: amd-dcm
+      operator: Equal
+      value: up
+      effect: NoExecute
 ```
 
 ## Configuration and customization
