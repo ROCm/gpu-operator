@@ -148,6 +148,7 @@ done
 
 # nfd namespace
 log "nfd:"
+if [ -n "${NFD_NS}" ]; then
 for resource in ${NFD_RESOURCES}; do
 	log "   ${NFD_NS}/${resource}"
 	mkdir -p ${TECH_SUPPORT_FILE}/nfd/
@@ -172,16 +173,18 @@ for resource in ${NFD_RESOURCES}; do
 		fi
 	fi
 done
+fi
 
 log "kmm:"
 # kmm namespace
+if [ -n "${KMM_NS}" ]; then
 for resource in ${KMM_RESOURCES}; do
 	log "   ${KMM_NS}/${resource}"
 	mkdir -p ${TECH_SUPPORT_FILE}/kmm/
-	${KUBECTL} get -n ${KMM_NS} ${resource} ${WIDE} >${TECH_SUPPORT_FILE}/kmm/${resource}.txt 2>&1
+	${KUBECTL} get -n ${KMM_NS} ${resource} ${WIDE} >${TECH_SUPPORT_FILE}/kmm/${resource}.txt 2>&1 || true
 	if [ "${resource}" != "pods" ]; then
-		${KUBECTL} describe -n ${KMM_NS} ${resource} >>${TECH_SUPPORT_FILE}/kmm/${resource}.txt 2>&1
-		${KUBECTL} get -n ${KMM_NS} ${resource} -o ${OUTPUT_FORMAT} >${TECH_SUPPORT_FILE}/kmm/${resource}.${OUTPUT_FORMAT} 2>&1
+		${KUBECTL} describe -n ${KMM_NS} ${resource} >>${TECH_SUPPORT_FILE}/kmm/${resource}.txt 2>&1 || true
+		${KUBECTL} get -n ${KMM_NS} ${resource} -o ${OUTPUT_FORMAT} >${TECH_SUPPORT_FILE}/kmm/${resource}.${OUTPUT_FORMAT} 2>&1 || true
 	else
 		# For pods, collect one by one with progress feedback
 		echo "" >${TECH_SUPPORT_FILE}/kmm/${resource}.${OUTPUT_FORMAT}
@@ -193,12 +196,14 @@ for resource in ${KMM_RESOURCES}; do
 				[ -z "$pod_name" ] && continue
 				POD_NUM=$((POD_NUM + 1))
 				log "     ($POD_NUM/$POD_COUNT) ${pod_name}"
-				${KUBECTL} describe -n ${KMM_NS} pod "$pod_name" >>${TECH_SUPPORT_FILE}/kmm/${resource}.txt 2>&1
-				${KUBECTL} get -n ${KMM_NS} pod "$pod_name" -o ${OUTPUT_FORMAT} >>${TECH_SUPPORT_FILE}/kmm/${resource}.${OUTPUT_FORMAT} 2>&1
+				${KUBECTL} describe -n ${KMM_NS} pod "$pod_name" >>${TECH_SUPPORT_FILE}/kmm/${resource}.txt 2>&1 || true
+				${KUBECTL} get -n ${KMM_NS} pod "$pod_name" -o ${OUTPUT_FORMAT} >>${TECH_SUPPORT_FILE}/kmm/${resource}.${OUTPUT_FORMAT} 2>&1 || true
 			done <<< "$POD_LIST"
 		fi
 	fi
 done
+fi
+
 log "gpu-operator:"
 # gpu oper namespace
 for resource in ${GPUOPER_RESOURCES}; do
@@ -408,23 +413,53 @@ for node in "${nodeList[@]}"; do
 	if [ -z "$EXPORTER_PODS" ]; then
 		EXPORTER_PODS=$(${KNS} get pods -o name --field-selector spec.nodeName=${node} 2>/dev/null | grep -i metrics-exporter- || true)
 	fi
-	if [ -n "$EXPORTER_PODS" ]; then
-		mkdir -p ${TECH_SUPPORT_FILE}/${node}/metrics-exporter/smi
-		${KNS} exec ${EXPORTER_PODS} -- sh -c "server --version" >${TECH_SUPPORT_FILE}/${node}/metrics-exporter/exporterversion.txt 2>&1 || true
-		${KNS} exec ${EXPORTER_PODS} -- sh -c "metricsclient" >${TECH_SUPPORT_FILE}/${node}/metrics-exporter/exporterhealth.txt 2>&1 || true
-		${KNS} exec ${EXPORTER_PODS} -- sh -c "cat /etc/metrics/config.json" >${TECH_SUPPORT_FILE}/${node}/metrics-exporter/config.json 2>&1 || true
-		${KNS} exec ${EXPORTER_PODS} -- sh -c "metricsclient -pod -json" >${TECH_SUPPORT_FILE}/${node}/metrics-exporter/exporterpod.json 2>&1 || true
-		${KNS} exec ${EXPORTER_PODS} -- sh -c "metricsclient -npod" >${TECH_SUPPORT_FILE}/${node}/metrics-exporter/exporternode.txt 2>&1 || true
-		${KNS} exec ${EXPORTER_PODS} -- sh -c "amd-smi list" >${TECH_SUPPORT_FILE}/${node}/metrics-exporter/smi/amd-smi-list.txt 2>&1 || true
-		${KNS} exec ${EXPORTER_PODS} -- sh -c "amd-smi metric" >${TECH_SUPPORT_FILE}/${node}/metrics-exporter/smi/amd-smi-metric.txt 2>&1 || true
-		${KNS} exec ${EXPORTER_PODS} -- sh -c "amd-smi static" >${TECH_SUPPORT_FILE}/${node}/metrics-exporter/smi/amd-smi-static.txt 2>&1 || true
-		${KNS} exec ${EXPORTER_PODS} -- sh -c "amd-smi firmware" >${TECH_SUPPORT_FILE}/${node}/metrics-exporter/smi/amd-smi-firmware.txt 2>&1 || true
-		${KNS} exec ${EXPORTER_PODS} -- sh -c "amd-smi partition" >${TECH_SUPPORT_FILE}/${node}/metrics-exporter/smi/amd-smi-partition.txt 2>&1 || true
-		${KNS} exec ${EXPORTER_PODS} -- sh -c "amd-smi xgmi" >${TECH_SUPPORT_FILE}/${node}/metrics-exporter/smi/amd-smi-xgmi.txt 2>&1 || true
 
+	# Always collect pod logs (kubectl logs works on Terminating pods too)
+	if [ -n "$EXPORTER_PODS" ]; then
 		if ! pod_logs $GPUOPER_NS "metrics-exporter" $node "$EXPORTER_PODS"; then
 			log "Failed to collect logs for device-metrics-exporter on node ${node}"
 		fi
+	fi
+
+	# Prefer a fully Running pod for exec; fall back to Terminating (still alive
+	# during grace period when the node is tainted NoExecute and pod is being evicted).
+	RUNNING_POD=""
+	TERMINATING_POD=""
+	for expod in ${EXPORTER_PODS}; do
+		pod=$(basename ${expod})
+		POD_STATUS=$(${KNS} get pod "${pod}" -o jsonpath='{.status.phase}' 2>/dev/null) || true
+		DELETION_TS=$(${KNS} get pod "${pod}" -o jsonpath='{.metadata.deletionTimestamp}' 2>/dev/null) || true
+		if [ "${POD_STATUS}" == "Running" ] && [ -z "${DELETION_TS}" ]; then
+			RUNNING_POD="${pod}"
+			break
+		elif [ -n "${DELETION_TS}" ] && [ -z "${TERMINATING_POD}" ]; then
+			TERMINATING_POD="${pod}"
+		fi
+	done
+	EXEC_POD="${RUNNING_POD:-${TERMINATING_POD}}"
+
+	if [ -z "${EXEC_POD}" ]; then
+		log "   No Running or Terminating exporter pod found for node ${node}, skipping exec commands"
+		mkdir -p ${TECH_SUPPORT_FILE}/${node}/metrics-exporter
+		cat >${TECH_SUPPORT_FILE}/${node}/metrics-exporter/missing-data-reason.txt <<REASON
+No Running or Terminating exporter pod found on node ${node} at collection time.
+This typically occurs when the node is tainted (e.g. amd-dcm=up:NoExecute during
+GPU partitioning), causing the DaemonSet pod to be evicted before techsupport
+was collected.
+REASON
+	else
+		mkdir -p ${TECH_SUPPORT_FILE}/${node}/metrics-exporter/smi
+		${KNS} exec ${EXEC_POD} -- sh -c "server --version" >${TECH_SUPPORT_FILE}/${node}/metrics-exporter/exporterversion.txt 2>&1 || true
+		${KNS} exec ${EXEC_POD} -- sh -c "metricsclient" >${TECH_SUPPORT_FILE}/${node}/metrics-exporter/exporterhealth.txt 2>&1 || true
+		${KNS} exec ${EXEC_POD} -- sh -c "cat /etc/metrics/config.json" >${TECH_SUPPORT_FILE}/${node}/metrics-exporter/config.json 2>&1 || true
+		${KNS} exec ${EXEC_POD} -- sh -c "metricsclient -pod -json" >${TECH_SUPPORT_FILE}/${node}/metrics-exporter/exporterpod.json 2>&1 || true
+		${KNS} exec ${EXEC_POD} -- sh -c "metricsclient -npod" >${TECH_SUPPORT_FILE}/${node}/metrics-exporter/exporternode.txt 2>&1 || true
+		${KNS} exec ${EXEC_POD} -- sh -c "amd-smi list" >${TECH_SUPPORT_FILE}/${node}/metrics-exporter/smi/amd-smi-list.txt 2>&1 || true
+		${KNS} exec ${EXEC_POD} -- sh -c "amd-smi metric" >${TECH_SUPPORT_FILE}/${node}/metrics-exporter/smi/amd-smi-metric.txt 2>&1 || true
+		${KNS} exec ${EXEC_POD} -- sh -c "amd-smi static" >${TECH_SUPPORT_FILE}/${node}/metrics-exporter/smi/amd-smi-static.txt 2>&1 || true
+		${KNS} exec ${EXEC_POD} -- sh -c "amd-smi firmware" >${TECH_SUPPORT_FILE}/${node}/metrics-exporter/smi/amd-smi-firmware.txt 2>&1 || true
+		${KNS} exec ${EXEC_POD} -- sh -c "amd-smi partition" >${TECH_SUPPORT_FILE}/${node}/metrics-exporter/smi/amd-smi-partition.txt 2>&1 || true
+		${KNS} exec ${EXEC_POD} -- sh -c "amd-smi xgmi" >${TECH_SUPPORT_FILE}/${node}/metrics-exporter/smi/amd-smi-xgmi.txt 2>&1 || true
 	fi
 
 	# device config manager pod logs
