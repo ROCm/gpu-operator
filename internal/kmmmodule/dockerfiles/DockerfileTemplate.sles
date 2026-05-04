@@ -1,0 +1,34 @@
+# SPDX-License-Identifier: MIT
+#
+# Uses a SUSE built AMD GPU driver image as source, avoiding the need
+# for a SUSEConnect registration key. modules.dep uses relative paths so it is
+# valid for any kernel version in the same codestream (stable kABI).
+#
+# Build args:
+#   KERNEL_FULL_VERSION      - target kernel version, e.g. "6.4.0-150700.53.25-default"
+#   SUSE_PREBUILT_DRIVER_IMG - SUSE-published driver image (built against GA kernel)
+
+ARG SUSE_PREBUILT_DRIVER_IMG
+
+FROM ${SUSE_PREBUILT_DRIVER_IMG} AS driver-source
+
+FROM $$BASEIMG_REGISTRY/bci/bci-micro:$$VERSION
+
+ARG KERNEL_FULL_VERSION
+
+# Relocate modules, kernel tree and depmod metadata from the GA kernel path to
+# the target kernel version path; no depmod re-run needed (relative paths).
+COPY --from=driver-source /opt/lib/modules/ /opt/lib/modules-prebuilt/
+RUN set -euo pipefail; \
+    GA_KERNEL=$(ls /opt/lib/modules-prebuilt/ | head -1); \
+    mkdir -p /opt/lib/modules/${KERNEL_FULL_VERSION}/updates/dkms; \
+    cp /opt/lib/modules-prebuilt/${GA_KERNEL}/updates/dkms/amd* \
+       /opt/lib/modules/${KERNEL_FULL_VERSION}/updates/dkms/; \
+    cp /opt/lib/modules-prebuilt/${GA_KERNEL}/modules.* \
+       /opt/lib/modules/${KERNEL_FULL_VERSION}/; \
+    cp -r /opt/lib/modules-prebuilt/${GA_KERNEL}/kernel \
+          /opt/lib/modules/${KERNEL_FULL_VERSION}/kernel; \
+    rm -rf /opt/lib/modules-prebuilt
+
+RUN mkdir -p /firmwareDir/updates/amdgpu
+COPY --from=driver-source /firmwareDir/updates/amdgpu /firmwareDir/updates/amdgpu

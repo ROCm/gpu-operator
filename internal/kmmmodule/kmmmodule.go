@@ -85,6 +85,8 @@ var (
 	dockerfileTemplateCoreOSFromSrcImage string
 	//go:embed dockerfiles/DockerfileTemplate.rpm.coreos
 	dockerfileTemplateCoreOSFromRPM string
+	//go:embed dockerfiles/DockerfileTemplate.sles
+	dockerfileTemplateSLES string
 	//go:embed devdockerfiles/devdockerfile.txt
 	dockerfileDevTemplateUbuntu string
 	//go:embed dockerfiles/DockerfileTemplate.ubuntu.gim
@@ -92,6 +94,14 @@ var (
 	//go:embed dockerfiles/DockerfileTemplate.coreos.gim
 	dockerfileTemplateGIMCoreOS string
 )
+
+// slesCSDPrebuiltDriverImages maps SLES codestream version -> driver version -> prebuilt image.
+// Tag format: sles-<codestream>-<ga_kernel>-<driver_version>
+var slesCSDPrebuiltDriverImages = map[string]map[string]string{
+	"15.7": {
+		"7.0.3": "registry.suse.com/third-party/amd/amdgpu-driver:sles-15.7-7.0.3",
+	},
+}
 
 //go:generate mockgen -source=kmmmodule.go -package=kmmmodule -destination=mock_kmmmodule.go KMMModuleAPI
 type KMMModuleAPI interface {
@@ -290,6 +300,8 @@ func resolveDockerfile(cmName string, devConfig *amdv1alpha1.DeviceConfig) (stri
 				dockerfileTemplate = dockerfileTemplateCoreOSFromSrcImage
 			}
 		}
+	case "sles":
+		dockerfileTemplate = dockerfileTemplateSLES
 	// FIX ME
 	// add the RHEL back when it is fully supported
 	/*case "rhel":
@@ -308,7 +320,11 @@ func resolveDockerfile(cmName string, devConfig *amdv1alpha1.DeviceConfig) (stri
 	// render base image registry
 	baseImageRegistry := defaultBaseImageRegistry
 	if devConfig.Spec.Driver.ImageBuild.BaseImageRegistry != "" {
+		// user-specified registry takes precendence
 		baseImageRegistry = devConfig.Spec.Driver.ImageBuild.BaseImageRegistry
+	} else if osDistro == "sles" {
+		// if OS == "sles", use default image registry as "registry.suse.com"
+		baseImageRegistry = "registry.suse.com"
 	}
 	dockerfileTemplate = strings.Replace(dockerfileTemplate, "$$BASEIMG_REGISTRY", baseImageRegistry, -1)
 	// render driver version
@@ -550,6 +566,21 @@ func getKM(devConfig *amdv1alpha1.DeviceConfig, node v1.Node, inTreeModuleToRemo
 		)
 	}
 
+	// Inject SUSE_PREBUILT_DRIVER_IMG build arg for SLES nodes.
+	if strings.HasPrefix(osName, "sles-") {
+		csVersion := strings.TrimPrefix(osName, "sles-") // e.g. "15.7"
+		if driverVersions, ok := slesCSDPrebuiltDriverImages[csVersion]; ok {
+			if prebuiltImg, ok := driverVersions[driversVersion]; ok {
+				kmmBuild.BuildArgs = append(kmmBuild.BuildArgs,
+					kmmv1beta1.BuildArg{
+						Name:  "SUSE_PREBUILT_DRIVER_IMG",
+						Value: prebuiltImg,
+					},
+				)
+			}
+		}
+	}
+
 	// trim suffix "+" to handle the dirty build kernel version
 	// e.g., "5.15.0-76-generic+"
 	// on KMM side it is trimming the suffix "+" to read kernel mapping
@@ -610,6 +641,8 @@ var cmNameMappers = map[string]func(fullImageStr string) string{
 	"rhel":    rhelCMNameMapper,
 	"red hat": rhelCMNameMapper,
 	"redhat":  rhelCMNameMapper,
+	"sles":    slesCMNameMapper,
+	"suse":    slesCMNameMapper,
 }
 
 func rhelCMNameMapper(osImageStr string) string {
@@ -641,6 +674,25 @@ func ubuntuCMNameMapper(osImageStr string) string {
 	versionSplits := strings.Split(version, ".")
 	trimmedVersion := strings.Join(versionSplits[:2], ".")
 	return fmt.Sprintf("%s-%s", os, trimmedVersion)
+}
+
+func slesCMNameMapper(osImageStr string) string {
+	// Example: "SUSE Linux Enterprise Server 15 SP6" -> "sles-15.6"
+	// Example: "suse linux enterprise server 15-sp6" -> "sles-15.6"
+	// Convert to lowercase for consistent matching
+	osImageLower := strings.ToLower(osImageStr)
+	re := regexp.MustCompile(`(\d+)\s*-?\s*sp(\d+)`)
+	matches := re.FindStringSubmatch(osImageLower)
+	if len(matches) >= 3 {
+		return fmt.Sprintf("sles-%s.%s", matches[1], matches[2])
+	}
+	// Fallback for base version "SLES 15" or "SUSE Linux Enterprise Server 15"
+	re = regexp.MustCompile(`(\d+)`)
+	matches = re.FindStringSubmatch(osImageLower)
+	if len(matches) > 1 {
+		return fmt.Sprintf("sles-%s", matches[1])
+	}
+	return "sles-" + osImageLower
 }
 
 func GetK8SNodes(ctx context.Context, cli client.Client, labelSelector labels.Selector) (*v1.NodeList, error) {
