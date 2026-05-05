@@ -123,9 +123,7 @@ For bugs and feature requests, please file an issue on our [GitHub Issues](https
 
 The AMD GPU Operator is licensed under the [Apache License 2.0](LICENSE).
 
-## gpu-operator-charts
-
-![Version: v0.0.1](https://img.shields.io/badge/Version-v0.0.1-informational?style=flat-square) ![Type: application](https://img.shields.io/badge/Type-application-informational?style=flat-square) ![AppVersion: dev](https://img.shields.io/badge/AppVersion-test--img-informational?style=flat-square)
+![Version: v0.0.1](https://img.shields.io/badge/Version-v0.0.1-informational?style=flat-square) ![Type: application](https://img.shields.io/badge/Type-application-informational?style=flat-square) ![AppVersion: dev](https://img.shields.io/badge/AppVersion-dev-informational?style=flat-square)
 
 AMD GPU Operator simplifies the deployment and management of AMD Instinct GPU accelerators within Kubernetes clusters.
 
@@ -256,6 +254,7 @@ Kubernetes: `>= 1.29.0-0`
 | deviceConfig.spec.metricsExporter.upgradePolicy.upgradeStrategy | string | `"RollingUpdate"` | the type of daemonset upgrade, RollingUpdate or OnDelete |
 | deviceConfig.spec.remediationWorkflow.autoStartWorkflow | bool | `true` | Enable/disable automatic workflow start on node issues |
 | deviceConfig.spec.remediationWorkflow.config | object | `{}` | Configuration for remediation workflow |
+| deviceConfig.spec.remediationWorkflow.configMapImage | string | `""` | Container image used to create the remediation ConfigMap. This image contains the default remediation ConfigMap configmap.yaml file. |
 | deviceConfig.spec.remediationWorkflow.enable | bool | `false` | enable/disable remediation workflow controller |
 | deviceConfig.spec.remediationWorkflow.maxParallelWorkflows | int | `0` | Set maximum number of remediation workflows that can run in parallel. Default is 0 which means no limit |
 | deviceConfig.spec.remediationWorkflow.nodeDrainPolicy | object | `{}` | Policy for draining nodes during remediation |
