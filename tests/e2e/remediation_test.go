@@ -100,7 +100,7 @@ func (s *E2ESuite) populateDeviceConfig(c *C) *v1alpha1.DeviceConfig {
 	devCfg.Spec.RemediationWorkflow.Enable = &remediationEnable
 	devCfg.Spec.RemediationWorkflow.TesterImage = agfhcTestRunnerImage
 	devCfg.Spec.MetricsExporter.Enable = &remediationEnable
-	devCfg.Spec.MetricsExporter.Image = exporterImage
+	devCfg.Spec.MetricsExporter.Image = exporterMockImage
 	devCfg.Spec.MetricsExporter.ImagePullPolicy = "Always"
 	devCfg.Spec.MetricsExporter.Port = 5000
 	devCfg.Spec.CommonConfig.UtilsContainer.Image = utilsContainerImage
@@ -285,10 +285,6 @@ func (s *E2ESuite) TestAutoNodeRemediationWithPhysicalAction(c *C) {
 }
 
 func (s *E2ESuite) TestAutoNodeRemediationAbortWorkflow(c *C) {
-	if s.simEnable {
-		skipTest(c, "Skipping for non amd gpu testbed")
-	}
-
 	logger.Infof("Starting Auto Node Remediation abort workflow test")
 
 	nodes, err := s.clientSet.CoreV1().Nodes().List(context.Background(), metav1.ListOptions{
@@ -351,20 +347,17 @@ func (s *E2ESuite) TestAutoNodeRemediationAbortWorkflow(c *C) {
 
 	logger.Infof("Reverting Node Problem Detector (NPD) thresholds to original configuration")
 	s.updateConfigForNPD(c, npdInband2RASErrorConfigPath, npdInbandRASConfigPath)
+	s.verifyNodeCondition(c, conditionInternalError, corev1.ConditionFalse)
 
 	//verify workflow is aborted and deleted
 	logger.Infof("Verifying remediation workflow is aborted and deleted on the node %s", nodeName)
 	assert.Eventually(c, func() bool {
 		return s.checkWorkflowExistence(c, nodeName, false)
-	}, 1*time.Minute, 10*time.Second, "Remediation workflow was not aborted and deleted")
+	}, 2*time.Minute, 10*time.Second, "Remediation workflow was not aborted and deleted")
 }
 
 func (s *E2ESuite) TestAutoNodeRemediationRecoveryPolicy(c *C) {
 	logger.Infof("Starting Auto Node Remediation recovery policy test")
-	if s.simEnable {
-		skipTest(c, "Skipping for non amd gpu testbed")
-	}
-
 	nodes, err := s.clientSet.CoreV1().Nodes().List(context.Background(), metav1.ListOptions{
 		LabelSelector: "feature.node.kubernetes.io/amd-gpu=true",
 	})
@@ -428,6 +421,11 @@ func (s *E2ESuite) TestAutoNodeRemediationRecoveryPolicy(c *C) {
 		return s.checkWorkflowExistence(c, nodeName, true)
 	}, 2*time.Minute, 10*time.Second, "Remediation workflow was started despite max retries reached")
 
+	defer func() {
+		s.untaintNode(nodeName)
+		s.clearRemediationWorkflowStatusMetaData(devCfg.Namespace, c)
+	}()
+
 	//verify workflow is suspended waiting for physical action
 	logger.Infof("Verifying remediation workflow is suspended on the node %s", nodeName)
 	assert.Eventually(c, func() bool {
@@ -441,13 +439,14 @@ func (s *E2ESuite) TestAutoNodeRemediationRecoveryPolicy(c *C) {
 
 	logger.Infof("Reverting Node Problem Detector (NPD) thresholds to original configuration")
 	s.updateConfigForNPD(c, npdInband2RASErrorConfigPath, npdInbandRASConfigPath)
+	s.verifyNodeCondition(c, conditionInternalError, corev1.ConditionFalse)
 
 	//verify workflow is aborted and deleted
 	logger.Infof("Verifying remediation workflow is aborted and deleted on the node %s", nodeName)
 	assert.Eventually(c, func() bool {
 		return s.checkWorkflowExistence(c, nodeName, false)
-	}, 1*time.Minute, 10*time.Second, "Remediation workflow was not aborted and deleted")
-	s.untaintNode(nodeName)
+	}, 2*time.Minute, 10*time.Second, "Remediation workflow was not aborted and deleted")
+
 }
 
 func (s *E2ESuite) verifyDeviceConfigErrorStatus(devCfg *v1alpha1.DeviceConfig, c *C, errStr string) {

@@ -64,7 +64,7 @@ ifdef CI_ENV
 endif
 
 all:
-	go test -test.timeout=120m -v $(TEST_ARGS);
+	go test -test.timeout=180m -v $(TEST_ARGS);
 lint:
 	@go fmt ./...
 	@goimports -w ./

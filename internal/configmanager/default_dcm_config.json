@@ -1,0 +1,60 @@
+{
+  "gpu-config-profiles": {
+    "default": {
+      "profiles": [
+        {
+          "computePartition": "SPX",
+          "memoryPartition": "NPS1"
+        }
+      ]
+    },
+    "cpx_nps1_all": {
+      "profiles": [
+        {
+          "computePartition": "CPX",
+          "memoryPartition": "NPS1"
+        }
+      ]
+    },
+    "cpx_nps4_all": {
+      "profiles": [
+        {
+          "computePartition": "CPX",
+          "memoryPartition": "NPS4"
+        }
+      ]
+    },
+    "dpx_nps2_all": {
+      "profiles": [
+        {
+          "computePartition": "DPX",
+          "memoryPartition": "NPS2"
+        }
+      ]
+    },
+    "qpx_nps1_all": {
+      "profiles": [
+        {
+          "computePartition": "QPX",
+          "memoryPartition": "NPS1"
+        }
+      ]
+    },
+    "heterogeneous_example": {
+      "profiles": [
+        {
+          "computePartition": "CPX",
+          "memoryPartition": "NPS1",
+          "numGPUsAssigned": 2
+        },
+        {
+          "computePartition": "SPX",
+          "memoryPartition": "NPS1"
+        }
+      ]
+    }
+  },
+  "gpuClientSystemdServices": {
+    "names": ["amd-metrics-exporter", "gpuagent"]
+  }
+}

@@ -39,31 +39,11 @@ func (s *E2ESuite) TestDRADriverDaemonSetReadyAndCleanup(c *C) {
 		skipTest(c, "E2E_DRA_DRIVER_IMAGE is not defined, skipping DRA driver test")
 	}
 
-	driverEnable := false
-	devCfg := &v1alpha1.DeviceConfig{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      s.cfgName,
-			Namespace: s.ns,
-		},
-		Spec: v1alpha1.DeviceConfigSpec{
-			Driver: v1alpha1.DriverSpec{
-				Enable: &driverEnable,
-			},
-			DevicePlugin: v1alpha1.DevicePluginSpec{
-				EnableDevicePlugin: ptr.To(false),
-				DevicePluginImage:  devicePluginImage,
-			},
-			DRADriver: v1alpha1.DRADriverSpec{
-				Enable: ptr.To(true),
-				Image:  draDriverImage,
-			},
-			CommonConfig: v1alpha1.CommonConfigSpec{
-				InitContainerImage: initContainerImage,
-			},
-			Selector: map[string]string{
-				"feature.node.kubernetes.io/amd-gpu": "true",
-			},
-		},
+	devCfg := s.getDeviceConfig(c)
+	devCfg.Spec.DevicePlugin.EnableDevicePlugin = ptr.To(false)
+	devCfg.Spec.DRADriver = v1alpha1.DRADriverSpec{
+		Enable: ptr.To(true),
+		Image:  draDriverImage,
 	}
 
 	s.createDeviceConfig(devCfg, c)
@@ -93,32 +73,11 @@ func (s *E2ESuite) TestDRAToDevicePluginMigration(c *C) {
 		skipTest(c, "E2E_DRA_DRIVER_IMAGE is not defined, skipping DRA migration test")
 	}
 
-	driverEnable := false
-	devCfg := &v1alpha1.DeviceConfig{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      s.cfgName,
-			Namespace: s.ns,
-		},
-		Spec: v1alpha1.DeviceConfigSpec{
-			Driver: v1alpha1.DriverSpec{
-				Enable: &driverEnable,
-			},
-			DevicePlugin: v1alpha1.DevicePluginSpec{
-				EnableDevicePlugin: ptr.To(false),
-				DevicePluginImage:  devicePluginImage,
-				NodeLabellerImage:  nodeLabellerImage,
-			},
-			DRADriver: v1alpha1.DRADriverSpec{
-				Enable: ptr.To(true),
-				Image:  draDriverImage,
-			},
-			CommonConfig: v1alpha1.CommonConfigSpec{
-				InitContainerImage: initContainerImage,
-			},
-			Selector: map[string]string{
-				"feature.node.kubernetes.io/amd-gpu": "true",
-			},
-		},
+	devCfg := s.getDeviceConfig(c)
+	devCfg.Spec.DevicePlugin.EnableDevicePlugin = ptr.To(false)
+	devCfg.Spec.DRADriver = v1alpha1.DRADriverSpec{
+		Enable: ptr.To(true),
+		Image:  draDriverImage,
 	}
 
 	// Phase 1: Create with DRA enabled
