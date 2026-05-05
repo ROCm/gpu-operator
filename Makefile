@@ -411,7 +411,8 @@ helm-k8s: helmify manifests kustomize clean-helm gen-kmm-charts gen-remediation-
 	$(MAKE) helm-docs
 	echo "dependency update, lint and pack charts"
 	cd $(shell pwd)/helm-charts-k8s; helm dependency update; helm lint .; cd ..; helm package helm-charts-k8s/ --destination ./helm-charts-k8s
-	mv $(shell pwd)/helm-charts-k8s/gpu-operator-charts-$(HELM_CHART_VERSION).tgz $(GPU_OPERATOR_CHART)
+	# Avoid $(GPU_OPERATOR_CHART) here: when exported as the chart dir, mv would be a no-op/same-file error.
+	mv $(shell pwd)/helm-charts-k8s/gpu-operator-charts-$(HELM_CHART_VERSION).tgz $(shell pwd)/helm-charts-k8s/$(HELM_OUTPUT_FILE_NAME)
 
 .PHONY: bundle-build
 bundle-build: operator-sdk manifests kustomize ## OpenShift Build OLM bundle.
@@ -420,7 +421,7 @@ bundle-build: operator-sdk manifests kustomize ## OpenShift Build OLM bundle.
 	cd config/manager && $(KUSTOMIZE) edit set image controller=$(IMG)
 	cd config/manager-base && $(KUSTOMIZE) edit set image controller=$(IMG)
 	OPERATOR_SDK="${OPERATOR_SDK}" \
-		     BUNDLE_GEN_FLAGS="${BUNDLE_GEN_FLAGS} --extra-service-accounts amd-gpu-operator-kmm-device-plugin,amd-gpu-operator-kmm-module-loader,amd-gpu-operator-node-labeller,amd-gpu-operator-metrics-exporter,amd-gpu-operator-metrics-exporter-rbac-proxy,amd-gpu-operator-test-runner,amd-gpu-operator-config-manager,amd-gpu-operator-utils-container" \
+		     BUNDLE_GEN_FLAGS="${BUNDLE_GEN_FLAGS} --extra-service-accounts amd-gpu-operator-kmm-device-plugin,amd-gpu-operator-kmm-module-loader,amd-gpu-operator-node-labeller,amd-gpu-operator-metrics-exporter,amd-gpu-operator-metrics-exporter-rbac-proxy,amd-gpu-operator-test-runner,amd-gpu-operator-config-manager,amd-gpu-operator-utils-container,amd-gpu-operator-dra-driver" \
 		     PKG=amd-gpu-operator \
 		     SOURCE_DIR=$(dir $(realpath $(lastword $(MAKEFILE_LIST)))) \
 		     KUBECTL_CMD=${KUBECTL_CMD} ./hack/generate-bundle
@@ -601,6 +602,10 @@ helmify:
 .PHONY: helm-install
 helm-install: ## Deploy Helm Charts.
 	helm install -f helm-charts-k8s/values.yaml amd-gpu-operator ${GPU_OPERATOR_CHART} -n kube-amd-gpu --create-namespace ${SKIP_NFD_CMD} ${SKIP_KMM_CMD} ${SKIP_REMEDIATION_CONTROLLER_CMD} ${HELM_OC_CMD} ${SIM_ENABLE_CMD} ${SKIP_INSTALL_DEFAULT_CR_CMD}
+
+.PHONY: helm-upgrade-install
+helm-upgrade-install: ## Same as helm-install but safe when release amd-gpu-operator already exists.
+	helm upgrade --install -f helm-charts-k8s/values.yaml amd-gpu-operator ${GPU_OPERATOR_CHART} -n kube-amd-gpu --create-namespace ${SKIP_NFD_CMD} ${SKIP_KMM_CMD} ${SKIP_REMEDIATION_CONTROLLER_CMD} ${HELM_OC_CMD} ${SIM_ENABLE_CMD} ${SKIP_INSTALL_DEFAULT_CR_CMD}
 
 .PHONY: helm-uninstall
 helm-uninstall-k8s: ## Undeploy Helm Charts.

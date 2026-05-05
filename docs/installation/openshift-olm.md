@@ -418,6 +418,8 @@ metadata:
 spec:
   driver:
     enable: true
+    # Build the driver from source code image inside of the KMM workflow
+    useSourceImage: true
     image: image-registry.openshift-image-registry.svc:5000/$MOD_NAMESPACE/amdgpu_kmod
     # NOTE: Starting from ROCm 7.1 the amdgpu version is using new versioning schema
     # please refer to https://rocm.docs.amd.com/projects/install-on-linux/en/latest/reference/user-kernel-space-compat-matrix.html

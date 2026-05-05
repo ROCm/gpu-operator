@@ -35,8 +35,13 @@ metadata:
       ]
     capabilities: Seamless Upgrades
     categories: AI/Machine Learning,Monitoring
+<<<<<<< CP.O2O.pensando.gpu-operator.1303.rocm.gpu-operator.main
     containerImage: docker.io/rocm/amd-gpu-operator:dev
     createdAt: "2026-04-07T12:28:11Z"
+=======
+    containerImage: registry.test.pensando.io:5000/amd-gpu-operator:dev
+    createdAt: "2026-04-22T01:09:34Z"
+>>>>>>> main
     description: |-
       Operator responsible for deploying AMD GPU kernel drivers, device plugin, device test runner and device metrics exporter
       For more information, visit [documentation](https://instinct.docs.amd.com/projects/gpu-operator/en/latest/)
@@ -127,8 +132,10 @@ spec:
         path: configManager
         x-descriptors:
         - urn:alm:descriptor:com.amd.deviceconfigs:configManager
-      - description: config map to customize the config for config manager, if not
-          specified default config will be applied
+      - description: ConfigMap holding DCM config.json. When set, the operator mounts
+          this ConfigMap and does not create it. When omitted or name is empty, the
+          operator mounts ConfigMap "default-dcm-config" and creates it in the DeviceConfig
+          namespace if it does not already exist (same default payload as chart defaultDCMConfigMap).
         displayName: Config
         path: configManager.config
         x-descriptors:
@@ -1321,6 +1328,12 @@ spec:
           - get
           - update
         - apiGroups:
+          - resource.k8s.io
+          resources:
+          - deviceclasses
+          verbs:
+          - create
+        - apiGroups:
           - argoproj.io
           resources:
           - '*'
@@ -1347,6 +1360,40 @@ spec:
           - list
           - watch
         serviceAccountName: amd-gpu-operator-controller-manager
+      - rules:
+        - apiGroups:
+          - security.openshift.io
+          resourceNames:
+          - privileged
+          resources:
+          - securitycontextconstraints
+          verbs:
+          - use
+        - apiGroups:
+          - resource.k8s.io
+          resources:
+          - resourceslices
+          verbs:
+          - get
+          - list
+          - watch
+          - create
+          - update
+          - patch
+          - delete
+        - apiGroups:
+          - resource.k8s.io
+          resources:
+          - resourceclaims
+          verbs:
+          - get
+        - apiGroups:
+          - ""
+          resources:
+          - nodes
+          verbs:
+          - get
+        serviceAccountName: amd-gpu-operator-dra-driver
       - rules:
         - apiGroups:
           - ""

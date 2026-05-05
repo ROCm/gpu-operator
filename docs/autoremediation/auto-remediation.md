@@ -110,7 +110,7 @@ For OpenShift users: To use the auto remediation feature, additonal steps are re
         helm install argo-workflow argo/argo-workflows \
           -n argo-workflow \
           --create-namespace \
-          --version=v4.0.3 \
+          --version=1.0.6 \
           --set crds.install=false
         ```
 
@@ -219,7 +219,7 @@ When the number of triggered workflows exceeds this limit, additional workflows 
 
 **NodeDrainPolicy** - Configures the pod eviction behavior when draining workloads from nodes during the remediation process. This policy controls how pods are removed, including timeout settings, grace periods, and namespace exclusions. See the [Node Drain Policy Configuration](#node-drain-policy-configuration) section below for detailed field descriptions.
 
-**AutoStartWorkflow** - Specifies the behavior of the remediation workflow. Default value is `true`. If `true`, the remediation workflow is automatically started when the node condition matches. If `false`, the remediation workflow remains in a suspended state when the node condition matches and must be manually started by the user. To resume the workflow at a later point, refer to the [resume workflow section](#resuming-a-paused-workflow)
+**AutoStartWorkflow** - Specifies the behavior of the remediation workflow. Default value is `true`. If `true`, the remediation workflow is automatically started when the node condition matches. If `false`, the remediation workflow remains in a suspended state when the node condition matches and must be manually started by the user. To resume the workflow at a later point, refer to the [resume workflow section](#resume-or-abort-a-paused-workflow)
 
 **Spec.CommonConfig.UtilsContainer** - Remediation workflow uses a utility image for executing the steps. Specify the utility image in `Spec.CommonConfig.UtilsContainer` section of Device Config. If the UtilsContainer section is not specified, default image used is `docker.io/rocm/gpu-operator-utils:latest`
 
@@ -315,7 +315,7 @@ The `default-template` workflow performs the following remediation steps:
 
 3. **Drain Workloads** - Evict all pods utilizing AMD GPUs from the affected node.
 
-4. **Notify Administrator** - Send notification if manual intervention is required for the detected issue.
+4. **Notify Administrator** - Generate a Kubernetes event to notify the administrator if manual intervention is required for the detected issue.
 
 5. **Suspend Workflow** - Pause workflow execution pending manual intervention or automatic resumption based on configured policies.
 
@@ -337,7 +337,23 @@ While most workflow steps are self-explanatory, Steps 4, 5, and 7 require additi
 
 According to the AMD service action guide, certain GPU issues require physical intervention (e.g., checking wiring, securing screws, retorquing connections). When such conditions are detected, the workflow generates a Kubernetes event to notify the administrator of the required physical action before suspending at this step. The specific physical action for each node condition is defined in the `physicalActionNeeded` field within the corresponding ConfigMap mapping.
 
-This step enables administrators to identify nodes awaiting physical intervention. After completing the necessary physical repairs, administrators can resume the workflow for validation using the label described in Workflow Step 4.
+This step enables administrators to identify nodes awaiting physical intervention. After completing the necessary physical repairs, administrators can resume the workflow for validation using the label described in Workflow Step 5.
+
+#### Querying Remediation Events
+
+The remediation workflow generates Kubernetes events at key stages to notify administrators of workflow progress. These events can be queried using:
+
+```bash
+kubectl get events -n <amdgpu-operator-namespace> --field-selector involvedObject.kind=Node
+```
+
+The following event types are generated:
+
+- **`amd-gpu-remediation-required`** - Generated before the workflow suspends, indicating that a node condition has been detected and remediation is required. For conditions requiring physical intervention, the event message describes the specific action needed.
+
+- **`amd-gpu-remediation-succeeded`** - Generated when the remediation workflow completes successfully and all GPU validation tests pass.
+
+- **`amd-gpu-remediation-failed`** - Generated when GPU validation tests fail after the remediation attempt. The event message includes details about the failure and the affected node.
 
 ### Workflow Step 5: Workflow Suspension and Resumption
 
@@ -350,7 +366,7 @@ The GPU Operator determines whether to automatically resume the workflow after i
 
 If neither condition applies, the workflow automatically resumes without manual intervention.
 
-#### Resuming a Paused Workflow
+#### Resume or Abort a Paused Workflow
 
 To resume a suspended workflow, apply the label `operator.amd.com/gpu-force-resume-workflow=true` to the affected node. The operator detects this label and resumes workflow execution.
 

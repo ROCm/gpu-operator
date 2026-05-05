@@ -2,6 +2,18 @@
 
 The Device Config Manager (DCM) job is to monitor for and apply different configurations on nodes in your cluster. This is done by defining different profiles that can then be applied to each node on your cluster. As such, DCM relies on a Kubernetes ConfigMap that contains the definitions of each configuration profile. This ConfigMap is required to be present for the Device Config Manager to function properly. Once profiles have been defined, specific node labels can be put on the nodes in the cluster to specify which profile should be applied. DCM monitors for any changes in the ConfigMap or changes to the profile node label and applies the correct configuration accordingly. This ConfigMap approach helps to simplify the rollout of different config profiles across all the nodes in the cluster.
 
+## How the GPU Operator uses this ConfigMap
+
+When **Device Config Manager** is enabled on a **DeviceConfig** (`spec.configManager.enable: true`), the GPU Operator deploys DCM on nodes that match the DeviceConfig selector.
+
+**Default ConfigMap name.** If you do **not** set `spec.configManager.config` (or you leave the referenced name empty), the operator mounts a ConfigMap named **`default-dcm-config`** in the **same namespace as the DeviceConfig**. If that object is missing, the operator **creates** it and fills it with a built-in default `config.json` (partition profiles and related settings suitable for typical use). If `default-dcm-config` already exists—for example because your Helm install created it—the operator **does not** overwrite it.
+
+**Custom ConfigMap.** If you set `spec.configManager.config` to a specific ConfigMap name, the operator mounts **that** ConfigMap only. You must create and maintain it; the operator does not populate it for you.
+
+**Where DCM reads config.** The ConfigMap is mounted into the DCM container so profiles are available under **`/etc/config-manager/`**, usually as **`config.json`** in the ConfigMap’s `data`.
+
+**Helm install.** The GPU Operator Helm chart can optionally install the same **`default-dcm-config`** object in the release namespace at deploy time, so the ConfigMap may already be present before you apply a DeviceConfig. Whether it comes from Helm or from the operator, behavior is the same: the default name is used when you omit a custom reference, and an existing object is preserved.
+
 ## ConfigMap
 
 As mentioned, the `config.json` data specifies different GPU partitioning profiles that can be set on the GPU nodes in your cluster. Below is an example Device Config Manager ConfigMap. This example ConfigMap is also available in the GPU Operator repo here: [_example/configmap.yaml_](https://github.com/ROCm/gpu-operator/blob/main/example/configManager/configmap.yaml)

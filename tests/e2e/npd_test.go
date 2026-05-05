@@ -208,10 +208,6 @@ func tearDownPrometheusOperator() {
 }
 
 func (s *E2ESuite) TestNodeProblemDetector(c *C) {
-	if s.simEnable {
-		skipTest(c, "Skipping for non amd gpu testbed")
-	}
-
 	_, err := s.dClient.DeviceConfigs(s.ns).Get(s.cfgName, metav1.GetOptions{})
 	assert.Errorf(c, err, fmt.Sprintf("expected no config to be present. but config %v exists", s.cfgName))
 
@@ -219,7 +215,7 @@ func (s *E2ESuite) TestNodeProblemDetector(c *C) {
 	driverEnable := false
 	devCfg := s.getDeviceConfig(c)
 	devCfg.Spec.MetricsExporter.Enable = &exporterEnable
-	devCfg.Spec.MetricsExporter.Image = exporterImage
+	devCfg.Spec.MetricsExporter.Image = exporterMockImage
 	devCfg.Spec.MetricsExporter.ImagePullPolicy = "Always"
 	devCfg.Spec.MetricsExporter.Port = 5000
 	devCfg.Spec.Driver.Enable = &driverEnable
