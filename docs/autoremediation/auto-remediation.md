@@ -88,31 +88,61 @@ The GPU Operator installs Argo Workflows v4.0.3, using a [customized installatio
 
 For OpenShift users: To use the auto remediation feature, additonal steps are required to install Argo Workflows to the OpenShift cluster, which requires special consideration:
 
-  1. **If using OpenShift AI Operator with CRD `DataScienceCluster`:** Argo Workflows are possibly already deployed by the OpenShift AI Operator, if the Custom Resource Definition (CRD) like workflows.argoproj.io is already existing, no additional installation is needed.
+1. **If using OpenShift AI Operator with CRD `DataScienceCluster`:** Argo Workflows are possibly already deployed by the OpenShift AI Operator, if the CustomResourceDefinition like workflows.argoproj.io is already existing, no additional installation is needed.
 
-  2. **If not using OpenShift AI Operator:** Follow these steps to install Argo Workflows on your OpenShift cluster:
+2. **If not using OpenShift AI Operator:** Follow these steps to install Argo Workflows on your OpenShift cluster:
 
       a. Install CRDs (must be executed separately due to CRD size):
 
-        ```bash
-        oc apply --server-side --force-conflicts -k "https://github.com/argoproj/argo-workflows/manifests/base/crds/full?ref=v4.0.3"
-        ```
+```bash
+oc apply --server-side --force-conflicts -k "https://github.com/argoproj/argo-workflows/manifests/base/crds/full?ref=v4.0.3"
+```
 
       b. Add the Argo Helm repository:
 
-        ```bash
-        helm repo add argo https://argoproj.github.io/argo-helm --force-update
-        ```
+```bash
+helm repo add argo https://argoproj.github.io/argo-helm --force-update
+```
 
       c. Install Argo Workflows using Helm:
 
-        ```bash
-        helm install argo-workflow argo/argo-workflows \
+```bash
+helm install argo-workflow argo/argo-workflows \
           -n argo-workflow \
           --create-namespace \
-          --version=v4.0.3 \
-          --set crds.install=false
-        ```
+          --version=1.0.6 \
+  --set crds.install=false \
+  --set controller.instanceID.enabled=true \
+  --set controller.instanceID.explicitID=amd-gpu-operator-remediation-workflow \
+  --set 'controller.tolerations[0].key=amd-gpu-unhealthy' \
+  --set 'controller.tolerations[0].operator=Exists' \
+  --set 'controller.tolerations[0].effect=NoSchedule'
+```
+
+> **Important:** The `controller.instanceID.explicitID` value must be set to `amd-gpu-operator-remediation-workflow`. The GPU Operator labels every remediation workflow and workflow template it creates with `workflows.argoproj.io/controller-instanceid: amd-gpu-operator-remediation-workflow`. An Argo workflow-controller only reconciles workflows whose `controller-instanceid` label matches its configured `instanceID`, so without this setting the Helm-installed controller will silently ignore the operator's workflows. Refer to the [Argo Workflows controller `instanceID` documentation](https://argo-workflows.readthedocs.io/en/stable/scaling/#instanceid) and the [`argo-workflows` chart values](https://github.com/argoproj/argo-helm/blob/main/charts/argo-workflows/values.yaml) for full details.
+>
+> **Important:** The `controller.tolerations` entry for `amd-gpu-unhealthy:NoSchedule` is required. During remediation the GPU Operator taints the affected node with `amd-gpu-unhealthy:NoSchedule` (see [NodeRemediationTaints](#node-drain-policy-configuration)). If the workflow-controller pod happens to be scheduled on a node that later gets tainted, it will be evicted and remediation will stall. Adding this toleration ensures the controller keeps running on tainted nodes so it can continue driving the workflow to completion. The same toleration is applied to the in-tree workflow controller, metrics-exporter, and other operator-managed components.
+>
+> The **same toleration must also be added to the Kernel Module Management (KMM) operator's Helm chart** when KMM is installed separately on OpenShift. KMM is responsible for (re)building and loading the GPU driver kernel module on the node after a remediation reboot — if its controller pod cannot tolerate `amd-gpu-unhealthy:NoSchedule`, it may be evicted from a tainted node and the driver will never be reloaded, blocking the post-reboot validation step of the workflow. When installing the KMM operator via Helm, pass the equivalent flags (the exact key path depends on the KMM chart you use, e.g. `controller.manager.tolerations` for the upstream chart):
+>
+> ```bash
+> --set 'controller.manager.tolerations[0].key=amd-gpu-unhealthy' \
+> --set 'controller.manager.tolerations[0].operator=Exists' \
+> --set 'controller.manager.tolerations[0].effect=NoSchedule'
+> ```
+
+If you prefer a values file over `--set`, the equivalent block is:
+
+```yaml
+controller:
+  instanceID:
+    enabled: true
+    explicitID: amd-gpu-operator-remediation-workflow
+  tolerations:
+    - key: amd-gpu-unhealthy
+      operator: Exists
+      effect: NoSchedule
+```
 
 ## Configuration and customization
 
@@ -219,7 +249,7 @@ When the number of triggered workflows exceeds this limit, additional workflows 
 
 **NodeDrainPolicy** - Configures the pod eviction behavior when draining workloads from nodes during the remediation process. This policy controls how pods are removed, including timeout settings, grace periods, and namespace exclusions. See the [Node Drain Policy Configuration](#node-drain-policy-configuration) section below for detailed field descriptions.
 
-**AutoStartWorkflow** - Specifies the behavior of the remediation workflow. Default value is `true`. If `true`, the remediation workflow is automatically started when the node condition matches. If `false`, the remediation workflow remains in a suspended state when the node condition matches and must be manually started by the user. To resume the workflow at a later point, refer to the [resume workflow section](#resuming-a-paused-workflow)
+**AutoStartWorkflow** - Specifies the behavior of the remediation workflow. Default value is `true`. If `true`, the remediation workflow is automatically started when the node condition matches. If `false`, the remediation workflow remains in a suspended state when the node condition matches and must be manually started by the user. To resume the workflow at a later point, refer to the [resume workflow section](#resume-or-abort-a-paused-workflow)
 
 **Spec.CommonConfig.UtilsContainer** - Remediation workflow uses a utility image for executing the steps. Specify the utility image in `Spec.CommonConfig.UtilsContainer` section of Device Config. If the UtilsContainer section is not specified, default image used is `docker.io/rocm/gpu-operator-utils:latest`
 
@@ -292,7 +322,7 @@ The following example demonstrates a complete error mapping configuration:
 
 **notifyTestFailureMessage** - Contains instructions to be displayed when validation tests fail after remediation attempts. This message typically includes escalation procedures and diagnostic information requirements.
 
-**recoveryPolicy** - Defines limits on remediation attempts to prevent excessive recovery cycles. Includes `maxAllowedRunsPerWindow` (maximum retry attempts) and `windowSize` (time window for counting attempts). When exceeded, the workflow pauses for manual intervention.
+**recoveryPolicy** - Defines limits on remediation attempts to prevent excessive recovery cycles. Includes `maxAllowedRunsPerWindow` (maximum retry attempts) and `windowSize` (time window for counting attempts). Once the number of remediation workflows crosses `maxAllowedRunsPerWindow`, no new workflow is triggered for the same node condition within `windowSize`. After the window elapses, if the issue still persists, a new remediation workflow is allowed to start again.
 
 **skipRebootStep** - Controls whether the node reboot step is executed during the remediation workflow. The default workflow template includes an automatic reboot step to reinitialize GPU hardware after performing the recommended remediation actions. Set this field to `true` to skip the reboot step when the node has already been rebooted manually as part of the remediation process or when a reboot is not desired for the specific error condition. Default value is `false`.
 
@@ -308,7 +338,7 @@ The `default-template` workflow performs the following remediation steps:
 
 3. **Drain Workloads** - Evict all pods utilizing AMD GPUs from the affected node.
 
-4. **Notify Administrator** - Send notification if manual intervention is required for the detected issue.
+4. **Notify Administrator** - Generate a Kubernetes event to notify the administrator if manual intervention is required for the detected issue.
 
 5. **Suspend Workflow** - Pause workflow execution pending manual intervention or automatic resumption based on configured policies.
 
@@ -330,7 +360,23 @@ While most workflow steps are self-explanatory, Steps 4, 5, and 7 require additi
 
 According to the AMD service action guide, certain GPU issues require physical intervention (e.g., checking wiring, securing screws, retorquing connections). When such conditions are detected, the workflow generates a Kubernetes event to notify the administrator of the required physical action before suspending at this step. The specific physical action for each node condition is defined in the `physicalActionNeeded` field within the corresponding ConfigMap mapping.
 
-This step enables administrators to identify nodes awaiting physical intervention. After completing the necessary physical repairs, administrators can resume the workflow for validation using the label described in Workflow Step 4.
+This step enables administrators to identify nodes awaiting physical intervention. After completing the necessary physical repairs, administrators can resume the workflow for validation using the label described in Workflow Step 5.
+
+#### Querying Remediation Events
+
+The remediation workflow generates Kubernetes events at key stages to notify administrators of workflow progress. These events can be queried using:
+
+```bash
+kubectl get events -n <amdgpu-operator-namespace> --field-selector involvedObject.kind=Node
+```
+
+The following event types are generated:
+
+- **`amd-gpu-remediation-required`** - Generated before the workflow suspends, indicating that a node condition has been detected and remediation is required. For conditions requiring physical intervention, the event message describes the specific action needed.
+
+- **`amd-gpu-remediation-succeeded`** - Generated when the remediation workflow completes successfully and all GPU validation tests pass.
+
+- **`amd-gpu-remediation-failed`** - Generated when GPU validation tests fail after the remediation attempt. The event message includes details about the failure and the affected node.
 
 ### Workflow Step 5: Workflow Suspension and Resumption
 
@@ -343,7 +389,7 @@ The GPU Operator determines whether to automatically resume the workflow after i
 
 If neither condition applies, the workflow automatically resumes without manual intervention.
 
-#### Resuming a Paused Workflow
+#### Resume or Abort a Paused Workflow
 
 To resume a suspended workflow, apply the label `operator.amd.com/gpu-force-resume-workflow=true` to the affected node. The operator detects this label and resumes workflow execution.
 

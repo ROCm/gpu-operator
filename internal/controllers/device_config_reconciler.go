@@ -48,8 +48,11 @@ import (
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	meta "k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/labels"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/client-go/discovery"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/util/retry"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -79,7 +82,10 @@ const (
 	DeviceConfigReconcilerName = "DriverAndPluginReconciler"
 	deviceConfigFinalizer      = "amd.node.kubernetes.io/deviceconfig-finalizer"
 	testRunnerNodeLabelPrefix  = "testrunner.amd.com"
+	deviceClassName            = "gpu.amd.com"
 )
+
+var draAPIVersionPriority = []string{"v1", "v1beta2", "v1beta1"}
 
 // ModuleReconciler reconciles a Module object
 type DeviceConfigReconciler struct {
@@ -108,7 +114,7 @@ func NewDeviceConfigReconciler(
 	kmmWatchEnabled bool) *DeviceConfigReconciler {
 	upgradeMgrHandler := newUpgradeMgrHandler(client, k8sConfig, isOpenShift)
 	remediationMgrHandler := newRemediationMgrHandler(client, apiReader, k8sConfig, isOpenShift)
-	helper := newDeviceConfigReconcilerHelper(client, kmmHandler, dpHandler, nlHandler, upgradeMgrHandler, remediationMgrHandler, metricsHandler, testrunnerHandler, configmanagerHandler, workerMgr, kmmWatchEnabled)
+	helper := newDeviceConfigReconcilerHelper(client, kmmHandler, dpHandler, nlHandler, upgradeMgrHandler, remediationMgrHandler, metricsHandler, testrunnerHandler, configmanagerHandler, workerMgr, isOpenShift, kmmWatchEnabled)
 	podEventHandler := watchers.NewPodEventHandler(client, workerMgr)
 	nodeEventHandler := watchers.NewNodeEventHandler(client, workerMgr)
 	daemonsetEventHandler := watchers.NewDaemonsetEventHandler(client)
@@ -169,7 +175,7 @@ func (r *DeviceConfigReconciler) init(ctx context.Context) {
 		r.initErr = err
 		return
 	}
-	r.initErr = r.helper.buildNodeAssignments(deviceConfigList)
+	r.initErr = r.helper.buildNodeAssignments(ctx, deviceConfigList)
 }
 
 //+kubebuilder:rbac:groups=amd.com,resources=deviceconfigs,verbs=get;list;watch;create;patch;update
@@ -203,6 +209,7 @@ func (r *DeviceConfigReconciler) init(ctx context.Context) {
 //+kubebuilder:rbac:groups=core,resources=pods/eviction,verbs=delete;get;list;create
 //+kubebuilder:rbac:groups=apiextensions.k8s.io,resources=customresourcedefinitions,verbs=get;list;watch;delete
 //+kubebuilder:rbac:groups=monitoring.coreos.com,resources=servicemonitors,verbs=get;list;watch;create;update;patch;delete
+//+kubebuilder:rbac:groups=resource.k8s.io,resources=deviceclasses,verbs=create
 
 func (r *DeviceConfigReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	res := ctrl.Result{}
@@ -299,6 +306,11 @@ func (r *DeviceConfigReconciler) Reconcile(ctx context.Context, req ctrl.Request
 		return res, fmt.Errorf("failed to handle device-plugin for DeviceConfig %s: %v", req.NamespacedName, err)
 	}
 
+	logger.Info("start DeviceClass reconciliation")
+	if err = r.helper.handleDeviceClass(ctx, devConfig); err != nil {
+		return res, fmt.Errorf("failed to handle DeviceClass for DeviceConfig %s: %v", req.NamespacedName, err)
+	}
+
 	logger.Info("start dra-driver reconciliation")
 	if err = r.helper.handleDRADriver(ctx, devConfig, nodes); err != nil {
 		return res, fmt.Errorf("failed to handle dra-driver for DeviceConfig %s: %v", req.NamespacedName, err)
@@ -362,7 +374,7 @@ func (r *DeviceConfigReconciler) Reconcile(ctx context.Context, req ctrl.Request
 type deviceConfigReconcilerHelperAPI interface {
 	getRequestedDeviceConfig(ctx context.Context, namespacedName types.NamespacedName) (*amdv1alpha1.DeviceConfig, error)
 	listDeviceConfigs(ctx context.Context) (*amdv1alpha1.DeviceConfigList, error)
-	buildNodeAssignments(deviceConfigList *amdv1alpha1.DeviceConfigList) error
+	buildNodeAssignments(ctx context.Context, deviceConfigList *amdv1alpha1.DeviceConfigList) error
 	validateNodeAssignments(namespacedName string, nodes *v1.NodeList) error
 	updateNodeAssignments(namespacedName string, nodes *v1.NodeList, isFinalizer bool)
 	getDeviceConfigOwnedKMMModule(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig) (*kmmv1beta1.Module, error)
@@ -374,6 +386,7 @@ type deviceConfigReconcilerHelperAPI interface {
 	setFinalizer(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig) error
 	handleKMMModule(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig, nodes *v1.NodeList) error
 	handleDevicePlugin(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig, nodes *v1.NodeList) error
+	handleDeviceClass(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig) error
 	handleDRADriver(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig, nodes *v1.NodeList) error
 	handleKMMVersionLabel(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig, nodes *v1.NodeList) error
 	handleBuildConfigMap(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig, nodes *v1.NodeList) error
@@ -392,6 +405,7 @@ type deviceConfigReconcilerHelperAPI interface {
 type deviceConfigReconcilerHelper struct {
 	client              client.Client
 	kmmWatchEnabled     bool
+	isOpenShift         bool
 	kmmHandler          kmmmodule.KMMModuleAPI
 	devicePluginHandler plugin.DevicePluginAPI
 	nlHandler           nodelabeller.NodeLabeller
@@ -418,12 +432,14 @@ func newDeviceConfigReconcilerHelper(client client.Client,
 	testrunnerHandler testrunner.TestRunner,
 	configmanagerHandler configmanager.ConfigManager,
 	workerMgr workermgr.WorkerMgrAPI,
+	isOpenShift bool,
 	kmmWatchEnabled bool) deviceConfigReconcilerHelperAPI {
 	conditionUpdater := conditions.NewDeviceConfigConditionMgr()
 	validator := validator.NewValidator()
 	return &deviceConfigReconcilerHelper{
 		client:                client,
 		kmmWatchEnabled:       kmmWatchEnabled,
+		isOpenShift:           isOpenShift,
 		kmmHandler:            kmmHandler,
 		devicePluginHandler:   dpHandler,
 		nlHandler:             nlHandler,
@@ -916,6 +932,23 @@ func (dcrh *deviceConfigReconcilerHelper) finalizeDeviceConfig(ctx context.Conte
 		}
 	}
 
+	// finalize DRA driver
+	draDS := appsv1.DaemonSet{}
+	namespacedName = types.NamespacedName{
+		Namespace: devConfig.Namespace,
+		Name:      devConfig.Name + utils.DRADriverNameSuffix,
+	}
+	if err := dcrh.client.Get(ctx, namespacedName, &draDS); err != nil {
+		if !k8serrors.IsNotFound(err) {
+			return fmt.Errorf("failed to get dra-driver daemonset %s: %v", namespacedName, err)
+		}
+	} else {
+		logger.Info("deleting dra-driver daemonset", "daemonset", namespacedName)
+		if err := dcrh.client.Delete(ctx, &draDS); err != nil {
+			return fmt.Errorf("failed to delete dra-driver daemonset %s: %v", namespacedName, err)
+		}
+	}
+
 	// finalize node labeller
 	nlDS := appsv1.DaemonSet{}
 	namespacedName = types.NamespacedName{
@@ -996,9 +1029,6 @@ func (dcrh *deviceConfigReconcilerHelper) finalizeDeviceConfig(ctx context.Conte
 	if err := dcrh.updateNodeLabels(ctx, devConfig, nodes, true); err != nil {
 		logger.Error(err, "failed to update node labels")
 	}
-
-	// Update nodeAssignments after DeviceConfig status update
-	dcrh.updateNodeAssignments(namespacedName.String(), nodes, true)
 
 	return nil
 }
@@ -1218,6 +1248,73 @@ func (dcrh *deviceConfigReconcilerHelper) handleDRADriver(ctx context.Context, d
 	logger.Info("Reconciled dra-driver", "namespace", ds.Namespace, "name", ds.Name, "result", opRes)
 
 	return nil
+}
+
+func (dcrh *deviceConfigReconcilerHelper) handleDeviceClass(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig) error {
+	if !dcrh.isOpenShift {
+		return nil
+	}
+	if !devConfig.Spec.DRADriver.IsEnabled() {
+		return nil
+	}
+
+	logger := log.FromContext(ctx)
+
+	apiVersion := discoverDRAAPIVersion()
+	logger.Info("Discovered DRA API version", "apiVersion", apiVersion)
+
+	dc := &unstructured.Unstructured{}
+	dc.SetGroupVersionKind(schema.GroupVersionKind{
+		Group:   "resource.k8s.io",
+		Version: apiVersion,
+		Kind:    "DeviceClass",
+	})
+	dc.SetName(deviceClassName)
+	dc.SetLabels(map[string]string{
+		"app.kubernetes.io/component": "amd-gpu",
+		"app.kubernetes.io/part-of":   "amd-gpu",
+	})
+	dc.Object["spec"] = map[string]interface{}{
+		"selectors": []interface{}{
+			map[string]interface{}{
+				"cel": map[string]interface{}{
+					"expression": "device.driver == '" + deviceClassName + "'",
+				},
+			},
+		},
+	}
+
+	if err := dcrh.client.Create(ctx, dc); err != nil {
+		if k8serrors.IsAlreadyExists(err) {
+			return nil
+		}
+		return fmt.Errorf("failed to create DeviceClass %s: %v", deviceClassName, err)
+	}
+
+	logger.Info("Created DeviceClass", "name", deviceClassName, "apiVersion", apiVersion)
+	return nil
+}
+
+// discoverDRAAPIVersion probes the API server to find the highest available
+// version of the resource.k8s.io group (v1 > v1beta2 > v1beta1). This is
+// needed because OpenShift 4.20 / K8s 1.33 only serves v1beta2 while
+// OpenShift 4.21 / K8s 1.34+ serves the GA v1 API.
+func discoverDRAAPIVersion() string {
+	config, err := rest.InClusterConfig()
+	if err != nil {
+		return draAPIVersionPriority[0]
+	}
+	dc, err := discovery.NewDiscoveryClientForConfig(config)
+	if err != nil {
+		return draAPIVersionPriority[0]
+	}
+	for _, version := range draAPIVersionPriority {
+		_, err := dc.ServerResourcesForGroupVersion("resource.k8s.io/" + version)
+		if err == nil {
+			return version
+		}
+	}
+	return draAPIVersionPriority[0]
 }
 
 func (dcrh *deviceConfigReconcilerHelper) handleKMMVersionLabel(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig, nodes *v1.NodeList) error {
@@ -1457,6 +1554,10 @@ func (dcrh *deviceConfigReconcilerHelper) handleConfigManager(ctx context.Contex
 		return dcrh.finalizeConfigManager(ctx, devConfig)
 	}
 
+	if err := configmanager.EnsureDefaultDCMConfigMap(ctx, dcrh.client, devConfig); err != nil {
+		return fmt.Errorf("ensure default DCM ConfigMap: %w", err)
+	}
+
 	opRes, err := controllerutil.CreateOrPatch(ctx, dcrh.client, ds, func() error {
 		return dcrh.configmanagerHandler.SetConfigManagerAsDesired(ds, devConfig)
 	})
@@ -1526,10 +1627,12 @@ func (dcrh *deviceConfigReconcilerHelper) validateNodeAssignments(namespacedName
 	return err
 }
 
-func (dcrh *deviceConfigReconcilerHelper) buildNodeAssignments(deviceConfigList *amdv1alpha1.DeviceConfigList) error {
+func (dcrh *deviceConfigReconcilerHelper) buildNodeAssignments(ctx context.Context, deviceConfigList *amdv1alpha1.DeviceConfigList) error {
 	if deviceConfigList == nil {
 		return nil
 	}
+
+	logger := log.FromContext(ctx)
 
 	isReady := func(devConfig *amdv1alpha1.DeviceConfig) bool {
 		ready := dcrh.conditionUpdater.GetReadyCondition(devConfig)
@@ -1552,7 +1655,8 @@ func (dcrh *deviceConfigReconcilerHelper) buildNodeAssignments(deviceConfigList 
 			}
 			err := dcrh.validateNodeAssignments(namespacedName.String(), &v1.NodeList{Items: nodeItems})
 			if err != nil {
-				return err
+				logger.Error(err, "node assignment conflict detected during initialization, skipping DeviceConfig", "DeviceConfig", namespacedName)
+				continue
 			}
 			dcrh.updateNodeAssignments(namespacedName.String(), &v1.NodeList{Items: nodeItems}, false)
 		}

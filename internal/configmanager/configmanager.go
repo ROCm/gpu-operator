@@ -33,17 +33,24 @@ limitations under the License.
 package configmanager
 
 import (
+	"context"
+	_ "embed"
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/rh-ecosystem-edge/kernel-module-management/pkg/labels"
 	appsv1 "k8s.io/api/apps/v1"
 	v1 "k8s.io/api/core/v1"
+	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/utils/ptr"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
+	"sigs.k8s.io/controller-runtime/pkg/log"
 
 	amdv1alpha1 "github.com/ROCm/gpu-operator/api/v1alpha1"
 	utils "github.com/ROCm/gpu-operator/internal"
@@ -55,9 +62,26 @@ const (
 	ConfigManagerName         = "device-config-manager"
 	defaultSAName             = "amd-gpu-operator-config-manager"
 	defaultInitContainerImage = "busybox:1.36"
+	// DefaultDCMConfigMapName is the ConfigMap metadata.name mounted when spec.configManager.config
+	// is unset or has an empty name (see api/v1alpha1 ConfigManagerSpec.Config godoc).
+	// The DeviceConfig reconciler creates this ConfigMap in the DeviceConfig namespace when DCM is
+	// enabled and no explicit config reference is set (see EnsureDefaultDCMConfigMap).
+	// The Helm chart also installs the same object by default (values: defaultDCMConfigMap); if it
+	// already exists, the reconciler leaves it unchanged.
+	DefaultDCMConfigMapName = "default-dcm-config"
+	// ConfigManagerConfigVolumeName is the Pod volume and VolumeMount name for the DCM ConfigMap.
+	ConfigManagerConfigVolumeName = "config-manager-config-volume"
+	// DefaultDCMConfigMountPath is where the DCM container expects ConfigMap data (e.g. config.json).
+	DefaultDCMConfigMountPath = "/etc/config-manager/"
 )
 
-var configManagerLabelPair = []string{"app.kubernetes.io/name", ConfigManagerName}
+var (
+	// defaultDCMConfigJSON is embedded from default_dcm_config.json; keep Helm defaultDCMConfigMap values aligned.
+	//go:embed default_dcm_config.json
+	defaultDCMConfigJSON []byte
+
+	configManagerLabelPair = []string{"app.kubernetes.io/name", ConfigManagerName}
+)
 
 //go:generate mockgen -source=configmanager.go -package=configmanager -destination=mock_configmanager.go ConfigManager
 type ConfigManager interface {
@@ -72,6 +96,54 @@ func NewConfigManager(scheme *runtime.Scheme) ConfigManager {
 	return &configManager{
 		scheme: scheme,
 	}
+}
+
+// EnsureDefaultDCMConfigMap creates ConfigMap DefaultDCMConfigMapName in devConfig.Namespace when DCM is enabled
+// and spec.configManager.config is unset or has an empty name. If the ConfigMap already exists, it is unchanged.
+func EnsureDefaultDCMConfigMap(ctx context.Context, c client.Client, devConfig *amdv1alpha1.DeviceConfig) error {
+	if devConfig == nil {
+		return nil
+	}
+	tr := devConfig.Spec.ConfigManager
+	if tr.Enable == nil || !*tr.Enable {
+		return nil
+	}
+	if tr.Config != nil && strings.TrimSpace(tr.Config.Name) != "" {
+		return nil
+	}
+
+	payload := strings.TrimSpace(string(defaultDCMConfigJSON))
+	if payload == "" {
+		return fmt.Errorf("embedded default_dcm_config.json is empty")
+	}
+
+	logger := log.FromContext(ctx)
+	nn := types.NamespacedName{Namespace: devConfig.Namespace, Name: DefaultDCMConfigMapName}
+	var cm v1.ConfigMap
+	switch err := c.Get(ctx, nn, &cm); {
+	case err == nil:
+		return nil
+	case !k8serrors.IsNotFound(err):
+		return fmt.Errorf("get ConfigMap %s: %w", nn.String(), err)
+	}
+
+	newCM := &v1.ConfigMap{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      DefaultDCMConfigMapName,
+			Namespace: devConfig.Namespace,
+			Labels: map[string]string{
+				"app.kubernetes.io/name":       "gpu-operator",
+				"app.kubernetes.io/component":  "device-config-manager",
+				"app.kubernetes.io/managed-by": "gpu-operator",
+			},
+		},
+		Data: map[string]string{"config.json": payload},
+	}
+	if err := c.Create(ctx, newCM); err != nil {
+		return fmt.Errorf("create ConfigMap %s: %w", nn.String(), err)
+	}
+	logger.Info("created default DCM ConfigMap", "namespace", devConfig.Namespace, "name", DefaultDCMConfigMapName)
+	return nil
 }
 
 func (nl *configManager) SetConfigManagerAsDesired(ds *appsv1.DaemonSet, devConfig *amdv1alpha1.DeviceConfig) error {
@@ -196,21 +268,22 @@ func (nl *configManager) SetConfigManagerAsDesired(ds *appsv1.DaemonSet, devConf
 		},
 	}
 
-	if trSpec.Config != nil {
-		volumes = append(volumes, v1.Volume{
-			Name: "config-manager-config-volume",
-			VolumeSource: v1.VolumeSource{
-				ConfigMap: &v1.ConfigMapVolumeSource{
-					LocalObjectReference: *trSpec.Config,
-				},
-			},
-		})
-
-		containerVolumeMounts = append(containerVolumeMounts, v1.VolumeMount{
-			Name:      "config-manager-config-volume",
-			MountPath: "/etc/config-manager/",
-		})
+	configRef := v1.LocalObjectReference{Name: DefaultDCMConfigMapName}
+	if trSpec.Config != nil && trSpec.Config.Name != "" {
+		configRef.Name = trSpec.Config.Name
 	}
+	volumes = append(volumes, v1.Volume{
+		Name: ConfigManagerConfigVolumeName,
+		VolumeSource: v1.VolumeSource{
+			ConfigMap: &v1.ConfigMapVolumeSource{
+				LocalObjectReference: configRef,
+			},
+		},
+	})
+	containerVolumeMounts = append(containerVolumeMounts, v1.VolumeMount{
+		Name:      ConfigManagerConfigVolumeName,
+		MountPath: DefaultDCMConfigMountPath,
+	})
 
 	matchLabels := map[string]string{
 		"daemonset-name":          devConfig.Name,

@@ -51,6 +51,7 @@ import (
 	workflowv1alpha1 "github.com/argoproj/argo-workflows/v4/pkg/apis/workflow/v1alpha1"
 	appsv1 "k8s.io/api/apps/v1"
 	v1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/client-go/kubernetes"
@@ -253,9 +254,26 @@ func (n *remediationMgr) HandleRemediation(ctx context.Context, devConfig *amdv1
 // HandleDelete handles the delete operations during remediation process
 func (n *remediationMgr) HandleDelete(ctx context.Context, deviceConfig *amdv1alpha1.DeviceConfig, nodeList *v1.NodeList) (res ctrl.Result, err error) {
 	res = ctrl.Result{Requeue: true, RequeueAfter: time.Second * 20}
-	remediationDisabled, err := n.helper.isRemediationDisabled(ctx, deviceConfig)
-	if err != nil || remediationDisabled {
+
+	if deviceConfig.Spec.RemediationWorkflow.Config == nil || deviceConfig.Spec.RemediationWorkflow.Config.Name == "" {
+		cfgMapName := deviceConfig.Name + "-" + DefaultConfigMapSuffix
+		if _, getErr := n.helper.getConfigMap(ctx, cfgMapName, deviceConfig.Namespace); getErr == nil {
+			if err := n.helper.deleteConfigMap(ctx, cfgMapName, deviceConfig.Namespace); err == nil {
+				log.FromContext(ctx).Info(fmt.Sprintf("Deleted ConfigMap: %s", cfgMapName))
+			} else {
+				log.FromContext(ctx).Error(err, fmt.Sprintf("Failed to delete ConfigMap: %s", cfgMapName))
+			}
+		}
+	}
+
+	crdPresent, err := n.helper.isWorkflowCRDPresent(ctx)
+	if err != nil {
+		log.FromContext(ctx).Error(err, "Failed to check if Argo Workflow CRD is present")
 		return res, err
+	}
+	if !crdPresent {
+		log.FromContext(ctx).Info("Argo Workflow CRD not found in the cluster, skipping workflow cleanup")
+		return res, nil
 	}
 
 	wfList, err := n.helper.getWorkflowList(ctx, deviceConfig.Namespace)
@@ -271,13 +289,6 @@ func (n *remediationMgr) HandleDelete(ctx context.Context, deviceConfig *amdv1al
 		log.FromContext(ctx).Info(fmt.Sprintf("Deleted workflow: %s", wf.Name))
 	}
 
-	if deviceConfig.Spec.RemediationWorkflow.Config == nil || deviceConfig.Spec.RemediationWorkflow.Config.Name == "" {
-		cfgMapName := deviceConfig.Name + "-" + DefaultConfigMapSuffix
-		if err := n.helper.deleteConfigMap(ctx, cfgMapName, deviceConfig.Namespace); err == nil {
-			log.FromContext(ctx).Info(fmt.Sprintf("Deleted ConfigMap: %s", cfgMapName))
-		}
-	}
-
 	return
 }
 
@@ -287,6 +298,7 @@ func (n *remediationMgr) HandleDelete(ctx context.Context, deviceConfig *amdv1al
 type remediationMgrHelperAPI interface {
 	getServiceAccountName(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig) string
 	isRemediationDisabled(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig) (bool, error)
+	isWorkflowCRDPresent(ctx context.Context) (bool, error)
 	resumeSuspendedWorkflow(ctx context.Context, wfName, namespace string) error
 	isDriverUpgradeInProgress(devCfg *amdv1alpha1.DeviceConfig, node *v1.Node) bool
 	checkIfTaintExists(node *v1.Node, devConfig *amdv1alpha1.DeviceConfig, nodeCondition string) bool
@@ -408,6 +420,19 @@ func (h *remediationMgrHelper) isRemediationDisabled(ctx context.Context, devCon
 		}
 	}
 	return false, nil
+}
+
+// isWorkflowCRDPresent reports whether the Argo Workflow CRD is registered in the cluster.
+// It uses the RESTMapper to detect the resource without requiring a cluster-scoped CRD GET.
+func (h *remediationMgrHelper) isWorkflowCRDPresent(ctx context.Context) (bool, error) {
+	gvk := workflowv1alpha1.WorkflowSchemaGroupVersionKind
+	if _, err := h.client.RESTMapper().RESTMapping(gvk.GroupKind(), gvk.Version); err != nil {
+		if meta.IsNoMatchError(err) {
+			return false, nil
+		}
+		return false, err
+	}
+	return true, nil
 }
 
 func (h *remediationMgrHelper) validateUserConfigMap(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig) error {
@@ -1935,4 +1960,114 @@ func (h *remediationMgrHelper) handleDeviceConfigChanges(ctx context.Context, de
 			logger.Error(err, "Failed to update custom tolerations")
 		}
 	}
+}
+
+func (h *remediationMgrHelper) createConfigMapFromImage(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig) (ctrl.Result, error) {
+	logger := log.FromContext(ctx)
+	image := devConfig.Spec.RemediationWorkflow.ConfigMapImage
+	if image == "" {
+		return ctrl.Result{}, nil
+	}
+
+	jobName := devConfig.Name + "-" + ConfigMapImageJobSuffix
+	namespace := devConfig.Namespace
+	configMapName := devConfig.Name + "-" + DefaultConfigMapSuffix
+
+	// Check if the ConfigMap already exists.
+	existingCM, cmErr := h.getConfigMap(ctx, configMapName, namespace)
+	if cmErr == nil {
+		// ConfigMap exists - check if it was created by the same image.
+		if existingCM.Annotations != nil && existingCM.Annotations[ConfigMapImageAnnotationKey] == image {
+			return ctrl.Result{}, nil
+		}
+		// Image changed - delete the stale ConfigMap so the new image can recreate it.
+		if err := h.deleteConfigMap(ctx, configMapName, namespace); err != nil {
+			return ctrl.Result{}, fmt.Errorf("failed to delete stale configMap for image change: %w", err)
+		}
+		logger.Info("Deleted stale ConfigMap due to image change", "configMap", configMapName, "newImage", image)
+	}
+
+	// Check if a Job is already in-flight.
+	existingJob := &batchv1.Job{}
+	if err := h.client.Get(ctx, client.ObjectKey{Name: jobName, Namespace: namespace}, existingJob); err == nil {
+		for _, cond := range existingJob.Status.Conditions {
+			if cond.Type == batchv1.JobComplete && cond.Status == v1.ConditionTrue {
+				logger.Info("ConfigMap image Job completed successfully", "job", jobName)
+				return ctrl.Result{}, nil
+			}
+			if cond.Type == batchv1.JobFailed && cond.Status == v1.ConditionTrue {
+				return ctrl.Result{}, fmt.Errorf("configMap image Job %s failed: %s", jobName, cond.Message)
+			}
+		}
+		// Job still running - check if it's for the current image.
+		if len(existingJob.Spec.Template.Spec.Containers) > 0 &&
+			existingJob.Spec.Template.Spec.Containers[0].Image == image {
+			logger.Info("ConfigMap image Job is still running, requeueing", "job", jobName)
+			return ctrl.Result{Requeue: true, RequeueAfter: time.Second * 10}, nil
+		}
+		// Running Job is for a different image - delete it and create a new one.
+		propagation := metav1.DeletePropagationBackground
+		if err := h.client.Delete(ctx, existingJob, &client.DeleteOptions{PropagationPolicy: &propagation}); err != nil {
+			return ctrl.Result{}, fmt.Errorf("failed to delete old configMap image Job for image change: %w", err)
+		}
+		logger.Info("Deleted old ConfigMap image Job due to image change", "job", jobName, "newImage", image)
+		return ctrl.Result{Requeue: true, RequeueAfter: time.Second * 5}, nil
+	}
+
+	imagePullSecrets := []v1.LocalObjectReference{}
+	if len(devConfig.Spec.CommonConfig.ImageRegistrySecrets) > 0 {
+		imagePullSecrets = append(imagePullSecrets, devConfig.Spec.CommonConfig.ImageRegistrySecrets...)
+	}
+
+	// Create a new Job.
+	serviceAccount := h.getServiceAccountName(ctx, devConfig)
+	backoffLimit := int32(4)
+	ttlSeconds := int32(5)
+	job := &batchv1.Job{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      jobName,
+			Namespace: namespace,
+			OwnerReferences: []metav1.OwnerReference{
+				{
+					APIVersion: devConfig.APIVersion,
+					Kind:       devConfig.Kind,
+					Name:       devConfig.Name,
+					UID:        devConfig.UID,
+					Controller: ptr.To(true),
+				},
+			},
+		},
+		Spec: batchv1.JobSpec{
+			BackoffLimit:            &backoffLimit,
+			TTLSecondsAfterFinished: &ttlSeconds,
+			Template: v1.PodTemplateSpec{
+				Spec: v1.PodSpec{
+					ServiceAccountName: serviceAccount,
+					RestartPolicy:      v1.RestartPolicyOnFailure,
+					Containers: []v1.Container{
+						{
+							Name:  "configmap-applier",
+							Image: image,
+							Command: []string{"sh", "-c",
+								fmt.Sprintf(
+									"sed -e 's/[$]CM_NAME[$]/%s/g' -e 's/[$]CM_NAMESPACE[$]/%s/g' /remediation/configmap.yaml | "+
+										"kubectl apply -f - && "+
+										"kubectl annotate configmap %s -n %s %s=%s --overwrite",
+									configMapName, namespace,
+									configMapName, namespace, ConfigMapImageAnnotationKey, image),
+							},
+						},
+					},
+					ImagePullSecrets: imagePullSecrets,
+				},
+			},
+		},
+	}
+
+	if err := h.client.Create(ctx, job); err != nil {
+		return ctrl.Result{}, fmt.Errorf("failed to create configMap image Job: %w", err)
+	}
+
+	logger.Info("Created ConfigMap image Job", "job", jobName, "image", image)
+	return ctrl.Result{Requeue: true, RequeueAfter: time.Second * 10}, nil
 }

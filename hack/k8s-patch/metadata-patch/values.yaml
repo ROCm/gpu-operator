@@ -300,6 +300,8 @@ deviceConfig:
       nodeDrainPolicy: {}
       # -- Enable/disable automatic workflow start on node issues
       autoStartWorkflow: true
+      # -- Container image used to create the remediation ConfigMap. This image contains the default remediation ConfigMap configmap.yaml file.
+      configMapImage: ""
 # AMD GPU operator controller related configs
 controllerManager:
   manager:
@@ -361,6 +363,77 @@ kmmModuleLoader:
   serviceAccount:
     annotations: {}
 kubernetesClusterDomain: cluster.local
+# Default ConfigMap for Device Config Manager when DeviceConfig.spec.configManager.config is omitted.
+# The name must match internal/configmanager.DefaultDCMConfigMapName ("default-dcm-config").
+# Override .data to supply partition profiles; see docs/dcm/device-config-manager-configmap.md.
+defaultDCMConfigMap:
+  # -- Install the default ConfigMap in the operator release namespace (recommended when using DCM without an explicit config reference).
+  install: true
+  # -- ConfigMap metadata.name; must stay aligned with the operator default mount name.
+  name: default-dcm-config
+  # -- Keys become ConfigMap data keys (typically config.json with DCM JSON content).
+  data:
+    config.json: |
+      {
+        "gpu-config-profiles": {
+          "default": {
+            "profiles": [
+              {
+                "computePartition": "SPX",
+                "memoryPartition": "NPS1"
+              }
+            ]
+          },
+          "cpx_nps1_all": {
+            "profiles": [
+              {
+                "computePartition": "CPX",
+                "memoryPartition": "NPS1"
+              }
+            ]
+          },
+          "cpx_nps4_all": {
+            "profiles": [
+              {
+                "computePartition": "CPX",
+                "memoryPartition": "NPS4"
+              }
+            ]
+          },
+          "dpx_nps2_all": {
+            "profiles": [
+              {
+                "computePartition": "DPX",
+                "memoryPartition": "NPS2"
+              }
+            ]
+          },
+          "qpx_nps1_all": {
+            "profiles": [
+              {
+                "computePartition": "QPX",
+                "memoryPartition": "NPS1"
+              }
+            ]
+          },
+          "heterogeneous_example": {
+            "profiles": [
+              {
+                "computePartition": "CPX",
+                "memoryPartition": "NPS1",
+                "numGPUsAssigned": 2
+              },
+              {
+                "computePartition": "SPX",
+                "memoryPartition": "NPS1"
+              }
+            ]
+          }
+        },
+        "gpuClientSystemdServices": {
+          "names": ["amd-metrics-exporter", "gpuagent"]
+        }
+      }
 managerConfig:
   controllerManagerConfigYaml: |-
     healthProbeBindAddress: :8081

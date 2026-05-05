@@ -34,6 +34,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	. "gopkg.in/check.v1"
 	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/fields"
 )
@@ -45,6 +46,15 @@ var (
 
 func init() {
 	dcmImage, dcmImageDefined = os.LookupEnv("E2E_DCM_IMAGE")
+}
+
+// skipDCMTestIfSIMRequiresGPU skips tests that need a real AMD GPU (partitioning, workload, successful partition logs).
+// Omit this for K8s-only checks (DaemonSet, ConfigMap volume, CR enable/disable) and for negative profile validation
+// that does not require hardware—those may run under SIM (no GPU).
+func (s *E2ESuite) skipDCMTestIfSIMRequiresGPU(c *C) {
+	if s.simEnable {
+		skipTest(c, "skip DCM test in SIM mode (no GPU)")
+	}
 }
 
 type GPUConfigProfiles struct {
@@ -306,11 +316,40 @@ func (s *E2ESuite) createConfigMap() GPUConfigProfiles {
 	return profileslist
 }
 
+// ensureDefaultDCMConfigMap ensures the ConfigMap the operator mounts when spec.configManager.config is unset exists
+// with valid config.json. If default-dcm-config already exists with non-empty config.json (e.g. installed by the
+// GPU Operator Helm chart defaultDCMConfigMap), it is left unchanged. Otherwise a test fixture is applied via
+// CreateConfigMap (delete-if-exists + create), matching clusters that do not pre-install the ConfigMap.
+func (s *E2ESuite) ensureDefaultDCMConfigMap(c *C) {
+	name := configmanager.DefaultDCMConfigMapName
+	cm, err := s.clientSet.CoreV1().ConfigMaps(s.ns).Get(context.TODO(), name, metav1.GetOptions{})
+	if err == nil {
+		if cfg, ok := cm.Data["config.json"]; ok && strings.TrimSpace(cfg) != "" {
+			logger.Infof("Using existing ConfigMap %s/%s with config.json (e.g. Helm defaultDCMConfigMap); not overwriting.", s.ns, name)
+			return
+		}
+		logger.Infof("ConfigMap %s/%s exists but config.json is missing or empty; applying test fixture.", s.ns, name)
+	} else if !apierrors.IsNotFound(err) {
+		assert.NoError(c, err, "get ConfigMap %s", name)
+		return
+	}
+
+	profileslist := s.createConfigMap()
+	cfgData, err := json.Marshal(profileslist)
+	assert.NoError(c, err, "failed to marshal config data for default DCM ConfigMap")
+	err = utils.CreateConfigMap(context.TODO(), s.clientSet, s.ns, name, map[string]string{
+		"config.json": string(cfgData),
+	})
+	assert.NoError(c, err, "failed to create default DCM ConfigMap %s", name)
+}
+
 func (s *E2ESuite) configMapHelper(c *C) {
 	logger.Infof("###BEGIN TESTCASE###\n")
 	// check to see existing deviceconfig DS pods
 	_, err := s.dClient.DeviceConfigs(s.ns).Get(s.cfgName, metav1.GetOptions{})
 	assert.Errorf(c, err, fmt.Sprintf("config %v exists", s.cfgName))
+
+	s.ensureDefaultDCMConfigMap(c)
 
 	// fetch the CR
 	devCfg := s.getDeviceConfigForDCM(c)
@@ -318,6 +357,7 @@ func (s *E2ESuite) configMapHelper(c *C) {
 	s.createDeviceConfig(devCfg, c)
 
 	s.checkDeviceConfigManagerStatus(devCfg, s.ns, c)
+	s.verifyDCMConfigMapVolumeRef(devCfg, s.ns, configmanager.DefaultDCMConfigMapName, c)
 	logger.Infof("SUCCESSFULLY DEPLOYED DCM DAEMONSET")
 
 	profileslist := s.createConfigMap()
@@ -348,6 +388,7 @@ func (s *E2ESuite) configMapHelper(c *C) {
 	_, err = s.dClient.DeviceConfigs(s.ns).Update(updConfig)
 	assert.NoError(c, err, "failed to update %v", updConfig.Name)
 	s.checkDeviceConfigManagerStatus(updConfig, s.ns, c)
+	s.verifyDCMConfigMapVolumeRef(updConfig, s.ns, devCfg.Name, c)
 }
 
 func (s *E2ESuite) getWorkerNode(c *C) string {
@@ -384,10 +425,32 @@ func (s *E2ESuite) eventHelper(reason string, event_type string) bool {
 	return false
 }
 
+func (s *E2ESuite) TestDCMDefaultConfigMapWhenConfigOmitted(c *C) {
+	if !dcmImageDefined {
+		skipTest(c, "skip DCM test because E2E_DCM_IMAGE is not defined")
+	}
+	// Runs under SIM: validates operator DaemonSet + default ConfigMap mount only.
+	logger.Infof("###BEGIN TestDCMDefaultConfigMapWhenConfigOmitted###\n")
+	_, err := s.dClient.DeviceConfigs(s.ns).Get(s.cfgName, metav1.GetOptions{})
+	assert.Errorf(c, err, "deviceconfig %q must not exist before test", s.cfgName)
+
+	s.ensureDefaultDCMConfigMap(c)
+	devCfg := s.getDeviceConfigForDCM(c)
+	assert.Nil(c, devCfg.Spec.ConfigManager.Config, "Config must be omitted to test default ConfigMap mount")
+	logger.Infof("create device-config (config omitted) %+v", devCfg.Spec.ConfigManager)
+	s.createDeviceConfig(devCfg, c)
+	s.checkDeviceConfigManagerStatus(devCfg, s.ns, c)
+	s.verifyDCMConfigMapVolumeRef(devCfg, s.ns, configmanager.DefaultDCMConfigMapName, c)
+	logger.Infof("DCM DaemonSet mounts default ConfigMap %q as expected", configmanager.DefaultDCMConfigMapName)
+	s.deleteDeviceConfig(devCfg, c)
+	logger.Infof("###END TestDCMDefaultConfigMapWhenConfigOmitted###\n")
+}
+
 func (s *E2ESuite) TestDCMConfigMapCreation(c *C) {
 	if !dcmImageDefined {
 		skipTest(c, "skip DCM test because E2E_DCM_IMAGE is not defined")
 	}
+	// Runs under SIM: CR/ConfigMap/DaemonSet lifecycle and volume ref (no GPU partitioning required).
 	s.configMapHelper(c)
 	if s.eventHelper("SuccessfulCreate", "Normal") {
 		logger.Infof("###DCM deployed successfully with a config map###\n")
@@ -397,9 +460,7 @@ func (s *E2ESuite) TestDCMConfigMapCreation(c *C) {
 }
 
 func (s *E2ESuite) TestDCMConfigMapPartitionHomogenous(c *C) {
-	if s.simEnable {
-		skipTest(c, "Skipping for non amd gpu testbed")
-	}
+	s.skipDCMTestIfSIMRequiresGPU(c)
 	if !dcmImageDefined {
 		skipTest(c, "skip DCM test because E2E_DCM_IMAGE is not defined")
 	}
@@ -425,9 +486,7 @@ func (s *E2ESuite) TestDCMConfigMapPartitionHomogenous(c *C) {
 }
 
 func (s *E2ESuite) TestDCMConfigMapPartitionHeterogenous(c *C) {
-	if s.simEnable {
-		skipTest(c, "Skipping for non amd gpu testbed")
-	}
+	s.skipDCMTestIfSIMRequiresGPU(c)
 	if !dcmImageDefined {
 		skipTest(c, "skip DCM test because E2E_DCM_IMAGE is not defined")
 	}
@@ -452,9 +511,7 @@ func (s *E2ESuite) TestDCMConfigMapPartitionHeterogenous(c *C) {
 }
 
 func (s *E2ESuite) TestDCMPartitionNPS4(c *C) {
-	if s.simEnable {
-		skipTest(c, "Skipping for non amd gpu testbed")
-	}
+	s.skipDCMTestIfSIMRequiresGPU(c)
 	if !dcmImageDefined {
 		skipTest(c, "skip DCM test because E2E_DCM_IMAGE is not defined")
 	}
@@ -479,9 +536,7 @@ func (s *E2ESuite) TestDCMPartitionNPS4(c *C) {
 }
 
 func (s *E2ESuite) TestDCMInvalidComputeType(c *C) {
-	if s.simEnable {
-		skipTest(c, "Skipping for non amd gpu testbed")
-	}
+	// Runs under SIM: negative profile validation (no successful partitioning required).
 	if !dcmImageDefined {
 		skipTest(c, "skip DCM test because E2E_DCM_IMAGE is not defined")
 	}
@@ -506,9 +561,7 @@ func (s *E2ESuite) TestDCMInvalidComputeType(c *C) {
 }
 
 func (s *E2ESuite) TestDCMInvalidMemoryType(c *C) {
-	if s.simEnable {
-		skipTest(c, "Skipping for non amd gpu testbed")
-	}
+	// Runs under SIM: negative profile validation (no successful partitioning required).
 	if !dcmImageDefined {
 		skipTest(c, "skip DCM test because E2E_DCM_IMAGE is not defined")
 	}
@@ -533,9 +586,7 @@ func (s *E2ESuite) TestDCMInvalidMemoryType(c *C) {
 }
 
 func (s *E2ESuite) TestDCMInvalidGPUFilter(c *C) {
-	if s.simEnable {
-		skipTest(c, "Skipping for non amd gpu testbed")
-	}
+	// Runs under SIM: negative profile validation (no successful partitioning required).
 	if !dcmImageDefined {
 		skipTest(c, "skip DCM test because E2E_DCM_IMAGE is not defined")
 	}
@@ -558,9 +609,7 @@ func (s *E2ESuite) TestDCMInvalidGPUFilter(c *C) {
 }
 
 func (s *E2ESuite) TestDCMDefaultPartition(c *C) {
-	if s.simEnable {
-		skipTest(c, "Skipping for non amd gpu testbed")
-	}
+	s.skipDCMTestIfSIMRequiresGPU(c)
 	if !dcmImageDefined {
 		skipTest(c, "skip DCM test because E2E_DCM_IMAGE is not defined")
 	}
@@ -570,12 +619,15 @@ func (s *E2ESuite) TestDCMDefaultPartition(c *C) {
 	_, err := s.dClient.DeviceConfigs(s.ns).Get(s.cfgName, metav1.GetOptions{})
 	assert.Errorf(c, err, fmt.Sprintf("config %v exists", s.cfgName))
 
+	s.ensureDefaultDCMConfigMap(c)
+
 	// fetch the CR
 	devCfg := s.getDeviceConfigForDCM(c)
 	logger.Infof("create device-config %+v", devCfg.Spec.ConfigManager)
 	s.createDeviceConfig(devCfg, c)
 
 	s.checkDeviceConfigManagerStatus(devCfg, s.ns, c)
+	s.verifyDCMConfigMapVolumeRef(devCfg, s.ns, configmanager.DefaultDCMConfigMapName, c)
 	logger.Infof("SUCCESSFULLY DEPLOYED DCM DAEMONSET")
 	time.Sleep(30 * time.Second)
 
@@ -602,7 +654,10 @@ func (s *E2ESuite) TestDCMDefaultPartition(c *C) {
 }
 
 func (s *E2ESuite) TestConfigManagerDeploymentOnly(c *C) {
-	// Run on SIM and Non SIM Setups
+	if !dcmImageDefined {
+		skipTest(c, "skip DCM test because E2E_DCM_IMAGE is not defined")
+	}
+	// Runs under SIM: enable/disable DCM and DaemonSet + default ConfigMap mount only.
 	configManagerEnable := false
 	logger.Infof("###BEGIN TESTCASE 1###\n")
 	// check to see existing deviceconfig DS pods
@@ -622,11 +677,14 @@ func (s *E2ESuite) TestConfigManagerDeploymentOnly(c *C) {
 	configManagerEnable = true
 	updConfig.Spec.ConfigManager.Enable = &configManagerEnable
 
+	s.ensureDefaultDCMConfigMap(c)
+
 	logger.Infof("update dcm-config %+v", updConfig.Spec.ConfigManager)
 	_, err = s.dClient.DeviceConfigs(s.ns).Update(updConfig)
 	assert.NoError(c, err, "failed to update %v", updConfig.Name)
 
 	s.checkDeviceConfigManagerStatus(updConfig, s.ns, c)
+	s.verifyDCMConfigMapVolumeRef(updConfig, s.ns, configmanager.DefaultDCMConfigMapName, c)
 	logger.Infof("SUCCESSFULLY DEPLOYED DCM DAEMONSET")
 
 	logger.Infof("###END TESTCASE###\n")

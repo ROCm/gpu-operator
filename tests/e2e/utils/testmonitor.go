@@ -19,6 +19,7 @@ package utils
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"os"
@@ -35,7 +36,10 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/apimachinery/pkg/labels"
+	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
+	yaml "sigs.k8s.io/yaml"
 )
 
 const (
@@ -44,6 +48,12 @@ const (
 	diagPodPrefix           = "testmon-diag-"
 	gpuNodeLabel            = "feature.node.kubernetes.io/amd-gpu=true"
 )
+
+var deviceConfigGVR = schema.GroupVersionResource{
+	Group:    "amd.com",
+	Version:  "v1alpha1",
+	Resource: "deviceconfigs",
+}
 
 // TestMonitor observes cluster state during an e2e test. It supports
 // independent modules that can be enabled/disabled via functional options:
@@ -76,9 +86,10 @@ const (
 //	// ... test runs ...
 //	mon.Stop()
 type TestMonitor struct {
-	clientSet kubernetes.Interface
-	namespace string
-	baseDir   string
+	clientSet     kubernetes.Interface
+	dynamicClient dynamic.Interface
+	namespace     string
+	baseDir       string
 
 	// Module flags
 	logCollectionEnabled bool
@@ -161,6 +172,14 @@ func WithNodeDiagnosticsImage(image string) Option {
 func WithNodeDiagnosticsSelector(selector string) Option {
 	return func(tm *TestMonitor) {
 		tm.nodeDiagSelector = selector
+	}
+}
+
+// WithDynamicClient sets a dynamic Kubernetes client on the TestMonitor,
+// enabling snapshots of custom resources (e.g. DeviceConfig CRs).
+func WithDynamicClient(dc dynamic.Interface) Option {
+	return func(tm *TestMonitor) {
+		tm.dynamicClient = dc
 	}
 }
 
@@ -459,6 +478,28 @@ func (tm *TestMonitor) takeSnapshot(label string) {
 		}
 	}
 
+	// DeviceConfig CRs
+	fmt.Fprintf(f, "\n>> DeviceConfigs:\n")
+	if tm.dynamicClient != nil {
+		dcList, err := tm.dynamicClient.Resource(deviceConfigGVR).Namespace(tm.namespace).List(ctx, metav1.ListOptions{})
+		if err != nil {
+			fmt.Fprintf(f, "  Error listing deviceconfigs: %v\n", err)
+		} else if len(dcList.Items) == 0 {
+			fmt.Fprintf(f, "  (none)\n")
+		} else {
+			for _, item := range dcList.Items {
+				yamlBytes, err := toYAML(item.Object)
+				if err != nil {
+					fmt.Fprintf(f, "  Error marshalling %s: %v\n", item.GetName(), err)
+					continue
+				}
+				fmt.Fprintf(f, "---\n%s\n", string(yamlBytes))
+			}
+		}
+	} else {
+		fmt.Fprintf(f, "  (dynamic client not configured)\n")
+	}
+
 	fmt.Fprintf(f, "\n")
 }
 
@@ -688,4 +729,14 @@ func containerStateString(state corev1.ContainerState) string {
 		return fmt.Sprintf("terminated(%s exit=%d)", state.Terminated.Reason, state.Terminated.ExitCode)
 	}
 	return "unknown"
+}
+
+// toYAML converts an object to YAML via JSON marshalling (handles
+// unstructured maps cleanly).
+func toYAML(obj interface{}) ([]byte, error) {
+	jsonBytes, err := json.Marshal(obj)
+	if err != nil {
+		return nil, err
+	}
+	return yaml.JSONToYAML(jsonBytes)
 }
