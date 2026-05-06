@@ -194,28 +194,27 @@ func (mr *MockremediationMgrHelperAPIMockRecorder) checkIfTaintExists(node, devC
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "checkIfTaintExists", reflect.TypeOf((*MockremediationMgrHelperAPI)(nil).checkIfTaintExists), node, devConfig, nodeCondition)
 }
 
-// createDefaultConfigMap mocks base method.
-func (m *MockremediationMgrHelperAPI) createDefaultConfigMap(ctx context.Context, name, namespace string) (*v1.ConfigMap, error) {
+// createConfigMapFromImage mocks base method.
+func (m *MockremediationMgrHelperAPI) createConfigMapFromImage(ctx context.Context, devConfig *v1alpha1.DeviceConfig) (controllerruntime.Result, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "createDefaultConfigMap", ctx, name, namespace)
-	ret0, _ := ret[0].(*v1.ConfigMap)
+	ret := m.ctrl.Call(m, "createConfigMapFromImage", ctx, devConfig)
+	ret0, _ := ret[0].(controllerruntime.Result)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// createDefaultConfigMap indicates an expected call of createDefaultConfigMap.
-func (mr *MockremediationMgrHelperAPIMockRecorder) createDefaultConfigMap(ctx, name, namespace any) *gomock.Call {
+// createConfigMapFromImage indicates an expected call of createConfigMapFromImage.
+func (mr *MockremediationMgrHelperAPIMockRecorder) createConfigMapFromImage(ctx, devConfig any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "createDefaultConfigMap", reflect.TypeOf((*MockremediationMgrHelperAPI)(nil).createDefaultConfigMap), ctx, name, namespace)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "createConfigMapFromImage", reflect.TypeOf((*MockremediationMgrHelperAPI)(nil).createConfigMapFromImage), ctx, devConfig)
 }
 
 // createDefaultObjects mocks base method.
-func (m *MockremediationMgrHelperAPI) createDefaultObjects(ctx context.Context, devConfig *v1alpha1.DeviceConfig) (*v1.ConfigMap, error) {
+func (m *MockremediationMgrHelperAPI) createDefaultObjects(ctx context.Context, devConfig *v1alpha1.DeviceConfig) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "createDefaultObjects", ctx, devConfig)
-	ret0, _ := ret[0].(*v1.ConfigMap)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
+	ret0, _ := ret[0].(error)
+	return ret0
 }
 
 // createDefaultObjects indicates an expected call of createDefaultObjects.
@@ -393,6 +392,20 @@ func (m *MockremediationMgrHelperAPI) getNodeTaints(ctx context.Context, devConf
 func (mr *MockremediationMgrHelperAPIMockRecorder) getNodeTaints(ctx, devConfig, nodeCondition any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "getNodeTaints", reflect.TypeOf((*MockremediationMgrHelperAPI)(nil).getNodeTaints), ctx, devConfig, nodeCondition)
+}
+
+// getRebootTimeout mocks base method.
+func (m *MockremediationMgrHelperAPI) getRebootTimeout(devConfig *v1alpha1.DeviceConfig) string {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "getRebootTimeout", devConfig)
+	ret0, _ := ret[0].(string)
+	return ret0
+}
+
+// getRebootTimeout indicates an expected call of getRebootTimeout.
+func (mr *MockremediationMgrHelperAPIMockRecorder) getRebootTimeout(devConfig any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "getRebootTimeout", reflect.TypeOf((*MockremediationMgrHelperAPI)(nil).getRebootTimeout), devConfig)
 }
 
 // getRecentRecoveryCount mocks base method.

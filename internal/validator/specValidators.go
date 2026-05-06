@@ -211,7 +211,11 @@ func ValidateRemediationWorkflowSpec(ctx context.Context, client client.Client, 
 		return nil
 	}
 
-	if rSpec.Config != nil {
+	if (rSpec.Config == nil || rSpec.Config.Name == "") && rSpec.ConfigMapImage == "" {
+		return fmt.Errorf("either spec.remediationWorkflow.config or spec.remediationWorkflow.configMapImage must be specified when remediation is enabled")
+	}
+
+	if rSpec.Config != nil && rSpec.Config.Name != "" {
 		if err := validateConfigMap(ctx, client, rSpec.Config.Name, devConfig.Namespace); err != nil {
 			return fmt.Errorf("validating remediation workflow config map: %v", err)
 		}
