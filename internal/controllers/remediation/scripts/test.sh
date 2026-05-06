@@ -35,12 +35,12 @@ WFUID='{{workflow.uid}}'
 TESTRUNNERIMAGESECRET='{{inputs.parameters.testRunnerImageSecret}}'
 
 if [ -n "$TESTRUNNERIMAGESECRET" ]; then
-  IMAGE_PULL_SECRETS="          imagePullSecrets:"
+  IMAGE_PULL_SECRETS="      imagePullSecrets:"
   OLD_IFS="$IFS"
   IFS=','
   for secret in $TESTRUNNERIMAGESECRET; do
     IMAGE_PULL_SECRETS="${IMAGE_PULL_SECRETS}
-            - name: ${secret}"
+        - name: ${secret}"
   done
   IFS="$OLD_IFS"
 else
@@ -118,6 +118,7 @@ spec:
         operator: "Exists"
         effect: "NoSchedule"
       restartPolicy: Never
+${IMAGE_PULL_SECRETS}
       volumes:
         - name: kfd
           hostPath:
@@ -142,7 +143,6 @@ spec:
         - name: driver-init
           image: "${INITCONTAINERIMAGE}"
           imagePullPolicy: IfNotPresent
-${IMAGE_PULL_SECRETS}
           command: ['sh', '-c', 'while [ ! -d /host-sys/class/kfd ] || [ ! -d /host-sys/module/amdgpu/drivers/ ]; do echo \"amdgpu driver is not loaded \"; sleep 2 ;done; echo \"amdgpu driver is loaded\"']
           securityContext:
             privileged: true
@@ -153,7 +153,6 @@ ${IMAGE_PULL_SECRETS}
         - name: amd-test-runner
           image: "${TESTRUNNERIMAGE}"
           imagePullPolicy: IfNotPresent
-${IMAGE_PULL_SECRETS}
           securityContext:
             privileged: true
           volumeMounts:

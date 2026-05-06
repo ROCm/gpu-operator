@@ -1,6 +1,8 @@
 # Auto Remediation of GPU nodes
 
-The GPU Operator provides automatic remediation for GPU worker nodes that become unhealthy due to GPU-related issues. When such problems are detected, the operator triggers a workflow—a series of automated steps designed to restore the node to a healthy state. This functionality is powered by Argo Workflows, a lightweight and scalable open-source workflow engine for Kubernetes. Through the DeviceConfig Custom Resource, the GPU Operator offers extensive customization options for configuring remediation behavior.
+The GPU Operator provides automatic remediation for GPU worker nodes that become unhealthy due to GPU-related issues. When such problems are detected, the operator triggers a workflow - a series of automated steps designed to restore the node to a healthy state. This functionality is powered by Argo Workflows, a lightweight and scalable open-source workflow engine for Kubernetes. Through the DeviceConfig Custom Resource, the GPU Operator offers extensive customization options for configuring remediation behavior.
+
+> **Note:** The auto node remediation feature currently supports bare metal deployments. Support for VM-based deployments will be coming in the near future.
 
 ## Auto-Remediation Workflow Overview
 
@@ -92,36 +94,42 @@ For OpenShift users: To use the auto remediation feature, additonal steps are re
 
 2. **If not using OpenShift AI Operator:** Follow these steps to install Argo Workflows on your OpenShift cluster:
 
-      a. Install CRDs (must be executed separately due to CRD size):
+  a. Install CRDs (must be executed separately due to CRD size):
 
 ```bash
 oc apply --server-side --force-conflicts -k "https://github.com/argoproj/argo-workflows/manifests/base/crds/full?ref=v4.0.3"
 ```
 
-      b. Add the Argo Helm repository:
+  b. Add the Argo Helm repository:
 
 ```bash
 helm repo add argo https://argoproj.github.io/argo-helm --force-update
 ```
 
-      c. Install Argo Workflows using Helm:
+  c. Install Argo Workflows using Helm:
 
 ```bash
 helm install argo-workflow argo/argo-workflows \
-          -n argo-workflow \
-          --create-namespace \
-          --version=1.0.6 \
+  -n argo-workflow \
+  --create-namespace \
+  --version=1.0.6 \
   --set crds.install=false \
   --set controller.instanceID.enabled=true \
   --set controller.instanceID.explicitID=amd-gpu-operator-remediation-workflow \
   --set 'controller.tolerations[0].key=amd-gpu-unhealthy' \
   --set 'controller.tolerations[0].operator=Exists' \
-  --set 'controller.tolerations[0].effect=NoSchedule'
+  --set 'controller.tolerations[0].effect=NoSchedule' \
+  --set 'controller.tolerations[1].key=amd-dcm' \
+  --set 'controller.tolerations[1].operator=Equal' \
+  --set 'controller.tolerations[1].value=up' \
+  --set 'controller.tolerations[1].effect=NoExecute'
 ```
 
 > **Important:** The `controller.instanceID.explicitID` value must be set to `amd-gpu-operator-remediation-workflow`. The GPU Operator labels every remediation workflow and workflow template it creates with `workflows.argoproj.io/controller-instanceid: amd-gpu-operator-remediation-workflow`. An Argo workflow-controller only reconciles workflows whose `controller-instanceid` label matches its configured `instanceID`, so without this setting the Helm-installed controller will silently ignore the operator's workflows. Refer to the [Argo Workflows controller `instanceID` documentation](https://argo-workflows.readthedocs.io/en/stable/scaling/#instanceid) and the [`argo-workflows` chart values](https://github.com/argoproj/argo-helm/blob/main/charts/argo-workflows/values.yaml) for full details.
 >
 > **Important:** The `controller.tolerations` entry for `amd-gpu-unhealthy:NoSchedule` is required. During remediation the GPU Operator taints the affected node with `amd-gpu-unhealthy:NoSchedule` (see [NodeRemediationTaints](#node-drain-policy-configuration)). If the workflow-controller pod happens to be scheduled on a node that later gets tainted, it will be evicted and remediation will stall. Adding this toleration ensures the controller keeps running on tainted nodes so it can continue driving the workflow to completion. The same toleration is applied to the in-tree workflow controller, metrics-exporter, and other operator-managed components.
+>
+> **Important:** The `controller.tolerations` entry for `amd-dcm=up:NoExecute` is also required when the [Device Config Manager (DCM)](../dcm/device-config-manager.md) is used for GPU partitioning on the cluster. DCM taints the node with `amd-dcm=up:NoExecute` while applying a partition profile (see [Applying Partition Profiles](../dcm/applying-partition-profiles.rst)) to evict non-essential workloads from the GPU node. Without this toleration, the Argo workflow-controller pod would be evicted from any GPU node undergoing a partition change, and any in-flight remediation workflow on that node would stall. Tolerating the DCM taint lets the controller continue driving the workflow even while DCM is reconfiguring partitions.
 >
 > The **same toleration must also be added to the Kernel Module Management (KMM) operator's Helm chart** when KMM is installed separately on OpenShift. KMM is responsible for (re)building and loading the GPU driver kernel module on the node after a remediation reboot — if its controller pod cannot tolerate `amd-gpu-unhealthy:NoSchedule`, it may be evicted from a tainted node and the driver will never be reloaded, blocking the post-reboot validation step of the workflow. When installing the KMM operator via Helm, pass the equivalent flags (the exact key path depends on the KMM chart you use, e.g. `controller.manager.tolerations` for the upstream chart):
 >
@@ -142,6 +150,10 @@ controller:
     - key: amd-gpu-unhealthy
       operator: Exists
       effect: NoSchedule
+    - key: amd-dcm
+      operator: Equal
+      value: up
+      effect: NoExecute
 ```
 
 ## Configuration and customization
@@ -225,6 +237,11 @@ remediationWorkflow:
   # This field gives users more control and flexibility on when to start the remediation workflow.
   # Default value is set to true if not specified and the remediation workflow automatically starts when the node condition matches.
   autoStartWorkflow: true
+
+  # ConfigMapImage specifies a container image that contains the remediation
+  # ConfigMap. When set, the operator runs a Job using this image to apply
+  # the ConfigMap to the cluster before the remediation workflow proceeds.
+  configMapImage: yourregistry/configmap-image:version
 ```
 
 **Enable** - Controls whether automatic node remediation is enabled. Set this field to `true` to activate the auto-remediation feature in the cluster.
@@ -283,29 +300,53 @@ The GPU Operator automatically applies this toleration to internal components su
 
 ## Remediation Workflow ConfigMap
 
-The AMD GPU Operator comes with a default ConfigMap named `default-conditional-workflow-mappings` that is embedded in the operator code. This ConfigMap is derived by parsing the latest AMD Service Action Guide (SAG) JSON offline and translating it into error-to-workflow mappings.
+The remediation ConfigMap defines error-to-workflow mappings. The default ConfigMap is derived from the AMD Service Action Guide (SAG). Each entry maps a unique error code (AFID) to a remediation workflow, specifying the Argo Workflow template to run and any workflow-specific parameters. For details on AFID values and event lists, see the [AMD Instinct AFID Event List documentation](https://docs.amd.com/r/en-US/AMD_Field_ID_70122_v1.0/AFID-Event-List).
 
-Each entry in the ConfigMap maps a unique error code (AFID) to its remediation workflow, specifying the Argo Workflow template to run and any workflow-specific parameters. The default ConfigMap covers all node conditions managed by the Operator and is available in the [GPU Operator repository](https://github.com/ROCm/gpu-operator/blob/main/internal/controllers/remediation/configs/default-configmap.yaml). For details on AFID values and event lists, see the [AMD Instinct AFID Event List documentation](https://docs.amd.com/r/en-US/AMD_Field_ID_70122_v1.0/AFID-Event-List).
+The ConfigMap can be provided in one of the following ways:
+
+1. **ConfigMap Image (recommended)** - Set `spec.remediationWorkflow.configMapImage` in the DeviceConfig to reference a container image that packages the ConfigMap. The operator runs a Job from this image to create the ConfigMap in the cluster. This decouples the SAG version from the operator version, allowing the ConfigMap to be updated independently.
+
+2. **User-created ConfigMap** - Create a ConfigMap manually and reference it via `spec.remediationWorkflow.config.name` in the DeviceConfig. The operator will use the referenced ConfigMap as-is and will not modify or delete it during cleanup.
+
+> **Note:** If neither `configMapImage` nor `config` is specified, the operator will not create a default ConfigMap and remediation will not proceed until one is provided.
 
 ### Example Error Mapping Section
 
 The following example demonstrates a complete error mapping configuration:
 
 ```yaml
-- nodeCondition: AMDGPUXgmi
-  workflowTemplate: default-template
-  validationTestsProfile:
-    framework: AGFHC
-    recipe: all_lvl4
-    iterations: 1
-    stopOnFailure: true
-    timeoutSeconds: 4800
-  physicalActionNeeded: true
-  notifyRemediationMessage: Remove GPU tray from node.Confirm that all four screws on all eight OAMs are torqued as described in OAM Removal and Installation guideRe-install the GPU tray into node.
-  notifyTestFailureMessage: 'Remove the failing UBB assembly and return to AMD, along with the relevant failure details: at a minimum this should be the RF event that indicated the original fail, and if that RF event includes an additional data URI, the CPER and/or the decoded JSON from the CPER as pointed by the additional data.Install a new or known-good UBB assembly to the GPU tray.'
-  recoveryPolicy:
-    maxAllowedRunsPerWindow: 3
-    windowSize: 15m
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: <CM_NAME>
+  namespace: <CM_NAMESPACE>
+data:
+  Version: 0.9.0
+  workflow: |
+    - nodeCondition: AMDGPUXgmi
+      workflowTemplate: default-template
+      validationTestsProfile:
+        framework: AGFHC
+        recipe: all_lvl4
+        iterations: 1
+        stopOnFailure: true
+        timeoutSeconds: 4800
+      physicalActionNeeded: true
+      notifyRemediationMessage: >-
+        Remove GPU tray from node.
+        Confirm that all four screws on all eight OAMs are torqued
+        as described in OAM Removal and Installation guide.
+        Re-install the GPU tray into node.
+      notifyTestFailureMessage: >-
+        Remove the failing UBB assembly and return to AMD, along with the
+        relevant failure details: at a minimum this should be the RF event
+        that indicated the original fail, and if that RF event includes an
+        additional data URI, the CPER and/or the decoded JSON from the CPER
+        as pointed by the additional data. Install a new or known-good UBB
+        assembly to the GPU tray.
+      recoveryPolicy:
+        maxAllowedRunsPerWindow: 3
+        windowSize: 15m
 ```
 
 ### ConfigMap Field Descriptions
@@ -326,6 +367,12 @@ The following example demonstrates a complete error mapping configuration:
 
 **skipRebootStep** - Controls whether the node reboot step is executed during the remediation workflow. The default workflow template includes an automatic reboot step to reinitialize GPU hardware after performing the recommended remediation actions. Set this field to `true` to skip the reboot step when the node has already been rebooted manually as part of the remediation process or when a reboot is not desired for the specific error condition. Default value is `false`.
 
+## Remediation of Partitioned GPUs
+
+The auto node remediation feature fully supports nodes with partitioned GPUs. When GPUs are partitioned using the Device Config Manager (DCM) with compute and memory partition profiles (e.g., CPX+NPS4), the remediation workflow operates seamlessly on these nodes.
+
+> **Important:** After the remediation workflow completes, the GPU partition profile on the affected node is reset to the default **SPX+NPS1** mode (no partitions). Users must manually re-apply the desired partition profile on the remediated node by following the steps described in the [GPU Partitioning via DCM](../dcm/applying-partition-profiles.rst) documentation.
+
 ## Default Workflow Template
 
 > **Note:** The `default-template` is automatically created on the cluster by the GPU Operator.
@@ -342,19 +389,21 @@ The `default-template` workflow performs the following remediation steps:
 
 5. **Suspend Workflow** - Pause workflow execution pending manual intervention or automatic resumption based on configured policies.
 
-6. **Reboot Node** - Perform node reboot to clear transient errors and reinitialize GPU hardware.
+6. **Reboot Node** - Issue a reboot command on the affected node to clear transient errors and reinitialize GPU hardware. This step exits gracefully after triggering the reboot, ensuring the workflow pod is not disrupted by the node shutdown.
 
-7. **Validate GPUs** - Execute AGFHC/RVS validation tests to confirm GPU health after reboot.
+7. **Wait for Node Ready** - Monitor the rebooted node until it comes back online and reports a Ready condition in the Kubernetes cluster before proceeding to validation.
 
-8. **Verify Condition** - Confirm that the triggering node condition has been resolved (status changed to False).
+8. **Validate GPUs** - Execute AGFHC/RVS validation tests to confirm GPU health after reboot.
 
-9. **Remove Taint** - Remove the node taint to restore GPU availability for workload scheduling.
+9. **Verify Condition** - Confirm that the triggering node condition has been resolved (status changed to False).
 
-10. **Remove Labels** - Removes all custom labels that were applied to the node in Step 1, restoring the node to its original label state.
+10. **Remove Taint** - Remove the node taint to restore GPU availability for workload scheduling.
+
+11. **Remove Labels** - Removes all custom labels that were applied to the node in Step 1, restoring the node to its original label state.
 
 Each workflow step is executed as a separate Kubernetes pod. For advanced use cases, users can create custom workflow templates using the Argo CRDs available on the cluster and reference them in the ConfigMap.
 
-While most workflow steps are self-explanatory, Steps 4, 5, and 7 require additional clarification.
+While most workflow steps are self-explanatory, Steps 4, 5, and 8 require additional clarification.
 
 ### Workflow Step 4: Physical Intervention Check
 
@@ -395,7 +444,7 @@ To resume a suspended workflow, apply the label `operator.amd.com/gpu-force-resu
 
 To abort the workflow entirely, apply the label `operator.amd.com/gpu-abort-workflow=true` to the node. This keeps the node in a tainted state for manual remediation. This option is useful when automatic remediation is no longer desired and the workflow should be deleted while paused.
 
-### Workflow Step 7: GPU Validation Testing
+### Workflow Step 8: GPU Validation Testing
 
 This step executes comprehensive GPU health validation tests using the test runner:
 

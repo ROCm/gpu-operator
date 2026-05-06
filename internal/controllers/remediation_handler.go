@@ -50,6 +50,7 @@ import (
 
 	workflowv1alpha1 "github.com/argoproj/argo-workflows/v4/pkg/apis/workflow/v1alpha1"
 	appsv1 "k8s.io/api/apps/v1"
+	batchv1 "k8s.io/api/batch/v1"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -80,6 +81,9 @@ const (
 	DefaultRecoveryPolicyMaxRunsPerWindow = 3
 	DefaultTimeFormatLayout               = "2006-01-02 15:04:05 UTC"
 	DefaultStatusCRCleanupWindowSize      = "72h"
+	// DefaultRebootTimeout - default total time the waitfornodeready
+	// step waits for a node to reboot and remain Ready before timing out.
+	DefaultRebootTimeout = "15m"
 	// Below is the label and value needed to be added to node to force resume a suspended workflow
 	ForceResumeWorkflowLabelKey   = "operator.amd.com/gpu-force-resume-workflow"
 	ForceResumeWorkflowLabelValue = "true"
@@ -88,6 +92,8 @@ const (
 	AbortWorkflowLabelValue         = "true"
 	RemediationFilesPath            = "/remediation"
 	DefaultInitContainerImage       = "busybox:1.36"
+	ConfigMapImageJobSuffix         = "remediation-configmap-job"
+	ConfigMapImageAnnotationKey     = "operator.amd.com/configmap-source-image"
 	ArgoWorkflowControllerConfigMap = "amd-gpu-operator-workflow-controller-config"
 	ArgoWorkflowInstaceIDLabelKey   = "workflows.argoproj.io/controller-instanceid"
 	ArgoWorkflowInstaceIDLabelValue = "amd-gpu-operator-remediation-workflow"
@@ -156,13 +162,34 @@ func (n *remediationMgr) HandleRemediation(ctx context.Context, devConfig *amdv1
 		return ctrl.Result{}, nil
 	}
 
+	//if user provided a custom configmap, validate it
 	if err := n.helper.validateUserConfigMap(ctx, devConfig); err != nil {
 		logger.Error(err, "User provided configmap validation failed, skipping remediation")
 		return res, err
 	}
 
-	var configMap *v1.ConfigMap
-	if configMap, err = n.helper.createDefaultObjects(ctx, devConfig); err != nil {
+	//if user did not provide a custom configmap, create a default one from the config image
+	if devConfig.Spec.RemediationWorkflow.Config == nil || devConfig.Spec.RemediationWorkflow.Config.Name == "" {
+		if result, err := n.helper.createConfigMapFromImage(ctx, devConfig); err != nil {
+			return res, err
+		} else if result.Requeue {
+			return result, nil
+		}
+	}
+
+	if err := n.helper.createDefaultObjects(ctx, devConfig); err != nil {
+		return res, err
+	}
+
+	var cfgMapName string
+	if devConfig.Spec.RemediationWorkflow.Config != nil {
+		cfgMapName = devConfig.Spec.RemediationWorkflow.Config.Name
+	} else {
+		cfgMapName = devConfig.Name + "-" + DefaultConfigMapSuffix
+	}
+	configMap, err := n.helper.getConfigMap(ctx, cfgMapName, devConfig.Namespace)
+	if err != nil {
+		logger.Error(err, "Failed to get remediation ConfigMap", "name", cfgMapName)
 		return res, err
 	}
 
@@ -306,9 +333,8 @@ type remediationMgrHelperAPI interface {
 	getWorkflowTemplate(ctx context.Context, workflowTemplateName, namespace string) (*workflowv1alpha1.WorkflowTemplate, error)
 	getConfigMap(ctx context.Context, configmapName string, namespace string) (*v1.ConfigMap, error)
 	deleteConfigMap(ctx context.Context, name, namespace string) error
-	createDefaultConfigMap(ctx context.Context, name, namespace string) (*v1.ConfigMap, error)
 	createDefaultWorkflowTemplate(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig) (*workflowv1alpha1.WorkflowTemplate, error)
-	createDefaultObjects(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig) (*v1.ConfigMap, error)
+	createDefaultObjects(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig) error
 	populateWorkflow(ctx context.Context, wfTemplate *workflowv1alpha1.WorkflowTemplate, mapping *ConditionWorkflowMapping, nodeName string, devCfg *amdv1alpha1.DeviceConfig) *workflowv1alpha1.Workflow
 	createWorkflow(ctx context.Context, workflow *workflowv1alpha1.Workflow) error
 	deleteWorkflow(ctx context.Context, workflow *workflowv1alpha1.Workflow) error
@@ -342,6 +368,7 @@ type remediationMgrHelperAPI interface {
 	updateMaxParallelWorkflows(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig) error
 	getNodeLabelsFromCR(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig) []string
 	getNodeTaints(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig, nodeCondition string) []string
+	getRebootTimeout(devConfig *amdv1alpha1.DeviceConfig) string
 	applyTolerationsToWorkflow(wf *workflowv1alpha1.Workflow, devConfig *amdv1alpha1.DeviceConfig, nodeCondition string)
 	handleDeviceConfigChanges(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig)
 	validateUserConfigMap(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig) error
@@ -350,6 +377,7 @@ type remediationMgrHelperAPI interface {
 	updateCustomTolerationsOnDeployment(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig, deploymentSelector labels.Selector, tolerations []v1.Toleration) error
 	updateCustomTolerationsOnDaemonset(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig, daemonsetLabelSelector labels.Selector, tolerations []v1.Toleration) error
 	customTaintsChanged(devConfig *amdv1alpha1.DeviceConfig) bool
+	createConfigMapFromImage(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig) (ctrl.Result, error)
 }
 
 type remediationMgrHelper struct {
@@ -569,39 +597,6 @@ func (h *remediationMgrHelper) getConfigMap(ctx context.Context, configmapName s
 	return cm, err
 }
 
-func (h *remediationMgrHelper) createDefaultConfigMap(ctx context.Context, name string, namespace string) (*v1.ConfigMap, error) {
-	logger := log.FromContext(ctx)
-
-	yamlBytes, err := os.ReadFile(filepath.Join(RemediationFilesPath, "configs/default-configmap.yaml"))
-	if err != nil {
-		logger.Error(err, "Failed to read default remediation workflows file")
-		return nil, err
-	}
-
-	workflowYaml := string(yamlBytes)
-
-	defaultCfgMap := &v1.ConfigMap{
-		TypeMeta: metav1.TypeMeta{
-			Kind:       "ConfigMap",
-			APIVersion: "v1",
-		},
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      name,
-			Namespace: namespace,
-		},
-		Data: map[string]string{
-			"workflow": workflowYaml,
-		},
-	}
-
-	err = h.client.Create(ctx, defaultCfgMap)
-	if err != nil {
-		logger.Error(err, "Failed to create default remediation configmap")
-		return nil, err
-	}
-	return defaultCfgMap, nil
-}
-
 func (h *remediationMgrHelper) deleteConfigMap(ctx context.Context, name, namespace string) error {
 
 	cm := &v1.ConfigMap{}
@@ -624,8 +619,11 @@ func (h *remediationMgrHelper) createDefaultWorkflowTemplate(ctx context.Context
 	utilityContainer := h.getWorkflowUtilityImage(devConfig)
 	utilityContainer.Command = []string{"sh"}
 
+	// Reboot is implemented as a ScriptTemplate so we can capture the node's pre-reboot
+	// bootID as an output parameter for downstream steps (e.g. waitfornodeready) to
+	// confirm that the host actually rebooted.
 	rebootContainer := h.getWorkflowUtilityImage(devConfig)
-	rebootContainer.Command = []string{"/nsenter", "--all", "--target=1", "--", "/sbin/reboot", "-f"}
+	rebootContainer.Command = []string{"sh"}
 	rebootContainer.SecurityContext = &v1.SecurityContext{Privileged: ptr.To(true)}
 
 	notifySrc, err := h.getWorkflowTaskScriptSource("notify.sh")
@@ -643,6 +641,15 @@ func (h *remediationMgrHelper) createDefaultWorkflowTemplate(ctx context.Context
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "event-notify-template",
 			Namespace: devConfig.Namespace,
+			OwnerReferences: []metav1.OwnerReference{
+				{
+					APIVersion: devConfig.APIVersion,
+					Kind:       devConfig.Kind,
+					Name:       devConfig.Name,
+					UID:        devConfig.UID,
+					Controller: ptr.To(true),
+				},
+			},
 		},
 		Spec: workflowv1alpha1.WorkflowSpec{
 			Entrypoint: "notify",
@@ -691,6 +698,14 @@ func (h *remediationMgrHelper) createDefaultWorkflowTemplate(ctx context.Context
 	if err != nil {
 		return nil, err
 	}
+	waitForNodeReadySrc, err := h.getWorkflowTaskScriptSource("waitfornodeready.sh")
+	if err != nil {
+		return nil, err
+	}
+	rebootSrc, err := h.getWorkflowTaskScriptSource("reboot.sh")
+	if err != nil {
+		return nil, err
+	}
 	untaintSrc, err := h.getWorkflowTaskScriptSource("untaint.sh")
 	if err != nil {
 		return nil, err
@@ -708,6 +723,15 @@ func (h *remediationMgrHelper) createDefaultWorkflowTemplate(ctx context.Context
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "default-template",
 			Namespace: devConfig.Namespace,
+			OwnerReferences: []metav1.OwnerReference{
+				{
+					APIVersion: devConfig.APIVersion,
+					Kind:       devConfig.Kind,
+					Name:       devConfig.Name,
+					UID:        devConfig.UID,
+					Controller: ptr.To(true),
+				},
+			},
 		},
 		Spec: workflowv1alpha1.WorkflowSpec{
 			Entrypoint: "inbuilt",
@@ -736,6 +760,20 @@ func (h *remediationMgrHelper) createDefaultWorkflowTemplate(ctx context.Context
 						},
 						{Steps: []workflowv1alpha1.WorkflowStep{{Name: "suspend", Template: "suspend"}}},
 						{Steps: []workflowv1alpha1.WorkflowStep{{Name: "reboot", Template: "reboot", ContinueOn: &workflowv1alpha1.ContinueOn{Failed: true}, When: "{{workflow.parameters.skipRebootStep}} == false"}}},
+						{Steps: []workflowv1alpha1.WorkflowStep{{
+							Name:     "waitfornodeready",
+							Template: "waitfornodeready",
+							When:     "{{workflow.parameters.skipRebootStep}} == false",
+							Arguments: workflowv1alpha1.Arguments{
+								Parameters: []workflowv1alpha1.Parameter{
+									{Name: "node_name", Value: workflowv1alpha1.AnyStringPtr("{{workflow.parameters.node_name}}")},
+									// Pass the bootID captured by the reboot step so we can verify
+									// the host actually rebooted (not just transiently NotReady).
+									{Name: "old_boot_id", Value: workflowv1alpha1.AnyStringPtr("{{steps.reboot.outputs.parameters.boot_id}}")},
+									{Name: "wait_for_reboot_duration", Value: workflowv1alpha1.AnyStringPtr("{{workflow.parameters.wait_for_reboot_duration}}")},
+								},
+							},
+						}}},
 						{Steps: []workflowv1alpha1.WorkflowStep{{Name: "test", Template: "test", ContinueOn: &workflowv1alpha1.ContinueOn{Failed: true}}}},
 						{Steps: []workflowv1alpha1.WorkflowStep{
 							{
@@ -824,9 +862,34 @@ func (h *remediationMgrHelper) createDefaultWorkflowTemplate(ctx context.Context
 					},
 				},
 				{
-					Name:      "reboot",
-					Metadata:  instanceIDMeta,
-					Container: &rebootContainer,
+					Name:     "reboot",
+					Metadata: instanceIDMeta,
+					Inputs: workflowv1alpha1.Inputs{
+						Parameters: []workflowv1alpha1.Parameter{
+							{
+								Name:  "node_name",
+								Value: workflowv1alpha1.AnyStringPtr("{{workflow.parameters.node_name}}"),
+							},
+						},
+					},
+					Outputs: workflowv1alpha1.Outputs{
+						Parameters: []workflowv1alpha1.Parameter{
+							{
+								Name: "boot_id",
+								ValueFrom: &workflowv1alpha1.ValueFrom{
+									Path: "/tmp/boot_id",
+									// If the pod is killed by the reboot before the file is
+									// finalized, fall back to an empty value; the wait step
+									// gracefully degrades to a Ready-only check in that case.
+									Default: workflowv1alpha1.AnyStringPtr(""),
+								},
+							},
+						},
+					},
+					Script: &workflowv1alpha1.ScriptTemplate{
+						Source:    rebootSrc,
+						Container: rebootContainer,
+					},
 					PodSpecPatch: `
 hostPID: true
 hostNetwork: true
@@ -835,6 +898,34 @@ containers:
   stdin: true
   tty: true
 `,
+				},
+				{
+					Name:     "waitfornodeready",
+					Metadata: instanceIDMeta,
+					Inputs: workflowv1alpha1.Inputs{
+						Parameters: []workflowv1alpha1.Parameter{
+							{
+								Name:  "node_name",
+								Value: workflowv1alpha1.AnyStringPtr("{{workflow.parameters.node_name}}"),
+							},
+							{
+								// Pre-reboot bootID supplied by the reboot step. Empty when the
+								// reboot step was skipped or its bootID capture failed.
+								Name:    "old_boot_id",
+								Default: workflowv1alpha1.AnyStringPtr(""),
+							},
+							{
+								// Total time to wait for the node to reboot and remain Ready.
+								// Accepts Go duration strings such as "30s", "15m", "4h".
+								Name:    "wait_for_reboot_duration",
+								Default: workflowv1alpha1.AnyStringPtr(DefaultRebootTimeout),
+							},
+						},
+					},
+					Script: &workflowv1alpha1.ScriptTemplate{
+						Source:    waitForNodeReadySrc,
+						Container: utilityContainer,
+					},
 				},
 				{
 					Name:     "test",
@@ -991,38 +1082,16 @@ containers:
 	return template, nil
 }
 
-func (h *remediationMgrHelper) createDefaultObjects(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig) (*v1.ConfigMap, error) {
+func (h *remediationMgrHelper) createDefaultObjects(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig) error {
 
 	logger := log.FromContext(ctx)
-	var cfgMapName string
-	if devConfig.Spec.RemediationWorkflow.Config != nil {
-		cfgMapName = devConfig.Spec.RemediationWorkflow.Config.Name
-	} else {
-		cfgMapName = devConfig.Name + "-" + DefaultConfigMapSuffix
-	}
-	// Create default configmap if required
-	cm, err := h.getConfigMap(ctx, cfgMapName, devConfig.Namespace)
-	if err != nil {
-		if devConfig.Spec.RemediationWorkflow.Config == nil {
-			cm, err = h.createDefaultConfigMap(ctx, cfgMapName, devConfig.Namespace)
-			if err != nil {
-				logger.Error(err, "Failed to create default configmap")
-				return nil, err
-			}
-			logger.Info("Created default configmap successfully")
-		} else {
-			logger.Error(err, fmt.Sprintf("Configmap: %s not found", cfgMapName))
-			return nil, err
-		}
-	}
-
 	// Create Default WorkflowTemplate if required
-	_, err = h.getWorkflowTemplate(ctx, DefaultTemplate, devConfig.Namespace)
+	_, err := h.getWorkflowTemplate(ctx, DefaultTemplate, devConfig.Namespace)
 	if err != nil {
 		logger.Error(err, fmt.Sprintf("Failed to fetch WorkflowTemplate %s", DefaultTemplate))
 		if _, err = h.createDefaultWorkflowTemplate(ctx, devConfig); err != nil {
 			logger.Error(err, "Failed to create default workflow template")
-			return nil, err
+			return err
 		}
 		logger.Info("Created default workflow template successfully")
 	}
@@ -1033,12 +1102,12 @@ func (h *remediationMgrHelper) createDefaultObjects(ctx context.Context, devConf
 		logger.Error(err, fmt.Sprintf("Failed to fetch RemediationWorkflowStatus %s", "default"))
 		if _, err = h.createRemediationWorkflowStatus(ctx, devConfig.Namespace); err != nil {
 			logger.Error(err, "Failed to create default remediation workflow status")
-			return nil, err
+			return err
 		}
 		logger.Info("Created default remediation workflow status successfully")
 	}
 
-	return cm, nil
+	return nil
 }
 
 func (h *remediationMgrHelper) updateMaxParallelWorkflows(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig) error {
@@ -1093,10 +1162,43 @@ func (h *remediationMgrHelper) populateWorkflow(ctx context.Context, wfTemplate 
 		SecondsAfterCompletion: &ttlSeconds,
 	}
 
+	wf.Spec.NodeSelector = make(map[string]string)
 	for i := range wf.Spec.Templates {
-		if wf.Spec.Templates[i].NodeSelector == nil {
-			wf.Spec.Templates[i].NodeSelector = map[string]string{}
+		if wf.Spec.Templates[i].Name == "waitfornodeready" {
+			wf.Spec.Templates[i].NodeSelector = make(map[string]string)
+			wf.Spec.Templates[i].Affinity = &v1.Affinity{
+				NodeAffinity: &v1.NodeAffinity{
+					RequiredDuringSchedulingIgnoredDuringExecution: &v1.NodeSelector{
+						NodeSelectorTerms: []v1.NodeSelectorTerm{
+							{
+								MatchExpressions: []v1.NodeSelectorRequirement{
+									{
+										Key:      "kubernetes.io/hostname",
+										Operator: v1.NodeSelectorOpNotIn,
+										Values:   []string{nodeName},
+									},
+								},
+							},
+						},
+					},
+				},
+			}
+			wf.Spec.Templates[i].Tolerations = append(wf.Spec.Templates[i].Tolerations,
+				v1.Toleration{
+					Key:      "node-role.kubernetes.io/control-plane",
+					Operator: v1.TolerationOpExists,
+					Effect:   v1.TaintEffectNoSchedule,
+				},
+				v1.Toleration{
+					Key:      "node-role.kubernetes.io/master",
+					Operator: v1.TolerationOpExists,
+					Effect:   v1.TaintEffectNoSchedule,
+				},
+			)
+			wf.Spec.Templates[i].PodSpecPatch = `{"nodeSelector":null}`
+			continue
 		}
+		wf.Spec.Templates[i].NodeSelector = make(map[string]string)
 		wf.Spec.Templates[i].NodeSelector["kubernetes.io/hostname"] = nodeName
 	}
 	// apply tolerations based on node taints
@@ -1237,10 +1339,28 @@ func (h *remediationMgrHelper) populateWorkflow(ctx context.Context, wfTemplate 
 				Name:  "testRunnerImageSecret",
 				Value: workflowv1alpha1.AnyStringPtr(testrunnerImageSecret),
 			},
+			{
+				Name:  "wait_for_reboot_duration",
+				Value: workflowv1alpha1.AnyStringPtr(h.getRebootTimeout(devConfig)),
+			},
 		},
 	}
 
 	return wf
+}
+
+// getRebootTimeout returns the configured wait duration for the
+// waitfornodeready step. It validates the value is a parseable Go duration
+// string and falls back to DefaultRebootTimeout otherwise.
+func (h *remediationMgrHelper) getRebootTimeout(devConfig *amdv1alpha1.DeviceConfig) string {
+	d := devConfig.Spec.RemediationWorkflow.RebootTimeout
+	if d == "" {
+		return DefaultRebootTimeout
+	}
+	if _, err := time.ParseDuration(d); err != nil {
+		return DefaultRebootTimeout
+	}
+	return d
 }
 
 func (h *remediationMgrHelper) createWorkflow(ctx context.Context, workflow *workflowv1alpha1.Workflow) error {

@@ -50,6 +50,10 @@ quay.io/jetstack/cert-manager-acmesolver:v1.15.1
 quay.io/argoproj/workflow-controller:v4.0.3
 ```
 
+```{Note}
+If you plan to use the auto node remediation feature, the remediation ConfigMap image (referenced by `spec.remediationWorkflow.configMapImage` in the `DeviceConfig`) must also be mirrored along with the additional images listed above. This image is not publicly available — please contact the AMD support team to obtain it.
+```
+
 ### Required RPM/DEB Packages
 
 For driver compilation, ensure these packages are available in your internal package repository:

@@ -988,6 +988,7 @@ deviceConfig:
       ttlForFailedWorkflows: 36h
       testerImage: "test.io/test/remediation-workflow-tester:v1.3.0"
       autoStartWorkflow: true
+      rebootTimeout: "15m"
 `,
 			extraArgs:            []string{"-f", tmpValuesYamlPath, "--set", "crds.defaultCR.upgrade=true"},
 			helmFunc:             s.upgradeHelmChart,
@@ -1003,6 +1004,7 @@ deviceConfig:
 					TesterImage:           "test.io/test/remediation-workflow-tester:v1.3.0",
 					AutoStartWorkflow:     &boolTrue,
 					ConfigMapImage:        "",
+					RebootTimeout:         "15m",
 				},
 			},
 			verifyFunc: s.verifyRemediationWorkflow,

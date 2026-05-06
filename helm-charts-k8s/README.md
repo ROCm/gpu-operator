@@ -123,6 +123,8 @@ For bugs and feature requests, please file an issue on our [GitHub Issues](https
 
 The AMD GPU Operator is licensed under the [Apache License 2.0](LICENSE).
 
+## gpu-operator-charts
+
 ![Version: v0.0.1](https://img.shields.io/badge/Version-v0.0.1-informational?style=flat-square) ![Type: application](https://img.shields.io/badge/Type-application-informational?style=flat-square) ![AppVersion: dev](https://img.shields.io/badge/AppVersion-dev-informational?style=flat-square)
 
 AMD GPU Operator simplifies the deployment and management of AMD Instinct GPU accelerators within Kubernetes clusters.
@@ -260,6 +262,7 @@ Kubernetes: `>= 1.29.0-0`
 | deviceConfig.spec.remediationWorkflow.nodeDrainPolicy | object | `{}` | Policy for draining nodes during remediation |
 | deviceConfig.spec.remediationWorkflow.nodeRemediationLabels | object | `{}` | Labels to apply to nodes during remediation |
 | deviceConfig.spec.remediationWorkflow.nodeRemediationTaints | list | `[]` | Taints to apply to nodes during remediation |
+| deviceConfig.spec.remediationWorkflow.rebootTimeout | string | `"15m"` | Duration to wait for the node to reboot and remain Ready before timing out. Accepts duration strings like "30s", "4h", "24h". By default, it is set to 15m. |
 | deviceConfig.spec.remediationWorkflow.testerImage | string | `"docker.io/rocm/test-runner:latest"` | Container image used for testing during remediation |
 | deviceConfig.spec.remediationWorkflow.ttlForFailedWorkflows | string | `"24h"` | Time-to-live duration for failed workflows before cleanup (e.g., 1h, 24h) |
 | deviceConfig.spec.selector | object | `{"feature.node.kubernetes.io/amd-gpu":"true"}` | Set node selector for the default DeviceConfig |

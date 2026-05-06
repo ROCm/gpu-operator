@@ -66,7 +66,6 @@ COPY --from=builder /opt/app-root/src/helm-charts-k8s/crds/deviceconfig-crd.yaml
     /opt/helm-charts-crds-k8s/
 
 RUN mkdir -p /remediation
-COPY --from=builder /opt/app-root/src/internal/controllers/remediation/configs /remediation/configs
 COPY --from=builder /opt/app-root/src/internal/controllers/remediation/scripts /remediation/scripts
 
 RUN microdnf update -y && \

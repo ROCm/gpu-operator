@@ -135,6 +135,18 @@ rules:
   - update
   - watch
 - apiGroups:
+  - apps
+  resources:
+  - deployments
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
   - kmm.sigs.x-k8s.io
   resources:
   - modules
@@ -200,6 +212,12 @@ rules:
   verbs:
   - get
   - update
+- apiGroups:
+  - resource.k8s.io
+  resources:
+  - deviceclasses
+  verbs:
+  - create
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding

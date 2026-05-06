@@ -788,6 +788,13 @@ spec:
         path: remediationWorkflow.config
         x-descriptors:
         - urn:alm:descriptor:com.amd.deviceconfigs:config
+      - description: ConfigMapImage specifies a container image that contains the
+          remediation ConfigMap. When set, the operator runs a Job from this image
+          to apply the ConfigMap to the cluster before the remediation workflow proceeds.
+        displayName: ConfigMapImage
+        path: remediationWorkflow.configMapImage
+        x-descriptors:
+        - urn:alm:descriptor:com.amd.deviceconfigs:configMapImage
       - description: enable remediation workflows. disabled by default enable if operator
           should automatically handle remediation of node incase of gpu issues
         displayName: Enable
@@ -822,6 +829,13 @@ spec:
         path: remediationWorkflow.nodeRemediationTaints
         x-descriptors:
         - urn:alm:descriptor:com.amd.deviceconfigs:nodeRemediationTaints
+      - description: RebootTimeout specifies the duration to wait for the node to
+          reboot. Accepts duration strings like "30s", "4h", "24h". By default, it
+          is set to 15m.
+        displayName: RebootTimeout
+        path: remediationWorkflow.rebootTimeout
+        x-descriptors:
+        - urn:alm:descriptor:com.amd.deviceconfigs:rebootTimeout
       - description: Tester image used to run tests and verify if remediation fixed
           the reported problem.
         displayName: TesterImage

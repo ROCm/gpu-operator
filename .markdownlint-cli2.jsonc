@@ -11,6 +11,6 @@
     "**/.claude/**",
     "**/tests/pytests/**",
     "**/knowledge/**",
-    "**/tests/test-plan/**"
+    "**/tests/**"
   ]
 }

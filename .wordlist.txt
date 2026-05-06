@@ -32,6 +32,7 @@ CRI
 CRs
 CronJob
 Customizable
+CustomResourceDefinition
 daemonset
 daemonsets
 DaemonSet
@@ -52,6 +53,7 @@ DevicePluginSpec
 DKMS
 dma
 DMC
+DME
 DNS
 Dockerfile
 DockerHub
@@ -139,6 +141,7 @@ NotReady
 numGPUsAssigned
 Observability
 oc
+OCI
 OLM
 OOM
 OpenShift

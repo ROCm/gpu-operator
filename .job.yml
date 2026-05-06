@@ -8,15 +8,12 @@ builds:
                DOCKER_REGISTRY=docker.io/amdpsdo HOURLY_TAG_LABEL=$RELEASE UTILS_IMAGE_TAG=${RELEASE:-latest} IMAGE_NAME=gpu-operator make docker-build-utils && \
                DOCKER_REGISTRY=docker.io/amdpsdo HOURLY_TAG_LABEL=$RELEASE UTILS_IMAGE_TAG=${RELEASE:-latest} IMAGE_NAME=gpu-operator make docker-save-utils && \
                DOCKER_REGISTRY=docker.io/amdpsdo HOURLY_TAG_LABEL=$RELEASE IMAGE_TAG=${RELEASE:-latest} IMAGE_NAME=gpu-operator make bundle-build && \
-               DOCKER_REGISTRY=docker.io/amdpsdo HOURLY_TAG_LABEL=$RELEASE IMAGE_TAG=${RELEASE:-latest} IMAGE_NAME=gpu-operator make bundle-save && \
-               DOCKER_REGISTRY=docker.io/amdpsdo HOURLY_TAG_LABEL=$RELEASE REMEDIATION_CONFIGMAP_UTIL_IMAGE_TAG=${RELEASE:-latest} IMAGE_NAME=gpu-operator make docker-build-remediation-configmap-util && \
-               DOCKER_REGISTRY=docker.io/amdpsdo HOURLY_TAG_LABEL=$RELEASE REMEDIATION_CONFIGMAP_UTIL_IMAGE_TAG=${RELEASE:-latest} IMAGE_NAME=gpu-operator make docker-save-remediation-configmap-util"]
+               DOCKER_REGISTRY=docker.io/amdpsdo HOURLY_TAG_LABEL=$RELEASE IMAGE_TAG=${RELEASE:-latest} IMAGE_NAME=gpu-operator make bundle-save"]
     owners: ["email:mharkara@amd.com"]
     artifacts:
      - /gpu-operator/gpu-operator.tar.gz
      - /gpu-operator/gpu-operator-utils.tar.gz
      - /gpu-operator/gpu-operator-olm-bundle.tar.gz
-     - /gpu-operator/gpu-operator-remediation-configmap-util.tar.gz
     repo-dependencies:
       /ws/builder/kernel-module-management:
         repository: https://github.com/pensando/kernel-module-management
