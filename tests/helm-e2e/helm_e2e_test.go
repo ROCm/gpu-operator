@@ -308,6 +308,8 @@ deviceConfig:
       imageBuild:
         baseImageRegistry: quay.io
         sourceImageRepo: custom.io/rocm/amdgpu-driver
+        packageRepoURL: "https://custom-mirror.example.com/amdgpu/6.3.3/ubuntu/jammy"
+        gpgKeyURL: "https://custom-mirror.example.com/rocm/rocm.gpg.key"
         baseImageRegistryTLS:
           insecure: true
           insecureSkipTLSVerify: false
@@ -390,6 +392,8 @@ deviceConfig:
 					ImageBuild: v1alpha1.ImageBuildSpec{
 						BaseImageRegistry: "quay.io",
 						SourceImageRepo:   "custom.io/rocm/amdgpu-driver",
+						PackageRepoURL:    "https://custom-mirror.example.com/amdgpu/6.3.3/ubuntu/jammy",
+						GPGKeyURL:         "https://custom-mirror.example.com/rocm/rocm.gpg.key",
 						BaseImageRegistryTLS: v1alpha1.RegistryTLS{
 							Insecure:              &boolTrue,
 							InsecureSkipTLSVerify: &boolFalse,

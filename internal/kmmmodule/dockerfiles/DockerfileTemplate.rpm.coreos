@@ -4,15 +4,29 @@ FROM ${DTK_AUTO} as builder
 ARG KERNEL_VERSION
 ARG DRIVERS_VERSION
 ARG REPO_URL
+ARG PACKAGE_REPO_URL
+ARG GPG_KEY_URL
 
 RUN source /etc/os-release && \
+    if [ -n "${PACKAGE_REPO_URL}" ]; then \
+        BASEURL="${PACKAGE_REPO_URL}"; \
+    else \
+        FULL_VERSION_URL="${REPO_URL}/amdgpu/${DRIVERS_VERSION}/el/${VERSION_ID}/main/x86_64/"; \
+        if curl --output /dev/null --silent --head --fail "${FULL_VERSION_URL}"; then \
+            BASEURL="${FULL_VERSION_URL}"; \
+        else \
+            MAJOR_VERSION="${VERSION_ID%%.*}"; \
+            BASEURL="${REPO_URL}/amdgpu/${DRIVERS_VERSION}/el/${MAJOR_VERSION}/main/x86_64/"; \
+        fi; \
+    fi && \
+    GPGKEY="${GPG_KEY_URL:-${REPO_URL}/rocm/rocm.gpg.key}" && \
     echo -e "[amdgpu] \n\
 name=amdgpu \n\
-baseurl=${REPO_URL}/amdgpu/${DRIVERS_VERSION}/el/${VERSION_ID}/main/x86_64/ \n\
+baseurl=${BASEURL} \n\
 enabled=1 \n\
 priority=50 \n\
 gpgcheck=1 \n\
-gpgkey=${REPO_URL}/rocm/rocm.gpg.key" > /etc/yum.repos.d/amdgpu.repo
+gpgkey=${GPGKEY}" > /etc/yum.repos.d/amdgpu.repo
 
 RUN dnf clean all && \
     cat /etc/yum.repos.d/amdgpu.repo && \
