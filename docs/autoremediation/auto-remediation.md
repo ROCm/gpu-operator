@@ -88,31 +88,61 @@ The GPU Operator installs Argo Workflows v4.0.3, using a [customized installatio
 
 For OpenShift users: To use the auto remediation feature, additonal steps are required to install Argo Workflows to the OpenShift cluster, which requires special consideration:
 
-  1. **If using OpenShift AI Operator with CRD `DataScienceCluster`:** Argo Workflows are possibly already deployed by the OpenShift AI Operator, if the Custom Resource Definition (CRD) like workflows.argoproj.io is already existing, no additional installation is needed.
+1. **If using OpenShift AI Operator with CRD `DataScienceCluster`:** Argo Workflows are possibly already deployed by the OpenShift AI Operator, if the CustomResourceDefinition like workflows.argoproj.io is already existing, no additional installation is needed.
 
-  2. **If not using OpenShift AI Operator:** Follow these steps to install Argo Workflows on your OpenShift cluster:
+2. **If not using OpenShift AI Operator:** Follow these steps to install Argo Workflows on your OpenShift cluster:
 
       a. Install CRDs (must be executed separately due to CRD size):
 
-        ```bash
-        oc apply --server-side --force-conflicts -k "https://github.com/argoproj/argo-workflows/manifests/base/crds/full?ref=v4.0.3"
-        ```
+```bash
+oc apply --server-side --force-conflicts -k "https://github.com/argoproj/argo-workflows/manifests/base/crds/full?ref=v4.0.3"
+```
 
       b. Add the Argo Helm repository:
 
-        ```bash
-        helm repo add argo https://argoproj.github.io/argo-helm --force-update
-        ```
+```bash
+helm repo add argo https://argoproj.github.io/argo-helm --force-update
+```
 
       c. Install Argo Workflows using Helm:
 
-        ```bash
-        helm install argo-workflow argo/argo-workflows \
+```bash
+helm install argo-workflow argo/argo-workflows \
           -n argo-workflow \
           --create-namespace \
           --version=1.0.6 \
-          --set crds.install=false
-        ```
+  --set crds.install=false \
+  --set controller.instanceID.enabled=true \
+  --set controller.instanceID.explicitID=amd-gpu-operator-remediation-workflow \
+  --set 'controller.tolerations[0].key=amd-gpu-unhealthy' \
+  --set 'controller.tolerations[0].operator=Exists' \
+  --set 'controller.tolerations[0].effect=NoSchedule'
+```
+
+> **Important:** The `controller.instanceID.explicitID` value must be set to `amd-gpu-operator-remediation-workflow`. The GPU Operator labels every remediation workflow and workflow template it creates with `workflows.argoproj.io/controller-instanceid: amd-gpu-operator-remediation-workflow`. An Argo workflow-controller only reconciles workflows whose `controller-instanceid` label matches its configured `instanceID`, so without this setting the Helm-installed controller will silently ignore the operator's workflows. Refer to the [Argo Workflows controller `instanceID` documentation](https://argo-workflows.readthedocs.io/en/stable/scaling/#instanceid) and the [`argo-workflows` chart values](https://github.com/argoproj/argo-helm/blob/main/charts/argo-workflows/values.yaml) for full details.
+>
+> **Important:** The `controller.tolerations` entry for `amd-gpu-unhealthy:NoSchedule` is required. During remediation the GPU Operator taints the affected node with `amd-gpu-unhealthy:NoSchedule` (see [NodeRemediationTaints](#node-drain-policy-configuration)). If the workflow-controller pod happens to be scheduled on a node that later gets tainted, it will be evicted and remediation will stall. Adding this toleration ensures the controller keeps running on tainted nodes so it can continue driving the workflow to completion. The same toleration is applied to the in-tree workflow controller, metrics-exporter, and other operator-managed components.
+>
+> The **same toleration must also be added to the Kernel Module Management (KMM) operator's Helm chart** when KMM is installed separately on OpenShift. KMM is responsible for (re)building and loading the GPU driver kernel module on the node after a remediation reboot — if its controller pod cannot tolerate `amd-gpu-unhealthy:NoSchedule`, it may be evicted from a tainted node and the driver will never be reloaded, blocking the post-reboot validation step of the workflow. When installing the KMM operator via Helm, pass the equivalent flags (the exact key path depends on the KMM chart you use, e.g. `controller.manager.tolerations` for the upstream chart):
+>
+> ```bash
+> --set 'controller.manager.tolerations[0].key=amd-gpu-unhealthy' \
+> --set 'controller.manager.tolerations[0].operator=Exists' \
+> --set 'controller.manager.tolerations[0].effect=NoSchedule'
+> ```
+
+If you prefer a values file over `--set`, the equivalent block is:
+
+```yaml
+controller:
+  instanceID:
+    enabled: true
+    explicitID: amd-gpu-operator-remediation-workflow
+  tolerations:
+    - key: amd-gpu-unhealthy
+      operator: Exists
+      effect: NoSchedule
+```
 
 ## Configuration and customization
 
@@ -292,7 +322,7 @@ The following example demonstrates a complete error mapping configuration:
 
 **notifyTestFailureMessage** - Contains instructions to be displayed when validation tests fail after remediation attempts. This message typically includes escalation procedures and diagnostic information requirements.
 
-**recoveryPolicy** - Defines limits on remediation attempts to prevent excessive recovery cycles. Includes `maxAllowedRunsPerWindow` (maximum retry attempts) and `windowSize` (time window for counting attempts). When exceeded, the workflow pauses for manual intervention.
+**recoveryPolicy** - Defines limits on remediation attempts to prevent excessive recovery cycles. Includes `maxAllowedRunsPerWindow` (maximum retry attempts) and `windowSize` (time window for counting attempts). Once the number of remediation workflows crosses `maxAllowedRunsPerWindow`, no new workflow is triggered for the same node condition within `windowSize`. After the window elapses, if the issue still persists, a new remediation workflow is allowed to start again.
 
 **skipRebootStep** - Controls whether the node reboot step is executed during the remediation workflow. The default workflow template includes an automatic reboot step to reinitialize GPU hardware after performing the recommended remediation actions. Set this field to `true` to skip the reboot step when the node has already been rebooted manually as part of the remediation process or when a reboot is not desired for the specific error condition. Default value is `false`.
 

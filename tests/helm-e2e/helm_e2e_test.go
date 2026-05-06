@@ -1006,6 +1006,7 @@ deviceConfig:
 					TtlForFailedWorkflows: "36h",
 					TesterImage:           "test.io/test/remediation-workflow-tester:v1.3.0",
 					AutoStartWorkflow:     &boolTrue,
+					ConfigMapImage:        "",
 				},
 			},
 			verifyFunc: s.verifyRemediationWorkflow,

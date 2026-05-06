@@ -258,6 +258,7 @@ Kubernetes: `>= 1.29.0-0`
 | deviceConfig.spec.metricsExporter.upgradePolicy.upgradeStrategy | string | `"RollingUpdate"` | the type of daemonset upgrade, RollingUpdate or OnDelete |
 | deviceConfig.spec.remediationWorkflow.autoStartWorkflow | bool | `true` | Enable/disable automatic workflow start on node issues |
 | deviceConfig.spec.remediationWorkflow.config | object | `{}` | Configuration for remediation workflow |
+| deviceConfig.spec.remediationWorkflow.configMapImage | string | `""` | Container image used to create the remediation ConfigMap. This image contains the default remediation ConfigMap configmap.yaml file. |
 | deviceConfig.spec.remediationWorkflow.enable | bool | `false` | enable/disable remediation workflow controller |
 | deviceConfig.spec.remediationWorkflow.maxParallelWorkflows | int | `0` | Set maximum number of remediation workflows that can run in parallel. Default is 0 which means no limit |
 | deviceConfig.spec.remediationWorkflow.nodeDrainPolicy | object | `{}` | Policy for draining nodes during remediation |

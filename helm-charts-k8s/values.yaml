@@ -304,6 +304,8 @@ deviceConfig:
       nodeDrainPolicy: {}
       # -- Enable/disable automatic workflow start on node issues
       autoStartWorkflow: true
+      # -- Container image used to create the remediation ConfigMap. This image contains the default remediation ConfigMap configmap.yaml file.
+      configMapImage: ""
 # AMD GPU operator controller related configs
 controllerManager:
   manager:
