@@ -1156,3 +1156,12 @@ xtwbm
 OCI
 gocheck
 teardown
+DME
+reconfiguring
+AINIC
+ANR
+CVE
+IPC
+MicroK
+configurability
+remediations

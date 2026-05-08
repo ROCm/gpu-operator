@@ -2,7 +2,37 @@
 
 ## GPU Operator v1.5.0 Release Notes
 
+The AMD GPU Operator v1.5.0 release introduces support for **Dynamic Resource Allocation (DRA)** as an alternative to the device plugin, **Auto Node Remediation (ANR)** for automated recovery of unhealthy GPU worker nodes, and **Node Problem Detector (NPD)** integration for surfacing GPU-related node conditions. The release also brings broader configurability across the operator (KMM, kubelet socket path, custom package repositories, host network configs, global image pull secrets) and updates the managed stack to ROCm 7.2.1.
+
 ### Release Highlights
+
+- **Dynamic Resource Allocation (DRA) Driver Support**
+  - The GPU Operator can now deploy and manage the [AMD GPU DRA Driver](https://github.com/ROCm/k8s-gpu-dra-driver) as an alternative to the traditional Kubernetes Device Plugin for exposing AMD Instinct GPUs to workloads.
+  - New `spec.draDriver` section in `DeviceConfig` enables and configures the DRA driver (image, command-line arguments, image pull policy, etc.). The default image is `rocm/k8s-gpu-dra-driver:latest`.
+  - The operator enforces **mutual exclusion** between `draDriver.enable=true` and `devicePlugin.enableDevicePlugin=true` on the same `DeviceConfig`.
+  - DRA `DeviceClass` is created automatically by the operator. The operator dynamically discovers the highest available DRA API version (`resource.k8s.io` `v1` → `v1beta2` → `v1beta1`) so it works across Kubernetes versions from 1.32 to 1.35 and OpenShift 4.21.
+  - Required RBAC for the DRA driver on OpenShift (including `SecurityContextConstraints`) is created by the operator out-of-the-box.
+  - Requirements: Kubernetes 1.32+ with `DynamicResourceAllocation` feature gate enabled, the amdgpu kernel module loaded on worker nodes, and CDI enabled in the container runtime (default in containerd 2.0+ / CRI-O).
+  - Refer to the [DRA Driver documentation](https://instinct.docs.amd.com/projects/gpu-operator/en/latest/dra/dra-driver.html) for details.
+
+- **Auto Node Remediation (ANR) for GPU Worker Nodes**
+  - The GPU Operator can now automatically remediate GPU worker nodes that become unhealthy due to GPU-related issues, restoring them to a healthy state without manual intervention.
+  - Remediation is driven by Argo Workflows and configured through the `DeviceConfig` CR. Customizable behaviors include:
+    - `nodeRemediationLabels` / node selector for which nodes ANR applies to
+    - `maxParallelWorkflows` to throttle the number of concurrent remediations
+    - `recoveryPolicy` and `drainPolicy` to control how nodes are drained, recovered, and reset
+    - Sequential / time-window conditions, custom taints, and a TTL for cleaning up completed workflows
+    - Reboot step is supported and reboot-step failures are now handled gracefully by the workflow
+    - Workflow image / `ConfigMapImage` can be overridden, and global image pull secrets are honored throughout the workflow
+  - Pulls workflow status directly from the Argo API server to avoid race conditions, and fails the workflow promptly when a step pod is in `ImagePullBackOff`.
+  - **OpenShift support** for ANR is included in this release (in addition to vanilla Kubernetes).
+  - Requires Argo Workflows v4.0.3.
+  - Refer to the [Auto Node Remediation documentation](https://instinct.docs.amd.com/projects/gpu-operator/en/latest/autoremediation/auto-remediation.html) for details.
+
+- **Node Problem Detector (NPD) Integration**
+  - The GPU Operator now integrates with [Node Problem Detector](https://github.com/kubernetes/node-problem-detector) to surface AMD GPU problems (e.g. inband-RAS errors reported by Device Metrics Exporter) as node conditions, which can in turn drive Auto Node Remediation.
+  - Reference RBAC, custom problem rules, and authentication configurations are provided for bearer token, RBAC HTTP, root CA, and mTLS-protected metrics endpoints.
+  - Refer to the [Node Problem Detector documentation](https://instinct.docs.amd.com/projects/gpu-operator/en/latest/npd/node-problem-detector.html) for details.
 
 - **Enhanced KMM (Kernel Module Management) Configuration Control**
   - **Independent Control of KMM Installation and Usage**
@@ -12,8 +42,61 @@
     - Supports multiple deployment scenarios: use existing KMM installations (`enabled=false, watch=true`), skip KMM entirely for alternative driver solutions (`enabled=false, watch=false`), or install KMM without asking for GPU Operator to use it (`enabled=true, watch=false`)
     - Fully backward compatible: existing configurations with `kmm.enabled=false` continue to work without changes
 
+- **Custom Package Repository URLs for Driver Image Build**
+  - Two new optional fields under `spec.driver.imageBuild` allow specifying custom package repository and GPG key URLs for in-cluster amdgpu driver image builds:
+    - `packageRepoURL`: full URL to the package repo
+    - `gpgKeyURL`: full URL to the GPG key
+  - Useful for environments where `repo.radeon.com` is mirrored, restructured, or unreachable.
+
+- **Configurable Kubelet Socket Paths**
+  - New `spec.devicePlugin.kubeletSocketPath` field on the `DeviceConfig` CR allows users to override the default kubelet device-plugins directory (`/var/lib/kubelet/device-plugins`).
+  - New `spec.metricsExporter.podResourceAPISocketPath` field allows users to override the default kubelet pod-resources directory (`/var/lib/kubelet/pod-resources`).
+  - Enables the operator, device plugin, and metrics exporter to work on Kubernetes distributions such as MicroK8s, k3s, and other custom setups where the kubelet sockets live at non-standard paths.
+
+- **Host Network Support for Device Plugin and Metrics Exporter**
+  - New optional `hostNetwork` field on `spec.devicePlugin` and `spec.metricsExporter` allows their respective DaemonSet pods to run in the host network namespace, simplifying integration with host-level monitoring and networking stacks.
+
+- **Global Image Pull Secrets Injection**
+  - A new `spec.commonConfig.imageRegistrySecrets` field on `DeviceConfig` (and `global.imagePullSecrets` in the Helm chart) lets users specify image pull secrets that are injected into all operator-managed workloads (driver build/sign pods, device plugin, metrics exporter, node labeller, DCM, DRA driver, ANR workflow, test runner, etc.), reducing duplicated configuration in air-gapped and private-registry environments.
+
+- **Open Source GPU Validation Cluster Example**
+  - The `example/gpu-validation-cluster/` directory has been open-sourced, providing a turnkey reference for standing up a GPU validation cluster (Dockerfile, configs, and helper scripts) for users who want to evaluate the GPU / AINIC end-to-end.
+
 - **Node Feature Discovery (NFD) Upgrade**
   - Upgraded NFD helm chart dependency from v0.16.1 to v0.18.3
+
+- **Device Metrics Exporter Enhancements**
+  - **Unix Domain Socket for IPC**: GPU Agent now communicates with the exporter over `/var/run/gpuagent.sock`, replacing TCP/IP for lower latency and improved security.
+  - **New Metrics**:
+    - `GPU_PROCESS_CU_OCCUPANCY` — per-process Compute Unit occupancy, with a `process_id` label.
+    - `GPU_ECC_DEFERRED_*` — deferred ECC error counts for each ECC-supported block.
+  - **Profiler `SamplingInterval`**: configurable profiler sampling window (default 1000 µs / 1 ms).
+  - **Configurable Health Polling Rate**: new `PollingRate` field in `HealthService` (under `CommonConfig`) accepts duration strings (`30s`, `5m`, `1h`, `23h10m15s`); default 30 s, min 30 s, max 24 h.
+  - **`KFD_PROCESS_ID` Label Now Optional**: disabled by default to reduce metric cardinality and Prometheus storage cost. Users who need it can re-enable it via the exporter `ConfigMap`.
+
+### Platform Support
+
+- All v1.5.0 features are validated on vanilla Kubernetes 1.34, 1.35, plus OpenShift 4.21.
+
+### Fixes
+
+1. **Helm upgrade failure**
+   - Fixed a helm upgrade hang/failure caused by changes in the Argo Workflows v4 CRDs.
+
+2. **DCM: missing default `ConfigMap` when `spec.configManager.config` is omitted**
+    - Device Config Manager now mounts a default `ConfigMap` when no custom configuration is provided, instead of failing to start.
+
+3. **CVE remediations**
+    - Base image updated to reduce CVE exposure.
+    - `grpc` upgraded to address **CVE-2026-33186**.
+
+### Known Limitations
+
+> **Note:** All current and historical limitations for the GPU Operator, including their latest statuses and any associated workarounds or fixes, are tracked in the following documentation page: [Known Issues and Limitations](https://instinct.docs.amd.com/projects/gpu-operator/en/latest/knownlimitations.html).
+> Please refer to this page regularly for the most up-to-date information.
+
+- **DRA Driver and Device Plugin are mutually exclusive**
+  - The DRA driver and the traditional Device Plugin cannot be enabled simultaneously on the same `DeviceConfig`. The operator validates this and rejects configurations where both `draDriver.enable=true` and `devicePlugin.enableDevicePlugin=true`.
 
 ## GPU Operator v1.4.1 Release Notes
 
