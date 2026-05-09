@@ -36,18 +36,20 @@ RUN cd helm-charts-k8s/charts && \
     tar -xvzf node-feature-discovery-chart-0.18.3.tgz
 
 ARG TARGET
+ARG TARGETARCH
 
 # Build
 RUN git config --global --add safe.directory ${PWD} && make ${TARGET}
 
-RUN curl -LO https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl && \
+RUN curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/${TARGETARCH}/kubectl" && \
     chmod +x ./kubectl
 
 FROM ${OPERATOR_CONTROLLER_BASE_IMAGE}
 
 ARG TARGET
+ARG TARGETARCH
 
-COPY --from=builder /opt/app-root/src/${TARGET} /usr/local/bin/manager
+COPY --from=builder /opt/app-root/src/${TARGET}.${TARGETARCH} /usr/local/bin/manager
 COPY --from=builder /opt/app-root/src/kubectl /usr/local/bin/kubectl
 COPY --from=builder /opt/app-root/src/LICENSE /licenses/LICENSE
 COPY --from=builder /opt/app-root/src/helm-charts-k8s/crds/deviceconfig-crd.yaml \
