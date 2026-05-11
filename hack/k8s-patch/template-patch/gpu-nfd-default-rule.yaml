@@ -47,6 +47,11 @@ spec:
           - feature: pci.device
             matchExpressions:
                 vendor: {op: In, value: ["1002"]}
+                device: {op: In, value: ["75b8"]} # MI350P VF
+      - matchFeatures:
+          - feature: pci.device
+            matchExpressions:
+                vendor: {op: In, value: ["1002"]}
                 device: {op: In, value: ["75b0"]} # Mi350X VF
       - matchFeatures:
           - feature: pci.device
@@ -79,6 +84,11 @@ spec:
             matchExpressions:
               vendor: {op: In, value: ["1002"]}
               device: {op: In, value: ["75a0"]} # MI350X
+      - matchFeatures:
+          - feature: pci.device
+            matchExpressions:
+              vendor: {op: In, value: ["1002"]}
+              device: {op: In, value: ["75a8"]} # MI350P
       - matchFeatures:
           - feature: pci.device
             matchExpressions:

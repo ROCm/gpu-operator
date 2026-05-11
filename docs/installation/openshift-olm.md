@@ -284,6 +284,7 @@ spec:
                     device: {op: In, value: [
                       "75a3", # MI355X
                       "75a0", # MI350X
+                      "75a8", # MI350P
                       "74a5", # MI325X
                       "74a2", # MI308X
                       "74a8", # MI308X-HF
@@ -307,6 +308,7 @@ spec:
                     device: {op: In, value: [
                       "75b3", # MI355X VF
                       "75b0", # MI350X VF
+                      "75b8", # MI350P VF
                       "74b9", # MI325X VF
                       "74b6", # MI308X VF
                       "74bc", # MI308X-HF VF
@@ -339,6 +341,7 @@ spec:
                 device: {op: In, value: [
                   "75a3", # MI355X
                   "75a0", # MI350X
+                  "75a8", # MI350P
                   "74a5", # MI325X
                   "74a2", # MI308X
                   "74a8", # MI308X-HF
@@ -362,6 +365,7 @@ spec:
                 device: {op: In, value: [
                   "75b3", # MI355X VF
                   "75b0", # MI350X VF
+                  "75b8", # MI350P VF
                   "74b9", # MI325X VF
                   "74b6", # MI308X VF
                   "74bc", # MI308X-HF VF
