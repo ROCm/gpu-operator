@@ -183,7 +183,7 @@ The AMD GPU Operator v1.4.0 adds MI35X platform support and updates all managed 
   
 ### Platform Support
 
-- Validated for vanilla kubernetes 1.32, 1.33
+- Validated for vanilla kubernetes 1.32, 1.33, 1.34, 1.35
 
 ### Fixes
 
