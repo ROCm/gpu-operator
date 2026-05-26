@@ -1,0 +1,57 @@
+---
+version: 2.0
+meta:
+
+
+image:
+  bind_dir: "/gpu-operator"
+  work_dir: "/gpu-operator"
+  
+
+e2e-targets:
+  gpu-operator-pytest-sanity-openshift:
+    commands: [
+        "/bin/sh",
+        "-c",
+        "cat /warmd.json && cd /gpu-operator/tests/pytests && \
+         /gpu-operator/ci-internal/run_sanity.sh --app gpu-operator \
+         --registry direct --testbed /warmd.json --amdgpu-driver 31.30.0.0"
+    ]
+    owners: ["email:srivatsa.sangli@amd.com"]
+    tcp-ports: [5000]
+    area:
+    sub-area:
+    build-dependencies:
+      - build-gpu-operator
+      - build-gpu-operator-k8s
+    resources:
+    - generic:
+      - type: K8-GPU-Node
+        vendor: Pensando
+        name: AMD-GPU-MI350P
+        count: 1
+
+  gpu-operator-pytest-sanity-k8s:
+    commands: [
+        "/bin/sh",
+        "-c",
+        "cat /warmd.json && cd /gpu-operator/tests/pytests && \
+         /gpu-operator/ci-internal/run_sanity.sh --app gpu-operator \
+         --registry direct --testbed /warmd.json --amdgpu-driver 31.30.0.0"
+    ]
+    owners: ["email:srivatsa.sangli@amd.com"]
+    tcp-ports: [5000]
+    area:
+    sub-area:
+    build-dependencies:
+      - build-gpu-operator
+      - build-gpu-operator-k8s
+    resources:
+    - generic:
+      - type: K8-GPU-Node
+        vendor: Pensando
+        name: AMD-GPU-MI350P-MUSTANG
+        count: 1
+
+logfiles:
+  - /gpu-operator/tests/pytests/pytest_logs.tgz

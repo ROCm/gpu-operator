@@ -1,0 +1,59 @@
+---
+version: 2.0
+meta:
+
+
+image:
+  bind_dir: "/gpu-operator"
+  work_dir: "/gpu-operator"
+  
+
+e2e-targets:
+  gpu-operator-regression-r9600s:
+    commands: [
+        "/bin/sh",
+        "-c",
+        "cat /warmd.json && cd /gpu-operator/tests/pytests && \
+         /gpu-operator/ci-internal/run_sanity.sh --app gpu-operator \
+         --registry direct --testbed /warmd.json --amdgpu-driver default-deviceconfig"
+    ]
+    owners: ["email:srivatsa.sangli@amd.com"]
+    tcp-ports: [5000]
+    area:
+    sub-area:
+    max-duration: 10h
+    build-dependencies:
+      - build-gpu-operator
+      - build-gpu-operator-k8s
+    resources:
+    - generic:
+      - type: K8-GPU-Node
+        vendor: Pensando
+        name: AMD-GPU-R9600S
+        count: 1
+
+  gpu-operator-regression-r9700d:
+    commands: [
+        "/bin/sh",
+        "-c",
+        "cat /warmd.json && cd /gpu-operator/tests/pytests && \
+         /gpu-operator/ci-internal/run_sanity.sh --app gpu-operator \
+         --registry direct --testbed /warmd.json --amdgpu-driver default-deviceconfig"
+    ]
+    owners: ["email:srivatsa.sangli@amd.com"]
+    tcp-ports: [5000]
+    area:
+    sub-area:
+    max-duration: 10h
+    build-dependencies:
+      - build-gpu-operator
+      - build-gpu-operator-k8s
+    resources:
+    - generic:
+      - type: K8-GPU-Node
+        vendor: Pensando
+        name: AMD-GPU-R9700D
+        count: 1
+
+logfiles:
+  - /gpu-operator/tests/pytests/pytest_logs.tgz
