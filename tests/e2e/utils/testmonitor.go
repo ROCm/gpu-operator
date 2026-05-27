@@ -740,3 +740,119 @@ func toYAML(obj interface{}) ([]byte, error) {
 	}
 	return yaml.JSONToYAML(jsonBytes)
 }
+
+// CaptureRunnerBaseline writes a one-time snapshot of runner-level state to
+// <baseDir>/_baseline/runner-state.txt. Intended to be called once from
+// E2ESuite.SetUpSuite so the chunk-report renderer can attribute
+// driver-load failures to runner environment vs test regression.
+//
+// Information captured (per node returned by the clientset):
+//   - kernel version (from node.Status.NodeInfo.KernelVersion)
+//   - OS image      (from node.Status.NodeInfo.OSImage)
+//   - container runtime (from node.Status.NodeInfo.ContainerRuntimeVersion)
+func CaptureRunnerBaseline(ctx context.Context, cs kubernetes.Interface, baseDir string) error {
+	dir := filepath.Join(baseDir, "_baseline")
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		return fmt.Errorf("baseline dir: %w", err)
+	}
+
+	nodes, err := cs.CoreV1().Nodes().List(ctx, metav1.ListOptions{})
+	if err != nil {
+		return fmt.Errorf("list nodes: %w", err)
+	}
+
+	var b strings.Builder
+	b.WriteString("=== runner baseline ===\n")
+	b.WriteString(fmt.Sprintf("captured: %s\n\n", time.Now().Format(time.RFC3339)))
+
+	for _, n := range nodes.Items {
+		b.WriteString(fmt.Sprintf("node: %s\n", n.Name))
+		b.WriteString(fmt.Sprintf("  kernel: %s\n", n.Status.NodeInfo.KernelVersion))
+		b.WriteString(fmt.Sprintf("  os: %s\n", n.Status.NodeInfo.OSImage))
+		b.WriteString(fmt.Sprintf("  runtime: %s\n", n.Status.NodeInfo.ContainerRuntimeVersion))
+		b.WriteString("\n")
+	}
+
+	out := filepath.Join(dir, "runner-state.txt")
+	return os.WriteFile(out, []byte(b.String()), 0644)
+}
+
+// leafTestName turns the gocheck-style fully-qualified test name
+// (e.g. "E2ESuite.TestDeployment", "DriverInstallSuite.TestDriverUpgradeByPushingNewCR")
+// into the path-safe leaf the chunk-report renderer expects ("TestDeployment").
+// Also sanitizes any character outside [A-Za-z0-9_-] to '_' for filesystem safety.
+func leafTestName(name string) string {
+	if i := strings.LastIndex(name, "."); i >= 0 && i+1 < len(name) {
+		name = name[i+1:]
+	}
+	var b strings.Builder
+	for _, r := range name {
+		if (r >= 'A' && r <= 'Z') || (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9') || r == '_' || r == '-' {
+			b.WriteRune(r)
+		} else {
+			b.WriteRune('_')
+		}
+	}
+	return b.String()
+}
+
+// CaptureDriverState dumps cluster-side driver-load state for a failing test.
+// Called from TearDownTest when c.Failed() is true. Writes
+// <baseDir>/<leafTestName>/driver-state.txt with kmm-worker pod inventory
+// (name, node, phase, image as actually resolved by KMM) and an
+// opportunistic node-labeller pod inventory for the same evidence trail.
+//
+// testName is normalized via leafTestName so the on-disk directory matches
+// what chunk_report.py looks up (it uses t.name.split('.')[-1]).
+//
+// Best-effort: errors are logged and a "(capture failed: ...)" stanza is
+// written instead of aborting. Cleanup (TearDownTest) must never fail
+// because of an observability collection error.
+func (tm *TestMonitor) CaptureDriverState(testName string) error {
+	if tm.clientSet == nil {
+		return nil
+	}
+	testName = leafTestName(testName)
+	dir := filepath.Join(tm.baseDir, testName)
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		return fmt.Errorf("driver-state dir: %w", err)
+	}
+
+	var b strings.Builder
+	b.WriteString(fmt.Sprintf("=== driver-state for %s ===\n", testName))
+	b.WriteString(fmt.Sprintf("captured: %s\n\n", time.Now().Format(time.RFC3339)))
+
+	// kmm-worker pods in the operator namespace.
+	pods, err := tm.clientSet.CoreV1().Pods(tm.namespace).List(
+		context.TODO(),
+		metav1.ListOptions{LabelSelector: "app.kubernetes.io/name=kmm-worker"},
+	)
+	if err != nil {
+		b.WriteString(fmt.Sprintf("kmm-worker list (capture failed: %v)\n", err))
+	} else {
+		b.WriteString(fmt.Sprintf("kmm-worker pods (%d):\n", len(pods.Items)))
+		for _, p := range pods.Items {
+			b.WriteString(fmt.Sprintf("  - name: %s\n", p.Name))
+			b.WriteString(fmt.Sprintf("    node: %s\n", p.Spec.NodeName))
+			b.WriteString(fmt.Sprintf("    phase: %s\n", p.Status.Phase))
+			for _, ctr := range p.Spec.Containers {
+				b.WriteString(fmt.Sprintf("    image: %s\n", ctr.Image))
+			}
+		}
+	}
+
+	// node-labeller pod inventory for the same evidence trail.
+	nl, err := tm.clientSet.CoreV1().Pods(tm.namespace).List(
+		context.TODO(),
+		metav1.ListOptions{LabelSelector: "app.kubernetes.io/name=node-labeller"},
+	)
+	if err == nil && len(nl.Items) > 0 {
+		b.WriteString(fmt.Sprintf("\nnode-labeller pods (%d):\n", len(nl.Items)))
+		for _, p := range nl.Items {
+			b.WriteString(fmt.Sprintf("  - name: %s  node: %s  phase: %s\n", p.Name, p.Spec.NodeName, p.Status.Phase))
+		}
+	}
+
+	out := filepath.Join(dir, "driver-state.txt")
+	return os.WriteFile(out, []byte(b.String()), 0644)
+}

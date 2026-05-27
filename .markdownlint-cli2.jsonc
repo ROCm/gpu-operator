@@ -11,6 +11,7 @@
     "**/.claude/**",
     "**/tests/pytests/**",
     "**/knowledge/**",
-    "**/tests/**"
+    "**/tests/**",
+    "**/docs-internal/**"
   ]
 }
