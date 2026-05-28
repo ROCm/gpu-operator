@@ -1,7 +1,7 @@
 GPU Partitioning via DCM
 ========================
 
-**OpenShift / Red Hat OCP:** On OpenShift, the GPU Operator is typically deployed in the ``openshift-amd-gpu`` namespace (not ``kube-amd-gpu``). Use ``openshift-amd-gpu`` in the examples below when you are on OpenShift. Essential OpenShift cluster components (DNS, ingress, network, etc.) may run on GPU nodes; applying a ``NoExecute`` taint will evict any pod that does not tolerate it. Ensure you add the ``amd-dcm`` toleration to required workloads in ``kube-system`` and, on OpenShift, in relevant ``openshift-*`` namespaces (e.g. ``openshift-dns``, ``openshift-ingress``) that schedule onto GPU nodes before tainting.
+**OpenShift / Red Hat OCP:** On OpenShift, the GPU Operator is typically deployed in the ``openshift-amd-gpu`` namespace (not ``kube-amd-gpu``). Use ``openshift-amd-gpu`` in the examples below when you are on OpenShift.
 
 - GPU on the node cannot be partitioned on the go, we need to bring down all daemonsets using the GPU resource before partitioning. Hence we need to taint the node and the partition.
 - DCM pod comes with a toleration
@@ -14,10 +14,10 @@ GPU Partitioning via DCM
 GPU Partitioning Workflow
 -------------------------
 
-1. Add tolerations to the required system pods to prevent them from being evicted during partitioning process
+1. Add tolerations to the required system pods to prevent them from being evicted during partitioning process (Kubernetes only — not needed on OpenShift)
 2. Deploy the DCM pod by applying/updating the DeviceConfig
 3. Taint the node to evict all workloads and prevent scheduling on new workloads on the node
-4. Label the node to indicate what paritioning profile will be used
+4. Label the node to indicate what partitioning profile will be used
 5. DCM will partition the node accordingly
 6. Once partition is done, un-taint the node to add it back so workloads can be scheduled on the cluster
 
@@ -30,7 +30,7 @@ Setting GPU Partitioning
 Since tainting a node will bring down all pods/daemonsets, we need to add toleration to the Kubernetes system pods to prevent them from getting evicted. Pods in the system namespace are responsible for things like DNS, networking, proxy and the overall proper functioning of your node.
 
 .. note::
-   **OpenShift:** On OpenShift, essential cluster DaemonSets and Deployments (e.g. in ``openshift-dns``, ``openshift-ingress``, ``openshift-network-operator``) may run on GPU nodes. Adding a ``NoExecute`` taint without first adding the ``amd-dcm`` toleration to those workloads can evict critical components. After patching ``kube-system`` as below, add the same toleration to any ``openshift-*`` namespaces that have workloads on your GPU nodes. You can list pods on the node and add tolerations to their controllers as needed.
+   **OpenShift:** On OpenShift, critical control-plane DaemonSets (DNS, networking, CNI, etc.) already carry a wildcard toleration (``operator: Exists``) by default, so they will not be evicted by the ``amd-dcm=up:NoExecute`` taint. No toleration patching is required for ``openshift-*`` namespaces.
 
 Here we are patching all the deployments in the `kube-system` namespace with the key `amd-dcm` which is used during the tainting process to evict all non-essential pods:
 
@@ -42,12 +42,6 @@ Here we are patching all the deployments in the `kube-system` namespace with the
 
          kubectl get deployments -n kube-system -o json | jq -r '.items[] | .metadata.name' | xargs -I {} kubectl patch deployment {} -n kube-system --type='json' -p='[{"op": "add", "path": "/spec/template/spec/tolerations", "value": [{"key": "amd-dcm", "operator": "Equal", "value": "up", "effect": "NoExecute"}]}]'
 
-   .. tab-item:: OpenShift
-
-      .. code-block:: bash
-
-         oc get deployments -n kube-system -o json | jq -r '.items[] | .metadata.name' | xargs -I {} oc patch deployment {} -n kube-system --type='json' -p='[{"op": "add", "path": "/spec/template/spec/tolerations", "value": [{"key": "amd-dcm", "operator": "Equal", "value": "up", "effect": "NoExecute"}]}]'
-
 We also need to patch all the daemonsets in the `kube-system` namespace to prevent CNI (e.g., Cilium) malfunction:
 
 .. tab-set::
@@ -57,13 +51,6 @@ We also need to patch all the daemonsets in the `kube-system` namespace to preve
       .. code-block:: bash
 
          kubectl get daemonsets -n kube-system -o json | jq -r '.items[] | .metadata.name' | xargs -I {} kubectl patch daemonsets {} -n kube-system --type='json' -p='[{"op": "add", "path": "/spec/template/spec/tolerations", "value": [{"key": "amd-dcm", "operator": "Equal", "value": "up", "effect": "NoExecute"}]}]'
-
-   .. tab-item:: OpenShift
-
-      .. code-block:: bash
-
-         oc get daemonsets -n kube-system -o json | jq -r '.items[] | .metadata.name' | xargs -I {} oc patch daemonset {} -n kube-system --type='json' -p='[{"op": "add", "path": "/spec/template/spec/tolerations", "value": [{"key": "amd-dcm", "operator": "Equal", "value": "up", "effect": "NoExecute"}]}]'
-
 
 The above command is convenient as it adds the required tolerations all with a single command. However, you can also manually edit any required deployments or pods yourself and add this toleration to any other required pods in your cluster as follows:
 
@@ -354,8 +341,5 @@ After completing partitioning operations, you can remove the DCM tolerations tha
 
             kubectl get daemonsets -n kube-system -o json | jq -r '.items[] | .metadata.name' | xargs -I {} kubectl patch daemonset {} -n kube-system --type='json' -p='[{"op": "remove", "path": "/spec/template/spec/tolerations/0"}]'
 
-   .. tab-item:: OpenShift
-
-      .. code-block:: bash
-
-            oc get daemonsets -n kube-system -o json | jq -r '.items[] | .metadata.name' | xargs -I {} oc patch daemonset {} -n kube-system --type='json' -p='[{"op": "remove", "path": "/spec/template/spec/tolerations/0"}]'
+.. note::
+   Not needed on OpenShift — step 1 was skipped.
