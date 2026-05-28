@@ -9,6 +9,9 @@ rules:
 - apiGroups: [""]
   resources: ["pods"]
   verbs: ["get", "list", "watch"]
+- apiGroups: [""]
+  resources: ["events"]
+  verbs: ["create"]
 - apiGroups:
   - security.openshift.io
   resourceNames:
