@@ -196,6 +196,12 @@ func (s *E2ESuite) SetUpSuite(c *C) {
 			c.Fatalf("%v", err)
 		}
 	}
+
+	// Capture runner-environment baseline once; surfaced in the chunk-report
+	// to disambiguate runner-pollution failures from test/operator regressions.
+	if err := utils.CaptureRunnerBaseline(context.TODO(), s.clientSet, "e2e-artifacts"); err != nil {
+		logger.Warnf("CaptureRunnerBaseline failed (non-fatal): %v", err)
+	}
 }
 
 func (s *E2ESuite) SetUpTest(c *C) {
@@ -210,20 +216,25 @@ func (s *E2ESuite) SetUpTest(c *C) {
 
 func (s *E2ESuite) TearDownTest(c *C) {
 	logger.Info("TearDownTest:")
+	if c.Failed() {
+		if err := s.testMonitor.CaptureDriverState(c.TestName()); err != nil {
+			logger.Warnf("CaptureDriverState failed (non-fatal) for %s: %v", c.TestName(), err)
+		}
+	}
 	if l, err := s.dClient.DeviceConfigs(s.ns).List(metav1.ListOptions{}); err == nil {
 		for _, cfg := range l.Items {
 			logger.Infof("delete %v", cfg.Name)
 			if _, err := s.dClient.DeviceConfigs(s.ns).Delete(cfg.Name); err != nil {
+				// cleanup must run to completion even on failure; do not Fatalf here
 				logger.Errorf("Error deleting deviceconfig %s during TearDownTest for test %s: %v", cfg.Name, c.TestName(), err)
-				c.Fatalf("Error: %v", err.Error())
 			}
 		}
 
 		if len(l.Items) > 0 && !s.simEnable {
 			nodes := utils.GetAMDGpuWorker(s.clientSet, s.openshift)
 			if err := utils.HandleNodesReboot(context.TODO(), s.clientSet, nodes); err != nil {
+				// cleanup must run to completion even on failure; do not Fatalf here
 				logger.Errorf("Error handling node reboot during TearDownTest for test %s: %v", c.TestName(), err)
-				c.Fatalf("Error: %v", err.Error())
 			}
 		}
 
@@ -248,7 +259,8 @@ func (s *E2ESuite) TearDownSuite(c *C) {
 		for _, cfg := range l.Items {
 			logger.Infof("delete %v", cfg.Name)
 			if _, err := s.dClient.DeviceConfigs(s.ns).Delete(cfg.Name); err != nil {
-				c.Fatalf("Error: %v", err.Error())
+				// cleanup must run to completion even on failure; do not Fatalf here
+				logger.Errorf("Error deleting deviceconfig %s during TearDownSuite: %v", cfg.Name, err)
 			}
 		}
 		time.Sleep(30 * time.Second)

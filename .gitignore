@@ -28,6 +28,7 @@ tests/pytests/*
 .vscode
 branch_policy.yml
 tools-internal/*
+docs-internal/*
 CLAUDE.md
 .claude/*
 .copilot/*
