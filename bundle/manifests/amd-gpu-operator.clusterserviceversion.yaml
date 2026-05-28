@@ -1448,6 +1448,12 @@ spec:
           - list
           - watch
         - apiGroups:
+          - ""
+          resources:
+          - events
+          verbs:
+          - create
+        - apiGroups:
           - security.openshift.io
           resourceNames:
           - privileged
