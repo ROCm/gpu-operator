@@ -2,6 +2,8 @@ set -e
 NODE_NAME='{{inputs.parameters.nodeName}}'
 NOTIFY_MESSAGE='{{inputs.parameters.notifyMessage}}'
 EVENT_NAME='{{inputs.parameters.eventName}}'
+EVENT_TYPE='{{inputs.parameters.eventType}}'
+EVENT_TYPE="${EVENT_TYPE:-Warning}"
 
 kubectl create -f - <<EOF
 apiVersion: v1
@@ -24,5 +26,5 @@ reportingInstance: amd-gpu-node-remediation-workflow
 source:
   component: {{workflow.name}}
   host: ${NODE_NAME}
-type: Warning
+type: ${EVENT_TYPE}
 EOF

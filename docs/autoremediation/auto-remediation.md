@@ -169,7 +169,6 @@ remediationWorkflow:
   enable: true
 
   # ConfigMap containing mappings between node conditions and remediation workflows.
-  # If not specified, the operator uses the default 'default-conditional-workflow-mappings' ConfigMap.
   # The ConfigMap defines which workflow template to execute for each specific error condition.
   config:
     name: configmapName
@@ -246,7 +245,7 @@ remediationWorkflow:
 
 **Enable** - Controls whether automatic node remediation is enabled. Set this field to `true` to activate the auto-remediation feature in the cluster.
 
-**Config** - References a ConfigMap that contains mappings between node conditions and their corresponding remediation workflows. The GPU Operator automatically creates a `default-conditional-workflow-mappings` ConfigMap with predefined mappings. Users can either modify this default ConfigMap or create their own custom ConfigMap. If left empty, the default ConfigMap will be used automatically. More about the ConfigMap in [below section](auto-remediation.md#remediation-workflow-configmap).
+**Config** - References a ConfigMap that contains mappings between node conditions and their corresponding remediation workflows. More about the ConfigMap in [below section](auto-remediation.md#remediation-workflow-configmap).
 
 > **Note:** The `default-conditional-workflow-mappings` ConfigMap is created automatically by the GPU Operator.
 

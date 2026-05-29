@@ -22,5 +22,5 @@ while [ "$TOTAL_WAIT" -lt 15 ]; do
   sleep 60
   TOTAL_WAIT=$((TOTAL_WAIT + 1))
 done
-echo "$NODE_CONDITION did not remain False for 2 consecutive minutes within 15 minutes. Exiting with failure."
+echo "All remediation steps executed successfully on node $NODE_NAME, but the $NODE_CONDITION condition did not return to False for 2 consecutive minutes within the 15-minute window (last status: ${STATUS:-unknown}). This indicates the underlying problem was not resolved by remediation and likely requires manual investigation."
 exit 1

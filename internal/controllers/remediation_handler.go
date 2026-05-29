@@ -225,7 +225,6 @@ func (n *remediationMgr) HandleRemediation(ctx context.Context, devConfig *amdv1
 		// Validate node conditions
 		mapping, err := n.helper.validateNodeConditions(ctx, devConfig, &node, mappings)
 		if err != nil {
-			logger.Info(fmt.Sprintf("Node conditions validations for node %s failed with error: %v", node.Name, err))
 			continue
 		}
 		createNewWorkflow := n.helper.handleExistingWorkflowsOnNode(ctx, devConfig, &node, mapping)
@@ -668,6 +667,9 @@ func (h *remediationMgrHelper) createDefaultWorkflowTemplate(ctx context.Context
 							{
 								Name: "eventName",
 							},
+							{
+								Name: "eventType",
+							},
 						},
 					},
 					Script: &workflowv1alpha1.ScriptTemplate{
@@ -753,6 +755,7 @@ func (h *remediationMgrHelper) createDefaultWorkflowTemplate(ctx context.Context
 										{Name: "nodeName", Value: workflowv1alpha1.AnyStringPtr("{{workflow.parameters.node_name}}")},
 										{Name: "notifyMessage", Value: workflowv1alpha1.AnyStringPtr("{{workflow.parameters.notifyMessage}}")},
 										{Name: "eventName", Value: workflowv1alpha1.AnyStringPtr(AmdGpuRemediationRequired)},
+										{Name: "eventType", Value: workflowv1alpha1.AnyStringPtr("Warning")},
 									},
 								},
 							},
@@ -784,6 +787,7 @@ func (h *remediationMgrHelper) createDefaultWorkflowTemplate(ctx context.Context
 										{Name: "nodeName", Value: workflowv1alpha1.AnyStringPtr("{{workflow.parameters.node_name}}")},
 										{Name: "notifyMessage", Value: workflowv1alpha1.AnyStringPtr("{{workflow.parameters.notifyErrorMessage}}")},
 										{Name: "eventName", Value: workflowv1alpha1.AnyStringPtr(AmdGpuRemediationFailed)},
+										{Name: "eventType", Value: workflowv1alpha1.AnyStringPtr("Warning")},
 									},
 								},
 								When: "{{steps.test.exitCode}} != 0",
@@ -792,8 +796,24 @@ func (h *remediationMgrHelper) createDefaultWorkflowTemplate(ctx context.Context
 						},
 						{Steps: []workflowv1alpha1.WorkflowStep{{Name: "failurecleanup", Template: "removelabels", When: "{{steps.test.exitCode}} != 0 && {{workflow.parameters.node_labels}} != []"}}},
 						{Steps: []workflowv1alpha1.WorkflowStep{{Name: "failworkflow", Template: "failworkflow", When: "{{steps.test.exitCode}} != 0"}}},
-						{Steps: []workflowv1alpha1.WorkflowStep{{Name: "wait", Template: "wait", When: "{{steps.test.exitCode}} == 0"}}},
-						{Steps: []workflowv1alpha1.WorkflowStep{{Name: "untaint", Template: "untaint", When: "{{steps.test.exitCode}} == 0"}}},
+						{Steps: []workflowv1alpha1.WorkflowStep{{Name: "wait", Template: "wait", When: "{{steps.test.exitCode}} == 0", ContinueOn: &workflowv1alpha1.ContinueOn{Failed: true}}}},
+						{Steps: []workflowv1alpha1.WorkflowStep{
+							{
+								Name:        "notifywaitfailed",
+								TemplateRef: &workflowv1alpha1.TemplateRef{Name: "event-notify-template", Template: "notify"},
+								Arguments: workflowv1alpha1.Arguments{
+									Parameters: []workflowv1alpha1.Parameter{
+										{Name: "nodeName", Value: workflowv1alpha1.AnyStringPtr("{{workflow.parameters.node_name}}")},
+										{Name: "notifyMessage", Value: workflowv1alpha1.AnyStringPtr("{{workflow.parameters.notifyWaitFailedMessage}}")},
+										{Name: "eventName", Value: workflowv1alpha1.AnyStringPtr(AmdGpuRemediationFailed)},
+										{Name: "eventType", Value: workflowv1alpha1.AnyStringPtr("Warning")},
+									},
+								},
+								When: "{{steps.test.exitCode}} == 0 && {{steps.wait.exitCode}} != 0",
+							},
+						},
+						},
+						{Steps: []workflowv1alpha1.WorkflowStep{{Name: "untaint", Template: "untaint", When: "{{steps.test.exitCode}} == 0 && {{steps.wait.exitCode}} == 0"}}},
 						{Steps: []workflowv1alpha1.WorkflowStep{
 							{
 								Name:        "notifyworkflowsucceeded",
@@ -803,13 +823,14 @@ func (h *remediationMgrHelper) createDefaultWorkflowTemplate(ctx context.Context
 										{Name: "nodeName", Value: workflowv1alpha1.AnyStringPtr("{{workflow.parameters.node_name}}")},
 										{Name: "notifyMessage", Value: workflowv1alpha1.AnyStringPtr("{{workflow.parameters.notifySuccessMessage}}")},
 										{Name: "eventName", Value: workflowv1alpha1.AnyStringPtr(AmdGpuRemediationSucceeded)},
+										{Name: "eventType", Value: workflowv1alpha1.AnyStringPtr("Normal")},
 									},
 								},
-								When: "{{steps.test.exitCode}} == 0",
+								When: "{{steps.test.exitCode}} == 0 && {{steps.wait.exitCode}} == 0",
 							},
 						},
 						},
-						{Steps: []workflowv1alpha1.WorkflowStep{{Name: "successcleanup", Template: "removelabels", When: "{{steps.test.exitCode}} == 0 && {{workflow.parameters.node_labels}} != []"}}},
+						{Steps: []workflowv1alpha1.WorkflowStep{{Name: "successcleanup", Template: "removelabels", When: "{{steps.test.exitCode}} == 0 && {{steps.wait.exitCode}} == 0 && {{workflow.parameters.node_labels}} != []"}}},
 					},
 				},
 				{
@@ -1310,6 +1331,10 @@ func (h *remediationMgrHelper) populateWorkflow(ctx context.Context, wfTemplate 
 			{
 				Name:  "notifySuccessMessage",
 				Value: workflowv1alpha1.AnyStringPtr(fmt.Sprintf("Remediation for node condition %s completed successfully on node %s", mapping.NodeCondition, nodeName)),
+			},
+			{
+				Name:  "notifyWaitFailedMessage",
+				Value: workflowv1alpha1.AnyStringPtr(fmt.Sprintf("All remediation steps executed successfully on node %s, but the %s condition did not return to False for 2 consecutive minutes within the 15-minute window. This indicates the underlying problem was not resolved by remediation and likely requires manual investigation.", nodeName, mapping.NodeCondition)),
 			},
 			{
 				Name:  "initContainerImage",
