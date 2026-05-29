@@ -237,12 +237,14 @@ func UbuntuDefaultDriverVersionsMapper(fullImageStr string) (string, error) {
 var slesSPRegexp = regexp.MustCompile(`(\d+)\s*-?\s*sp(\d+)`)
 
 var slesDefaultDriverVersions = map[string]string{
-	"15.7": "7.0.3",
+	"15.7": "31.30",
 }
+
+var supportedSLESVersions = []string{"SLES 15 SP7"}
 
 // SlesCSDDriverVersions maps SLES codestream -> supported prebuilt driver versions.
 var SlesCSDDriverVersions = map[string][]string{
-	"15.7": {"7.0.3"},
+	"15.7": {"7.0.3", "30.20.1", "30.30.3", "31.10", "31.20", "31.30"},
 }
 
 func SLESDefaultDriverVersionsMapper(fullImageStr string) (string, error) {
@@ -255,7 +257,7 @@ func SLESDefaultDriverVersionsMapper(fullImageStr string) (string, error) {
 			return v, nil
 		}
 	}
-	return "", fmt.Errorf("unsupported SLES version: %s. Supported versions include SLES 15 SP7 and above", fullImageStr)
+	return "", fmt.Errorf("unsupported SLES version: %s. Supported versions: %s", fullImageStr, strings.Join(supportedSLESVersions, ", "))
 }
 
 func HasNodeLabelKey(node v1.Node, labelKey string) bool {
