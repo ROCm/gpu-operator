@@ -234,16 +234,25 @@ func UbuntuDefaultDriverVersionsMapper(fullImageStr string) (string, error) {
 	return "", fmt.Errorf("unsupported Ubuntu version: %s. Supported versions include 20.04, 22.04 and 24.04", fullImageStr)
 }
 
-var slesSPRegexp = regexp.MustCompile(`15\s*-?\s*sp(\d+)`)
+var slesSPRegexp = regexp.MustCompile(`(\d+)\s*-?\s*sp(\d+)`)
+
+var slesDefaultDriverVersions = map[string]string{
+	"15.7": "7.0.3",
+}
+
+// SlesCSDDriverVersions maps SLES codestream -> supported prebuilt driver versions.
+var SlesCSDDriverVersions = map[string][]string{
+	"15.7": {"7.0.3"},
+}
 
 func SLESDefaultDriverVersionsMapper(fullImageStr string) (string, error) {
-	if strings.Contains(fullImageStr, "15") {
-		match := slesSPRegexp.FindStringSubmatch(strings.ToLower(fullImageStr))
-		if len(match) > 1 {
-			spVersion, err := strconv.Atoi(match[1])
-			if err == nil && spVersion >= 7 {
-				return "7.0.3", nil // Latest stable version for SP7+
-			}
+	lower := strings.ToLower(fullImageStr)
+
+	// SP-style notation used by SLES 15 (e.g. "15 SP7" or "15-sp7")
+	if match := slesSPRegexp.FindStringSubmatch(lower); len(match) >= 3 {
+		csVersion := fmt.Sprintf("%s.%s", match[1], match[2])
+		if v, ok := slesDefaultDriverVersions[csVersion]; ok {
+			return v, nil
 		}
 	}
 	return "", fmt.Errorf("unsupported SLES version: %s. Supported versions include SLES 15 SP7 and above", fullImageStr)

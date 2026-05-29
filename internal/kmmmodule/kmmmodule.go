@@ -95,12 +95,26 @@ var (
 	dockerfileTemplateGIMCoreOS string
 )
 
-// slesCSDPrebuiltDriverImages maps SLES codestream version -> driver version -> prebuilt image.
-// Tag format: sles-<codestream>-<ga_kernel>-<driver_version>
-var slesCSDPrebuiltDriverImages = map[string]map[string]string{
-	"15.7": {
-		"7.0.3": "registry.suse.com/third-party/amd/amdgpu-driver:sles-15.7-7.0.3",
-	},
+const slesPrebuiltDriverImageRepo = "registry.suse.com/third-party/amd/amdgpu-driver"
+
+// slesCSDGAKernel maps SLES codestream -> GA kernel version used in prebuilt image tags.
+var slesCSDGAKernel = map[string]string{
+	"15.7": "6.4.0-150700.51",
+}
+
+// slesPrebuiltDriverImage returns the full prebuilt image reference.
+func slesPrebuiltDriverImage(codestream, driverVersion string) (string, bool) {
+	gaKernel, ok := slesCSDGAKernel[codestream]
+	if !ok {
+		return "", false
+	}
+	for _, v := range utils.SlesCSDDriverVersions[codestream] {
+		if v == driverVersion {
+			tag := fmt.Sprintf("sles-%s-%s-default-%s", codestream, gaKernel, driverVersion)
+			return slesPrebuiltDriverImageRepo + ":" + tag, true
+		}
+	}
+	return "", false
 }
 
 //go:generate mockgen -source=kmmmodule.go -package=kmmmodule -destination=mock_kmmmodule.go KMMModuleAPI
@@ -583,11 +597,10 @@ func getKM(devConfig *amdv1alpha1.DeviceConfig, node v1.Node, inTreeModuleToRemo
 	// Inject SUSE_PREBUILT_DRIVER_IMG build arg for SLES nodes.
 	if strings.HasPrefix(osName, "sles-") {
 		csVersion := strings.TrimPrefix(osName, "sles-") // e.g. "15.7"
-		driverVersions, ok := slesCSDPrebuiltDriverImages[csVersion]
-		if !ok {
+		if _, ok := slesCSDGAKernel[csVersion]; !ok {
 			return kmmv1beta1.KernelMapping{}, "", fmt.Errorf("no prebuilt driver image registered for SLES codestream %q", csVersion)
 		}
-		prebuiltImg, ok := driverVersions[driversVersion]
+		prebuiltImg, ok := slesPrebuiltDriverImage(csVersion, driversVersion)
 		if !ok {
 			return kmmv1beta1.KernelMapping{}, "", fmt.Errorf("no prebuilt driver image registered for SLES codestream %q with driver version %q", csVersion, driversVersion)
 		}
@@ -697,13 +710,15 @@ func ubuntuCMNameMapper(osImageStr string) string {
 func slesCMNameMapper(osImageStr string) string {
 	// Example: "SUSE Linux Enterprise Server 15 SP7" -> "sles-15.7"
 	// Example: "suse linux enterprise server 15-sp7" -> "sles-15.7"
-	// Convert to lowercase for consistent matching
+	// Example: "SUSE Linux Enterprise Server 16.0" -> "sles-16.0"
 	osImageLower := strings.ToLower(osImageStr)
-	re := regexp.MustCompile(`(\d+)\s*-?\s*sp(\d+)`)
-	matches := re.FindStringSubmatch(osImageLower)
-	if len(matches) >= 3 {
+
+	// SP-style notation (e.g. "15 SP7" or "15-sp7")
+	reSP := regexp.MustCompile(`(\d+)\s*-?\s*sp(\d+)`)
+	if matches := reSP.FindStringSubmatch(osImageLower); len(matches) >= 3 {
 		return fmt.Sprintf("sles-%s.%s", matches[1], matches[2])
 	}
+
 	return "sles-" + osImageLower
 }
 
