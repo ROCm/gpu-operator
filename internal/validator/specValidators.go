@@ -67,6 +67,12 @@ func ValidateDriverSpec(ctx context.Context, client client.Client, devConfig *am
 		}
 	}
 
+	if dSpec.Version != "" {
+		if err := validateSLESDriverVersion(ctx, client, devConfig, dSpec.Version); err != nil {
+			return err
+		}
+	}
+
 	return nil
 }
 

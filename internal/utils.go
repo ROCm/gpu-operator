@@ -250,6 +250,39 @@ var SlesCSDDriverVersions = map[string][]string{
 	"16.0": {"31.10", "31.20", "31.30"},
 }
 
+// slesCodestream extracts the codestream key (e.g. "15.7", "16.0") from an OS image string.
+func slesCodestream(osImage string) string {
+	lower := strings.ToLower(osImage)
+	if match := slesSPRegexp.FindStringSubmatch(lower); len(match) >= 3 {
+		return fmt.Sprintf("%s.%s", match[1], match[2])
+	}
+	if match := slesMajorMinorRegexp.FindStringSubmatch(lower); len(match) >= 3 {
+		return fmt.Sprintf("%s.%s", match[1], match[2])
+	}
+	return ""
+}
+
+// ValidateSLESDriverVersion checks whether driverVersion is supported for the
+// SLES codestream identified by osImage.
+func ValidateSLESDriverVersion(osImage, driverVersion string) error {
+	lower := strings.ToLower(osImage)
+	if !strings.Contains(lower, "suse") && !strings.Contains(lower, "sles") {
+		return nil
+	}
+	cs := slesCodestream(osImage)
+	versions, ok := SlesCSDDriverVersions[cs]
+	if !ok {
+		return fmt.Errorf("unsupported SLES codestream %q in OS image %q", cs, osImage)
+	}
+	for _, v := range versions {
+		if v == driverVersion {
+			return nil
+		}
+	}
+	return fmt.Errorf("driver version %q is not supported for SLES %s; supported versions: %s",
+		driverVersion, cs, strings.Join(versions, ", "))
+}
+
 func SLESDefaultDriverVersionsMapper(fullImageStr string) (string, error) {
 	lower := strings.ToLower(fullImageStr)
 	var csVersion string

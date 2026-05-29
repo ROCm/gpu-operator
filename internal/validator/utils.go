@@ -20,9 +20,12 @@ import (
 	"context"
 	"fmt"
 
+	amdv1alpha1 "github.com/ROCm/gpu-operator/api/v1alpha1"
+	utils "github.com/ROCm/gpu-operator/internal"
 	v1 "k8s.io/api/core/v1"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
@@ -32,6 +35,22 @@ const (
 	ServiceMonitorCRDGroup   = "monitoring.coreos.com"
 	ServiceMonitorCRDVersion = "v1"
 )
+
+// validateSLESDriverVersion lists nodes matching devConfig's selector and, for any
+// SLES node found, checks that driverVersion is a known supported version.
+func validateSLESDriverVersion(ctx context.Context, cli client.Client, devConfig *amdv1alpha1.DeviceConfig, driverVersion string) error {
+	selector := labels.SelectorFromSet(labels.Set(devConfig.Spec.Selector))
+	nodeList := &v1.NodeList{}
+	if err := cli.List(ctx, nodeList, &client.ListOptions{LabelSelector: selector}); err != nil {
+		return fmt.Errorf("failed to list nodes for driver version validation: %v", err)
+	}
+	for _, node := range nodeList.Items {
+		if err := utils.ValidateSLESDriverVersion(node.Status.NodeInfo.OSImage, driverVersion); err != nil {
+			return fmt.Errorf("version validation failed for node %s: %w", node.Name, err)
+		}
+	}
+	return nil
+}
 
 func validateSecret(ctx context.Context, client client.Client, secretRef *v1.LocalObjectReference, namespace string) error {
 	if secretRef == nil || secretRef.Name == "" {
