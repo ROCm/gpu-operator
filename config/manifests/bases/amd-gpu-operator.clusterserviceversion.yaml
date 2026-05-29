@@ -887,7 +887,7 @@ spec:
         x-descriptors:
         - urn:alm:descriptor:com.amd.deviceconfigs:testRunner
       - description: config map to customize the config for test runner, if not specified
-          default test config will be aplied
+          default test config will be applied
         displayName: Secret
         path: testRunner.config
         x-descriptors:
