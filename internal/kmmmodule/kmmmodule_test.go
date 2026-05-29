@@ -741,6 +741,7 @@ var _ = Describe("resolveDockerfile", func() {
 		}{
 			{"ubuntu-22.04", "docker.io/ubuntu:22.04"},
 			{"sles-15.6", "registry.suse.com/bci/bci-micro:15.6"},
+			{"sles-16.0", "registry.suse.com/bci/bci-micro:16.0"},
 		}
 		for _, tc := range testCases {
 			input := &amdv1alpha1.DeviceConfig{
@@ -760,6 +761,7 @@ var _ = Describe("resolveDockerfile", func() {
 		}{
 			{"ubuntu-22.04", "example-image-registry.com/ubuntu:22.04"},
 			{"sles-15.6", "example-image-registry.com/bci/bci-micro:15.6"},
+			{"sles-16.0", "example-image-registry.com/bci/bci-micro:16.0"},
 		}
 		for _, tc := range testCases {
 			input := &amdv1alpha1.DeviceConfig{

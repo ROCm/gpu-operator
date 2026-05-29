@@ -100,6 +100,7 @@ const slesPrebuiltDriverImageRepo = "registry.suse.com/third-party/amd/amdgpu-dr
 // slesCSDGAKernel maps SLES codestream -> GA kernel version used in prebuilt image tags.
 var slesCSDGAKernel = map[string]string{
 	"15.7": "6.4.0-150700.51",
+	"16.0": "6.12.0-160000.5",
 }
 
 // slesPrebuiltDriverImage returns the full prebuilt image reference.
@@ -716,6 +717,12 @@ func slesCMNameMapper(osImageStr string) string {
 	// SP-style notation (e.g. "15 SP7" or "15-sp7")
 	reSP := regexp.MustCompile(`(\d+)\s*-?\s*sp(\d+)`)
 	if matches := reSP.FindStringSubmatch(osImageLower); len(matches) >= 3 {
+		return fmt.Sprintf("sles-%s.%s", matches[1], matches[2])
+	}
+
+	// major.minor notation (e.g. "16.0")
+	reMajorMinor := regexp.MustCompile(`(\d+)\.(\d+)`)
+	if matches := reMajorMinor.FindStringSubmatch(osImageLower); len(matches) >= 3 {
 		return fmt.Sprintf("sles-%s.%s", matches[1], matches[2])
 	}
 

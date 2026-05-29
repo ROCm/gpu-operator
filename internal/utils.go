@@ -235,24 +235,34 @@ func UbuntuDefaultDriverVersionsMapper(fullImageStr string) (string, error) {
 }
 
 var slesSPRegexp = regexp.MustCompile(`(\d+)\s*-?\s*sp(\d+)`)
+var slesMajorMinorRegexp = regexp.MustCompile(`(\d+)\.(\d+)`)
 
 var slesDefaultDriverVersions = map[string]string{
 	"15.7": "31.30",
+	"16.0": "31.30",
 }
 
-var supportedSLESVersions = []string{"SLES 15 SP7"}
+var supportedSLESVersions = []string{"SLES 15 SP7", "SLES 16.0"}
 
 // SlesCSDDriverVersions maps SLES codestream -> supported prebuilt driver versions.
 var SlesCSDDriverVersions = map[string][]string{
 	"15.7": {"7.0.3", "30.20.1", "30.30.3", "31.10", "31.20", "31.30"},
+	"16.0": {"31.10", "31.20", "31.30"},
 }
 
 func SLESDefaultDriverVersionsMapper(fullImageStr string) (string, error) {
 	lower := strings.ToLower(fullImageStr)
+	var csVersion string
 
 	// SP-style notation used by SLES 15 (e.g. "15 SP7" or "15-sp7")
 	if match := slesSPRegexp.FindStringSubmatch(lower); len(match) >= 3 {
-		csVersion := fmt.Sprintf("%s.%s", match[1], match[2])
+		csVersion = fmt.Sprintf("%s.%s", match[1], match[2])
+	} else if match := slesMajorMinorRegexp.FindStringSubmatch(lower); len(match) >= 3 {
+		// major.minor notation used by SLES 16+ (e.g. "16.0")
+		csVersion = fmt.Sprintf("%s.%s", match[1], match[2])
+	}
+
+	if csVersion != "" {
 		if v, ok := slesDefaultDriverVersions[csVersion]; ok {
 			return v, nil
 		}

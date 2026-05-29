@@ -385,6 +385,12 @@ func TestSLESDefaultDriverVersionsMapper(t *testing.T) {
 			wantErr:  false,
 		},
 		{
+			name:     "SLES 16.0",
+			osImage:  "SUSE Linux Enterprise Server 16.0",
+			expected: slesDefaultDriverVersions["16.0"],
+			wantErr:  false,
+		},
+		{
 			name:    "SLES 15 SP6 unsupported",
 			osImage: "SUSE Linux Enterprise Server 15 SP6",
 			wantErr: true,
