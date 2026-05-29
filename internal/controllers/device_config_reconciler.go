@@ -280,6 +280,17 @@ func (r *DeviceConfigReconciler) Reconcile(ctx context.Context, req ctrl.Request
 		return res, fmt.Errorf("validation failed for DeviceConfig %s: %v", req.NamespacedName, result)
 	}
 
+	if len(nodes.Items) == 0 {
+		msg := fmt.Sprintf("no nodes found matching selector %s; verify node labels or check that NFD has labeled the GPU nodes", labels.Set(devConfig.Spec.Selector).String())
+		if errSet := r.helper.setCondition(ctx, conditions.ConditionTypeError, devConfig, metav1.ConditionTrue, conditions.NoMatchingNodes, msg); errSet != nil {
+			logger.Error(fmt.Errorf("Failed to set error condition: %v", errSet), "")
+		}
+		if errSet := r.helper.setCondition(ctx, conditions.ConditionTypeReady, devConfig, metav1.ConditionFalse, conditions.ReadyStatus, ""); errSet != nil {
+			logger.Error(fmt.Errorf("Failed to set ready condition: %v", errSet), "")
+		}
+		return ctrl.Result{}, nil
+	}
+
 	err = r.helper.setFinalizer(ctx, devConfig)
 	if err != nil {
 		return res, fmt.Errorf("failed to set finalizer for DeviceConfig %s: %v", req.NamespacedName, err)
