@@ -1165,3 +1165,8 @@ IPC
 MicroK
 configurability
 remediations
+GRE
+mem
+peqt
+pesm
+rcqt
