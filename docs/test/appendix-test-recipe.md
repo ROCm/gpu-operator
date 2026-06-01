@@ -16,6 +16,37 @@ The test runner's test recipes are built upon ROCm Validation Suite (RVS). Here 
 | MI350X    | ✓     |             | ✓          |            | ✓           | ✓           |            |         |               |            | ✓          |             |             |
 | MI355X    | ✓     |             | ✓          |            | ✓           | ✓           |            |         |               |            | ✓          |             |             |
 
+### Radeon GPU test recipes
+
+| GPU              | mem | gpup_single | gst_single | iet_single | rcqt_single | pbqt_single | pebb_single | peqt_single | pesm_1 | gst_stress_3_hrs |
+|------------------|-----|-------------|------------|------------|-------------|-------------|-------------|-------------|--------|------------------|
+| W6800            | ✓   | ✓           | ✓          | ✓          | ✓           | ✓           | ✓           | ✓           | ✓      | ✓                |
+| RX 6800          | ✓   | ✓           | ✓          | ✓          | ✓           | ✓           | ✓           | ✓           | ✓      | ✓                |
+| RX 6800XT        | ✓   | ✓           | ✓          | ✓          | ✓           | ✓           | ✓           | ✓           | ✓      | ✓                |
+| RX 6900XT        | ✓   | ✓           | ✓          | ✓          | ✓           | ✓           | ✓           | ✓           | ✓      | ✓                |
+| RX 6950XT        | ✓   | ✓           | ✓          | ✓          | ✓           | ✓           | ✓           | ✓           | ✓      | ✓                |
+| W7700            | ✓   | ✓           | ✓          | ✓          | ✓           | ✓           | ✓           | ✓           | ✓      | ✓                |
+| RX 7700          | ✓   | ✓           | ✓          | ✓          | ✓           | ✓           | ✓           | ✓           | ✓      | ✓                |
+| RX 7700XT        | ✓   | ✓           | ✓          | ✓          | ✓           | ✓           | ✓           | ✓           | ✓      | ✓                |
+| RX 7800XT        | ✓   | ✓           | ✓          | ✓          | ✓           | ✓           | ✓           | ✓           | ✓      | ✓                |
+| RX 7800M         | ✓   | ✓           | ✓          | ✓          | ✓           | ✓           | ✓           | ✓           | ✓      | ✓                |
+| W7800            | ✓   | ✓           | ✓          | ✓          | ✓           | ✓           | ✓           | ✓           | ✓      | ✓                |
+| W7800 48GB       | ✓   | ✓           | ✓          | ✓          | ✓           | ✓           | ✓           | ✓           | ✓      | ✓                |
+| W7900            | ✓   | ✓           | ✓          | ✓          | ✓           | ✓           | ✓           | ✓           | ✓      | ✓                |
+| W7900 Dual Slot  | ✓   | ✓           | ✓          | ✓          | ✓           | ✓           | ✓           | ✓           | ✓      | ✓                |
+| W7900D           | ✓   | ✓           | ✓          | ✓          | ✓           | ✓           | ✓           | ✓           | ✓      | ✓                |
+| RX 7900XT        | ✓   | ✓           | ✓          | ✓          | ✓           | ✓           | ✓           | ✓           | ✓      | ✓                |
+| RX 7900XTX       | ✓   | ✓           | ✓          | ✓          | ✓           | ✓           | ✓           | ✓           | ✓      | ✓                |
+| RX 7900GRE       | ✓   | ✓           | ✓          | ✓          | ✓           | ✓           | ✓           | ✓           | ✓      | ✓                |
+| RX 7900M         | ✓   | ✓           | ✓          | ✓          | ✓           | ✓           | ✓           | ✓           | ✓      | ✓                |
+| AI PRO 9600D     |     |             | ✓          | ✓          |             |             |             |             |        |                  |
+| AI PRO 9700      |     |             | ✓          | ✓          |             |             |             |             |        |                  |
+| AI PRO 9700S     |     |             | ✓          | ✓          |             |             |             |             |        |                  |
+| RX 9060          |     |             | ✓          | ✓          |             |             |             |             |        |                  |
+| RX 9060XT        |     |             | ✓          | ✓          |             |             |             |             |        |                  |
+| RX 9070          |     |             | ✓          | ✓          |             |             |             |             |        |                  |
+| RX 9070XT        |     |             | ✓          | ✓          |             |             |             |             |        |                  |
+
 ### Level based test recipes
 
 Pre-configured test recipes are available at five levels of complexity and coverage. To use a level-based test recipe, specify the test recipe name in the config map using the format `levels/rvs_level_1`.
