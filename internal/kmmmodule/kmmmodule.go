@@ -708,21 +708,20 @@ func ubuntuCMNameMapper(osImageStr string) string {
 	return fmt.Sprintf("%s-%s", os, trimmedVersion)
 }
 
+var slesSPRegexp = regexp.MustCompile(`(\d+)\s*-?\s*sp(\d+)`)
+var slesMajorMinorRegexp = regexp.MustCompile(`(\d+)\.(\d+)`)
+
 func slesCMNameMapper(osImageStr string) string {
 	// Example: "SUSE Linux Enterprise Server 15 SP7" -> "sles-15.7"
 	// Example: "suse linux enterprise server 15-sp7" -> "sles-15.7"
 	// Example: "SUSE Linux Enterprise Server 16.0" -> "sles-16.0"
 	osImageLower := strings.ToLower(osImageStr)
 
-	// SP-style notation (e.g. "15 SP7" or "15-sp7")
-	reSP := regexp.MustCompile(`(\d+)\s*-?\s*sp(\d+)`)
-	if matches := reSP.FindStringSubmatch(osImageLower); len(matches) >= 3 {
+	if matches := slesSPRegexp.FindStringSubmatch(osImageLower); len(matches) >= 3 {
 		return fmt.Sprintf("sles-%s.%s", matches[1], matches[2])
 	}
 
-	// major.minor notation (e.g. "16.0")
-	reMajorMinor := regexp.MustCompile(`(\d+)\.(\d+)`)
-	if matches := reMajorMinor.FindStringSubmatch(osImageLower); len(matches) >= 3 {
+	if matches := slesMajorMinorRegexp.FindStringSubmatch(osImageLower); len(matches) >= 3 {
 		return fmt.Sprintf("sles-%s.%s", matches[1], matches[2])
 	}
 

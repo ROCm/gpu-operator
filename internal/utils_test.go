@@ -375,19 +375,19 @@ func TestSLESDefaultDriverVersionsMapper(t *testing.T) {
 		{
 			name:     "SLES 15 SP7",
 			osImage:  "SUSE Linux Enterprise Server 15 SP7",
-			expected: slesDefaultDriverVersions["15.7"],
+			expected: "31.30",
 			wantErr:  false,
 		},
 		{
 			name:     "SLES 15 SP7 with dash format",
 			osImage:  "sles 15-sp7",
-			expected: slesDefaultDriverVersions["15.7"],
+			expected: "31.30",
 			wantErr:  false,
 		},
 		{
 			name:     "SLES 16.0",
 			osImage:  "SUSE Linux Enterprise Server 16.0",
-			expected: slesDefaultDriverVersions["16.0"],
+			expected: "31.30",
 			wantErr:  false,
 		},
 		{

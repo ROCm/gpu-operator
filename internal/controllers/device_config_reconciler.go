@@ -285,7 +285,7 @@ func (r *DeviceConfigReconciler) Reconcile(ctx context.Context, req ctrl.Request
 		if errSet := r.helper.setCondition(ctx, conditions.ConditionTypeError, devConfig, metav1.ConditionTrue, conditions.NoMatchingNodes, msg); errSet != nil {
 			logger.Error(fmt.Errorf("Failed to set error condition: %v", errSet), "")
 		}
-		if errSet := r.helper.setCondition(ctx, conditions.ConditionTypeReady, devConfig, metav1.ConditionFalse, conditions.ReadyStatus, ""); errSet != nil {
+		if errSet := r.helper.setCondition(ctx, conditions.ConditionTypeReady, devConfig, metav1.ConditionFalse, conditions.NoMatchingNodes, msg); errSet != nil {
 			logger.Error(fmt.Errorf("Failed to set ready condition: %v", errSet), "")
 		}
 		return ctrl.Result{}, nil

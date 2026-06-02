@@ -270,6 +270,9 @@ func ValidateSLESDriverVersion(osImage, driverVersion string) error {
 		return nil
 	}
 	cs := slesCodestream(osImage)
+	if cs == "" {
+		return fmt.Errorf("could not determine SLES codestream from OS image %q", osImage)
+	}
 	versions, ok := SlesCSDDriverVersions[cs]
 	if !ok {
 		return fmt.Errorf("unsupported SLES codestream %q in OS image %q", cs, osImage)
