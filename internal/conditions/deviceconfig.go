@@ -35,6 +35,8 @@ const (
 	ErrorStatus = "Error"
 	// ReadyStatus represents operator in ready and healthy state
 	ReadyStatus = "OperatorReady"
+	// NoMatchingNodes indicates no cluster nodes match the DeviceConfig selector
+	NoMatchingNodes = "NoMatchingNodes"
 )
 
 type ConditionManager struct{}

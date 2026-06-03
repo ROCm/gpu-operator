@@ -375,13 +375,19 @@ func TestSLESDefaultDriverVersionsMapper(t *testing.T) {
 		{
 			name:     "SLES 15 SP7",
 			osImage:  "SUSE Linux Enterprise Server 15 SP7",
-			expected: "7.0.3",
+			expected: "31.30",
 			wantErr:  false,
 		},
 		{
 			name:     "SLES 15 SP7 with dash format",
 			osImage:  "sles 15-sp7",
-			expected: "7.0.3",
+			expected: "31.30",
+			wantErr:  false,
+		},
+		{
+			name:     "SLES 16.0",
+			osImage:  "SUSE Linux Enterprise Server 16.0",
+			expected: "31.30",
 			wantErr:  false,
 		},
 		{
@@ -407,6 +413,60 @@ func TestSLESDefaultDriverVersionsMapper(t *testing.T) {
 
 			if result != tt.expected {
 				t.Errorf("SLESDefaultDriverVersionsMapper() = %q, want %q", result, tt.expected)
+			}
+		})
+	}
+}
+
+func TestValidateSLESDriverVersion(t *testing.T) {
+	tests := []struct {
+		name          string
+		osImage       string
+		driverVersion string
+		wantErr       bool
+		errContains   string
+	}{
+		{
+			name:          "non-SLES OS is always valid",
+			osImage:       "Ubuntu 22.04.3 LTS",
+			driverVersion: "6.3.3",
+			wantErr:       false,
+		},
+		{
+			name:          "valid version for SLES 15 SP7",
+			osImage:       "SUSE Linux Enterprise Server 15 SP7",
+			driverVersion: "31.20",
+			wantErr:       false,
+		},
+		{
+			name:          "valid version for SLES 16.0",
+			osImage:       "SUSE Linux Enterprise Server 16.0",
+			driverVersion: "31.10",
+			wantErr:       false,
+		},
+		{
+			name:          "unsupported version on SLES 16.0",
+			osImage:       "SUSE Linux Enterprise Server 16.0",
+			driverVersion: "99.99",
+			wantErr:       true,
+			errContains:   "99.99",
+		},
+		{
+			name:          "unsupported version on SLES 15 SP7",
+			osImage:       "SUSE Linux Enterprise Server 15 SP7",
+			driverVersion: "0.0.0",
+			wantErr:       true,
+			errContains:   "0.0.0",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := ValidateSLESDriverVersion(tt.osImage, tt.driverVersion)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("ValidateSLESDriverVersion() error = %v, wantErr %v", err, tt.wantErr)
+			}
+			if tt.wantErr && tt.errContains != "" && !strings.Contains(err.Error(), tt.errContains) {
+				t.Errorf("error %q does not contain %q", err.Error(), tt.errContains)
 			}
 		})
 	}

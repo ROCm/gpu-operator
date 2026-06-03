@@ -234,19 +234,76 @@ func UbuntuDefaultDriverVersionsMapper(fullImageStr string) (string, error) {
 	return "", fmt.Errorf("unsupported Ubuntu version: %s. Supported versions include 20.04, 22.04 and 24.04", fullImageStr)
 }
 
-var slesSPRegexp = regexp.MustCompile(`15\s*-?\s*sp(\d+)`)
+var slesSPRegexp = regexp.MustCompile(`(\d+)\s*-?\s*sp(\d+)`)
+var slesMajorMinorRegexp = regexp.MustCompile(`(\d+)\.(\d+)`)
 
-func SLESDefaultDriverVersionsMapper(fullImageStr string) (string, error) {
-	if strings.Contains(fullImageStr, "15") {
-		match := slesSPRegexp.FindStringSubmatch(strings.ToLower(fullImageStr))
-		if len(match) > 1 {
-			spVersion, err := strconv.Atoi(match[1])
-			if err == nil && spVersion >= 7 {
-				return "7.0.3", nil // Latest stable version for SP7+
-			}
+var slesDefaultDriverVersions = map[string]string{
+	"15.7": "31.30",
+	"16.0": "31.30",
+}
+
+var supportedSLESVersions = []string{"SLES 15 SP7", "SLES 16.0"}
+
+// SlesCSDDriverVersions maps SLES codestream -> supported prebuilt driver versions.
+var SlesCSDDriverVersions = map[string][]string{
+	"15.7": {"7.0.3", "30.20.1", "30.30.3", "31.10", "31.20", "31.30"},
+	"16.0": {"31.10", "31.20", "31.30"},
+}
+
+// slesCodestream extracts the codestream key (e.g. "15.7", "16.0") from an OS image string.
+func slesCodestream(osImage string) string {
+	lower := strings.ToLower(osImage)
+	if match := slesSPRegexp.FindStringSubmatch(lower); len(match) >= 3 {
+		return fmt.Sprintf("%s.%s", match[1], match[2])
+	}
+	if match := slesMajorMinorRegexp.FindStringSubmatch(lower); len(match) >= 3 {
+		return fmt.Sprintf("%s.%s", match[1], match[2])
+	}
+	return ""
+}
+
+// ValidateSLESDriverVersion checks whether driverVersion is supported for the
+// SLES codestream identified by osImage.
+func ValidateSLESDriverVersion(osImage, driverVersion string) error {
+	lower := strings.ToLower(osImage)
+	if !strings.Contains(lower, "suse") && !strings.Contains(lower, "sles") {
+		return nil
+	}
+	cs := slesCodestream(osImage)
+	if cs == "" {
+		return fmt.Errorf("could not determine SLES codestream from OS image %q", osImage)
+	}
+	versions, ok := SlesCSDDriverVersions[cs]
+	if !ok {
+		return fmt.Errorf("unsupported SLES codestream %q in OS image %q", cs, osImage)
+	}
+	for _, v := range versions {
+		if v == driverVersion {
+			return nil
 		}
 	}
-	return "", fmt.Errorf("unsupported SLES version: %s. Supported versions include SLES 15 SP7 and above", fullImageStr)
+	return fmt.Errorf("driver version %q is not supported for SLES %s; supported versions: %s",
+		driverVersion, cs, strings.Join(versions, ", "))
+}
+
+func SLESDefaultDriverVersionsMapper(fullImageStr string) (string, error) {
+	lower := strings.ToLower(fullImageStr)
+	var csVersion string
+
+	// SP-style notation used by SLES 15 (e.g. "15 SP7" or "15-sp7")
+	if match := slesSPRegexp.FindStringSubmatch(lower); len(match) >= 3 {
+		csVersion = fmt.Sprintf("%s.%s", match[1], match[2])
+	} else if match := slesMajorMinorRegexp.FindStringSubmatch(lower); len(match) >= 3 {
+		// major.minor notation used by SLES 16+ (e.g. "16.0")
+		csVersion = fmt.Sprintf("%s.%s", match[1], match[2])
+	}
+
+	if csVersion != "" {
+		if v, ok := slesDefaultDriverVersions[csVersion]; ok {
+			return v, nil
+		}
+	}
+	return "", fmt.Errorf("unsupported SLES version: %s. Supported versions: %s", fullImageStr, strings.Join(supportedSLESVersions, ", "))
 }
 
 func HasNodeLabelKey(node v1.Node, labelKey string) bool {
