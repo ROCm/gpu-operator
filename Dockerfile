@@ -2,7 +2,7 @@ ARG GOLANG_BASE_IMG=golang:1.26.5
 ARG OPERATOR_CONTROLLER_BASE_IMAGE=registry.access.redhat.com/ubi9/ubi-minimal:9.8
 
 # Build the manager binary
-FROM ${GOLANG_BASE_IMG} AS builder
+FROM --platform=$BUILDPLATFORM ${GOLANG_BASE_IMG} AS builder
 
 USER root
 
@@ -37,11 +37,12 @@ RUN cd helm-charts-k8s/charts && \
 
 ARG TARGET
 ARG TARGETARCH
+ARG TARGETOS
 
 # Build
-RUN git config --global --add safe.directory ${PWD} && make ${TARGET}
+RUN git config --global --add safe.directory ${PWD} && GOOS=${TARGETOS} GOARCH=${TARGETARCH} make ${TARGET}
 
-RUN curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/${TARGETARCH}/kubectl" && \
+RUN curl -LO https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/${TARGETARCH}/kubectl && \
     chmod +x ./kubectl
 
 FROM ${OPERATOR_CONTROLLER_BASE_IMAGE}

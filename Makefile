@@ -357,9 +357,16 @@ manager: $(shell find -name "*.go") go.mod go.sum  ## Build manager binary.
 	GOOS=linux GOARCH=amd64 go build -ldflags="-X main.Version=$(PROJECT_VERSION) -X main.GitCommit=$(GIT_COMMIT) -X main.BuildTag=$(HOURLY_TAG_LABEL)" -o $@.amd64 ./cmd
 	GOOS=linux GOARCH=arm64 go build -ldflags="-X main.Version=$(PROJECT_VERSION) -X main.GitCommit=$(GIT_COMMIT) -X main.BuildTag=$(HOURLY_TAG_LABEL)" -o $@.arm64 ./cmd
 
+# Platforms for multi-arch builds
+PLATFORMS ?= linux/amd64,linux/ppc64le
+
 .PHONY: docker-build
-docker-build: ## Build docker image with the manager.
-	DOCKER_BUILDKIT=1 $(CONTAINER_ENGINE) build --platform linux/amd64,linux/arm64 -t $(IMG) --label HOURLY_TAG=$(HOURLY_TAG_LABEL) --build-arg TARGET=manager --build-arg GOLANG_BASE_IMG=$(GOLANG_BASE_IMG) --build-arg OPERATOR_CONTROLLER_BASE_IMAGE=$(OPERATOR_CONTROLLER_BASE_IMAGE) .
+docker-build: ## Build and push multi-arch docker image with the manager.
+	docker buildx build --platform $(PLATFORMS) -t $(IMG) --label HOURLY_TAG=$(HOURLY_TAG_LABEL) --build-arg TARGET=manager --build-arg GOLANG_BASE_IMG=$(GOLANG_BASE_IMG) --build-arg OPERATOR_CONTROLLER_BASE_IMAGE=$(OPERATOR_CONTROLLER_BASE_IMAGE) --push .
+
+.PHONY: docker-build-local
+docker-build-local: ## Build docker image locally for current architecture only (no push).
+	DOCKER_BUILDKIT=1 docker build -t $(IMG) --label HOURLY_TAG=$(HOURLY_TAG_LABEL) --build-arg TARGET=manager --build-arg GOLANG_BASE_IMG=$(GOLANG_BASE_IMG) --build-arg OPERATOR_CONTROLLER_BASE_IMAGE=$(OPERATOR_CONTROLLER_BASE_IMAGE) .
 
 .PHONY: docker-push
 docker-push: ## Push docker image with the manager.
@@ -370,8 +377,12 @@ docker-save: ## Save the container image with the manager.
 	$(CONTAINER_ENGINE) save $(IMG) | gzip > $(IMAGE_NAME).tar.gz
 
 .PHONY: docker-build-utils
-docker-build-utils: ## Build docker image for utils container.
-	DOCKER_BUILDKIT=1 $(CONTAINER_ENGINE) build --platform linux/amd64,linux/arm64 -t $(UTILS_IMG) --label HOURLY_TAG=$(HOURLY_TAG_LABEL) -f internal/utils_container/Dockerfile .
+docker-build-utils: ## Build and push multi-arch docker image for utils container.
+	docker buildx build --platform $(PLATFORMS) -t $(UTILS_IMG) --label HOURLY_TAG=$(HOURLY_TAG_LABEL) -f internal/utils_container/Dockerfile --push .
+
+.PHONY: docker-build-utils-local
+docker-build-utils-local: ## Build utils docker image locally for current architecture only (no push).
+	DOCKER_BUILDKIT=1 docker build -t $(UTILS_IMG) --label HOURLY_TAG=$(HOURLY_TAG_LABEL) -f internal/utils_container/Dockerfile .
 
 .PHONY: docker-push-utils
 docker-push-utils: ## Push docker image for utils container.
