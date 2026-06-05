@@ -228,28 +228,10 @@ update-registry:
 	-e 's|relatedImageWorker:.*$$|relatedImageWorker: ${KMM_WORKER_IMG}|' \
 	hack/k8s-patch/k8s-kmm-patch/metadata-patch/values.yaml
 
-.PHONY: update-helm-metadata
-update-helm-metadata: ## Update helm Chart.yaml version and appVersion based on HELM_CHART_VERSION
-	sed -i -e 's|appVersion:.*$$|appVersion: "$(HELM_APP_VERSION)"|' hack/k8s-patch/metadata-patch/Chart.yaml
-	sed -i '0,/version:/s|version:.*|version: $(HELM_CHART_VERSION)|' hack/k8s-patch/metadata-patch/Chart.yaml
-
 .PHONY: update-version
-update-version: update-helm-metadata ## Update the Project version in helm charts based on ${PROJECT_VERSION}
-	# updating project version in Dockerfile metadata
-	sed -i 's/release="[^"]*"/release="${IMAGE_TAG}"/g' Dockerfile internal/utils_container/Dockerfile
-	sed -i 's/version="[^"]*"/version="${IMAGE_TAG}"/g' Dockerfile internal/utils_container/Dockerfile
-	# updating default image tags in Go source files
-	sed -i 's|defaultConfigManagerImage.*=.*"docker.io/rocm/device-config-manager:[^"]*"|defaultConfigManagerImage = "docker.io/rocm/device-config-manager:${PROJECT_VERSION}"|' internal/configmanager/configmanager.go
-	sed -i 's|defaultMetricsExporterImage.*=.*"docker.io/rocm/device-metrics-exporter:[^"]*"|defaultMetricsExporterImage = "docker.io/rocm/device-metrics-exporter:${PROJECT_VERSION}"|' internal/metricsexporter/metricsexporter.go
-	sed -i 's|defaultTestRunnerImage.*=.*"docker.io/rocm/test-runner:[^"]*"|defaultTestRunnerImage = "docker.io/rocm/test-runner:${PROJECT_VERSION}"|' internal/testrunner/testrunner.go
+update-version: ## Render all version-bearing files via hack/bump-version.sh based on PROJECT_VERSION / IMAGE_TAG.
+	./hack/bump-version.sh $(PROJECT_VERSION) $(IMAGE_TAG)
 	${MAKE} fmt
-
-.PHONY: update-version-in-ci
-update-version-in-ci: ## Update project version and helm chart references in CI job config (.job.yml) and asset-push script
-	# updating project version in CI job config
-	sed -i -e 's|PROJECT_VERSION=[^ ]*|PROJECT_VERSION=${PROJECT_VERSION}|' .job.yml
-	sed -i '0,/HELM_CHARTS_VERSION=/s|HELM_CHARTS_VERSION=[^ ]*|HELM_CHARTS_VERSION=${PROJECT_VERSION}-$${RELEASE:-dev}|' .job.yml
-	sed -i 's|PROJECT_VERSION:-.*$$|PROJECT_VERSION:-${PROJECT_VERSION}\}|' asset-build/gpuoperator-asset-push.sh
 
 .PHONY: manifests
 manifests: controller-gen update-registry update-version ## Generate ClusterRole and CustomResourceDefinition objects.
