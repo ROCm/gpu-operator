@@ -10,36 +10,36 @@ spec:
     interval: 30s
     rules:
     - record: accelerator_gpu_utilization
-      expr: '{__name__=~".*gpu_gfx_activity$"}'
+      expr: label_replace({__name__=~".*gpu_gfx_activity$"}, "accelerator_id", "$1", "gpu_id", "(.*)")
       labels:
         vendor: "amd"
 
     - record: accelerator_memory_used_bytes
-      expr: '{__name__=~".*gpu_used_vram$"}'
+      expr: label_replace({__name__=~".*gpu_used_vram$"}, "accelerator_id", "$1", "gpu_id", "(.*)")
       labels:
         vendor: "amd"
 
     - record: accelerator_memory_total_bytes
-      expr: '{__name__=~".*gpu_total_vram$"}'
+      expr: label_replace({__name__=~".*gpu_total_vram$"}, "accelerator_id", "$1", "gpu_id", "(.*)")
       labels:
         vendor: "amd"
 
     - record: accelerator_power_usage_watts
-      expr: '{__name__=~".*gpu_power_usage$"}'
+      expr: label_replace({__name__=~".*gpu_power_usage$"}, "accelerator_id", "$1", "gpu_id", "(.*)")
       labels:
         vendor: "amd"
 
     - record: accelerator_temperature_celsius
-      expr: '{__name__=~".*gpu_junction_temperature$"}'
+      expr: label_replace({__name__=~".*gpu_junction_temperature$"}, "accelerator_id", "$1", "gpu_id", "(.*)")
       labels:
         vendor: "amd"
 
     - record: accelerator_sm_clock_hertz
-      expr: '{__name__=~".*gpu_clock$", clock_type=~"GPU_CLOCK_TYPE_SYSTEM|system"}'
+      expr: label_replace({__name__=~".*gpu_clock$", clock_type=~"GPU_CLOCK_TYPE_SYSTEM|system"}, "accelerator_id", "$1", "gpu_id", "(.*)")
       labels:
         vendor: "amd"
 
     - record: accelerator_memory_clock_hertz
-      expr: '{__name__=~".*gpu_clock$", clock_type=~"GPU_CLOCK_TYPE_MEMORY|memory"}'
+      expr: label_replace({__name__=~".*gpu_clock$", clock_type=~"GPU_CLOCK_TYPE_MEMORY|memory"}, "accelerator_id", "$1", "gpu_id", "(.*)")
       labels:
         vendor: "amd"
