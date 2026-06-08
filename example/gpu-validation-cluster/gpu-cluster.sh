@@ -10,6 +10,7 @@ usage() {
     echo "  build                          Build the Docker image"
     echo "  run <server|agent> [args...]   Run the node as server or agent"
     echo "  teardown                       Tear down the cluster and clean up"
+    echo "  reapply-cvf                    Re-apply CVF configs from config.json against the running server container"
     echo "  get-token                      Run on server node to print agent join token"
     echo "  status                         Show cluster validation framework status and recent runs"
     echo "  node-status                    Show validation status per node"
@@ -112,7 +113,14 @@ cmd_run() {
     mkdir -p "$SCRIPT_STATE_DIR/cni-bin"
 
     # Common docker run options
+    # --runtime=runc is pinned because some GPU hosts default dockerd to the
+    # AMD container runtime (Default Runtime: amd in `docker info`). The k3s
+    # control-plane container is privileged and doesn't need GPU passthrough,
+    # so we must not inherit a host default that points at a missing or
+    # GPU-specific runtime binary (would fail at container start with
+    # "amd-container-runtime: executable file not found in $PATH").
     DOCKER_OPTS=(
+        "--runtime=runc"
         "--privileged"
         "--net=host"
         "--cgroupns=host"
@@ -733,6 +741,52 @@ EOF
         docker exec "$CONTAINER_NAME" cp /etc/cni/net.d/00-multus.conflist /etc/cni/net.d/00-multus.conf
     }
 
+    # _patch_embedded_image <cm_name> <data_key> <old_image> <new_image>
+    # Some ConfigMaps embed a full YAML template as a string in their
+    # data field (e.g. cluster-validation-mpijob-config.yaml inside
+    # cluster-validation-mpijob-config). Container images inside those
+    # templates can't be patched via standard `kubectl patch cm` because
+    # the image line is buried in a string value, not a structured key.
+    # This helper reads the data key, runs a literal-text replacement on
+    # the image line, and writes the data key back via dry-run + apply.
+    # No-op when <new_image> is empty (operator left the override blank)
+    # or matches <old_image> (already at target).
+    _patch_embedded_image() {
+        local cm_name="$1"
+        local data_key="$2"
+        local old_image="$3"
+        local new_image="$4"
+        [ -z "$new_image" ] && return 0
+        [ "$new_image" = "$old_image" ] && return 0
+        local current=$(docker exec "$CONTAINER_NAME" kubectl get cm "$cm_name" -n default \
+            -o jsonpath="{.data.${data_key//./\\.}}" 2>/dev/null)
+        if [ -z "$current" ]; then
+            echo "[WARN] _patch_embedded_image: ConfigMap '$cm_name' key '$data_key' not found; skipping image override"
+            return 0
+        fi
+        if ! echo "$current" | grep -qF "image: $old_image"; then
+            echo "[INFO] _patch_embedded_image: '$cm_name'.'$data_key' no longer references '$old_image'; skipping"
+            return 0
+        fi
+        echo "[INFO] Overriding image in $cm_name/$data_key: $old_image -> $new_image"
+        # Use bash literal substring replacement instead of sed. Image
+        # refs commonly contain `.` (e.g. docker.io, version tags like
+        # v1.4.0) which sed would treat as a regex "any char" wildcard,
+        # producing over-permissive matches. Bash `${var//search/replace}`
+        # is a literal-string replace -- no metachar escaping needed for
+        # either side, no risk of `.`/`&`/`|` surprises.
+        local search="image: $old_image"
+        local replace="image: $new_image"
+        local patched="${current//$search/$replace}"
+        # Use kubectl patch --type=merge with a jq-built single-key
+        # payload (jq handles multi-line + escape-sensitive characters
+        # correctly). Other keys in the CM are untouched.
+        local payload=$(jq -nc --arg k "$data_key" --arg v "$patched" \
+            '{data: {($k): $v}}')
+        docker exec "$CONTAINER_NAME" kubectl patch cm "$cm_name" -n default \
+            --type=merge -p "$payload"
+    }
+
     install_cluster_validation_framework() {
         local INSTALL_CVF=$(read_config '.["cluster-validation-framework"]["install-cvf"]')
         if [ "$MODE" != "server" ] || [ "$INSTALL_CVF" != "true" ]; then
@@ -741,27 +795,63 @@ EOF
 
         echo "[INFO] Installing Cluster Validation Framework..."
 
-        # Read configuration values with defaults
-        local CRONJOB_SCHEDULE=$(read_config '.["cluster-validation-framework"].cronjob.schedule // "*/10 * * * *"')
+        # Read configuration values with defaults. These are used to
+        # construct a kubectl patch payload AFTER the YAML is applied,
+        # so the YAML stays valid standalone (operator can do
+        # `kubectl apply -f configs/*.yaml` without this script).
+        local CRONJOB_SCHEDULE=$(read_config '.["cluster-validation-framework"].cronjob.schedule // "*/30 * * * *"')
         local WORKER_REPLICAS=$(read_config '.["cluster-validation-framework"].resources["worker-replicas"] // 2')
         local LAUNCHER_REPLICAS=$(read_config '.["cluster-validation-framework"].resources["launcher-replicas"] // 1')
         local SLOTS_PER_WORKER=$(read_config '.["cluster-validation-framework"].resources["slots-per-worker"] // 8')
         local GPU_PER_WORKER=$(read_config '.["cluster-validation-framework"].resources["gpu-per-worker"] // 8')
         local PF_NIC_PER_WORKER=$(read_config '.["cluster-validation-framework"].resources["pf-nic-per-worker"] // 0')
         local VF_NIC_PER_WORKER=$(read_config '.["cluster-validation-framework"].resources["vf-nic-per-worker"] // 8')
-        local NODE_VALIDATION_INTERVAL=$(read_config '.["cluster-validation-framework"].resources["node-validation-interval-mins"] // 10')
-        local SKIP_GPU_VALIDATION=$(read_config '.["cluster-validation-framework"]["skip-tests"]["skip-gpu-validation"] // false')
-        local SKIP_RCCL_TEST=$(read_config '.["cluster-validation-framework"]["skip-tests"]["skip-rccl-test"] // false')
+        local NODE_VALIDATION_INTERVAL=$(read_config '.["cluster-validation-framework"].resources["node-validation-interval-mins"] // 30')
 
-        # Read node selector labels with default values
-        local NODE_SELECTOR_LABELS=$(read_config '.["cluster-validation-framework"]["node-selector-labels"] // ["feature.node.kubernetes.io/amd-gpu=true", "feature.node.kubernetes.io/amd-nic=true"]')
-        # Convert JSON array to YAML list format with 4 spaces indentation (to match the placeholder indentation)
-        local NODE_SELECTOR_LABELS_YAML=$(echo "$NODE_SELECTOR_LABELS" | jq -r '.[] | "    - " + .')
+        # Per-phase skip flags (all 5 wired). JSON keys carry an
+        # explicit skip-phase{N}- prefix so the config is self-describing.
+        local SKIP_GPU_HW_ACCEPTANCE=$(read_config '.["cluster-validation-framework"]["skip-tests"]["skip-phase1-gpu-hw-acceptance"] // false')
+        local SKIP_GPU_MESH_VALIDATION=$(read_config '.["cluster-validation-framework"]["skip-tests"]["skip-phase2-gpu-mesh-validation"] // false')
+        local SKIP_NIC_VALIDATION=$(read_config '.["cluster-validation-framework"]["skip-tests"]["skip-phase3-nic-validation"] // false')
+        local SKIP_RAIL_BANDWIDTH_TEST=$(read_config '.["cluster-validation-framework"]["skip-tests"]["skip-phase4-rail-bandwidth-test"] // false')
+        local SKIP_RCCL_TEST=$(read_config '.["cluster-validation-framework"]["skip-tests"]["skip-phase5-rccl-test"] // false')
+
+        # Per-Phase-1 stage skip map. Keys carry the same skip-phase1-
+        # prefix as the top-level Phase keys (so the JSON shape stays
+        # uniform); the renderer strips the prefix when looking up each
+        # stage's short Name (e.g. JSON key skip-phase1-gpu-stress ->
+        # stage Name "gpu-stress"). PHASE1_SCRIPT honours the resulting
+        # per-stage "Skip" field in GPU_VALIDATION_STAGES_JSON.
+        local PHASE1_STAGES_SKIP_MAP=$(read_config '.["cluster-validation-framework"]["skip-tests"]["skip-phase1-stages"] // {}')
+
+        # Per-phase timeouts. Phase 1 carries a per-stage map; phases 2-5
+        # carry single scalars. Empty string = keep YAML default.
+        local PHASE1_STAGES_TIMEOUT_MAP=$(read_config '.["cluster-validation-framework"].timeouts["phase1-stages-secs"] // {}')
+        local PHASE2_JOB_WAIT_SECS=$(read_config '.["cluster-validation-framework"].timeouts["phase2-job-wait-secs"] // ""')
+        local PHASE3_JOB_WAIT_SECS=$(read_config '.["cluster-validation-framework"].timeouts["phase3-job-wait-secs"] // ""')
+        local PHASE4_PAIR_WAIT_SECS=$(read_config '.["cluster-validation-framework"].timeouts["phase4-pair-wait-secs"] // ""')
+        local PHASE5_MPIJOB_WAIT_SECS=$(read_config '.["cluster-validation-framework"].timeouts["phase5-mpijob-wait-secs"] // ""')
+
+        # Per-component image overrides. Empty string = keep YAML default.
+        local IMG_ROCE_WORKLOAD=$(read_config '.["cluster-validation-framework"].images["roce-workload"] // ""')
+        # test-runner is a per-framework map: { rvs: "...", agfhc: "..." }.
+        # The renderer looks up each Phase 1 stage by its lowercased
+        # Framework. Empty map = keep YAML defaults on every stage.
+        local IMG_TEST_RUNNER_MAP=$(read_config '.["cluster-validation-framework"].images["test-runner"] // {}')
+        local IMG_ORCHESTRATOR=$(read_config '.["cluster-validation-framework"].images["orchestrator"] // ""')
+        local IMG_PREFLIGHT_INIT=$(read_config '.["cluster-validation-framework"].images["preflight-init"] // ""')
+        local IMG_NIC_HEALTH=$(read_config '.["cluster-validation-framework"].images["nic-health"] // ""')
+
+        # Node-selector labels: surface as a single newline-separated string
+        # (matches the NODE_SELECTOR_LABELS ConfigMap key shape).
+        local NODE_SELECTOR_LABELS=$(read_config '.["cluster-validation-framework"]["node-selector-labels"] // ["feature.node.kubernetes.io/amd-gpu=true"]')
+        local NODE_SELECTOR_LABELS_FLAT=$(echo "$NODE_SELECTOR_LABELS" | jq -r 'join("\n")')
 
         echo "[INFO]   CronJob Schedule: $CRONJOB_SCHEDULE"
         echo "[INFO]   Node Selector Labels: $(echo "$NODE_SELECTOR_LABELS" | jq -r 'join(", ")')"
         echo "[INFO]   Resources - Workers: $WORKER_REPLICAS, GPUs/Worker: $GPU_PER_WORKER"
-        echo "[INFO]   Skip GPU Validation: $SKIP_GPU_VALIDATION, Skip RCCL Test: $SKIP_RCCL_TEST"
+        echo "[INFO]   Skip flags: HW=$SKIP_GPU_HW_ACCEPTANCE Mesh=$SKIP_GPU_MESH_VALIDATION NIC=$SKIP_NIC_VALIDATION Rail=$SKIP_RAIL_BANDWIDTH_TEST RCCL=$SKIP_RCCL_TEST"
+        echo "[INFO]   Timeouts (s): P2=${PHASE2_JOB_WAIT_SECS:-default} P3=${PHASE3_JOB_WAIT_SECS:-default} P4=${PHASE4_PAIR_WAIT_SECS:-default} P5=${PHASE5_MPIJOB_WAIT_SECS:-default}; Node-interval(min)=$NODE_VALIDATION_INTERVAL"
 
         # Install MPI Operator
         echo "[INFO] Installing MPI Operator..."
@@ -769,36 +859,182 @@ EOF
         docker exec "$CONTAINER_NAME" kubectl apply --server-side --force-conflicts -f https://raw.githubusercontent.com/kubeflow/mpi-operator/$MPI_OPERATOR_VERSION/deploy/v2beta1/mpi-operator.yaml
         echo "[INFO] MPI Operator installation completed"
 
-        # Apply cluster-validation-config.yaml with substitutions
+        # ============================================================
+        # Step A: apply YAMLs as-is (defaults take effect)
+        # ============================================================
         echo "[INFO] Applying Cluster Validation ConfigMap..."
-        # Do substitutions using a bash while-loop to properly handle multiline content
-        docker exec "$CONTAINER_NAME" cat /configs/cluster-validation-config.yaml | \
-            while IFS= read -r line; do
-                line="${line//__WORKER_REPLICAS__/$WORKER_REPLICAS}"
-                line="${line//__LAUNCHER_REPLICAS__/$LAUNCHER_REPLICAS}"
-                line="${line//__SLOTS_PER_WORKER__/$SLOTS_PER_WORKER}"
-                line="${line//__GPU_PER_WORKER__/$GPU_PER_WORKER}"
-                line="${line//__PF_NIC_PER_WORKER__/$PF_NIC_PER_WORKER}"
-                line="${line//__VF_NIC_PER_WORKER__/$VF_NIC_PER_WORKER}"
-                line="${line//__NODE_VALIDATION_INTERVAL_MINS__/$NODE_VALIDATION_INTERVAL}"
-                line="${line//__SKIP_GPU_VALIDATION__/$SKIP_GPU_VALIDATION}"
-                line="${line//__SKIP_RCCL_TEST__/$SKIP_RCCL_TEST}"
-                # Handle multiline NODE_SELECTOR_LABELS replacement
-                if [[ "$line" == *"__NODE_SELECTOR_LABELS__"* ]]; then
-                    echo "$NODE_SELECTOR_LABELS_YAML"
-                else
-                    echo "$line"
-                fi
-            done | docker exec -i "$CONTAINER_NAME" kubectl apply -f -
+        docker exec "$CONTAINER_NAME" kubectl apply -f /configs/cluster-validation-config.yaml
 
-        # Apply cluster-validation-job.yaml with substitutions
         echo "[INFO] Applying Cluster Validation CronJob..."
-        docker exec "$CONTAINER_NAME" sh -c "cat /configs/cluster-validation-job.yaml | \
-            sed 's|__CRONJOB_SCHEDULE__|'\"${CRONJOB_SCHEDULE}\"'|g' | \
-            kubectl apply -f -"
+        docker exec "$CONTAINER_NAME" kubectl apply -f /configs/cluster-validation-job.yaml
+
+        # ============================================================
+        # Step B: patch CM scalar keys from config.json (no-op when
+        # the JSON values already match the YAML defaults).
+        # ============================================================
+        echo "[INFO] Applying ConfigMap overrides from config.json..."
+        local CM_PATCH=$(jq -nc \
+            --arg wr "$WORKER_REPLICAS" \
+            --arg lr "$LAUNCHER_REPLICAS" \
+            --arg sw "$SLOTS_PER_WORKER" \
+            --arg gw "$GPU_PER_WORKER" \
+            --arg pf "$PF_NIC_PER_WORKER" \
+            --arg vf "$VF_NIC_PER_WORKER" \
+            --arg iv "$NODE_VALIDATION_INTERVAL" \
+            --arg sa "$SKIP_GPU_HW_ACCEPTANCE" \
+            --arg sm "$SKIP_GPU_MESH_VALIDATION" \
+            --arg sn "$SKIP_NIC_VALIDATION" \
+            --arg sb "$SKIP_RAIL_BANDWIDTH_TEST" \
+            --arg sr "$SKIP_RCCL_TEST" \
+            --arg nsl "$NODE_SELECTOR_LABELS_FLAT" \
+            --arg roceimg "$IMG_ROCE_WORKLOAD" \
+            --arg t2 "$PHASE2_JOB_WAIT_SECS" \
+            --arg t3 "$PHASE3_JOB_WAIT_SECS" \
+            --arg t4 "$PHASE4_PAIR_WAIT_SECS" \
+            --arg t5 "$PHASE5_MPIJOB_WAIT_SECS" \
+            '{data: ({
+                WORKER_REPLICAS: $wr, LAUNCHER_REPLICAS: $lr,
+                SLOTS_PER_WORKER: $sw, GPU_PER_WORKER: $gw,
+                PF_NIC_PER_WORKER: $pf, VF_NIC_PER_WORKER: $vf,
+                NODE_VALIDATION_INTERVAL_MINS: $iv,
+                SKIP_GPU_HW_ACCEPTANCE: $sa, SKIP_GPU_MESH_VALIDATION: $sm,
+                SKIP_NIC_VALIDATION: $sn, SKIP_RAIL_BANDWIDTH_TEST: $sb,
+                SKIP_RCCL_TEST: $sr,
+                NODE_SELECTOR_LABELS: ($nsl + "\n")
+              }
+              + (if $roceimg != "" then {ROCE_WORKLOAD_IMAGE: $roceimg} else {} end)
+              + (if $t2 != "" then {PHASE2_JOB_WAIT_TIME: $t2} else {} end)
+              + (if $t3 != "" then {PHASE3_JOB_WAIT_TIME: $t3} else {} end)
+              + (if $t4 != "" then {PHASE4_PAIR_WAIT_TIME: $t4} else {} end)
+              + (if $t5 != "" then {MPIJOB_WAIT_TIME: $t5} else {} end)
+              )}')
+        docker exec "$CONTAINER_NAME" kubectl patch cm cluster-validation-config -n default \
+            --type=merge -p "$CM_PATCH"
+
+        # ============================================================
+        # Step C: patch the Phase 1 stages JSON inside the CM (per-stage
+        # Skip flag + optional global test-runner image override).
+        # Read the freshly-applied YAML's stages, mutate via jq, write
+        # back as a single-key patch.
+        # ============================================================
+        local CURRENT_STAGES=$(docker exec "$CONTAINER_NAME" kubectl get cm cluster-validation-config -n default \
+            -o jsonpath='{.data.GPU_VALIDATION_STAGES_JSON}')
+        if [ -n "$CURRENT_STAGES" ]; then
+            # Skip-map and timeout-map keys for a stage with Name="gpu-stress"
+            # are "skip-phase1-gpu-stress" / "phase1-gpu-stress". jq prepends
+            # the appropriate prefix during lookup so stage Names in YAML
+            # stay short. TimeoutSeconds override is applied only when the
+            # timeout map carries an entry; otherwise the YAML default
+            # survives. Image override is looked up by lowercased Framework
+            # (rvs/agfhc) so RVS and AGFHC test-runner releases can be pinned
+            # independently.
+            local NEW_STAGES=$(jq -c --argjson skipmap "$PHASE1_STAGES_SKIP_MAP" \
+                                     --argjson timeoutmap "$PHASE1_STAGES_TIMEOUT_MAP" \
+                                     --argjson trimgmap "$IMG_TEST_RUNNER_MAP" '
+                map(
+                    . + {Skip: ($skipmap[("skip-phase1-" + .Name)] // false)}
+                    | (if ($timeoutmap[("phase1-" + .Name)] // null) != null
+                         then .TimeoutSeconds = $timeoutmap[("phase1-" + .Name)]
+                         else . end)
+                    | (.Framework as $fw
+                       | ($trimgmap[$fw | ascii_downcase] // "") as $img
+                       | if $img != "" then .Image = $img else . end)
+                )' <<<"$CURRENT_STAGES")
+            local STAGES_PATCH=$(jq -nc --arg s "$NEW_STAGES" '{data: {GPU_VALIDATION_STAGES_JSON: $s}}')
+            docker exec "$CONTAINER_NAME" kubectl patch cm cluster-validation-config -n default \
+                --type=merge -p "$STAGES_PATCH"
+        fi
+
+        # ============================================================
+        # Step D: patch the CronJob (schedule + orchestrator image).
+        # ============================================================
+        docker exec "$CONTAINER_NAME" kubectl patch cronjob cluster-validation-cron-job -n default \
+            --type=merge -p "{\"spec\":{\"schedule\":\"$CRONJOB_SCHEDULE\"}}"
+        if [ -n "$IMG_ORCHESTRATOR" ]; then
+            docker exec "$CONTAINER_NAME" kubectl set image \
+                cronjob/cluster-validation-cron-job submit-mpijob="$IMG_ORCHESTRATOR" -n default
+        fi
+
+        # ============================================================
+        # Step E: patch images embedded inside other ConfigMap data
+        # (the preflight init container and the Phase 3 nic-health Job
+        # are nested in YAML strings inside their CMs). Only runs when
+        # the config.json override is non-empty AND differs from the
+        # YAML default.
+        # ============================================================
+        _patch_embedded_image cluster-validation-mpijob-config \
+            "cluster-validation-mpijob-config.yaml" \
+            "docker.io/bitnamilegacy/kubectl:1.33.4" \
+            "$IMG_PREFLIGHT_INIT"
+        _patch_embedded_image cluster-validation-phase3-job-config \
+            "cluster-validation-phase3-job-config.yaml" \
+            "docker.io/rocm/network-operator-utils:v1.1.0" \
+            "$IMG_NIC_HEALTH"
+
+        # Apply per-rail NetworkAttachmentDefinitions (Phase 4 prerequisite).
+        # Phase 4's pairwise rail bandwidth test pins each pod to a specific
+        # rail's NIC via the annotation
+        # k8s.v1.cni.cncf.io/networks: amd-host-device-nad-rail-${RAIL_IDX}
+        # (cluster-validation-config.yaml: PHASE4_NAD_NAME_PREFIX). Without
+        # these NADs, every rail-test exits as `ib-write-bw-crashed`.
+        #
+        # The Multus CRD is installed by the AMD network-operator helm
+        # chart, which runs ASYNCHRONOUSLY relative to this script: the
+        # chart is staged by k3s on container start and may take up to
+        # ~2 min to complete after the API server is ready. We poll for
+        # the CRD (correct name: `network-attachment-definitions.k8s.cni.cncf.io`
+        # -- plural form with dashes per the upstream Multus deployment)
+        # then apply. `kubectl apply -f` is idempotent so re-applies on
+        # subsequent `run server` invocations are no-ops.
+        echo "[INFO] Applying Phase 4 per-rail NetworkAttachmentDefinitions..."
+        local NAD_CRD_NAME="network-attachment-definitions.k8s.cni.cncf.io"
+        local NAD_WAIT_TIMEOUT=180   # seconds
+        local nad_deadline=$(( $(date +%s) + NAD_WAIT_TIMEOUT ))
+        local nad_applied=false
+        while [ "$(date +%s)" -lt "$nad_deadline" ]; do
+            if docker exec "$CONTAINER_NAME" kubectl get crd "$NAD_CRD_NAME" >/dev/null 2>&1; then
+                docker exec "$CONTAINER_NAME" kubectl wait --for=condition=Established \
+                    --timeout=30s "crd/$NAD_CRD_NAME" >/dev/null 2>&1 || true
+                if docker exec "$CONTAINER_NAME" kubectl apply -f /configs/nad-per-rail.yaml; then
+                    nad_applied=true
+                fi
+                break
+            fi
+            echo "[INFO] Waiting for Multus CRD ($NAD_CRD_NAME) -- network-operator install in progress..."
+            sleep 5
+        done
+        if [ "$nad_applied" = "false" ]; then
+            echo "[WARN] Multus CRD did not appear within ${NAD_WAIT_TIMEOUT}s -- skipping per-rail NADs."
+            echo "[WARN] Phase 4 (rail bandwidth) will fail until Multus + per-rail NADs are present."
+            echo "[WARN] After Multus is up, re-apply manually: kubectl apply -f /configs/nad-per-rail.yaml"
+        fi
 
         echo "[INFO] Cluster Validation Framework installation completed"
     }
+
+    # ============================================================
+    # REAPPLY_CVF_ONLY fast-path: re-run install_cluster_validation_framework
+    # against the already-running 'server' container, then exit.
+    # Driven by `cmd_reapply_cvf`. The full bringup (docker run, k3s
+    # start, driver install, multus artifacts) is skipped — only the
+    # apply-then-patch CVF block runs. Caller must guarantee the
+    # server container is already up; we re-check here.
+    # ============================================================
+    if [ "${REAPPLY_CVF_ONLY:-}" = "true" ]; then
+        if [ "$MODE" != "server" ]; then
+            echo "[ERROR] REAPPLY_CVF_ONLY requires MODE=server (got: $MODE)"
+            exit 1
+        fi
+        if ! docker ps --format '{{.Names}}' | grep -qx "$CONTAINER_NAME"; then
+            echo "[ERROR] reapply-cvf: container '$CONTAINER_NAME' is not running"
+            echo "[INFO] Bring up the cluster first: $0 run server"
+            exit 1
+        fi
+        echo "[INFO] Reapply mode: re-running CVF apply+patch against existing '$CONTAINER_NAME' container"
+        install_cluster_validation_framework
+        echo "[INFO] CVF reapply completed"
+        return 0
+    fi
 
     # Print sanitized command without exposing sensitive information
     if [ "$MODE" = "agent" ]; then
@@ -856,6 +1092,13 @@ EOF
     echo "[INFO]"
     echo "[INFO] Keeping script running... Press Ctrl+C to exit (container will continue running)"
     wait $CONTAINER_PID
+}
+
+cmd_reapply_cvf() {
+    # Reapply CVF configs from config.json against the already-running
+    # server container. Use after editing configs/*.yaml or config.json
+    # without tearing down the cluster.
+    REAPPLY_CVF_ONLY=true cmd_run server
 }
 
 cmd_teardown() {
@@ -1140,6 +1383,9 @@ case "$COMMAND" in
         ;;
     teardown)
         cmd_teardown "$@"
+        ;;
+    reapply-cvf)
+        cmd_reapply_cvf "$@"
         ;;
     get-token)
         cmd_get_token "$@"

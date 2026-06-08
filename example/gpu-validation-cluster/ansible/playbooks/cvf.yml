@@ -1,0 +1,796 @@
+---
+# Single dispatcher for Cluster Validation Framework day-2 operations.
+# All CVF actions live here behind `-e action=<name>`; lifecycle playbooks
+# (setup-cluster / teardown-cluster / setup-ssh-keys / add-agent-nodes /
+# remove-agent-nodes) remain separate.
+#
+# Actions:
+#   reapply          -- copy configs/ + gpu-cluster.sh to server-node and
+#                       run `gpu-cluster.sh reapply-cvf` (kubectl apply
+#                       YAMLs + kubectl patch CM/CronJob from config.json
+#                       overrides). config.json itself is NOT applied to
+#                       k8s; it's the source of patches. Does not propagate
+#                       global.image-pull-secrets -- use inject-secret.
+#
+#   reset            -- clear per-phase labels + annotations on every node.
+#                       Optional:
+#                         -e suspend_cronjob=true    suspend the CronJob
+#                         -e delete_completed_jobs=true   GC completed Jobs
+#                         -e delete_all_jobs=true    nuke ALL CVF Jobs +
+#                                                    MPIJobs + orphan pods
+#                                                    (used for tangled runs)
+#
+#   inject-secret    -- create/update docker-registry Secret(s) + strategic-
+#                       merge-patch cluster-validation-sa.imagePullSecrets.
+#                       Reads global.image-pull-secrets from CONTROLLER-side
+#                       config.json; affects only pods created after patch.
+#                       CLI override (single ad-hoc):
+#                         -e username=foo -e token=bar [-e registry_url=...]
+#                                                      [-e secret_name=...]
+#
+#   trigger          -- idempotent `kubectl create job --from=cronjob/...`
+#                       using a fixed name (default cvf-test). Deletes prior
+#                       Job + orphan pods first.
+#                         -e job_name=<name>   override default cvf-test
+#
+#                       Cron-vs-manual race: CronJob.concurrencyPolicy=Forbid
+#                       only blocks cron-vs-cron overlap, NOT manual-vs-cron.
+#                       If a manual `trigger` run exceeds the */30 schedule,
+#                       the next cron tick spawns a parallel orchestrator
+#                       that re-selects the same nodes and hits the
+#                       Phase 4 immutable-selector race on per-rail Jobs
+#                       (cvf-p4-{server,client}-<hash>-r<N> have no
+#                       timestamp suffix). Recommended pattern when
+#                       triggering manually for runs >30min:
+#                         ansible-playbook playbooks/cvf.yml -e action=reset \
+#                                          -e suspend_cronjob=true
+#                         ansible-playbook playbooks/cvf.yml -e action=trigger
+#                         # ...wait for completion, then re-enable:
+#                         docker exec server kubectl patch cronjob \
+#                           cluster-validation-cron-job -n default \
+#                           --type=merge -p '{"spec":{"suspend":false}}'
+#                       fresh-run does NOT auto-suspend the cron -- combine
+#                       with `-e suspend_cronjob=true` if a long run is
+#                       expected (or run fresh-run when no cron tick is due).
+#
+#   status           -- dump CronJob state, recent orchestrator pods, latest
+#                       orchestrator log tail, in-flight phase Jobs, MPIJob
+#                       state, per-node phase labels + Phase 1 stage
+#                       annotations + failure-reason annotations.
+#
+#   fresh-run        -- composite: reapply -> reset (delete_all_jobs=true) ->
+#                       inject-secret -> trigger -> status. Replaces the
+#                       4-command sequence operators kept typing.
+#
+# Examples:
+#   ansible-playbook -i inventory.test.yml playbooks/cvf.yml -e action=reapply
+#   ansible-playbook -i inventory.test.yml playbooks/cvf.yml -e action=reset -e delete_all_jobs=true
+#   ansible-playbook -i inventory.test.yml playbooks/cvf.yml -e action=inject-secret
+#   ansible-playbook -i inventory.test.yml playbooks/cvf.yml -e action=inject-secret -e username=u -e token=t
+#   ansible-playbook -i inventory.test.yml playbooks/cvf.yml -e action=trigger -e job_name=my-run
+#   ansible-playbook -i inventory.test.yml playbooks/cvf.yml -e action=status
+#   ansible-playbook -i inventory.test.yml playbooks/cvf.yml -e action=fresh-run
+
+- name: CVF day-2 operations (server-side)
+  hosts: server_nodes
+  gather_facts: false
+  vars:
+    action: ""
+    container_name: server
+    cvf_namespace: default
+    service_account_name: cluster-validation-sa
+    cronjob_name: cluster-validation-cron-job
+    job_name: cvf-test
+    delete_all_jobs: false
+    delete_completed_jobs: false
+    suspend_cronjob: false
+    # inject-secret CLI override (when both username+token are set,
+    # config.json is bypassed for a single ad-hoc secret).
+    registry_url: ""
+    username: ""
+    token: ""
+    secret_name: ""
+    _valid_actions:
+      - reapply
+      - reset
+      - inject-secret
+      - trigger
+      - status
+      - fresh-run
+    _is_fresh_run: "{{ action == 'fresh-run' }}"
+  tasks:
+    - name: Validate action
+      fail:
+        msg: |
+          Unknown or missing action: '{{ action }}'.
+          Valid: {{ _valid_actions | join(', ') }}.
+          Use -e action=<name>.
+      when: action not in _valid_actions
+
+    # ======================================================================
+    # Action: reapply
+    # ======================================================================
+    - name: reapply > copy configs/ to server node
+      copy:
+        src: "{{ playbook_dir }}/../../configs/"
+        dest: "{{ config_dir }}/"
+        mode: '0644'
+      when: action == 'reapply' or _is_fresh_run
+
+    - name: reapply > copy gpu-cluster.sh to server node
+      copy:
+        src: "{{ playbook_dir }}/../../gpu-cluster.sh"
+        dest: "{{ script_dir }}/gpu-cluster.sh"
+        mode: '0755'
+      when: action == 'reapply' or _is_fresh_run
+
+    - name: reapply > verify server container is running
+      shell: docker ps --format '{% raw %}{{.Names}}{% endraw %}' | grep -qx '{{ container_name }}'
+      changed_when: false
+      when: action == 'reapply' or _is_fresh_run
+
+    - name: reapply > run gpu-cluster.sh reapply-cvf
+      shell: |
+        cd {{ script_dir }}
+        CONFIG_DIR={{ config_dir }} ./gpu-cluster.sh reapply-cvf
+      register: reapply_out
+      changed_when: true
+      when: action == 'reapply' or _is_fresh_run
+
+    - name: reapply > show last 20 lines of reapply output
+      debug:
+        msg: "{{ reapply_out.stdout_lines[-20:] }}"
+      when: (action == 'reapply' or _is_fresh_run) and reapply_out is defined
+
+    - name: reapply > verify post-patch CM keys
+      shell: |
+        docker exec {{ container_name }} kubectl get cm cluster-validation-config -n {{ cvf_namespace }} \
+          -o jsonpath='{.data.SKIP_GPU_HW_ACCEPTANCE}{"|"}{.data.SKIP_GPU_MESH_VALIDATION}{"|"}{.data.SKIP_NIC_VALIDATION}{"|"}{.data.SKIP_RAIL_BANDWIDTH_TEST}{"|"}{.data.SKIP_RCCL_TEST}{"|"}{.data.NODE_VALIDATION_INTERVAL_MINS}{"|"}{.data.PHASE2_JOB_WAIT_TIME}{"|"}{.data.PHASE3_JOB_WAIT_TIME}{"|"}{.data.PHASE4_PAIR_WAIT_TIME}{"|"}{.data.MPIJOB_WAIT_TIME}'
+      register: reapply_cm
+      changed_when: false
+      when: action == 'reapply' or _is_fresh_run
+
+    - debug:
+        msg: "CM keys (SKIP1|SKIP2|SKIP3|SKIP4|SKIP5|INTERVAL|P2|P3|P4|P5): {{ reapply_cm.stdout }}"
+      when: (action == 'reapply' or _is_fresh_run) and reapply_cm is defined
+
+    - name: reapply > verify CronJob schedule
+      shell: |
+        docker exec {{ container_name }} kubectl get cronjob {{ cronjob_name }} -n {{ cvf_namespace }} \
+          -o jsonpath='{.spec.schedule}'
+      register: reapply_cron
+      changed_when: false
+      when: action == 'reapply' or _is_fresh_run
+
+    - debug:
+        msg: "CronJob schedule: {{ reapply_cron.stdout }}"
+      when: (action == 'reapply' or _is_fresh_run) and reapply_cron is defined
+
+    - name: reapply > verify Phase 1 stages JSON (Skip + TimeoutSeconds + Image)
+      shell: |
+        docker exec {{ container_name }} kubectl get cm cluster-validation-config -n {{ cvf_namespace }} \
+          -o jsonpath='{.data.GPU_VALIDATION_STAGES_JSON}' \
+          | jq -c '[.[] | {Name, Skip, TimeoutSeconds, Image}]'
+      register: reapply_stages
+      changed_when: false
+      when: action == 'reapply' or _is_fresh_run
+
+    - debug:
+        msg: "{{ reapply_stages.stdout }}"
+      when: (action == 'reapply' or _is_fresh_run) and reapply_stages is defined
+
+    # ======================================================================
+    # Action: reset
+    # fresh-run forces delete_all_jobs=true so nothing lingers.
+    # ======================================================================
+    - name: reset > set delete_all_jobs=true under fresh-run
+      set_fact:
+        delete_all_jobs: true
+      when: _is_fresh_run
+
+    - name: reset > show node labels (before)
+      shell: |
+        docker exec {{ container_name }} kubectl get nodes \
+          -L amd.com/gpu-hw-acceptance \
+          -L amd.com/gpu-mesh-validation \
+          -L amd.com/nic-health \
+          -L amd.com/rail-bandwidth \
+          -L amd.com/cluster-validation-status
+      register: reset_before
+      changed_when: false
+      when: action == 'reset' or _is_fresh_run
+
+    - debug:
+        msg: "{{ reset_before.stdout_lines }}"
+      when: (action == 'reset' or _is_fresh_run) and reset_before is defined
+
+    - name: reset > remove per-phase labels + candidate label on every node
+      shell: |
+        set -eu
+        for N in $(docker exec {{ container_name }} kubectl get nodes -o jsonpath='{.items[*].metadata.name}'); do
+          docker exec {{ container_name }} kubectl label node "$N" \
+            amd.com/gpu-hw-acceptance- \
+            amd.com/gpu-mesh-validation- \
+            amd.com/nic-health- \
+            amd.com/rail-bandwidth- \
+            amd.com/cluster-validation-status- \
+            amd.com/cluster-validation-candidate- \
+            --overwrite 2>&1 | sed 's/^/  /' || true
+        done
+      args:
+        executable: /bin/bash
+      register: reset_label_clear
+      changed_when: "'labeled' in (reset_label_clear.stdout | default(''))"
+      when: action == 'reset' or _is_fresh_run
+
+    - name: reset > remove last-run timestamp + per-stage + failure-reason annotations
+      shell: |
+        set -eu
+        for N in $(docker exec {{ container_name }} kubectl get nodes -o jsonpath='{.items[*].metadata.name}'); do
+          docker exec {{ container_name }} kubectl annotate node "$N" \
+            amd.com/cluster-validation-last-run-timestamp- \
+            --overwrite 2>&1 | sed 's/^/  /' || true
+          KEYS=$(docker exec {{ container_name }} kubectl get node "$N" -o json \
+            | jq -r '(.metadata.annotations // {})
+                     | keys[]
+                     | select(startswith("amd.com/gpu-hw-acceptance-stage-")
+                              or test("amd.com/.+-(failure-reason|failed-subtest|failed-nics)$"))')
+          for K in $KEYS; do
+            docker exec {{ container_name }} kubectl annotate node "$N" "${K}-" \
+              --overwrite 2>&1 | sed 's/^/  /' || true
+          done
+        done
+      args:
+        executable: /bin/bash
+      register: reset_ann_clear
+      changed_when: "'annotated' in (reset_ann_clear.stdout | default(''))"
+      when: action == 'reset' or _is_fresh_run
+
+    - name: reset > suspend CronJob (optional)
+      shell: |
+        docker exec {{ container_name }} kubectl patch cronjob {{ cronjob_name }} \
+          -n {{ cvf_namespace }} --type=merge -p '{"spec":{"suspend":true}}'
+      args:
+        executable: /bin/bash
+      register: reset_cron_suspend
+      changed_when: "'patched' in (reset_cron_suspend.stdout | default(''))"
+      when: (action == 'reset' or _is_fresh_run) and (suspend_cronjob | bool)
+
+    - name: reset > delete completed Jobs (optional, mutually exclusive with delete_all_jobs)
+      shell: |
+        set -eu
+        docker exec {{ container_name }} kubectl get jobs -n {{ cvf_namespace }} -o json \
+          | jq -r '.items
+                   | map(select(.status.active // 0 == 0))
+                   | map(select(.status.succeeded // 0 > 0 or .status.failed // 0 > 0))
+                   | .[].metadata.name' \
+          | while read -r J; do
+              docker exec {{ container_name }} kubectl delete job "$J" -n {{ cvf_namespace }} 2>&1 | sed 's/^/  /' || true
+            done
+      args:
+        executable: /bin/bash
+      register: reset_job_completed
+      changed_when: "'deleted' in (reset_job_completed.stdout | default(''))"
+      when:
+        - action == 'reset' or _is_fresh_run
+        - delete_completed_jobs | bool
+        - not (delete_all_jobs | bool)
+
+    - name: reset > delete ALL CVF Jobs + MPIJob CRDs + orphan pods (optional)
+      shell: |
+        set -eu
+        # 1. Phase 5 MPIJob CRDs (cascade-deletes launcher Job + worker pods).
+        docker exec {{ container_name }} kubectl get mpijobs.kubeflow.org -n {{ cvf_namespace }} -o json 2>/dev/null \
+          | jq -r '.items
+                   | map(select(.metadata.name | startswith("cluster-validation-mpi-job-")
+                                or startswith("cvf-")))
+                   | .[].metadata.name' \
+          | while read -r M; do
+              docker exec {{ container_name }} kubectl delete mpijob.kubeflow.org "$M" -n {{ cvf_namespace }} --wait=true 2>&1 | sed 's/^/  /' || true
+            done
+
+        # 2. batch/v1 Jobs. wait=true is intentional - next trigger
+        #    reuses these names and kubectl apply rejects rc=2 if the
+        #    same-name Job is still in-flight selector immutable.
+        docker exec {{ container_name }} kubectl get jobs -n {{ cvf_namespace }} -o json \
+          | jq -r '.items
+                   | map(select((.metadata.name | startswith("cluster-validation-cron-job-"))
+                                or (.metadata.name | startswith("cluster-validation-mpi-job-"))
+                                or (.metadata.name | startswith("cvf-e2e"))
+                                or (.metadata.name | startswith("cvf-test"))
+                                or (.metadata.name | startswith("cvf-tr"))
+                                or (.metadata.name | startswith("cvf-phase"))
+                                or (.metadata.name | startswith("cvf-p4"))
+                                or (.metadata.name | startswith("ib-write-bw"))))
+                   | .[].metadata.name' \
+          | while read -r J; do
+              docker exec {{ container_name }} kubectl delete job "$J" -n {{ cvf_namespace }} --wait=true 2>&1 | sed 's/^/  /' || true
+            done
+
+        # 3. Orphan pods that survived Job/MPIJob deletion.
+        docker exec {{ container_name }} kubectl get pods -n {{ cvf_namespace }} -o json \
+          | jq -r '.items
+                   | map(select((.metadata.name | startswith("cluster-validation-cron-job-"))
+                                or (.metadata.name | startswith("cluster-validation-mpi-job-"))
+                                or (.metadata.name | startswith("cvf-e2e"))
+                                or (.metadata.name | startswith("cvf-test"))
+                                or (.metadata.name | startswith("cvf-tr"))
+                                or (.metadata.name | startswith("cvf-phase"))
+                                or (.metadata.name | startswith("cvf-p4"))
+                                or (.metadata.name | startswith("ib-write-bw"))))
+                   | .[].metadata.name' \
+          | while read -r P; do
+              docker exec {{ container_name }} kubectl delete pod "$P" -n {{ cvf_namespace }} --force --grace-period=0 2>&1 | sed 's/^/  /' || true
+            done
+      args:
+        executable: /bin/bash
+      register: reset_all_jobs
+      changed_when: "'deleted' in (reset_all_jobs.stdout | default(''))"
+      when: (action == 'reset' or _is_fresh_run) and (delete_all_jobs | bool)
+
+    - name: reset > show node labels (after)
+      shell: |
+        docker exec {{ container_name }} kubectl get nodes \
+          -L amd.com/gpu-hw-acceptance \
+          -L amd.com/gpu-mesh-validation \
+          -L amd.com/nic-health \
+          -L amd.com/rail-bandwidth \
+          -L amd.com/cluster-validation-status
+      register: reset_after
+      changed_when: false
+      when: action == 'reset' or _is_fresh_run
+
+    - debug:
+        msg: "{{ reset_after.stdout_lines }}"
+      when: (action == 'reset' or _is_fresh_run) and reset_after is defined
+
+    # ======================================================================
+    # Action: inject-secret
+    # ======================================================================
+    - name: inject > verify ServiceAccount exists
+      shell: |
+        docker exec {{ container_name }} kubectl get sa {{ service_account_name }} \
+          -n {{ cvf_namespace }} >/dev/null
+      changed_when: false
+      when: action == 'inject-secret' or _is_fresh_run
+
+    - name: inject > build credentials list (CLI override OR controller-side config.json)
+      shell: |
+        set -eu
+        if [ -n "{{ username }}" ] && [ -n "{{ token }}" ]; then
+          REG='{{ registry_url | default("docker.io", true) }}'
+          USR='{{ username }}'
+          TOK='{{ token }}'
+          NAME='{{ secret_name }}'
+          [ -z "$NAME" ] && NAME="$(echo "$USR" | tr -c 'a-z0-9-' '-' | sed 's/-*$//')-pull-secret"
+          jq -nc --arg r "$REG" --arg u "$USR" --arg t "$TOK" --arg n "$NAME" \
+            '[{registry: $r, username: $u, token: $t, name: $n}]'
+        else
+          jq -c '[(.global["image-pull-secrets"] // [])[]
+                  | { registry: (.["registry-url"] // "docker.io"),
+                      username: .username,
+                      token:    .token,
+                      name:     ((.username | gsub("[^a-z0-9-]"; "-") | sub("-+$"; "")) + "-pull-secret")
+                    }]' '{{ playbook_dir }}/../../configs/config.json'
+        fi
+      args:
+        executable: /bin/bash
+      delegate_to: localhost
+      run_once: true
+      register: inject_creds_json
+      changed_when: false
+      when: action == 'inject-secret' or _is_fresh_run
+
+    - name: inject > parse credentials list
+      set_fact:
+        inject_creds_list: "{{ inject_creds_json.stdout | from_json }}"
+      when: (action == 'inject-secret' or _is_fresh_run) and inject_creds_json is defined
+
+    - name: inject > show credentials (token redacted)
+      debug:
+        msg: "{{ inject_creds_list | map('combine', {'token': '<redacted>'}) | list }}"
+      when: (action == 'inject-secret' or _is_fresh_run) and inject_creds_list is defined
+
+    - name: inject > skip when no credentials configured (fresh-run treats as no-op)
+      debug:
+        msg: "No image-pull credentials configured -- skipping (no-op)."
+      when:
+        - action == 'inject-secret' or _is_fresh_run
+        - inject_creds_list is defined
+        - (inject_creds_list | length) == 0
+
+    - name: inject > fail when explicitly asked for inject-secret but no creds
+      fail:
+        msg: |
+          No image-pull credentials found.
+          Either add entries to configs/config.json -> global.image-pull-secrets,
+          or pass -e username=... -e token=... [-e registry_url=...]
+      when:
+        - action == 'inject-secret'   # explicit, not fresh-run
+        - inject_creds_list is defined
+        - (inject_creds_list | length) == 0
+
+    - name: inject > create/update each docker-registry Secret (idempotent)
+      shell: |
+        set -eu
+        SRV_FLAG=""
+        if [ "{{ item.registry }}" != "docker.io" ] && [ "{{ item.registry }}" != "index.docker.io" ]; then
+          SRV_FLAG="--docker-server={{ item.registry }}"
+        fi
+        docker exec {{ container_name }} kubectl create secret docker-registry {{ item.name }} \
+          $SRV_FLAG \
+          --docker-username='{{ item.username }}' --docker-password='{{ item.token }}' \
+          -n {{ cvf_namespace }} \
+          --dry-run=client -o yaml \
+          | docker exec -i {{ container_name }} kubectl apply -f -
+      args:
+        executable: /bin/bash
+      loop: "{{ inject_creds_list | default([]) }}"
+      loop_control:
+        label: "{{ item.name }} ({{ item.registry }}/{{ item.username }})"
+      register: inject_secret_apply
+      changed_when: "'created' in (inject_secret_apply.stdout | default('')) or 'configured' in (inject_secret_apply.stdout | default(''))"
+      no_log: true
+      when:
+        - action == 'inject-secret' or _is_fresh_run
+        - inject_creds_list is defined
+        - (inject_creds_list | length) > 0
+
+    - name: inject > strategic-merge-patch SA (additive on imagePullSecrets, idempotent)
+      shell: |
+        docker exec {{ container_name }} kubectl patch sa {{ service_account_name }} \
+          -n {{ cvf_namespace }} --type=strategic \
+          -p '{"imagePullSecrets":[{"name":"{{ item.name }}"}]}'
+      args:
+        executable: /bin/bash
+      loop: "{{ inject_creds_list | default([]) }}"
+      loop_control:
+        label: "{{ item.name }}"
+      register: inject_sa_patch
+      changed_when: "'patched' in (inject_sa_patch.stdout | default('')) and 'no change' not in (inject_sa_patch.stdout | default(''))"
+      when:
+        - action == 'inject-secret' or _is_fresh_run
+        - inject_creds_list is defined
+        - (inject_creds_list | length) > 0
+
+    - name: inject > show SA imagePullSecrets after patch
+      shell: |
+        docker exec {{ container_name }} kubectl get sa {{ service_account_name }} \
+          -n {{ cvf_namespace }} -o jsonpath='{.imagePullSecrets}'
+      register: inject_sa_state
+      changed_when: false
+      when:
+        - action == 'inject-secret' or _is_fresh_run
+        - inject_creds_list is defined
+        - (inject_creds_list | length) > 0
+
+    - debug:
+        msg: "{{ service_account_name }} imagePullSecrets: {{ inject_sa_state.stdout }}"
+      when:
+        - action == 'inject-secret' or _is_fresh_run
+        - inject_sa_state is defined and inject_sa_state.stdout is defined
+
+    # ======================================================================
+    # Action: trigger
+    #
+    # Reminder: this creates a one-shot Job ('cvf-test' by default) that
+    # runs INDEPENDENTLY of the */30 CronJob. If the manual run takes
+    # >30min, the next cron tick will spawn a SECOND orchestrator and
+    # race for the same nodes + Phase 4 per-rail Job names (which lack
+    # a timestamp suffix -> kubectl apply rc=2 on the loser). To avoid:
+    #   ansible-playbook playbooks/cvf.yml -e action=reset -e suspend_cronjob=true
+    # before triggering, then re-enable cron after the manual run:
+    #   docker exec server kubectl patch cronjob cluster-validation-cron-job \
+    #     -n default --type=merge -p '{"spec":{"suspend":false}}'
+    # ======================================================================
+    - name: trigger > verify CronJob template exists
+      shell: |
+        docker exec {{ container_name }} kubectl get cronjob {{ cronjob_name }} \
+          -n {{ cvf_namespace }} >/dev/null
+      changed_when: false
+      when: action == 'trigger' or _is_fresh_run
+
+    - name: trigger > delete prior Job with the same name (if any)
+      shell: |
+        docker exec {{ container_name }} kubectl delete job {{ job_name }} -n {{ cvf_namespace }} \
+          --ignore-not-found=true --wait=true 2>&1
+      args:
+        executable: /bin/bash
+      register: trigger_prior
+      changed_when: "'deleted' in (trigger_prior.stdout | default(''))"
+      when: action == 'trigger' or _is_fresh_run
+
+    - name: trigger > force-clean orphan pods from the prior Job
+      shell: |
+        docker exec {{ container_name }} kubectl get pods -n {{ cvf_namespace }} \
+          -l job-name={{ job_name }} -o name 2>/dev/null \
+          | xargs -r -n1 docker exec {{ container_name }} kubectl delete -n {{ cvf_namespace }} \
+              --force --grace-period=0 2>&1 || true
+      args:
+        executable: /bin/bash
+      changed_when: false
+      when: action == 'trigger' or _is_fresh_run
+
+    - name: trigger > create Job from CronJob template
+      shell: |
+        docker exec {{ container_name }} kubectl create job --from=cronjob/{{ cronjob_name }} \
+          {{ job_name }} -n {{ cvf_namespace }}
+      args:
+        executable: /bin/bash
+      register: trigger_create
+      changed_when: "'created' in (trigger_create.stdout | default(''))"
+      when: action == 'trigger' or _is_fresh_run
+
+    - name: trigger > wait for orchestrator pod to be scheduled (up to 30s)
+      shell: |
+        for i in $(seq 1 15); do
+          POD=$(docker exec {{ container_name }} kubectl get pods -n {{ cvf_namespace }} \
+                  -l job-name={{ job_name }} -o jsonpath='{.items[0].metadata.name}' 2>/dev/null)
+          if [ -n "$POD" ]; then
+            echo "$POD"
+            exit 0
+          fi
+          sleep 2
+        done
+        echo "ERROR: orchestrator pod did not appear within 30s" >&2
+        exit 1
+      args:
+        executable: /bin/bash
+      register: trigger_pod
+      changed_when: false
+      when: action == 'trigger' or _is_fresh_run
+
+    - name: trigger > show orchestrator pod state
+      shell: |
+        docker exec {{ container_name }} kubectl get pod {{ trigger_pod.stdout }} -n {{ cvf_namespace }} -o wide
+      register: trigger_state
+      changed_when: false
+      when: (action == 'trigger' or _is_fresh_run) and trigger_pod is defined
+
+    - debug:
+        msg:
+          - "Triggered: job/{{ job_name }} (orchestrator pod: {{ trigger_pod.stdout }})"
+          - "{{ trigger_state.stdout_lines }}"
+      when: (action == 'trigger' or _is_fresh_run) and trigger_state is defined
+
+    # ======================================================================
+    # Action: status
+    # ======================================================================
+    - name: status > nodes (wide)
+      shell: docker exec {{ container_name }} kubectl get nodes -o wide
+      register: status_nodes
+      changed_when: false
+      ignore_errors: yes
+      when: action == 'status' or _is_fresh_run
+
+    - debug:
+        msg: "{{ status_nodes.stdout_lines }}"
+      when: (action == 'status' or _is_fresh_run) and status_nodes is defined and status_nodes.rc == 0
+
+    - name: status > CronJob
+      shell: docker exec {{ container_name }} kubectl get cronjob -n {{ cvf_namespace }} -o wide
+      register: status_cron
+      changed_when: false
+      ignore_errors: yes
+      when: action == 'status' or _is_fresh_run
+
+    - debug:
+        msg: "{{ status_cron.stdout_lines }}"
+      when: (action == 'status' or _is_fresh_run) and status_cron is defined and status_cron.rc == 0
+
+    - name: status > recent orchestrator pods (last 5)
+      shell: |
+        docker exec {{ container_name }} kubectl get pods -n {{ cvf_namespace }} -o json 2>/dev/null \
+          | jq -r '.items
+                   | map(select(.metadata.name | startswith("cluster-validation-cron-job-") or startswith("cvf-e2e-") or startswith("cvf-test")))
+                   | sort_by(.metadata.creationTimestamp)
+                   | reverse | .[0:5]
+                   | .[] | "\(.metadata.name)\t\(.status.phase)\t\(.spec.nodeName // "?")\t\(.metadata.creationTimestamp)"'
+      args:
+        executable: /bin/bash
+      register: status_orch
+      changed_when: false
+      ignore_errors: yes
+      when: action == 'status' or _is_fresh_run
+
+    - debug:
+        msg: "Recent orchestrator pods (NAME | PHASE | NODE | CREATED):\n{{ status_orch.stdout }}"
+      when: (action == 'status' or _is_fresh_run) and status_orch is defined
+
+    - name: status > tail logs of the most recent orchestrator pod
+      shell: |
+        POD=$(docker exec {{ container_name }} kubectl get pods -n {{ cvf_namespace }} -o json 2>/dev/null \
+              | jq -r '.items
+                       | map(select(.metadata.name | startswith("cluster-validation-cron-job-") or startswith("cvf-e2e-") or startswith("cvf-test")))
+                       | sort_by(.metadata.creationTimestamp)
+                       | last.metadata.name // ""')
+        [ -z "$POD" ] && { echo "no orchestrator pods yet"; exit 0; }
+        echo "===== Orchestrator pod: $POD ====="
+        docker exec {{ container_name }} kubectl logs "$POD" -n {{ cvf_namespace }} 2>&1 | tail -n 80
+      args:
+        executable: /bin/bash
+      register: status_log
+      changed_when: false
+      ignore_errors: yes
+      when: action == 'status' or _is_fresh_run
+
+    - debug:
+        msg: "{{ status_log.stdout_lines }}"
+      when: (action == 'status' or _is_fresh_run) and status_log is defined
+
+    - name: status > in-flight phase Jobs
+      shell: |
+        docker exec {{ container_name }} kubectl get jobs -n {{ cvf_namespace }} -o json 2>/dev/null \
+          | jq -r '.items
+                   | map(select((.metadata.name | startswith("cluster-validation-cron-job-")) | not))
+                   | map("\(.metadata.name)\tactive=\(.status.active // 0)\tsucc=\(.status.succeeded // 0)\tfail=\(.status.failed // 0)")
+                   | .[]?' || true
+      args:
+        executable: /bin/bash
+      register: status_jobs
+      changed_when: false
+      ignore_errors: yes
+      when: action == 'status' or _is_fresh_run
+
+    - debug:
+        msg: "Per-phase Jobs:\n{{ status_jobs.stdout if status_jobs.stdout else '  (none)' }}"
+      when: (action == 'status' or _is_fresh_run) and status_jobs is defined
+
+    - name: status > MPIJob (Phase 5)
+      shell: |
+        docker exec {{ container_name }} kubectl get mpijob -n {{ cvf_namespace }} \
+          -o jsonpath='{range .items[*]}{.metadata.name}{"\t"}{.status.conditions[-1].type}{"\t"}{.status.conditions[-1].reason}{"\n"}{end}' 2>/dev/null \
+          || echo "(no mpijob)"
+      args:
+        executable: /bin/bash
+      register: status_mpi
+      changed_when: false
+      ignore_errors: yes
+      when: action == 'status' or _is_fresh_run
+
+    - debug:
+        msg: "MPIJob:\n{{ status_mpi.stdout }}"
+      when: (action == 'status' or _is_fresh_run) and status_mpi is defined
+
+    - name: status > per-node phase labels + Phase 1 stage annotations + failure reasons
+      shell: |
+        set -eu
+        echo "================================================================"
+        echo "  Per-node phase status"
+        echo "    P1=amd.com/gpu-hw-acceptance       P2=amd.com/gpu-mesh-validation"
+        echo "    P3=amd.com/nic-health              P4=amd.com/rail-bandwidth"
+        echo "    P5/AGG=amd.com/cluster-validation-status (Phase 5 = aggregate label)"
+        echo "================================================================"
+        printf "  %-72s | %-9s | %-9s | %-9s | %-9s | %-9s | %s\n" \
+               NODE P1 P2 P3 P4 P5/AGG LAST_RUN
+        printf "  %s\n" "$(printf -- '-%.0s' {1..165})"
+        for NODE in $(docker exec {{ container_name }} kubectl get nodes -o jsonpath='{.items[*].metadata.name}'); do
+          NJ=$(docker exec {{ container_name }} kubectl get node "$NODE" -o json)
+          P1=$(jq -r '.metadata.labels."amd.com/gpu-hw-acceptance" // "—"' <<<"$NJ")
+          P2=$(jq -r '.metadata.labels."amd.com/gpu-mesh-validation" // "—"' <<<"$NJ")
+          P3=$(jq -r '.metadata.labels."amd.com/nic-health" // "—"' <<<"$NJ")
+          P4=$(jq -r '.metadata.labels."amd.com/rail-bandwidth" // "—"' <<<"$NJ")
+          P5=$(jq -r '.metadata.labels."amd.com/cluster-validation-status" // "—"' <<<"$NJ")
+          TS=$(jq -r '.metadata.annotations."amd.com/cluster-validation-last-run-timestamp" // "never"' <<<"$NJ")
+          printf "  %-72s | %-9s | %-9s | %-9s | %-9s | %-9s | %s\n" \
+                 "$NODE" "$P1" "$P2" "$P3" "$P4" "$P5" "$TS"
+        done
+        echo ""
+        echo "================================================================"
+        echo "  Per-node Phase 1 stage annotations"
+        echo "================================================================"
+        for NODE in $(docker exec {{ container_name }} kubectl get nodes -o jsonpath='{.items[*].metadata.name}'); do
+          echo "  $NODE:"
+          docker exec {{ container_name }} kubectl get node "$NODE" -o json \
+            | jq -r '(.metadata.annotations // {})
+                     | to_entries
+                     | map(select(.key | startswith("amd.com/gpu-hw-acceptance-stage-")))
+                     | sort_by(.key)
+                     | if length == 0 then "    (no stage annotations yet)"
+                       else (map("    " + .key + " = " + .value) | join("\n")) end'
+        done
+        echo ""
+        echo "================================================================"
+        echo "  Per-node failure-reason / failed-subtest / failed-nics annotations"
+        echo "================================================================"
+        any_fail=0
+        for NODE in $(docker exec {{ container_name }} kubectl get nodes -o jsonpath='{.items[*].metadata.name}'); do
+          OUT=$(docker exec {{ container_name }} kubectl get node "$NODE" -o json \
+                | jq -r '(.metadata.annotations // {})
+                         | to_entries
+                         | map(select(.key | test("-(failure-reason|failed-subtest|failed-nics)$")))
+                         | map("    " + .key + " = " + .value)
+                         | .[]?')
+          if [ -n "$OUT" ]; then
+            echo "  $NODE:"; echo "$OUT"; any_fail=1
+          fi
+        done
+        if [ $any_fail -eq 0 ]; then
+          echo "  (none — all phases passing or pending)"
+        fi
+      args:
+        executable: /bin/bash
+      register: status_per_node
+      changed_when: false
+      failed_when: false
+      when: action == 'status' or _is_fresh_run
+
+    - debug:
+        msg: "{{ status_per_node.stdout_lines }}"
+      when: (action == 'status' or _is_fresh_run) and status_per_node is defined
+
+# ----------------------------------------------------------------------------
+# Second play: container ping across all nodes (status / fresh-run only).
+# Lightweight, lets operators see whether server + agent docker containers
+# are alive without having to run a separate command.
+# ----------------------------------------------------------------------------
+- name: CVF day-2 operations (per-node container check)
+  hosts: cluster_nodes
+  gather_facts: false
+  vars:
+    action: ""
+    _is_fresh_run: "{{ action == 'fresh-run' }}"
+  tasks:
+    - name: status > docker containers on each node
+      shell: docker ps --filter 'name=server' --filter 'name=agent' --format 'table {% raw %}{{.Names}}\t{{.Status}}{% endraw %}'
+      register: status_containers
+      changed_when: false
+      when: action == 'status' or _is_fresh_run
+
+    - debug:
+        msg: "{{ inventory_hostname }}: {{ status_containers.stdout_lines }}"
+      when: (action == 'status' or _is_fresh_run) and status_containers is defined
+
+    # ---- Per-node log file inventory ----------------------------------
+    # Every phase Job/MPIJob writes its full stdout/stderr to a host
+    # hostPath at /var/log/cluster-validation/<ts>_<phase>_<role>.log
+    # (see cluster-validation-job.yaml). Pods get GC'd after
+    # ttlSecondsAfterFinished, but the files persist. Show the LATEST
+    # file per phase per node so operators can `tail`/`grep` directly
+    # without hunting through `kubectl get pods`.
+    - name: status > latest log file per phase on each node
+      shell: |
+        set -eu
+        LOG_DIR=/var/log/cluster-validation
+        if [ ! -d "$LOG_DIR" ]; then
+          echo "  no-log-dir : node has not run any phase Job yet"
+          exit 0
+        fi
+        # Parallel arrays: label[i] paired with glob[i]. Order matches
+        # the pipeline so output reads top-to-bottom.
+        labels="phase1 phase2 phase3 phase4_server phase4_client phase4_5 phase5 orchestrator"
+        i=0
+        for label in $labels; do
+          case "$label" in
+            phase1)        glob='*_phase1_*.log' ;;
+            phase2)        glob='*_phase2_*.log' ;;
+            phase3)        glob='*_phase3_*.log' ;;
+            phase4_server) glob='*_phase4-server_*.log' ;;
+            phase4_client) glob='*_phase4-client_*.log' ;;
+            phase4_5)      glob='*_phase4_5_*.log' ;;
+            phase5)        glob='*_phase5_*.log' ;;
+            orchestrator)  glob='cronjob-*.log' ;;
+          esac
+          # ls -t over a glob; suppress "no match" stderr; head -1 = newest
+          latest=$(cd "$LOG_DIR" && ls -t $glob 2>/dev/null | head -1 || true)
+          if [ -z "$latest" ]; then
+            printf "  %-18s : none\n" "$label"
+          else
+            sz=$(stat -c%s "$LOG_DIR/$latest" 2>/dev/null || echo 0)
+            printf "  %-18s : %s/%s  bytes=%d\n" "$label" "$LOG_DIR" "$latest" "$sz"
+          fi
+        done
+      args:
+        executable: /bin/bash
+      register: status_logs
+      changed_when: false
+      failed_when: false
+      when: action == 'status' or _is_fresh_run
+
+    - debug:
+        msg:
+          - "================================================================"
+          - "  Log files on {{ inventory_hostname }} (latest per phase)"
+          - "================================================================"
+          - "{{ status_logs.stdout_lines }}"
+      when: (action == 'status' or _is_fresh_run) and status_logs is defined

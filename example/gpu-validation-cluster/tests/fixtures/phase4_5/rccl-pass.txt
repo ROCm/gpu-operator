@@ -1,0 +1,4 @@
+NCCL INFO comm 0x55a 0xabcd nranks 8 cudaDev 0 busId 1000 commId 0xff - Init COMPLETE
+NCCL INFO comm 0x55b 0xabcd nranks 8 cudaDev 1 busId 2000 commId 0xff - Init COMPLETE
+NCCL INFO Channel topology: ring [0] 0 -> 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7 -> 0
+NCCL INFO Connected all rings

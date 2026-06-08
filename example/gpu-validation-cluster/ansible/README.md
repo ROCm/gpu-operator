@@ -31,14 +31,14 @@ This directory contains Ansible playbooks for automating the deployment and mana
 ansible/
 ├── ansible.cfg                 # Ansible configuration
 ├── inventory.yml               # Cluster inventory (edit this!)
-├── quickstart.sh               # Interactive quick start script
 ├── playbooks/
 │   ├── setup-ssh-keys.yml      # Configure passwordless SSH
 │   ├── setup-cluster.yml       # Main cluster setup
 │   ├── add-agent-nodes.yml     # Add new nodes to existing cluster
 │   ├── remove-agent-nodes.yml  # Remove nodes from existing cluster
 │   ├── teardown-cluster.yml    # Teardown entire cluster
-│   └── check-status.yml        # Check cluster status
+│   ├── set-gpu-compute-mode.yml # Switch GPU compute-partition mode (SPX/CPX/...) + reboot to apply
+│   └── cvf.yml                 # CVF day-2 ops: reapply / reset / inject-secret / trigger / status / fresh-run
 ├── group_vars/                 # Group variables (optional)
 └── README.md
 ```
@@ -114,7 +114,7 @@ This will:
 Check the cluster status:
 
 ```bash
-ansible-playbook playbooks/check-status.yml
+ansible-playbook playbooks/cvf.yml -e action=status
 ```
 
 ### Step 5: Adding New Agent Nodes (Optional)
@@ -133,7 +133,7 @@ vi inventory.yml
 ansible-playbook playbooks/add-agent-nodes.yml --limit agent-node-4
 
 # 3. Verify new nodes joined
-ansible-playbook playbooks/check-status.yml
+ansible-playbook playbooks/cvf.yml -e action=status
 ```
 
 **Important**: Use `--limit` to target only the new nodes you want to add. The playbook automatically detects and skips nodes already in the cluster.
@@ -150,7 +150,7 @@ ansible-playbook playbooks/remove-agent-nodes.yml --limit agent-node-2
 ansible-playbook playbooks/remove-agent-nodes.yml --limit "agent-node-2,agent-node-3"
 
 # Verify nodes were removed
-ansible-playbook playbooks/check-status.yml
+ansible-playbook playbooks/cvf.yml -e action=status
 ```
 
 **Important**: This will drain workloads, delete the node from Kubernetes, stop the agent container, and clean up cluster state.
@@ -190,11 +190,11 @@ ansible-playbook playbooks/setup-cluster.yml
    - Exports image to tar file
 
 2. **Prerequisites Phase (all nodes):**
-   - Checks for Docker installation
-   - Installs Docker if not present
-   - Checks for jq installation
-   - Installs jq if not present
-   - Adds user to docker group
+   - Checks for Docker installation; installs Docker if not present
+   - Stops + disables any pre-existing **native** `k3s.service` / `k3s-agent.service` so the containerized k3s doesn't collide on host ports 6443/6444
+   - Ensures a local `/etc/group` `docker` entry (fixes `SocketGroup=docker` boot failure on hosts that only have the group via LDAP/SSSD)
+   - Always (re)starts the docker daemon (not just on a brand-new install)
+   - Installs jq if not present; adds user to docker group
 
 3. **Distribution Phase (all nodes):**
    - Copies Docker image tar to all nodes
@@ -202,14 +202,18 @@ ansible-playbook playbooks/setup-cluster.yml
    - Copies scripts and configs
 
 4. **Server Phase (server node):**
+   - **Idempotency probe**: skips restart when the existing `server` container is Up AND its kubectl can reach the apiserver. Otherwise tears down + recreates.
    - Starts k3s server container
    - Retrieves cluster join token
    - Waits for server to be ready
 
 5. **Agent Phase (agent nodes):**
+   - **Idempotency probe**: skips restart when the existing `agent` container is Up AND has an established TCP connection to the apiserver port 6443. Otherwise tears down + recreates.
    - Starts k3s agent containers one by one
    - Joins agents to server
    - Verifies connection
+
+   Both the server and agent containers run a **supervisor loop** as their entrypoint (`build/entrypoint.sh`) — if `k3s server` / `k3s agent` crashes inside the container (post-reboot iptables-nft / cni0 transients), the supervisor auto-restarts it with exponential backoff. A rolling restart cap (`K3S_MAX_RESTARTS` / `K3S_RESTART_WINDOW`) escalates to `exit 1` so `docker --restart=unless-stopped` recreates the container fresh as the next layer of recovery.
 
 6. **Verification Phase:**
    - Lists all cluster nodes
@@ -227,6 +231,11 @@ ansible-playbook playbooks/setup-cluster.yml --limit server_nodes
 
 # Dry run (check mode)
 ansible-playbook playbooks/setup-cluster.yml --check
+
+# Force-recreate the server + agent containers even when the idempotency
+# probe says they look healthy (e.g. after editing gpu-cluster.sh or
+# config.json in a way that requires a fresh container start).
+ansible-playbook playbooks/setup-cluster.yml -e force_restart=true
 ```
 
 ### add-agent-nodes.yml
@@ -346,22 +355,101 @@ ansible-playbook playbooks/teardown-cluster.yml
 - Cleans up cluster state
 - Verifies cleanup
 
-### check-status.yml
+### set-gpu-compute-mode.yml
 
-**Purpose:** Check current cluster status.
+**Purpose:** Switch the AMD GPU compute-partition mode (SPX / CPX / TPX / QPX / DPX) on one or more nodes and reboot to apply.
 
 **Usage:**
 
 ```bash
-ansible-playbook playbooks/check-status.yml
+# Flip every agent node to SPX (single-partition; the canonical setting
+# for multi-GPU RCCL workloads — CPX disables P2P/XGMI between
+# partitions, which would force RCCL to fall back to SHM through host
+# DRAM and tank intra-node bandwidth).
+ansible-playbook -i inventory.yml playbooks/set-gpu-compute-mode.yml -e partition=SPX
+
+# Target a single host
+ansible-playbook -i inventory.yml playbooks/set-gpu-compute-mode.yml \
+    -e partition=SPX -e target=agent-node-1
+
+# Skip the reboot (only useful if you know the firmware applies live)
+ansible-playbook -i inventory.yml playbooks/set-gpu-compute-mode.yml \
+    -e partition=SPX -e skip_reboot=true
 ```
 
 **What it does:**
 
-- Shows Docker container status on all nodes
-- Displays Kubernetes nodes
-- Lists all pods
-- Shows cluster validation framework status
+- Stops the CVF `agent` container on the target host (drains workloads)
+- Runs `rocm-smi --setcomputepartition <MODE>` on each target
+- Reboots the node (BAR/aperture reclamation generally requires a cold restart on MI300/MI308)
+- Waits for SSH + Docker to come back, then re-checks the partition
+- After completion, re-run `setup-cluster.yml` to rejoin the agent container to k3s (the existing tasks are idempotent and will recreate `/var/lib/gpu-validation-cluster` state cleanly)
+
+### cvf.yml
+
+**Purpose:** Single dispatcher for all Cluster Validation Framework day-2 operations.
+Five lifecycle playbooks (setup-ssh-keys / setup-cluster / add-agent-nodes /
+remove-agent-nodes / teardown-cluster) stay separate; everything else lives here
+behind `-e action=<name>`.
+
+**Actions:**
+
+| `-e action=` | Purpose |
+|---|---|
+| `reapply`       | Copy configs/ + gpu-cluster.sh to server-node and run `gpu-cluster.sh reapply-cvf` (kubectl apply YAMLs + kubectl patch CM/CronJob from config.json overrides). `config.json` is NOT applied to k8s — it's the source of patches. **Does NOT propagate `global.image-pull-secrets`** — use `inject-secret`. |
+| `reset`         | Clear per-phase labels + annotations on every node. Optional: `-e suspend_cronjob=true`, `-e delete_completed_jobs=true`, `-e delete_all_jobs=true` (full slate including MPIJob CRDs and orphan pods). |
+| `inject-secret` | Create/update docker-registry Secret(s) + strategic-merge-patch `cluster-validation-sa.imagePullSecrets`. Reads `global.image-pull-secrets` from controller-side `config.json`. Affects only pods created after the patch. CLI override: `-e username=… -e token=… [-e registry_url=…] [-e secret_name=…]`. |
+| `trigger`       | Idempotent `kubectl create job --from=cronjob/...` using a fixed name (default `cvf-test`). Deletes prior Job + orphan pods first. Override with `-e job_name=<name>`. **Cron-vs-manual race**: a manual run that exceeds the `*/30` cron schedule will race the next cron tick for the same nodes and per-rail Phase 4 Job names. Suspend cron before long manual runs (see below). |
+| `status`        | Dump CronJob, recent orchestrator pods, latest orchestrator log tail, in-flight phase Jobs, MPIJob, per-node phase labels + Phase 1 stage annotations + failure-reason annotations + per-node container ping + **per-node latest log file per phase** (paths under `/var/log/cluster-validation/`, so operators can `tail -f` straight to the right file). |
+| `fresh-run`     | Composite: `reapply` → `reset` (with `delete_all_jobs=true`) → `inject-secret` → `trigger` → `status`. Replaces the four-command sequence operators kept typing. |
+
+**Examples:**
+
+```bash
+# Single action
+ansible-playbook playbooks/cvf.yml -e action=status
+ansible-playbook playbooks/cvf.yml -e action=reapply
+ansible-playbook playbooks/cvf.yml -e action=reset -e delete_all_jobs=true
+ansible-playbook playbooks/cvf.yml -e action=inject-secret
+ansible-playbook playbooks/cvf.yml -e action=inject-secret -e username=u -e token=t
+ansible-playbook playbooks/cvf.yml -e action=trigger -e job_name=my-run
+
+# Composite (replaces the 4-command chain)
+ansible-playbook playbooks/cvf.yml -e action=fresh-run
+```
+
+**Idempotency:** all actions are safe to re-run. Secret creation uses
+`kubectl create --dry-run=client -o yaml | kubectl apply -f -`; SA patches
+use strategic-merge with mergeKey=name; trigger deletes any prior `cvf-test`
+Job before creating.
+
+**Validation:** unknown `action` values fail fast with the valid list.
+
+**Suspending the CronJob during long manual runs:**
+
+The CronJob's `concurrencyPolicy: Forbid` only blocks cron-vs-cron overlap.
+A manual `trigger` that exceeds the `*/30` schedule will be lapped by the
+next cron tick — both orchestrators then race for the same nodes and reuse
+the same per-rail Phase 4 Job names (`cvf-p4-{server,client}-<hash>-r<N>`,
+no timestamp suffix), which causes `kubectl apply` rc=2 on the loser.
+
+Recommended pattern for runs expected to take more than 30 minutes:
+
+```bash
+# Suspend the cron + reset state in one call
+ansible-playbook playbooks/cvf.yml -e action=reset -e suspend_cronjob=true
+
+# Run the manual orchestrator
+ansible-playbook playbooks/cvf.yml -e action=trigger
+
+# ...wait for completion (check with -e action=status), then re-enable cron
+docker exec server kubectl patch cronjob cluster-validation-cron-job \
+  -n default --type=merge -p '{"spec":{"suspend":false}}'
+```
+
+`fresh-run` does NOT auto-suspend the cron. Combine with
+`-e suspend_cronjob=true` if a long pipeline is expected (or run when
+no cron tick is due within the next ~hour).
 
 ## Advanced Usage
 
@@ -516,7 +604,7 @@ ansible-playbook playbooks/setup-cluster.yml
 ## Additional Resources
 
 - [Ansible Documentation](https://docs.ansible.com/)
-- [GPU Validation Cluster Main README](../README.md)
+- [GPU Validation Cluster Main README](./README.md)
 - [k3s Documentation](https://docs.k3s.io/)
 
 ## Support

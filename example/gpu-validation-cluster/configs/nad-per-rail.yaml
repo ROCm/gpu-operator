@@ -1,0 +1,194 @@
+# Per-rail NetworkAttachmentDefinition manifests
+# See docs-internal/codie/designs/GPUOP-694-phase4-rail-bandwidth-design.md §8
+#
+# Purpose
+# -------
+# Phase 4 (pairwise rail bandwidth test) requires one
+# NetworkAttachmentDefinition per rail (0.7). Each NAD pins a pod to a
+# single rail's NIC so that `ib_write_bw -d $DEV` runs against exactly
+# the rail under test, with no cross-rail traffic leaking through
+# Multus' generic PF/VF NAD.
+#
+# Naming convention (locked by the Phase 4 design):
+# amd-host-device-nad-rail-${RAIL_IDX} RAIL_IDX in 0.7
+#
+# This file deploys all 8 NADs into the namespace where Phase 4 Jobs
+# run (default: `kube-system` -- matches the existing PF/VF NAD
+# placement). Override the namespace with `kustomize` or
+# `kubectl apply -n <ns>` if the cluster uses a non-default namespace
+# for Multus NADs.
+#
+# Conditional deployment
+# ----------------------
+# If the cluster already ships per-rail NADs (verify with
+# `kubectl get net-attach-def -A | grep amd-host-device-nad-rail-`),
+# this file is a no-op -- skip applying it. Phase 4 (.785)
+# only reads the NADs by name; how they got there does not matter.
+#
+# Per-fleet PCI customization
+# ---------------------------
+# `host-device` CNI accepts EITHER an interface name (`device`) OR a
+# PCI address (`pciBusID`). The default below uses the netdev naming
+# convention `rdma_dev_${RAIL_IDX}` which mirrors `PHASE4_IB_DEV_PREFIX`
+# from the Phase 4 ConfigMap and matches the
+# RDMA verbs device name `ib_write_bw -d rdma_dev_<N>` expects.
+#
+# If your fleet uses different netdev names (e.g. `ens<bus>f0`), either:
+# (a) replace each NAD's `"device"` field with the fleet-specific
+# interface name, or
+# (b) replace `"device": "rdma_dev_N"` with
+# `"pciBusID": "0000:<bus>:<slot>.<func>"` for the rail's NIC.
+# `lspci -d 1dd8:` on a target node lists the 8 Pensando NICs in PCI
+# order; rail 0 is conventionally the lowest BDF, rail 7 the highest.
+#
+# IPAM
+# ----
+# `host-device` does not require IPAM because the host device is moved
+# into the pod's netns with its existing kernel addressing. Phase 4's
+# `ib_write_bw` connects over RDMA verbs, not the netdev IP stack, so
+# the netdev's L3 config (or absence thereof) does not affect the test.
+# An `ipam: { "type": "static" }` block is intentionally omitted.
+---
+apiVersion: k8s.cni.cncf.io/v1
+kind: NetworkAttachmentDefinition
+metadata:
+  name: amd-host-device-nad-rail-0
+  namespace: kube-system
+  labels:
+    app.kubernetes.io/part-of: gpu-validation-cluster
+    app.kubernetes.io/component: phase4-rail-nad
+    amd.com/rail-index: "0"
+spec:
+  config: |
+    {
+      "cniVersion": "0.3.1",
+      "type": "host-device",
+      "name": "amd-host-device-nad-rail-0",
+      "device": "rdma_dev_0"
+    }
+---
+apiVersion: k8s.cni.cncf.io/v1
+kind: NetworkAttachmentDefinition
+metadata:
+  name: amd-host-device-nad-rail-1
+  namespace: kube-system
+  labels:
+    app.kubernetes.io/part-of: gpu-validation-cluster
+    app.kubernetes.io/component: phase4-rail-nad
+    amd.com/rail-index: "1"
+spec:
+  config: |
+    {
+      "cniVersion": "0.3.1",
+      "type": "host-device",
+      "name": "amd-host-device-nad-rail-1",
+      "device": "rdma_dev_1"
+    }
+---
+apiVersion: k8s.cni.cncf.io/v1
+kind: NetworkAttachmentDefinition
+metadata:
+  name: amd-host-device-nad-rail-2
+  namespace: kube-system
+  labels:
+    app.kubernetes.io/part-of: gpu-validation-cluster
+    app.kubernetes.io/component: phase4-rail-nad
+    amd.com/rail-index: "2"
+spec:
+  config: |
+    {
+      "cniVersion": "0.3.1",
+      "type": "host-device",
+      "name": "amd-host-device-nad-rail-2",
+      "device": "rdma_dev_2"
+    }
+---
+apiVersion: k8s.cni.cncf.io/v1
+kind: NetworkAttachmentDefinition
+metadata:
+  name: amd-host-device-nad-rail-3
+  namespace: kube-system
+  labels:
+    app.kubernetes.io/part-of: gpu-validation-cluster
+    app.kubernetes.io/component: phase4-rail-nad
+    amd.com/rail-index: "3"
+spec:
+  config: |
+    {
+      "cniVersion": "0.3.1",
+      "type": "host-device",
+      "name": "amd-host-device-nad-rail-3",
+      "device": "rdma_dev_3"
+    }
+---
+apiVersion: k8s.cni.cncf.io/v1
+kind: NetworkAttachmentDefinition
+metadata:
+  name: amd-host-device-nad-rail-4
+  namespace: kube-system
+  labels:
+    app.kubernetes.io/part-of: gpu-validation-cluster
+    app.kubernetes.io/component: phase4-rail-nad
+    amd.com/rail-index: "4"
+spec:
+  config: |
+    {
+      "cniVersion": "0.3.1",
+      "type": "host-device",
+      "name": "amd-host-device-nad-rail-4",
+      "device": "rdma_dev_4"
+    }
+---
+apiVersion: k8s.cni.cncf.io/v1
+kind: NetworkAttachmentDefinition
+metadata:
+  name: amd-host-device-nad-rail-5
+  namespace: kube-system
+  labels:
+    app.kubernetes.io/part-of: gpu-validation-cluster
+    app.kubernetes.io/component: phase4-rail-nad
+    amd.com/rail-index: "5"
+spec:
+  config: |
+    {
+      "cniVersion": "0.3.1",
+      "type": "host-device",
+      "name": "amd-host-device-nad-rail-5",
+      "device": "rdma_dev_5"
+    }
+---
+apiVersion: k8s.cni.cncf.io/v1
+kind: NetworkAttachmentDefinition
+metadata:
+  name: amd-host-device-nad-rail-6
+  namespace: kube-system
+  labels:
+    app.kubernetes.io/part-of: gpu-validation-cluster
+    app.kubernetes.io/component: phase4-rail-nad
+    amd.com/rail-index: "6"
+spec:
+  config: |
+    {
+      "cniVersion": "0.3.1",
+      "type": "host-device",
+      "name": "amd-host-device-nad-rail-6",
+      "device": "rdma_dev_6"
+    }
+---
+apiVersion: k8s.cni.cncf.io/v1
+kind: NetworkAttachmentDefinition
+metadata:
+  name: amd-host-device-nad-rail-7
+  namespace: kube-system
+  labels:
+    app.kubernetes.io/part-of: gpu-validation-cluster
+    app.kubernetes.io/component: phase4-rail-nad
+    amd.com/rail-index: "7"
+spec:
+  config: |
+    {
+      "cniVersion": "0.3.1",
+      "type": "host-device",
+      "name": "amd-host-device-nad-rail-7",
+      "device": "rdma_dev_7"
+    }

@@ -406,7 +406,7 @@
           Total cluster nodes: {{ node_count.stdout }}
 
           To verify:
-            ansible-playbook playbooks/check-status.yml
+            ansible-playbook playbooks/cvf.yml -e action=status
 
           To check validation status:
             ./gpu-cluster.sh status

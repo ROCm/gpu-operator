@@ -1,0 +1,9 @@
+{
+  "TestRunResults": [
+    {
+      "TestResults": [
+        { "Framework": "AGFHC", "Recipe": "xgmi_lvl1", "Pass": false, "Status": "FAIL", "Error": "AGFHC recipe not found in image catalog" }
+      ]
+    }
+  ]
+}

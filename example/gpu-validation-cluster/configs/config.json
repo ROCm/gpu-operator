@@ -46,7 +46,7 @@
       "version": "v0.4.0"
     },
     "cronjob": {
-      "schedule": "*/10 * * * *"
+      "schedule": "*/30 * * * *"
     },
     "node-selector-labels": [
       "feature.node.kubernetes.io/amd-gpu=true",
@@ -57,13 +57,44 @@
       "launcher-replicas": 1,
       "slots-per-worker": 8,
       "gpu-per-worker": 8,
-      "pf-nic-per-worker": 0,
-      "vf-nic-per-worker": 8,
-      "node-validation-interval-mins": 10
+      "pf-nic-per-worker": 8,
+      "vf-nic-per-worker": 0,
+      "node-validation-interval-mins": 30
     },
     "skip-tests": {
-      "skip-gpu-validation": false,
-      "skip-rccl-test": false
+      "skip-phase1-gpu-hw-acceptance":   true,
+      "skip-phase1-stages": {
+        "skip-phase1-gpu-stress": true,
+        "skip-phase1-xgmi-lvl1":  true,
+        "skip-phase1-pcie-lvl1":  true,
+        "skip-phase1-hbm-lvl1":   true
+      },
+      "skip-phase2-gpu-mesh-validation": false,
+      "skip-phase3-nic-validation":      false,
+      "skip-phase4-rail-bandwidth-test": false,
+      "skip-phase5-rccl-test":           false
+    },
+    "timeouts": {
+      "phase1-stages-secs": {
+        "phase1-gpu-stress": 3600,
+        "phase1-xgmi-lvl1":  1200,
+        "phase1-pcie-lvl1":  1200,
+        "phase1-hbm-lvl1":   1200
+      },
+      "phase2-job-wait-secs":    600,
+      "phase3-job-wait-secs":    300,
+      "phase4-pair-wait-secs":   300,
+      "phase5-mpijob-wait-secs": 300
+    },
+    "images": {
+      "roce-workload":  "docker.io/rocm/roce-workload:ubuntu24_rocm-7.0.2_rccl-7.0.2_anp-v1.2.0_ainic-1.117.5-a-56",
+      "test-runner": {
+        "rvs":   "docker.io/rocm/test-runner:v1.4.0",
+        "agfhc": "docker.io/amdpsdo/test-runner:agfhc-v1.5.0-4"
+      },
+      "orchestrator":   "docker.io/bitnamilegacy/kubectl:1.33.4",
+      "preflight-init": "docker.io/bitnamilegacy/kubectl:1.33.4",
+      "nic-health":     "docker.io/rocm/network-operator-utils:v1.1.0"
     }
   }
 }

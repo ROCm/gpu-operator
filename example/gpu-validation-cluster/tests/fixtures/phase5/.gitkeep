@@ -1,0 +1,6 @@
+# Placeholder so the empty fixtures directory is tracked.
+# Phase 5 tests (GPUOP-696.7 / GPUOP-803) seed kubectl mock state
+# inline via kubectl_mock_set_phase5_* helpers rather than reading
+# canned fixture files; the directory is reserved for future negative
+# fixtures (e.g. canned launcher logs, worker logs) if the test scope
+# expands to log-content assertions.

@@ -1,0 +1,11 @@
+# Sample phase2.log fixture -- Failed=True with no recognized marker.
+# Simulates a scenario where the Job ends Failed=True but neither the
+# crash marker nor the bw-threshold marker appears in the container
+# log -- e.g. container killed by OOM before the mpirun wrapper line
+# could be emitted, validator script missing, init-container failure.
+# PHASE2_SCRIPT defaults this case to reason=rccl-crash per design
+# section 6 "Any non-zero exit from the container is treated as a
+# crash signal unless the validator explicitly flagged bw-below-threshold".
+[2026-05-19 17:36:11] starting Phase 2 RCCL Job for node smc300x-ccs-aus-gpuf268
+[2026-05-19 17:36:11] command prepared
+container terminated -- no further output

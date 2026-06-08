@@ -108,12 +108,67 @@
         - ansible_os_family == "Debian"
         - docker_check.rc != 0
 
-    - name: Start and enable Docker service
+    # Some GPU hosts ship a NATIVE k3s install (k3s.service / k3s-agent.service
+    # under /etc/systemd/system) from a prior bringup. That k3s binds host
+    # ports 6443/6444 (we run with --net=host inside the container), so our
+    # containerized k3s server fails with "bind: address already in use".
+    # Stop + disable any such native units before starting our stack.
+    - name: Find native k3s systemd units (if any)
+      # `systemctl list-unit-files 'k3s*.service'` exits rc=1 when no units
+      # match (the common case on a fresh host). Combined with set -o
+      # pipefail that fails the pipe, so we explicitly mask it with
+      # failed_when: false -- empty stdout is the legitimate "no native
+      # k3s installed" signal, which the next task handles via `when:`.
+      shell: |
+        set -o pipefail
+        systemctl list-unit-files --no-legend 'k3s*.service' 2>/dev/null \
+          | awk '{print $1}' | tr '\n' ' '
+      args:
+        executable: /bin/bash
+      register: native_k3s_units
+      changed_when: false
+      failed_when: false
+
+    - name: Stop + disable native k3s units (if any are present)
+      shell: |
+        set -eu
+        for U in {{ native_k3s_units.stdout }}; do
+          systemctl stop "$U"    2>/dev/null || true
+          systemctl disable "$U" 2>/dev/null || true
+        done
+        # Belt-and-suspenders: in case k3s was started manually
+        if command -v /usr/local/bin/k3s-killall.sh >/dev/null 2>&1; then
+          /usr/local/bin/k3s-killall.sh 2>/dev/null || true
+        fi
+      args:
+        executable: /bin/bash
+      register: native_k3s_stop
+      changed_when: native_k3s_units.stdout | trim != ''
+      when: native_k3s_units.stdout | trim != ''
+
+    # Some GPU hosts get the `docker` group from LDAP/SSSD only and not
+    # /etc/group. systemd's docker.socket unit has `SocketGroup=docker`
+    # and resolves it before SSSD is fully up at boot, so the socket fails
+    # with exit code 216/GROUP and the service never starts. Ensuring a
+    # local /etc/group entry makes resolution work via files-NSS at boot.
+    - name: Ensure local /etc/group has a 'docker' entry (idempotent)
+      group:
+        name: docker
+        state: present
+      when: ansible_os_family == "Debian"
+
+    # Always (re)start docker — previously this only ran when docker was
+    # newly installed (`when: docker_check.rc != 0`), so hosts where the
+    # daemon had failed at boot stayed broken across re-runs.
+    - name: Reset any failed docker units (idempotent, no-op when clean)
+      shell: systemctl reset-failed docker.socket docker.service 2>/dev/null || true
+      changed_when: false
+
+    - name: Start and enable Docker service (always)
       systemd:
         name: docker
         state: started
         enabled: yes
-      when: docker_check.rc != 0
 
     - name: Add user to docker group
       user:
@@ -234,11 +289,42 @@
   hosts: server_nodes
   gather_facts: yes
   become: yes
+  vars:
+    # Pass `-e force_restart=true` to force-recreate the container even
+    # when it already looks healthy (e.g. after editing gpu-cluster.sh
+    # or config.json in a way that requires a fresh start).
+    force_restart: false
 
   tasks:
+    # Idempotency probe: container is "healthy" iff it is currently Up
+    # AND its kubectl can reach the apiserver. If both true, skip the
+    # destructive rm + run so re-runs don't churn k3s state.
+    - name: Probe existing server container health
+      shell: |
+        set -o pipefail
+        UP=$(docker ps --filter name=^server$ --format '{% raw %}{{.Status}}{% endraw %}' | head -1)
+        if [ -z "$UP" ]; then
+          echo "missing"
+          exit 0
+        fi
+        if docker exec server kubectl get --raw=/readyz >/dev/null 2>&1; then
+          echo "healthy"
+        else
+          echo "unhealthy"
+        fi
+      args:
+        executable: /bin/bash
+      register: server_health
+      changed_when: false
+
+    - name: Show server container health
+      debug:
+        msg: "server health: {{ server_health.stdout }} (force_restart={{ force_restart }})"
+
     - name: Stop existing server container if running
       command: docker rm -f server
       ignore_errors: yes
+      when: server_health.stdout != 'healthy' or (force_restart | bool)
 
     - name: Start server container
       shell: |
@@ -247,11 +333,13 @@
         sleep 5
       args:
         executable: /bin/bash
+      when: server_health.stdout != 'healthy' or (force_restart | bool)
 
     - name: Wait for server to be ready
       wait_for:
         timeout: 50
       delegate_to: localhost
+      when: server_health.stdout != 'healthy' or (force_restart | bool)
 
     - name: Check server container status
       shell: 'docker ps --filter name=server --format "{{ ''{{'' }}.Names{{ ''}}'' }}: {{ ''{{'' }}.Status{{ ''}}'' }}"'
@@ -287,6 +375,8 @@
   gather_facts: no
   become: yes
   serial: 1  # Start agents one at a time to avoid overwhelming the server
+  vars:
+    force_restart: false
 
   tasks:
     - name: Get server IP and token
@@ -298,9 +388,43 @@
       debug:
         msg: "Connecting to server at {{ server_ip }}"
 
+    # Agent "healthy" iff: container Up AND it has an established TCP
+    # connection from inside the container to the k3s apiserver port
+    # (6443) on the server. This is local to the agent host (no
+    # cross-node SSH needed) and catches both "container died" and
+    # "container Up but k3s agent crashed / lost supervisor link".
+    - name: Probe existing agent container health
+      shell: |
+        set -o pipefail
+        UP=$(docker ps --filter name=^agent$ --format '{% raw %}{{.Status}}{% endraw %}' | head -1)
+        if [ -z "$UP" ]; then
+          echo "missing"
+          exit 0
+        fi
+        # ss inside the agent container; k3s-agent holds an ESTAB conn
+        # to <server_ip>:6443. Match either peer in case ss column
+        # ordering changes between distros.
+        if docker exec agent ss -tn state established 2>/dev/null \
+             | awk '{print $3, $4}' \
+             | grep -qE "(:6443\s|\s{{ server_ip }}:6443)"; then
+          echo "healthy"
+        else
+          echo "unhealthy"
+        fi
+      args:
+        executable: /bin/bash
+      register: agent_health
+      changed_when: false
+      failed_when: false
+
+    - name: Show agent container health
+      debug:
+        msg: "agent health: {{ agent_health.stdout }} (force_restart={{ force_restart }})"
+
     - name: Stop existing agent container if running
       command: docker rm -f agent
       ignore_errors: yes
+      when: agent_health.stdout != 'healthy' or (force_restart | bool)
 
     - name: Start agent container
       shell: |
@@ -309,11 +433,13 @@
         sleep 5
       args:
         executable: /bin/bash
+      when: agent_health.stdout != 'healthy' or (force_restart | bool)
 
     - name: Wait for agent to be ready
       wait_for:
         timeout: 15
       delegate_to: localhost
+      when: agent_health.stdout != 'healthy' or (force_restart | bool)
 
     - name: Check agent container status
       shell: 'docker ps --filter name=agent --format "{{ ''{{'' }}.Names{{ ''}}'' }}: {{ ''{{'' }}.Status{{ ''}}'' }}"'
@@ -369,7 +495,7 @@
           Agent Nodes: {{ groups['agent_nodes'] | length }}
 
           To check cluster status:
-            ansible-playbook playbooks/check-status.yml
+            ansible-playbook playbooks/cvf.yml -e action=status
 
           To teardown cluster:
             ansible-playbook playbooks/teardown-cluster.yml

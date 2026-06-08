@@ -1,0 +1,10 @@
+# Sample ib_write_bw client log fixture -- empty / no BW average line.
+# The ib_write_bw process exited 0 (so the client Job is
+# Complete=True) but the log was truncated before the result row was
+# written. PHASE4_DRIVER_SCRIPT's parse step finds no value -> the
+# driver classifies the rail as reason="parse-failed" (design §6).
+[phase4-client] starting ib_write_bw -d rdma_dev_7 -i 1 -F 10.42.0.21
+---------------------------------------------------------------------------------------
+                    RDMA_Write BW Test
+ Device         : rdma_dev_7
+---------------------------------------------------------------------------------------
