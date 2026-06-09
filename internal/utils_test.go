@@ -17,7 +17,10 @@ limitations under the License.
 package utils
 
 import (
+	"context"
 	"fmt"
+	"net/http"
+	"net/http/httptest"
 	"reflect"
 	"strings"
 	"testing"
@@ -419,54 +422,77 @@ func TestSLESDefaultDriverVersionsMapper(t *testing.T) {
 }
 
 func TestValidateSLESDriverVersion(t *testing.T) {
+	authServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprintln(w, `{"token":"test-token"}`)
+	}))
+	defer authServer.Close()
+
+	var mockStatusCode int
+	registryServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(mockStatusCode)
+	}))
+	defer registryServer.Close()
+
+	origAuthURL, origManifestFmt := slesRegistryAuthURL, slesRegistryManifestFmt
+	t.Cleanup(func() { slesRegistryAuthURL, slesRegistryManifestFmt = origAuthURL, origManifestFmt })
+	slesRegistryAuthURL = authServer.URL
+	slesRegistryManifestFmt = registryServer.URL + "/v2/third-party/amd/amdgpu-driver/manifests/sles-%s-%s"
+
 	tests := []struct {
-		name          string
-		osImage       string
-		driverVersion string
-		wantErr       bool
-		errContains   string
+		name           string
+		osImage        string
+		driverVersion  string
+		registryStatus int
+		wantErr        bool
+		wantErrMsg     string
 	}{
 		{
-			name:          "non-SLES OS is always valid",
-			osImage:       "Ubuntu 22.04.3 LTS",
-			driverVersion: "6.3.3",
-			wantErr:       false,
+			name:           "non-SLES OS is always valid",
+			osImage:        "Ubuntu 22.04.3 LTS",
+			driverVersion:  "6.3.3",
+			registryStatus: http.StatusOK,
+			wantErr:        false,
 		},
 		{
-			name:          "valid version for SLES 15 SP7",
-			osImage:       "SUSE Linux Enterprise Server 15 SP7",
-			driverVersion: "31.20",
-			wantErr:       false,
+			name:           "valid version for SLES 15 SP7",
+			osImage:        "SUSE Linux Enterprise Server 15 SP7",
+			driverVersion:  "31.20",
+			registryStatus: http.StatusOK,
+			wantErr:        false,
 		},
 		{
-			name:          "valid version for SLES 16.0",
-			osImage:       "SUSE Linux Enterprise Server 16.0",
-			driverVersion: "31.10",
-			wantErr:       false,
+			name:           "valid version for SLES 16.0",
+			osImage:        "SUSE Linux Enterprise Server 16.0",
+			driverVersion:  "31.10",
+			registryStatus: http.StatusOK,
+			wantErr:        false,
 		},
 		{
-			name:          "unsupported version on SLES 16.0",
-			osImage:       "SUSE Linux Enterprise Server 16.0",
-			driverVersion: "99.99",
-			wantErr:       true,
-			errContains:   "99.99",
+			name:           "unavailable version on SLES 16.0",
+			osImage:        "SUSE Linux Enterprise Server 16.0",
+			driverVersion:  "99.99",
+			registryStatus: http.StatusNotFound,
+			wantErr:        true,
+			wantErrMsg:     `driver version "99.99" is not available for SLES 16.0 on registry.suse.com`,
 		},
 		{
-			name:          "unsupported version on SLES 15 SP7",
-			osImage:       "SUSE Linux Enterprise Server 15 SP7",
-			driverVersion: "0.0.0",
-			wantErr:       true,
-			errContains:   "0.0.0",
+			name:           "unavailable version on SLES 15 SP7",
+			osImage:        "SUSE Linux Enterprise Server 15 SP7",
+			driverVersion:  "0.0.0",
+			registryStatus: http.StatusNotFound,
+			wantErr:        true,
+			wantErrMsg:     `driver version "0.0.0" is not available for SLES 15.7 on registry.suse.com`,
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := ValidateSLESDriverVersion(tt.osImage, tt.driverVersion)
+			mockStatusCode = tt.registryStatus
+			err := ValidateSLESDriverVersion(context.Background(), tt.osImage, tt.driverVersion)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("ValidateSLESDriverVersion() error = %v, wantErr %v", err, tt.wantErr)
 			}
-			if tt.wantErr && tt.errContains != "" && !strings.Contains(err.Error(), tt.errContains) {
-				t.Errorf("error %q does not contain %q", err.Error(), tt.errContains)
+			if tt.wantErr && tt.wantErrMsg != "" && err.Error() != tt.wantErrMsg {
+				t.Errorf("error = %q, want %q", err.Error(), tt.wantErrMsg)
 			}
 		})
 	}

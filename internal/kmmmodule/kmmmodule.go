@@ -104,18 +104,17 @@ var slesCSDGAKernel = map[string]string{
 }
 
 // slesPrebuiltDriverImage returns the full prebuilt image reference.
-func slesPrebuiltDriverImage(codestream, driverVersion string) (string, bool) {
+func slesPrebuiltDriverImage(codestream, driverVersion, customRepo string) (string, bool) {
 	gaKernel, ok := slesCSDGAKernel[codestream]
 	if !ok {
 		return "", false
 	}
-	for _, v := range utils.SlesCSDDriverVersions[codestream] {
-		if v == driverVersion {
-			tag := fmt.Sprintf("sles-%s-%s-default-%s", codestream, gaKernel, driverVersion)
-			return slesPrebuiltDriverImageRepo + ":" + tag, true
-		}
+	tag := fmt.Sprintf("sles-%s-%s-default-%s", codestream, gaKernel, driverVersion)
+	repo := slesPrebuiltDriverImageRepo
+	if customRepo != "" {
+		repo = customRepo
 	}
-	return "", false
+	return repo + ":" + tag, true
 }
 
 //go:generate mockgen -source=kmmmodule.go -package=kmmmodule -destination=mock_kmmmodule.go KMMModuleAPI
@@ -601,7 +600,13 @@ func getKM(devConfig *amdv1alpha1.DeviceConfig, node v1.Node, inTreeModuleToRemo
 		if _, ok := slesCSDGAKernel[csVersion]; !ok {
 			return kmmv1beta1.KernelMapping{}, "", fmt.Errorf("no prebuilt driver image registered for SLES codestream %q", csVersion)
 		}
-		prebuiltImg, ok := slesPrebuiltDriverImage(csVersion, driversVersion)
+		// if custom baseImageRegistry is set (e.g. air-gapped mirror), use that
+		// otherwise use the default "registry.suse.com"
+		prebuiltRepo := ""
+		if devConfig.Spec.Driver.ImageBuild.BaseImageRegistry != "" {
+			prebuiltRepo = devConfig.Spec.Driver.ImageBuild.BaseImageRegistry + "/third-party/amd/amdgpu-driver"
+		}
+		prebuiltImg, ok := slesPrebuiltDriverImage(csVersion, driversVersion, prebuiltRepo)
 		if !ok {
 			return kmmv1beta1.KernelMapping{}, "", fmt.Errorf("no prebuilt driver image registered for SLES codestream %q with driver version %q", csVersion, driversVersion)
 		}
