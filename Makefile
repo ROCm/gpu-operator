@@ -122,11 +122,11 @@ CONTAINER_DOCKER_SOCKET ?= /var/run/docker.sock
 DOCKER_GID := $(shell stat -c '%g' $(HOST_DOCKER_SOCKET))
 USER_UID := $(shell id -u)
 USER_GID := $(shell id -g)
-DOCKER_BUILDER_TAG := v1.5
+DOCKER_BUILDER_TAG := v1.6
 DOCKER_BUILDER_IMAGE := $(DOCKER_REGISTRY)/gpu-operator-build:$(DOCKER_BUILDER_TAG)
 CONTAINER_WORKDIR := /gpu-operator
 BUILD_BASE_IMG ?= ubuntu:22.04
-GOLANG_BASE_IMG ?= golang:1.25.8
+GOLANG_BASE_IMG ?= golang:1.26.4
 OPERATOR_CONTROLLER_BASE_IMAGE ?= registry.access.redhat.com/ubi9/ubi-minimal:9.7
 
 ##################

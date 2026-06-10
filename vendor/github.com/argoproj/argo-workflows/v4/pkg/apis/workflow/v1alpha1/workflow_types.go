@@ -1903,8 +1903,8 @@ func (n Nodes) FindByName(name string) *NodeStatus {
 	return n.Find(NodeWithName(name))
 }
 
-func (n Nodes) FindByChild(childID string) *NodeStatus {
-	return n.Find(NodeWithChild(childID))
+func (n Nodes) FindRetryNodeByChild(childID string) *NodeStatus {
+	return n.Find(RetryNodeWithChild(childID))
 }
 
 func (n Nodes) Any(f func(NodeStatus) bool) bool {
@@ -1992,9 +1992,9 @@ func NodeWithDisplayName(name string) func(n NodeStatus) bool {
 	return func(n NodeStatus) bool { return n.DisplayName == name }
 }
 
-func NodeWithChild(childID string) func(n NodeStatus) bool {
+func RetryNodeWithChild(childID string) func(n NodeStatus) bool {
 	return func(n NodeStatus) bool {
-		return n.HasChild(childID)
+		return n.HasChild(childID) && n.Type == NodeTypeRetry
 	}
 }
 
@@ -4125,15 +4125,31 @@ func (ss *SemaphoreStatus) LockWaiting(holderKey, lockKey string, currentHolders
 func (ss *SemaphoreStatus) LockAcquired(holderKey, lockKey string, currentHolders []string) bool {
 	i, semaphoreHolding := ss.GetHolding(lockKey)
 	holdingName := holderKey
+	updated := false
 	if i < 0 {
 		ss.Holding = append(ss.Holding, SemaphoreHolding{Semaphore: lockKey, Holders: []string{holdingName}})
-		return true
+		updated = true
 	} else if !slices.Contains(semaphoreHolding.Holders, holdingName) {
 		semaphoreHolding.Holders = append(semaphoreHolding.Holders, holdingName)
 		ss.Holding[i] = semaphoreHolding
-		return true
+		updated = true
 	}
-	return false
+
+	waitingIdx, semaphoreWaiting := ss.GetWaiting(lockKey)
+	if waitingIdx >= 0 {
+		prevN := len(semaphoreWaiting.Holders)
+		semaphoreWaiting.Holders = slices.DeleteFunc(semaphoreWaiting.Holders,
+			func(x string) bool { return x == holdingName })
+		if len(semaphoreWaiting.Holders) == 0 {
+			ss.Waiting = slices.Delete(ss.Waiting, waitingIdx, waitingIdx+1)
+			updated = true
+		} else if prevN != len(semaphoreWaiting.Holders) {
+			ss.Waiting[waitingIdx] = semaphoreWaiting
+			updated = true
+		}
+	}
+
+	return updated
 }
 
 func (ss *SemaphoreStatus) LockReleased(holderKey, lockKey string) bool {
