@@ -22,6 +22,7 @@ import (
 
 	amdv1alpha1 "github.com/ROCm/gpu-operator/api/v1alpha1"
 	utils "github.com/ROCm/gpu-operator/internal"
+	"github.com/go-logr/logr"
 	v1 "k8s.io/api/core/v1"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
@@ -37,16 +38,28 @@ const (
 )
 
 // validateSLESDriverVersion lists nodes matching devConfig's selector and, for any
-// SLES node found, checks that driverVersion is a known supported version.
+// SLES node found, checks that driverVersion is available on the SUSE registry.
+// Validation is skipped when baseImageRegistry is set (custom/air-gapped mirror).
 func validateSLESDriverVersion(ctx context.Context, cli client.Client, devConfig *amdv1alpha1.DeviceConfig, driverVersion string) error {
+	if devConfig.Spec.Driver.ImageBuild.BaseImageRegistry != "" {
+		logr.FromContextOrDiscard(ctx).Info("Skipping SLES driver version registry validation: custom base image registry configured",
+			"baseImageRegistry", devConfig.Spec.Driver.ImageBuild.BaseImageRegistry)
+		return nil
+	}
 	selector := labels.SelectorFromSet(labels.Set(devConfig.Spec.Selector))
 	nodeList := &v1.NodeList{}
 	if err := cli.List(ctx, nodeList, &client.ListOptions{LabelSelector: selector}); err != nil {
 		return fmt.Errorf("failed to list nodes for driver version validation: %v", err)
 	}
+	seen := map[string]struct{}{}
 	for _, node := range nodeList.Items {
-		if err := utils.ValidateSLESDriverVersion(node.Status.NodeInfo.OSImage, driverVersion); err != nil {
-			return fmt.Errorf("version validation failed for node %s: %w", node.Name, err)
+		osImage := node.Status.NodeInfo.OSImage
+		if _, ok := seen[osImage]; ok {
+			continue
+		}
+		seen[osImage] = struct{}{}
+		if err := utils.ValidateSLESDriverVersion(ctx, osImage, driverVersion); err != nil {
+			return fmt.Errorf("driver version validation failed for node %s: %w", node.Name, err)
 		}
 	}
 	return nil

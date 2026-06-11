@@ -18,11 +18,14 @@ package utils
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"net/http"
 	"regexp"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/go-logr/logr"
 	v1 "k8s.io/api/core/v1"
@@ -242,13 +245,22 @@ var slesDefaultDriverVersions = map[string]string{
 	"16.0": "31.30",
 }
 
-var supportedSLESVersions = []string{"SLES 15 SP7", "SLES 16.0"}
+var (
+	slesRegistryHTTPClient  = &http.Client{Timeout: 10 * time.Second}
+	slesRegistryAuthURL     = "https://scc.suse.com/api/registry/authorize?service=SUSE+Linux+Docker+Registry&scope=repository:third-party/amd/amdgpu-driver:pull"
+	slesRegistryManifestFmt = "https://registry.suse.com/v2/third-party/amd/amdgpu-driver/manifests/sles-%s-%s"
+)
 
-// SlesCSDDriverVersions maps SLES codestream -> supported prebuilt driver versions.
-var SlesCSDDriverVersions = map[string][]string{
-	"15.7": {"7.0.3", "30.20.1", "30.30.3", "31.10", "31.20", "31.30"},
-	"16.0": {"31.10", "31.20", "31.30"},
+// slesVersionCache caches registry check results for 5 minutes to avoid redundant calls.
+type slesVersionCacheEntry struct {
+	err       error
+	expiresAt time.Time
 }
+
+var (
+	slesVersionCache    = map[string]slesVersionCacheEntry{}
+	slesVersionCacheTTL = 5 * time.Minute
+)
 
 // slesCodestream extracts the codestream key (e.g. "15.7", "16.0") from an OS image string.
 func slesCodestream(osImage string) string {
@@ -262,9 +274,8 @@ func slesCodestream(osImage string) string {
 	return ""
 }
 
-// ValidateSLESDriverVersion checks whether driverVersion is supported for the
-// SLES codestream identified by osImage.
-func ValidateSLESDriverVersion(osImage, driverVersion string) error {
+// ValidateSLESDriverVersion checks driverVersion availability on registry.suse.com for the given SLES osImage.
+func ValidateSLESDriverVersion(ctx context.Context, osImage, driverVersion string) error {
 	lower := strings.ToLower(osImage)
 	if !strings.Contains(lower, "suse") && !strings.Contains(lower, "sles") {
 		return nil
@@ -273,17 +284,52 @@ func ValidateSLESDriverVersion(osImage, driverVersion string) error {
 	if cs == "" {
 		return fmt.Errorf("could not determine SLES codestream from OS image %q", osImage)
 	}
-	versions, ok := SlesCSDDriverVersions[cs]
-	if !ok {
-		return fmt.Errorf("unsupported SLES codestream %q in OS image %q", cs, osImage)
+
+	cacheKey := cs + "@" + driverVersion
+	if e, ok := slesVersionCache[cacheKey]; ok && time.Now().Before(e.expiresAt) {
+		logr.FromContextOrDiscard(ctx).Info("SLES driver version cache hit", "codestream", cs, "version", driverVersion)
+		return e.err
 	}
-	for _, v := range versions {
-		if v == driverVersion {
-			return nil
-		}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, slesRegistryAuthURL, nil)
+	if err != nil {
+		return err
 	}
-	return fmt.Errorf("driver version %q is not supported for SLES %s; supported versions: %s",
-		driverVersion, cs, strings.Join(versions, ", "))
+	resp, err := slesRegistryHTTPClient.Do(req)
+	if err != nil {
+		return fmt.Errorf("could not reach SUSE registry: %w", err)
+	}
+	defer resp.Body.Close()
+	var tok struct {
+		Token string `json:"token"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&tok); err != nil {
+		return fmt.Errorf("could not parse SCC token: %w", err)
+	}
+
+	req, err = http.NewRequestWithContext(ctx, http.MethodHead, fmt.Sprintf(slesRegistryManifestFmt, cs, driverVersion), nil)
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Authorization", "Bearer "+tok.Token)
+	resp2, err := slesRegistryHTTPClient.Do(req)
+	if err != nil {
+		return fmt.Errorf("could not reach SUSE registry: %w", err)
+	}
+	defer resp2.Body.Close()
+
+	var result error
+	switch resp2.StatusCode {
+	case http.StatusOK:
+		result = nil
+	case http.StatusNotFound:
+		result = fmt.Errorf("driver version %q is not available for SLES %s on registry.suse.com", driverVersion, cs)
+	default:
+		result = fmt.Errorf("unexpected status %d from SUSE registry for SLES %s version %q", resp2.StatusCode, cs, driverVersion)
+	}
+	slesVersionCache[cacheKey] = slesVersionCacheEntry{err: result, expiresAt: time.Now().Add(slesVersionCacheTTL)}
+	logr.FromContextOrDiscard(ctx).Info("SLES driver version cache refreshed", "codestream", cs, "version", driverVersion, "available", result == nil)
+	return result
 }
 
 func SLESDefaultDriverVersionsMapper(fullImageStr string) (string, error) {
@@ -303,7 +349,7 @@ func SLESDefaultDriverVersionsMapper(fullImageStr string) (string, error) {
 			return v, nil
 		}
 	}
-	return "", fmt.Errorf("unsupported SLES version: %s. Supported versions: %s", fullImageStr, strings.Join(supportedSLESVersions, ", "))
+	return "", fmt.Errorf("unsupported SLES version %q", fullImageStr)
 }
 
 func HasNodeLabelKey(node v1.Node, labelKey string) bool {
