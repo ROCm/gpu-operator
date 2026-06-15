@@ -51,4 +51,4 @@ jobs:
             -v /var/run/docker.sock:/var/run/docker.sock \
             -w /gpu-operator \
             ${{ steps.builder.outputs.image }} \
-            bash -ic "git config --global --add safe.directory /gpu-operator && make all"
+            bash -ic "export PATH=/gpu-operator/bin:\$(go env GOPATH)/bin:\$PATH && git config --global --add safe.directory /gpu-operator && make all"
