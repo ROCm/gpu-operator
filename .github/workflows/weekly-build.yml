@@ -1,0 +1,53 @@
+name: Weekly Build
+
+on:
+  schedule:
+    - cron: '0 0 * * 1'  # Every Monday at 00:00 UTC
+  workflow_dispatch:
+
+permissions:
+  actions: read
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check for new commits since last successful build
+        id: check_commits
+        if: github.event_name == 'schedule'
+        run: |
+          # Retrieve the HEAD SHA of the most recent successful scheduled run of this workflow.
+          LAST_SHA=$(gh api \
+            "repos/${{ github.repository }}/actions/workflows/weekly-build.yml/runs?event=schedule&status=success&per_page=1" \
+            --jq '.workflow_runs[0].head_sha // ""' 2>/dev/null || echo "")
+
+          CURRENT_SHA="${{ github.sha }}"
+
+          echo "Last successful build SHA: ${LAST_SHA:-none}"
+          echo "Current HEAD SHA: $CURRENT_SHA"
+
+          if [ -z "$LAST_SHA" ] || [ "$LAST_SHA" != "$CURRENT_SHA" ]; then
+            echo "new_commits=true" >> "$GITHUB_OUTPUT"
+            echo "New commits detected – proceeding with build."
+          else
+            echo "new_commits=false" >> "$GITHUB_OUTPUT"
+            echo "No new commits since last successful build – skipping."
+          fi
+        env:
+          GH_TOKEN: ${{ github.token }}
+
+      - name: Skip build – no new commits
+        if: github.event_name == 'schedule' && steps.check_commits.outputs.new_commits == 'false'
+        run: |
+          echo "Build skipped: repository is unchanged since the last successful run."
+
+      - name: Build all targets
+        if: github.event_name != 'schedule' || steps.check_commits.outputs.new_commits == 'true'
+        run: make default
+        env:
+          CI: true
+          IMAGE_NAME: gpu-operator

@@ -125,6 +125,8 @@ USER_GID := $(shell id -g)
 DOCKER_BUILDER_TAG := v1.6
 DOCKER_BUILDER_IMAGE := $(DOCKER_REGISTRY)/gpu-operator-build:$(DOCKER_BUILDER_TAG)
 CONTAINER_WORKDIR := /gpu-operator
+# In CI environments (e.g. GitHub Actions) there is no TTY, so omit -it flags.
+DOCKER_IT_FLAGS := $(if $(CI),,-it)
 BUILD_BASE_IMG ?= ubuntu:22.04
 GOLANG_BASE_IMG ?= golang:1.26.4
 OPERATOR_CONTROLLER_BASE_IMAGE ?= registry.access.redhat.com/ubi9/ubi-minimal:9.7
@@ -142,7 +144,7 @@ HTML_DIR := $(BUILD_DIR)/html
 .PHONY: default
 default: docker-build-env ## Quick start to build everything from docker shell container.
 	@echo "Starting a shell in the Docker build container..."
-	@docker run --rm -it --privileged \
+	@docker run --rm $(DOCKER_IT_FLAGS) --privileged \
 	    --network host \
 		--name gpu-operator-build \
 		-e "USER_NAME=$(shell whoami)" \
@@ -175,7 +177,7 @@ docker/shell: docker-build-env ## Bring up and attach to a container that has de
 		"cd /gpu-operator && git config --global --add safe.directory /gpu-operator && bash"
 
 .PHONY: all
-all: generate manager manifests helm-k8s bundle-build docker-build
+all: generate manager manifests helm-k8s bundle-build docker-build docker-build-utils
 
 ##@ General
 
