@@ -86,10 +86,18 @@ Each AMD operator can either (a) use the host's existing kernel module ("inbox")
 },
 "network-operator": {
   "version": "v1.0.0",
+  "install-network-operator": true,          // optional (default true). false = skip the network operator entirely for a GPU-only cluster
   "install-ionic-driver": false,             // false = use host's ionic_rdma; true = operator installs driver-version
   "driver-version": "1.117.5-a-56"
 }
 ```
+
+> **GPU-only clusters:** set `install-network-operator: false` to skip the
+> network operator, its `NetworkConfig`, and Multus altogether. Only do
+> this when no NIC-dependent phases run — make sure Phases 3, 4, and 5 are
+> skipped in `skip-tests` and that `node-selector-labels` does not require
+> an `amd-nic`/`amd-vnic` label. cert-manager, the GPU operator,
+> mpi-operator, and the CVF CronJob still install normally.
 
 **How to decide:** check what's already loaded on each node before bringup.
 
@@ -142,6 +150,19 @@ ansible -i ansible/inventory.yml server-node -m shell -a \
 ```
 
 NFD applies these labels asynchronously after the corresponding operator's device plugin advertises a resource. If a node shows the device under `kubectl describe node` capacity but the label is missing, the operator hasn't completed its NFD rule rollout yet — wait \~1 min and re-check.
+
+> **Custom (non-NFD) labels must be applied by you.** Only the four
+> `feature.node.kubernetes.io/amd-{gpu,vgpu,nic,vnic}` labels above are
+> set automatically (by NFD). If you set `node-selector-labels` to a
+> custom label such as `["cvf-candidate=true"]`, **nothing applies it for
+> you** — you must label the target nodes yourself, or Phase 0 will match
+> zero nodes and every CronJob tick will skip with
+> `[Node Selection: WARNING] Selector '...' matched 0 nodes`:
+> ```bash
+> docker exec server kubectl label node <node-name> cvf-candidate=true
+> ```
+> This is a useful pattern when you want to *explicitly* opt nodes into
+> validation rather than auto-selecting every GPU/NIC node.
 
 > **Note:** the orchestrator uses these labels for Phase 0 candidate selection. NIC-requiring phases (Phase 3 / Phase 4) further narrow inside their own per-phase script via intersection with `amd-nic=true` (or `amd-vnic=true` if you set it), so non-NIC nodes pass through GPU-only phases cleanly without entering the NIC phases.
 

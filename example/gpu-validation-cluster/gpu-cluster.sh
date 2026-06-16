@@ -390,7 +390,50 @@ YAMEOF
             --create-namespace \
             --set crds.enabled=true
 
+        wait_for_cert_manager_webhook "$CERT_MANAGER_NS"
+
         echo "[INFO] cert-manager installation completed"
+    }
+
+    # Block until the cert-manager webhook is actually able to admit
+    # requests. Without this, the very next step (install_amd_gpu_operator)
+    # applies Certificate/Issuer objects that are validated by
+    # cert-manager's admission webhook, and the helm install fails with
+    # "failed calling webhook ... no endpoints available for service
+    # cert-manager-webhook". This is especially likely right after a fresh
+    # container start, when k3s flaps (see entrypoint.sh supervise_k3s) and
+    # restarts the cert-manager pods, briefly emptying the webhook's
+    # Endpoints exactly when the GPU-operator install races ahead.
+    wait_for_cert_manager_webhook() {
+        local CERT_MANAGER_NS="$1"
+
+        echo "[INFO] Waiting for cert-manager webhook to be ready..."
+
+        # 1. Deployment rollout complete (all replicas Available).
+        docker exec "$CONTAINER_NAME" kubectl rollout status \
+            deployment/cert-manager-webhook -n "$CERT_MANAGER_NS" --timeout=300s
+
+        # 2. Service has at least one ready endpoint. rollout status can
+        #    report complete a moment before the EndpointSlice is populated,
+        #    so poll the Endpoints object until an address appears.
+        local MAX_RETRIES=60
+        local RETRY_COUNT=0
+        while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
+            local EP
+            EP=$(docker exec "$CONTAINER_NAME" kubectl get endpoints cert-manager-webhook \
+                -n "$CERT_MANAGER_NS" -o jsonpath='{.subsets[*].addresses[*].ip}' 2>/dev/null)
+            if [ -n "$EP" ]; then
+                echo "[INFO] cert-manager webhook has endpoints: $EP"
+                break
+            fi
+            echo "[INFO] Waiting for cert-manager webhook endpoints... ($((RETRY_COUNT + 1))/$MAX_RETRIES)"
+            sleep 2
+            RETRY_COUNT=$((RETRY_COUNT + 1))
+        done
+        if [ $RETRY_COUNT -ge $MAX_RETRIES ]; then
+            echo "[ERROR] cert-manager webhook has no endpoints after $MAX_RETRIES retries"
+            exit 1
+        fi
     }
 
     # Function to install AMD GPU operator
@@ -404,21 +447,58 @@ YAMEOF
         local AMD_GPU_CHART=$(read_config '.["amd-gpu-operator"].chart')
         local AMD_GPU_NS=$(read_config '.["amd-gpu-operator"].namespace')
 
+        local CERT_MANAGER_NS=$(read_config '.["cert-manager"].namespace')
+
         echo "[INFO] Installing AMD GPU operator via Helm..."
         echo "[INFO]   Version: $AMD_GPU_VERSION"
 
-        if docker exec "$CONTAINER_NAME" helm list -n "$AMD_GPU_NS" | grep -q amd-gpu-operator; then
+        # Only skip when an existing release is actually deployed. A prior
+        # attempt that failed mid-apply (e.g. the cert-manager webhook race)
+        # leaves a release in STATUS=failed which `helm list` still shows --
+        # treating that as "installed" would silently ship a broken operator.
+        local RELEASE_STATUS
+        RELEASE_STATUS=$(docker exec "$CONTAINER_NAME" helm status amd-gpu-operator \
+            -n "$AMD_GPU_NS" -o json 2>/dev/null | jq -r '.info.status // ""')
+        if [ "$RELEASE_STATUS" = "deployed" ]; then
             echo "[INFO] AMD GPU operator is already installed, skipping..."
             return
+        fi
+        if [ -n "$RELEASE_STATUS" ]; then
+            echo "[WARN] AMD GPU operator release in status='$RELEASE_STATUS' -- uninstalling before retry"
+            docker exec "$CONTAINER_NAME" helm uninstall amd-gpu-operator -n "$AMD_GPU_NS" 2>/dev/null || true
         fi
 
         docker exec "$CONTAINER_NAME" helm repo add rocm "$AMD_GPU_REPO"
         docker exec "$CONTAINER_NAME" helm repo update
 
-        docker exec "$CONTAINER_NAME" helm install amd-gpu-operator "$AMD_GPU_CHART" \
-            --namespace "$AMD_GPU_NS" \
-            --create-namespace \
-            --version="$AMD_GPU_VERSION"
+        # Retry the install: its chart applies Certificate/Issuer objects
+        # gated by the cert-manager webhook, which can transiently lose its
+        # endpoints during post-start k3s flapping. Re-assert webhook
+        # readiness and clean up any partial release before each attempt.
+        local MAX_RETRIES=5
+        local RETRY_COUNT=0
+        local INSTALL_OK=false
+        while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
+            wait_for_cert_manager_webhook "$CERT_MANAGER_NS"
+
+            if docker exec "$CONTAINER_NAME" helm install amd-gpu-operator "$AMD_GPU_CHART" \
+                --namespace "$AMD_GPU_NS" \
+                --create-namespace \
+                --version="$AMD_GPU_VERSION"; then
+                INSTALL_OK=true
+                break
+            fi
+
+            RETRY_COUNT=$((RETRY_COUNT + 1))
+            echo "[WARN] AMD GPU operator install failed (attempt $RETRY_COUNT/$MAX_RETRIES) -- cleaning up and retrying"
+            docker exec "$CONTAINER_NAME" helm uninstall amd-gpu-operator -n "$AMD_GPU_NS" 2>/dev/null || true
+            sleep 10
+        done
+
+        if [ "$INSTALL_OK" != true ]; then
+            echo "[ERROR] AMD GPU operator install failed after $MAX_RETRIES attempts"
+            exit 1
+        fi
 
         echo "[INFO] AMD GPU operator installation completed"
     }
@@ -426,6 +506,22 @@ YAMEOF
     # Function to install network operator
     install_network_operator() {
         if [ "$MODE" != "server" ]; then
+            return
+        fi
+
+        # Optional: skip the network operator entirely for GPU-only
+        # clusters. Defaults to true (install) so existing configs are
+        # unaffected. When false, the network operator, its NetworkConfig
+        # CR, and Multus (which the operator ships) are all skipped -- only
+        # valid when no NIC-dependent phases (3/4/5) will run.
+        # NOTE: use an explicit null check, NOT jq's `// true`. The `//`
+        # alternative operator fires on `false` too (jq treats false as
+        # empty), so `false // true` => true and the flag would never take
+        # effect. `if . == null then true else . end` defaults only when
+        # the key is absent.
+        local INSTALL_NETWORK_OPERATOR=$(read_config 'if .["network-operator"]["install-network-operator"] == null then true else .["network-operator"]["install-network-operator"] end')
+        if [ "$INSTALL_NETWORK_OPERATOR" != "true" ]; then
+            echo "[INFO] network-operator.install-network-operator=false -- skipping network operator install"
             return
         fi
 
@@ -533,17 +629,23 @@ REGEOF
 "
         echo "[INFO] registries.yaml configured successfully, need to restart k3s server to apply changes"
         echo "[INFO] Killing k3s process to apply registry changes..."
+
+        # Let the entrypoint supervisor own the restart. Previously this
+        # function did `pkill -9 k3s` AND then launched its own
+        # `k3s server ...` via `docker exec -d` -- but entrypoint.sh's
+        # supervise_k3s loop ALSO relaunches k3s the moment it sees the
+        # process exit. The result was two competing k3s servers fighting
+        # for port 6443, one of which kept crashing ("stabilized after N
+        # restarts"). Any kubectl/helm call that blipped during that race
+        # tripped `set -e` and aborted the whole (backgrounded) install.
+        #
+        # Fix: only kill k3s; the supervisor relaunches it (with the
+        # correct, single source-of-truth arg set, including
+        # --kubelet-arg=serialize-image-pulls=true). We then wait for the
+        # freshly-supervised apiserver to come back.
         docker exec "$CONTAINER_NAME" sh -c "pkill -9 k3s || true"
 
-        echo "[INFO] Restarting k3s service..."
-        sleep 3
-        docker exec -d "$CONTAINER_NAME" /usr/local/bin/k3s server --embedded-registry --disable=traefik --disable=servicelb
-
-        echo "[INFO] Waiting for k3s to be ready..."
-        sleep 10
-        docker exec "$CONTAINER_NAME" sh -c "until kubectl get nodes &>/dev/null; do sleep 1; done"
-        echo "[INFO] k3s restarted successfully"
-
+        echo "[INFO] Waiting for supervisor to relaunch k3s and the API to be ready..."
         RETRY_COUNT=0
         while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
             if docker exec "$CONTAINER_NAME" kubectl api-resources &>/dev/null; then
@@ -627,6 +729,15 @@ DEVICEEOF
 "
         echo "[INFO] AMD GPU driver configuration applied successfully"
 
+        # The NetworkConfig CR below is owned by the network operator's
+        # CRD; skip it when the network operator was not installed, or the
+        # apply fails ("no matches for kind NetworkConfig").
+        local INSTALL_NETWORK_OPERATOR=$(read_config 'if .["network-operator"]["install-network-operator"] == null then true else .["network-operator"]["install-network-operator"] end')
+        if [ "$INSTALL_NETWORK_OPERATOR" != "true" ]; then
+            echo "[INFO] network operator skipped -- not applying NetworkConfig"
+            return
+        fi
+
         local INSTALL_IONIC_DRIVER=$(read_config '.["network-operator"]["install-ionic-driver"]')
         local NETWORK_NS=$(read_config '.["network-operator"].namespace')
         local REGISTRY_PORT=$(read_config '.["in-cluster-registry"].nodePort')
@@ -667,6 +778,85 @@ EOF
 "
     }
 
+    # Wait for a workload (Deployment/DaemonSet) to finish rolling out,
+    # tolerating slow image pulls while failing fast on unrecoverable
+    # pull errors. `kubectl rollout status` already blocks until the
+    # rollout completes (it does NOT time out on a slow-but-progressing
+    # pull the way a fixed sleep-loop does); we run it under an overall
+    # deadline and, on each lapse, inspect pod events so an
+    # ErrImagePull/ImagePullBackOff with auth/not-found surfaces
+    # immediately instead of burning the whole budget.
+    #
+    #   wait_for_rollout <kind/name> <namespace> [hard_timeout_secs] [pod_selector]
+    wait_for_rollout() {
+        local target="$1"
+        local ns="$2"
+        local hard_timeout="${3:-900}"
+        local selector="${4:-}"
+
+        echo "[INFO] Waiting for $target in $ns to roll out (hard timeout ${hard_timeout}s)..."
+        local deadline=$(( $(date +%s) + hard_timeout ))
+
+        while :; do
+            local remaining=$(( deadline - $(date +%s) ))
+            if [ "$remaining" -le 0 ]; then
+                echo "[ERROR] $target did not become ready within ${hard_timeout}s"
+                _dump_pull_failures "$ns" "$selector"
+                return 1
+            fi
+
+            # rollout status returns 0 as soon as the workload is ready.
+            # Cap each attempt at 60s so we periodically re-check for fatal
+            # pull errors; the final attempt shrinks to whatever time is
+            # left before the hard deadline.
+            local step=$(( remaining < 60 ? remaining : 60 ))
+            if docker exec "$CONTAINER_NAME" kubectl rollout status "$target" -n "$ns" \
+                    --timeout="${step}s" >/dev/null 2>&1; then
+                echo "[INFO] $target is ready"
+                return 0
+            fi
+
+            # Not ready yet. Fast-fail on definitively broken pulls.
+            if _has_fatal_pull_error "$ns" "$selector"; then
+                echo "[ERROR] $target has an unrecoverable image-pull error -- not waiting out the timeout"
+                _dump_pull_failures "$ns" "$selector"
+                return 1
+            fi
+            echo "[INFO] $target still progressing (image pull / scheduling); ${remaining}s left..."
+        done
+    }
+
+    # Returns 0 if any pod (optionally matching <selector>) in <ns> has a
+    # container blocked on an image pull for a reason that will not
+    # self-resolve (authn/authz failure or missing image/tag).
+    _has_fatal_pull_error() {
+        local ns="$1"
+        local selector="$2"
+        local sel_args=()
+        [ -n "$selector" ] && sel_args=(-l "$selector")
+
+        local reasons
+        reasons=$(docker exec "$CONTAINER_NAME" kubectl get pods -n "$ns" "${sel_args[@]}" \
+            -o jsonpath='{range .items[*].status.containerStatuses[*]}{.state.waiting.reason}={.state.waiting.message}{"\n"}{end}' \
+            2>/dev/null)
+        # ImagePullBackOff/ErrImagePull alone can be transient (registry
+        # blip); only treat as fatal when the message names an auth or
+        # not-found condition.
+        echo "$reasons" | grep -qiE '(unauthorized|authentication required|denied|forbidden|not found|manifest unknown|no such host|repository does not exist)'
+    }
+
+    _dump_pull_failures() {
+        local ns="$1"
+        local selector="$2"
+        local sel_args=()
+        [ -n "$selector" ] && sel_args=(-l "$selector")
+        echo "[INFO] --- pod image-pull diagnostics ($ns) ---"
+        docker exec "$CONTAINER_NAME" kubectl get pods -n "$ns" "${sel_args[@]}" \
+            -o wide 2>/dev/null | sed 's/^/[INFO]   /' || true
+        docker exec "$CONTAINER_NAME" kubectl get events -n "$ns" \
+            --field-selector type=Warning 2>/dev/null | grep -iE 'pull|image' | tail -10 | sed 's/^/[INFO]   /' || true
+    }
+
     # Function to configure CNI folder for all nodes
     configure_cni_folder() {
         echo "[INFO] Configuring CNI for node..."
@@ -689,24 +879,64 @@ EOF
         echo "[INFO] CNI configuration completed"
     }
 
-    prepare_multus_artifacts() {
-        echo "[INFO] Preparing Multus CNI artifacts..."
-        # wait for CNI binaries to be available
-        # it could take time to pull the multus image from GitHub container registry
-        local MAX_RETRIES=70
-        local RETRY_COUNT=0
-        while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
-            if docker exec "$CONTAINER_NAME" sh -c '[ "$(ls -A /opt/cni/bin)" ]'; then
-                break
+    # Block until a path inside the container is non-empty, tolerating a
+    # slow image pull. Unlike a fixed iteration count, this uses a wall-
+    # clock deadline and -- in server mode, where kubectl works -- fails
+    # fast on an unrecoverable multus image-pull error instead of waiting
+    # out the whole budget.
+    #
+    #   wait_for_path <path> <description> [hard_timeout_secs]
+    wait_for_path() {
+        local path="$1"
+        local desc="$2"
+        local hard_timeout="${3:-300}"
+        local deadline=$(( $(date +%s) + hard_timeout ))
+
+        while ! docker exec "$CONTAINER_NAME" sh -c "[ -e \"$path\" ] && [ -n \"\$(ls -A \"$path\" 2>/dev/null)\" ]"; do
+            if [ "$(date +%s)" -ge "$deadline" ]; then
+                echo "[ERROR] $desc not available within ${hard_timeout}s ($path)"
+                [ "$MODE" = "server" ] && _dump_pull_failures "kube-amd-network" "app.kubernetes.io/name=multus"
+                return 1
             fi
-            echo "[INFO] Waiting for CNI binaries to be available... ($((RETRY_COUNT + 1))/$MAX_RETRIES)"
+            if [ "$MODE" = "server" ] && _has_fatal_pull_error "kube-amd-network" "app.kubernetes.io/name=multus"; then
+                echo "[ERROR] multus image pull failed unrecoverably -- not waiting for $desc"
+                _dump_pull_failures "kube-amd-network" "app.kubernetes.io/name=multus"
+                return 1
+            fi
+            echo "[INFO] Waiting for $desc (image pull may be in progress)..."
             sleep 3
-            RETRY_COUNT=$((RETRY_COUNT + 1))
         done
-        if [ $RETRY_COUNT -ge $MAX_RETRIES ]; then
-            echo "[ERROR] CNI binaries not found after $MAX_RETRIES retries"
-            exit 1
+    }
+
+    prepare_multus_artifacts() {
+        # Multus is shipped by the network operator. If it is skipped there
+        # is no multus DaemonSet, no /opt/cni/bin population, and no
+        # 00-multus.conflist -- so this whole step is a no-op. (Multus is
+        # only needed by NIC phases 3/4/5, which a GPU-only cluster skips.)
+        local INSTALL_NETWORK_OPERATOR=$(read_config 'if .["network-operator"]["install-network-operator"] == null then true else .["network-operator"]["install-network-operator"] end')
+        if [ "$INSTALL_NETWORK_OPERATOR" != "true" ]; then
+            echo "[INFO] network operator skipped -- skipping Multus CNI artifact preparation"
+            return
         fi
+
+        echo "[INFO] Preparing Multus CNI artifacts..."
+
+        # The multus CNI binaries land in /opt/cni/bin only after the
+        # multus DaemonSet pod is up, which in turn waits on its image
+        # pull. On the server we can watch the DaemonSet rollout directly
+        # (progress-aware: tolerates a slow pull, fast-fails on a broken
+        # one) for a clean signal before falling through to the file check.
+        if [ "$MODE" = "server" ]; then
+            local MULTUS_DS
+            MULTUS_DS=$(docker exec "$CONTAINER_NAME" kubectl get ds -n kube-amd-network \
+                -l app.kubernetes.io/name=multus -o name 2>/dev/null | head -1)
+            if [ -n "$MULTUS_DS" ]; then
+                wait_for_rollout "$MULTUS_DS" "kube-amd-network" 600 "app.kubernetes.io/name=multus" || exit 1
+            fi
+        fi
+
+        # wait for CNI binaries to be available (image pull can be slow)
+        wait_for_path /opt/cni/bin "CNI binaries" 300 || exit 1
 
         local CP_MAX_RETRIES=30
         local CP_RETRY_COUNT=0
@@ -725,19 +955,7 @@ EOF
         fi
 
         # wait for 00-multus.conflist to be available
-        RETRY_COUNT=0
-        while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
-            if docker exec "$CONTAINER_NAME" sh -c '[ "$(ls -A /etc/cni/net.d/00-multus.conflist)" ]'; then
-                break
-            fi
-            echo "[INFO] Waiting for Multus CNI configuration to be available... ($((RETRY_COUNT + 1))/$MAX_RETRIES)"
-            sleep 2
-            RETRY_COUNT=$((RETRY_COUNT + 1))
-        done
-        if [ $RETRY_COUNT -ge $MAX_RETRIES ]; then
-            echo "[ERROR] Multus CNI configuration not found after $MAX_RETRIES retries"
-            exit 1
-        fi
+        wait_for_path /etc/cni/net.d/00-multus.conflist "Multus CNI configuration" 300 || exit 1
         docker exec "$CONTAINER_NAME" cp /etc/cni/net.d/00-multus.conflist /etc/cni/net.d/00-multus.conf
     }
 
@@ -986,6 +1204,16 @@ EOF
         # -- plural form with dashes per the upstream Multus deployment)
         # then apply. `kubectl apply -f` is idempotent so re-applies on
         # subsequent `run server` invocations are no-ops.
+        # Multus (which provides the NAD CRD) ships with the network
+        # operator. If it was skipped, the CRD will never appear -- don't
+        # waste the poll budget; Phase 4 is expected to be skipped too.
+        local INSTALL_NETWORK_OPERATOR=$(read_config 'if .["network-operator"]["install-network-operator"] == null then true else .["network-operator"]["install-network-operator"] end')
+        if [ "$INSTALL_NETWORK_OPERATOR" != "true" ]; then
+            echo "[INFO] network operator skipped -- not applying per-rail NADs (Phase 4 unavailable)"
+            echo "[INFO] Cluster Validation Framework installation completed"
+            return
+        fi
+
         echo "[INFO] Applying Phase 4 per-rail NetworkAttachmentDefinitions..."
         local NAD_CRD_NAME="network-attachment-definitions.k8s.cni.cncf.io"
         local NAD_WAIT_TIMEOUT=180   # seconds
@@ -1059,27 +1287,69 @@ EOF
     echo "[INFO] Waiting for k3s to be ready..."
     sleep 10
 
-    configure_cni_folder
+    # All post-start bringup steps, in order. Every step is individually
+    # idempotent (each install checks for existing state and skips, or
+    # re-applies harmlessly), so the whole sequence can be safely re-run.
+    run_bringup_steps() {
+        configure_cni_folder
 
-    if [ "$MODE" = "server" ]; then
-        configure_server_registries
+        if [ "$MODE" = "server" ]; then
+            configure_server_registries
 
-        setup_in_cluster_registry
+            setup_in_cluster_registry
 
-        install_cert_manager
+            install_cert_manager
 
-        install_amd_gpu_operator
+            install_amd_gpu_operator
 
-        install_network_operator
-    fi
+            install_network_operator
+        fi
 
-    prepare_multus_artifacts
+        prepare_multus_artifacts
 
-    if [ "$MODE" = "server" ]; then
-        install_driver
+        if [ "$MODE" = "server" ]; then
+            install_driver
 
-        install_cluster_validation_framework
-    fi
+            install_cluster_validation_framework
+        fi
+    }
+
+    # Run the bringup sequence with bounded retries. A single transient
+    # failure -- e.g. a kubectl/helm call that blips while k3s is still
+    # flapping right after container start (see entrypoint.sh
+    # supervise_k3s) -- used to abort the whole sequence under `set -e`,
+    # leaving operators half-installed (or not installed at all) while the
+    # backgrounded script exited and the playbook still reported success.
+    # Because every step is idempotent, retrying the sequence lets the
+    # bringup self-heal once k3s settles.
+    #
+    # Each attempt runs in a subshell with its own `set -e` so a step that
+    # fails (these helpers abort via `exit 1` on timeout) ends only that
+    # attempt; we capture the status with `set +e` so the outer errexit
+    # doesn't kill the script before we can retry.
+    BRINGUP_MAX_ATTEMPTS="${BRINGUP_MAX_ATTEMPTS:-5}"
+    bringup_attempt=1
+    while true; do
+        echo "[INFO] Bringup steps: attempt ${bringup_attempt}/${BRINGUP_MAX_ATTEMPTS}"
+        set +e
+        ( set -e; run_bringup_steps )
+        bringup_rc=$?
+        set -e
+
+        if [ "$bringup_rc" -eq 0 ]; then
+            echo "[INFO] Bringup steps completed on attempt ${bringup_attempt}"
+            break
+        fi
+
+        if [ "$bringup_attempt" -ge "$BRINGUP_MAX_ATTEMPTS" ]; then
+            echo "[ERROR] Bringup steps failed after ${BRINGUP_MAX_ATTEMPTS} attempts (last rc=${bringup_rc})"
+            exit 1
+        fi
+
+        echo "[WARN] Bringup steps failed on attempt ${bringup_attempt} (rc=${bringup_rc}) -- retrying after backoff"
+        sleep 15
+        bringup_attempt=$(( bringup_attempt + 1 ))
+    done
 
     echo "[INFO] Node Bringup completed successfully"
     echo "[INFO] Container is running with restart policy 'unless-stopped'"

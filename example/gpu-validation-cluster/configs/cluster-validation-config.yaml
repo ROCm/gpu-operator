@@ -524,6 +524,24 @@ data:
     echo "[Node Selection] Using node selector: ${NODE_SELECTOR_LABEL}"
     nodes=$(kubectl get nodes -l "${NODE_SELECTOR_LABEL}" -o name | sed 's|node/||')
 
+    # Distinguish "selector matches no nodes at all" from "matched nodes
+    # but none are eligible (busy / recently tested)". A custom selector
+    # (e.g. cvf-candidate=true) that nothing applies automatically -- only
+    # the NFD labels feature.node.kubernetes.io/amd-{gpu,nic} are set for
+    # you -- silently matches zero nodes, which otherwise surfaces only as
+    # a generic "Insufficient candidates" later. Warn explicitly and show
+    # which nodes DO carry each requested label so the operator can see the
+    # gap and apply the label (kubectl label node <n> <key>=<val>).
+    if [ -z "$nodes" ]; then
+      echo "[Node Selection: WARNING] Selector '${NODE_SELECTOR_LABEL}' matched 0 nodes in the cluster."
+      echo "[Node Selection] Nothing applies custom labels automatically; only NFD sets"
+      echo "[Node Selection]   feature.node.kubernetes.io/amd-gpu and .../amd-nic."
+      echo "[Node Selection] If you configured a custom node-selector-labels value, label the"
+      echo "[Node Selection] target nodes, e.g.: kubectl label node <node> ${NODE_SELECTOR_LABEL%%=*}=${NODE_SELECTOR_LABEL#*=}"
+      echo "[Node Selection] Current node labels for reference:"
+      kubectl get nodes --show-labels 2>/dev/null | sed 's/^/[Node Selection]   /' || true
+    fi
+
     candidates=()
     candidate_count=0
     current_time_secs=$(date +%s)
@@ -581,6 +599,11 @@ data:
     # --- Action Decision ---
     if [ $candidate_count -lt ${WORKER_REPLICAS} ]; then
       echo "[Node Selection: Skipped] Insufficient candidates (required $WORKER_REPLICAS, available $candidate_count)"
+      if [ -z "$nodes" ]; then
+        echo "[Node Selection: Skipped] Cause: selector '${NODE_SELECTOR_LABEL}' matched 0 nodes (see WARNING above) -- label your target nodes."
+      else
+        echo "[Node Selection: Skipped] Cause: selector matched $(echo "$nodes" | wc -w) node(s) but none were idle/eligible this tick (busy=${#busy_nodes[@]}, recently-tested=${#skipped_recent_nodes[@]})."
+      fi
       echo "=================================================================="
       exit 1
     else
@@ -1237,41 +1260,15 @@ data:
     local ts
     ts=$(date +%Y%m%d-%H%M%S)
 
-    # ---- Helper: parse a result.json. Echoes "subtest|reason|status"
-    # where status is one of {passed,failed}. Reason and subtest are empty
-    # when status=passed. Caller is responsible for treating missing file
-    # as "unknown|test-runner-did-not-emit-results|failed".
-    _phase1_parse_result() {
-        local _rf="$1"
-        local _failed_subtest _recipe_err
-        # Shape A: walk all objects looking for {Pass:false} / {Status:"FAIL"} / {Result:"FAIL"}.
-        _failed_subtest=$(jq -r '
-            [ .. | objects
-              | select((.Pass? == false) or (.Status? == "FAIL") or (.Result? == "FAIL"))
-              | (.Recipe? // .Name? // .TestName? // empty)
-            ] | .[0] // empty
-        ' "$_rf" 2>/dev/null || echo "")
-        # Shape B: explicit recipe-not-found marker -> dedicated reason.
-        _recipe_err=$(jq -r '
-            [ .. | objects
-              | select((.Error? // "") | test("recipe.*not.*found"; "i"))
-              | (.Recipe? // .Name? // empty)
-            ] | .[0] // empty
-        ' "$_rf" 2>/dev/null || echo "")
-        if [[ -n "$_recipe_err" ]]; then
-            printf '%s|%s|%s\n' "$_recipe_err" "recipe-not-found" "failed"
-        elif [[ -n "$_failed_subtest" ]]; then
-            printf '%s|subtest-failed:%s|failed\n' "$_failed_subtest" "$_failed_subtest"
-        else
-            printf '||passed\n'
-        fi
-    }
-
     # ---- Helper: short, deterministic node hash for k8s names (max 63 chars).
     _phase1_node_hash() {
         echo -n "$1" | sha1sum | cut -c1-6
     }
 
+    # Where test-runner pod logs are persisted. Defaults to the shared
+    # /var/log/cluster-validation hostPath; a user may reconfigure this
+    # path later. The orchestrator must be able to write here (see
+    # runAsUser:0 on the CronJob container in cluster-validation-job.yaml).
     local results_root="/var/log/cluster-validation"
     local stage_idx
 
@@ -1350,14 +1347,6 @@ data:
         declare -A stage_job_subtest=()
         declare -A stage_job_reason=()
         local stage_job_names=""
-
-        # Capture stage submission start time -- used in Step 3 to filter
-        # /var/log/cluster-validation by mtime so we don't pick up stale
-        # result files from a previous run of the same recipe.
-        # PHASE1_TEST_STAGE_START_EPOCH overrides the wall clock so the
-        # unit-test harness can seed fixtures before invoking the script.
-        local stage_start_epoch
-        stage_start_epoch="${PHASE1_TEST_STAGE_START_EPOCH:-$(date +%s)}"
 
         # ---- Per-stage Step 1: create per-node ConfigMap + Job ------------
         echo "[$(_p1_ts)] [Phase 1] stage=${stage_name} submitting Jobs (parallel)..."
@@ -1461,7 +1450,23 @@ data:
             fi
         done
 
-        # ---- Per-stage Step 3: Parse result.json for each completed Job ---
+        # ---- Per-stage Step 3: Finalize verdict from the Job condition ---
+        # The Kubernetes Job condition is the SOLE source of truth for
+        # pass/fail. It is cluster-scoped API state (set by the test-runner
+        # exit code via backoffLimit=0/restartPolicy=Never) and is therefore
+        # node-agnostic: it is read identically whether the orchestrator is
+        # co-located with the worker or not. This matches the original
+        # pre-refactor CVF design.
+        #
+        # We deliberately do NOT read the per-stage result.json here. That
+        # file is written ONLY to the worker node's local hostPath, so in a
+        # multi-node cluster the orchestrator (scheduled on an arbitrary
+        # node) either cannot see it OR -- worse -- matches a different
+        # node's same-named file at the shared-by-name volume root and
+        # mis-attributes one node's result to another. Relying on the Job
+        # condition avoids both failure modes. The verdict was already set
+        # in Step 2's poll-wait loop (passed | failed | timeout |
+        # submit-failed); Step 3 only captures pod logs for diagnostics.
         for job_name in $stage_job_names; do
             local status="${stage_job_status[$job_name]:-failed}"
             if [[ "$status" == "submit-failed" || "$status" == "timeout" ]]; then
@@ -1474,100 +1479,40 @@ data:
                 -o jsonpath='{.items[-1:].metadata.name}' \
                 2>/dev/null || echo "")
 
-            # rocm/test-runner:v1.4.0 writes one artifact per iteration named
-            # <UTC-ISO-ts>_<TEST_TRIGGER>_<recipe>_result(.gz). TEST_TRIGGER
-            # is hardcoded to MANUAL in the Job template (see
-            # cluster-validation-test-runner-job-config). mtime-filter by
-            # ${stage_start_epoch} so a stale file from a prior run of the
-            # same recipe is ignored.
-            local glob_pattern="*_MANUAL_${stage_recipe}_result*"
-            local result_file="" result_tmp="" gunz_tmp="" raw_path=""
-
-            # 1) Host-path lookup. Per-pod subdir is checked first
-            # tests use it for multi-pod isolation, and a production
-            # custom wrapper may also bucket files by pod. Then the
-            # volume root, which is the actual rocm/test-runner layout.
-            if [[ -n "$pod_name" && -d "${results_root}/${pod_name}" ]]; then
-                raw_path=$(find "${results_root}/${pod_name}" -maxdepth 1 -type f \
-                    -newermt "@$stage_start_epoch" \
-                    -name "$glob_pattern" \
-                    -printf '%T@ %p\n' 2>/dev/null \
-                    | sort -nr | head -1 | awk '{print $2}')
-            fi
-            if [[ -z "$raw_path" && -d "$results_root" ]]; then
-                raw_path=$(find "$results_root" -maxdepth 1 -type f \
-                    -newermt "@$stage_start_epoch" \
-                    -name "$glob_pattern" \
-                    -printf '%T@ %p\n' 2>/dev/null \
-                    | sort -nr | head -1 | awk '{print $2}')
-            fi
-
-            # 2) kubectl cp fallback -- locate via pod, then copy. Required
-            # when the orchestrator pod is not on the worker node, or the
-            # host-path is not mounted into the orchestrator container.
-            if [[ -z "$raw_path" && -n "$pod_name" ]]; then
-                local remote_path
-                remote_path=$(kubectl exec "$pod_name" -- \
-                    sh -c "ls -t /var/log/amd-test-runner/${glob_pattern} 2>/dev/null | head -1" \
-                    2>/dev/null | tr -d '\r' | head -1)
-                if [[ -n "$remote_path" ]]; then
-                    result_tmp=$(mktemp -t phase1-result-XXXXXX 2>/dev/null || echo "")
-                    if [[ -n "$result_tmp" ]] && kubectl cp \
-                        "${pod_name}:${remote_path}" "$result_tmp" >/dev/null 2>&1 \
-                        && [[ -s "$result_tmp" ]]; then
-                        raw_path="$result_tmp"
-                    fi
-                fi
-            fi
-
-            # 3) Decompress .gz so the jq parser sees plain JSON.
-            if [[ -n "$raw_path" && "$raw_path" == *.gz ]]; then
-                gunz_tmp=$(mktemp -t phase1-result-XXXXXX.json 2>/dev/null || echo "")
-                if [[ -n "$gunz_tmp" ]] && gunzip -c "$raw_path" > "$gunz_tmp" 2>/dev/null \
-                    && [[ -s "$gunz_tmp" ]]; then
-                    result_file="$gunz_tmp"
+            # Always persist the test-runner pod's stdout to results_root,
+            # pass or fail, for post-run triage. `kubectl logs` works on a
+            # Completed pod and is node-agnostic. This is diagnostics only
+            # -- it is never parsed for the verdict. Writing here requires
+            # the orchestrator to be able to write results_root (see
+            # runAsUser:0 on the CronJob container).
+            local pod_log_file=""
+            if [[ -n "$pod_name" ]]; then
+                local pod_log_dest="${results_root}/${job_name}_pod.log"
+                if kubectl logs "$pod_name" > "$pod_log_dest" 2>/dev/null \
+                    && [[ -s "$pod_log_dest" ]]; then
+                    pod_log_file="$pod_log_dest"
+                    echo "[$(_p1_ts)] [Phase 1] stage=${stage_name} job=$job_name pod-log saved=${pod_log_file}"
                 else
-                    [[ -n "$gunz_tmp" && -f "$gunz_tmp" ]] && rm -f "$gunz_tmp"
-                    gunz_tmp=""
+                    [[ -f "$pod_log_dest" ]] && rm -f "$pod_log_dest"
+                    echo "[$(_p1_ts)] [Phase 1] stage=${stage_name} job=$job_name WARN: could not save pod log to ${pod_log_dest}" >&2
                 fi
-            elif [[ -n "$raw_path" ]]; then
-                result_file="$raw_path"
             fi
 
-            if [[ -z "$result_file" ]]; then
-                echo "[$(_p1_ts)] [Phase 1] stage=${stage_name} job=$job_name MISSING result file (glob=${glob_pattern} pod=${pod_name:-<unknown>})" >&2
-                stage_job_status[$job_name]="failed"
-                stage_job_reason[$job_name]="test-runner-did-not-emit-results"
-                stage_job_subtest[$job_name]="unknown"
-                [[ -n "$result_tmp" && -f "$result_tmp" ]] && rm -f "$result_tmp"
-                [[ -n "$gunz_tmp"   && -f "$gunz_tmp"   ]] && rm -f "$gunz_tmp"
-                continue
-            fi
-
-            local parsed
-            parsed=$(_phase1_parse_result "$result_file")
-            local p_subtest="${parsed%%|*}"
-            local _rest="${parsed#*|}"
-            local p_reason="${_rest%%|*}"
-            local p_status="${_rest#*|}"
-
-            if [[ "$p_status" == "failed" ]]; then
-                stage_job_status[$job_name]="failed"
-                stage_job_subtest[$job_name]="$p_subtest"
-                stage_job_reason[$job_name]="$p_reason"
-                echo "[$(_p1_ts)] [Phase 1] stage=${stage_name} job=$job_name failed subtest=$p_subtest"
+            if [[ "$status" == "passed" ]]; then
+                echo "[$(_p1_ts)] [Phase 1] stage=${stage_name} job=$job_name PASS (Job Complete=True)"
             else
-                # No failing sub-test parsed.
-                if [[ "${stage_job_status[$job_name]}" == "passed" ]]; then
-                    echo "[$(_p1_ts)] [Phase 1] stage=${stage_name} job=$job_name PASS"
-                else
-                    # Job=Failed but result.json shows no failed sub-test.
-                    stage_job_subtest[$job_name]="unknown"
-                    stage_job_reason[$job_name]="job-failed-no-subtest-info"
+                # Job Failed=True. The result file is not consulted, so the
+                # specific sub-test is unknown; the Job condition is enough
+                # to fail the node. Surface the saved pod-log tail for triage.
+                stage_job_status[$job_name]="failed"
+                stage_job_subtest[$job_name]="unknown"
+                stage_job_reason[$job_name]="job-failed"
+                echo "[$(_p1_ts)] [Phase 1] stage=${stage_name} job=$job_name FAILED (Job Failed=True)" >&2
+                if [[ -n "$pod_log_file" && -s "$pod_log_file" ]]; then
+                    echo "[$(_p1_ts)] [Phase 1] stage=${stage_name} job=$job_name pod-log tail:" >&2
+                    tail -n 20 "$pod_log_file" >&2
                 fi
             fi
-            [[ -n "$result_tmp" && -f "$result_tmp" ]] && rm -f "$result_tmp"
-            [[ -n "$gunz_tmp"   && -f "$gunz_tmp"   ]] && rm -f "$gunz_tmp"
         done
 
         # ---- Per-stage Step 4: Annotate per-stage result + update alive ---

@@ -6,13 +6,21 @@
 # Scope (matches the plan and the multi-stage contract
 # documented at the top of PHASE1_SCRIPT in cluster-validation-config.yaml):
 #
+# Verdict model: pass/fail is taken SOLELY from the Kubernetes Job
+# condition (Complete=True -> pass, Failed=True -> fail). The per-stage
+# result.json is never read -- it is node-local and not reliably
+# reachable cross-node, so the Job condition (cluster-scoped API state)
+# is the single source of truth. failed-subtest is therefore always
+# "unknown" on failure, and the failure reason is the generic
+# "job-failed".
+#
 # Carry-over (still relevant under multi-stage):
 # * empty input list (no-op pass)
 # * single node pass (one stage)
-# * single node fail (subtest fail)
+# * single node fail (Job Failed=True)
 # * mixed pass/fail across multiple nodes (one stage)
-# * missing result.json -> failed with reason=test-runner-did-not-emit-results
-# * recipe-not-found marker in result.json -> reason=recipe-not-found
+# * Complete job, no result file read -> pass from Job condition
+# * Failed job -> failed with reason=job-failed, subtest=unknown
 # * SKIP_GPU_HW_ACCEPTANCE=true -> no Jobs, no CMs, pass-label all
 # * parallel-submit: N input nodes -> N submissions before any wait
 # * configmap-creation-failure -> reason=configmap-creation-failed
@@ -30,7 +38,7 @@
 # and the final aggregate label is =passed
 # * multi-stage first-fails: failing stage records its annotation, the
 # node is dropped, NO further stages submit Jobs/CMs for that node,
-# failed-subtest reflects the failing stage's recipe, aggregate label
+# failed-subtest is unknown (Job-condition verdict), aggregate label
 # is =failed
 # * multi-stage cleanup: each stage deletes its Job + per-stage CM
 #
@@ -51,15 +59,14 @@
 #
 # `kubectl` is the mock from lib/kubectl_mock.sh. Test-runner Job
 # "completion" is simulated by seeding state via
-# kubectl_mock_set_job_condition + kubectl_mock_set_pod_for_job, and
-# by dropping a result.json under ${RESULTS_ROOT}/<pod>/result.json.
+# kubectl_mock_set_job_condition + kubectl_mock_set_pod_for_job. The
+# verdict is read from the Job condition; result.json is not consulted.
 
 set -uo pipefail
 
 TEST_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
 REPO_ROOT=$(cd -- "${TEST_DIR}/../../.." && pwd)
 CONFIGMAP="${REPO_ROOT}/example/gpu-validation-cluster/configs/cluster-validation-config.yaml"
-FIXTURES_DIR="${TEST_DIR}/fixtures/phase1"
 
 # shellcheck source=./lib/assert.sh
 source "${TEST_DIR}/lib/assert.sh"
@@ -71,7 +78,6 @@ source "${TEST_DIR}/lib/extract_script.sh"
 echo "================================================================"
 echo "  test_phase1.sh"
 echo "  ConfigMap: ${CONFIGMAP}"
-echo "  Fixtures:  ${FIXTURES_DIR}"
 echo "================================================================"
 
 # --- one-time setup -------------------------------------------------
@@ -207,26 +213,6 @@ _reset_phase1_env() {
     unset SKIP_GPU_HW_ACCEPTANCE PHASE_NODES
 }
 
-# Seed a result fixture so PHASE1_SCRIPT's Step-3 file-finder picks it
-# up. rocm/test-runner:v1.4.0 writes one artifact per
-# iteration named <UTC-ts>_MANUAL_<recipe>_result(.gz). In production
-# the file lands at the volume root. For multi-node unit tests where
-# every node shares a single RESULTS_ROOT, we drop fixtures under a
-# per-pod subdir so concurrent pods running the same recipe do not
-# overwrite each other; the parser checks the per-pod subdir before
-# the volume root.
-_seed_result_json() {
-    local fixture="$1" recipe="$2" pod_name="${3:-}"
-    local ts_name="2026-01-01T00-00-00.000000Z"
-    local dest_dir="${RESULTS_ROOT}"
-    if [[ -n "$pod_name" ]]; then
-        dest_dir="${RESULTS_ROOT}/${pod_name}"
-        mkdir -p "$dest_dir"
-    fi
-    cp "${FIXTURES_DIR}/${fixture}" \
-        "${dest_dir}/${ts_name}_MANUAL_${recipe}_result"
-}
-
 _phase1_now_ts() {
     printf '%s' "testts0001"
 }
@@ -263,25 +249,31 @@ _phase1_expected_cm_name() {
 # with hyphens converted to underscores (matches the canonical
 # Name->Recipe mapping in the default stages config); pass an explicit
 # 6th arg when the recipe differs from the stage Name.
+# Pass path: Job condition Complete=True. The verdict is taken SOLELY
+# from the Job condition -- result.json is never read -- so no fixture is
+# seeded. (A 4th "fixture" arg is accepted and ignored for backward
+# compatibility with existing call sites.)
 _seed_job_pass() {
-    local node="$1" ts="$2" pod="$3" fixture="$4" stage_name="${5:-gst-single}"
-    local recipe="${6:-${stage_name//-/_}}"
+    local node="$1" ts="$2" pod="$3" stage_name="${5:-gst-single}"
     local job
     job=$(_phase1_expected_job_name "$node" "$ts" "$stage_name")
     kubectl_mock_set_job_condition "$job" "Complete" "True"
     kubectl_mock_set_pod_for_job   "$job" "$pod"
-    _seed_result_json "$fixture" "$recipe" "$pod"
 }
 
-# Same as _seed_job_pass but no result.json file is dropped -- exercises
-# the missing-result branch.
-_seed_job_no_result() {
+# Fail path: Job condition Failed=True. Verdict comes from the Job
+# condition; no result.json is consulted.
+_seed_job_failed() {
     local node="$1" ts="$2" pod="$3" stage_name="${4:-gst-single}"
     local job
     job=$(_phase1_expected_job_name "$node" "$ts" "$stage_name")
-    kubectl_mock_set_job_condition "$job" "Complete" "True"
+    kubectl_mock_set_job_condition "$job" "Failed" "True"
     kubectl_mock_set_pod_for_job   "$job" "$pod"
 }
+
+# Alias kept for call-site readability: a Complete job with no result
+# file is just the normal pass path now (file is never read).
+_seed_job_no_result() { _seed_job_pass "$@"; }
 
 # Suppress the -u trap for tests that intentionally leave optional env
 # vars unset (PHASE_NODES, SKIP_GPU_HW_ACCEPTANCE).
@@ -350,7 +342,7 @@ it "single node pass: per-stage annotation + aggregate label, no failure annotat
     _reset_phase1_env
     ts=$(_phase1_now_ts)
     pod="cvf-pod-node-a-001"
-    _seed_job_pass "node-a" "$ts" "$pod" "result-pass.json" "gst-single"
+    _seed_job_pass "node-a" "$ts" "$pod" "" "gst-single"
     cm_name=$(_phase1_expected_cm_name "node-a" "$ts" "gst-single")
     job_name=$(_phase1_expected_job_name "node-a" "$ts" "gst-single")
     run __phase1_run node-a
@@ -384,16 +376,17 @@ $(grep failed-subtest "$KUBECTL_CALLS_FILE")"
 }
 
 # -------------------------------------------------------------------
-# 4. Single node fail: AGFHC hbm_lvl1 sub-test failed
-# -> per-stage annotation =failed, aggregate label =failed,
-# failure-reason includes stage prefix, failed-subtest annotation.
+# 4. Single node fail: Job condition Failed=True -> per-stage
+# annotation =failed, aggregate label =failed, generic job-failed
+# reason, failed-subtest=unknown (result.json is never read, so the
+# specific sub-test is not derived).
 # -------------------------------------------------------------------
 
-it "single node fail: hbm_lvl1 subtest -> stage annotation failed + aggregate failed" && {
+it "single node fail: Job Failed=True -> stage annotation failed + aggregate failed" && {
     _reset_phase1_env
     ts=$(_phase1_now_ts)
     pod="cvf-pod-node-b-002"
-    _seed_job_pass "node-b" "$ts" "$pod" "result-hbm-fail.json" "gst-single"
+    _seed_job_failed "node-b" "$ts" "$pod" "gst-single"
     run __phase1_run node-b
     assert_status 0
     # Per-stage annotation.
@@ -402,21 +395,19 @@ it "single node fail: hbm_lvl1 subtest -> stage annotation failed + aggregate fa
     # Aggregate label.
     assert_kubectl_call \
         "label node node-b amd.com/gpu-hw-acceptance=failed --overwrite"
-    # failure-reason now carries the stage prefix so a single
-    # annotation pins which stage tripped.
+    # failure-reason carries the stage prefix + generic job-failed reason.
     assert_kubectl_call \
-        "annotate node node-b amd.com/gpu-hw-acceptance-failure-reason=stage-gst-single:subtest-failed:hbm_lvl1 --overwrite"
-    # failed-subtest annotation (human-readable alias).
+        "annotate node node-b amd.com/gpu-hw-acceptance-failure-reason=stage-gst-single:job-failed --overwrite"
+    # failed-subtest is unknown (no result.json parse).
     assert_kubectl_call \
-        "annotate node node-b amd.com/gpu-hw-acceptance-failed-subtest=hbm_lvl1 --overwrite"
-    assert_stdout_contains "failed subtest=hbm_lvl1"
+        "annotate node node-b amd.com/gpu-hw-acceptance-failed-subtest=unknown --overwrite"
     assert_stdout_contains "stage=gst-single done: passed=0 failed=1"
 }
 
 # -------------------------------------------------------------------
-# 5. Mixed pass/fail across 3 nodes (single stage): node-b fails on
-# hbm_lvl1, node-a + node-c pass. Per-stage annotations + aggregate
-# labels written independently.
+# 5. Mixed pass/fail across 3 nodes (single stage): node-b's Job fails,
+# node-a + node-c pass. Per-stage annotations + aggregate labels written
+# independently from each node's Job condition.
 # -------------------------------------------------------------------
 
 it "mixed pass/fail across 3 nodes labels each node independently" && {
@@ -425,9 +416,9 @@ it "mixed pass/fail across 3 nodes labels each node independently" && {
     pod_a="cvf-pod-node-a-mix"
     pod_b="cvf-pod-node-b-mix"
     pod_c="cvf-pod-node-c-mix"
-    _seed_job_pass "node-a" "$ts" "$pod_a" "result-pass.json"     "gst-single"
-    _seed_job_pass "node-b" "$ts" "$pod_b" "result-hbm-fail.json" "gst-single"
-    _seed_job_pass "node-c" "$ts" "$pod_c" "result-pass.json"     "gst-single"
+    _seed_job_pass   "node-a" "$ts" "$pod_a" "" "gst-single"
+    _seed_job_failed "node-b" "$ts" "$pod_b"    "gst-single"
+    _seed_job_pass   "node-c" "$ts" "$pod_c" "" "gst-single"
     run __phase1_run node-a node-b node-c
     assert_status 0
     # Per-stage annotations.
@@ -444,9 +435,9 @@ it "mixed pass/fail across 3 nodes labels each node independently" && {
         "label node node-b amd.com/gpu-hw-acceptance=failed --overwrite"
     assert_kubectl_call \
         "label node node-c amd.com/gpu-hw-acceptance=passed --overwrite"
-    # failed-subtest on node-b only.
+    # failed-subtest on node-b only (=unknown, no result parse).
     assert_kubectl_call \
-        "annotate node node-b amd.com/gpu-hw-acceptance-failed-subtest=hbm_lvl1 --overwrite"
+        "annotate node node-b amd.com/gpu-hw-acceptance-failed-subtest=unknown --overwrite"
     if grep -F "annotate node node-a amd.com/gpu-hw-acceptance-failed-subtest" \
             "$KUBECTL_CALLS_FILE" >/dev/null; then
         _assert_fail "node-a (passed) must not get a failed-subtest annotation"
@@ -459,16 +450,43 @@ it "mixed pass/fail across 3 nodes labels each node independently" && {
 }
 
 # -------------------------------------------------------------------
-# 6. Missing result.json: Job condition is Complete=True (so the
-# poll-wait loop exits successfully) but no result.json fixture is
-# dropped -> stage failed with reason=test-runner-did-not-emit-results.
+# 6. Job Complete=True but result.json unreadable/missing -> the Job
+# condition is the source of truth, so the node PASSES. The result file
+# is enrichment-only (it names the failed sub-test); its absence must
+# NOT flip a Complete job to failed. This is the multi-node case: the
+# orchestrator cannot read a worker's node-local result file, but
+# `kubectl get job` (k8s API) still reports Complete=True.
 # -------------------------------------------------------------------
 
-it "missing result.json -> failed with reason=test-runner-did-not-emit-results" && {
+it "Complete job (no result file read) -> node PASSES from Job condition" && {
     _reset_phase1_env
     ts=$(_phase1_now_ts)
     pod="cvf-pod-node-d-noresult"
-    _seed_job_no_result "node-d" "$ts" "$pod" "gst-single"
+    _seed_job_pass "node-d" "$ts" "$pod" "" "gst-single"
+    kubectl_mock_set_pod_log "$pod" "amd-test-runner: all GPUs healthy"
+    run __phase1_run node-d
+    assert_status 0
+    assert_kubectl_call \
+        "annotate node node-d amd.com/gpu-hw-acceptance-stage-gst-single=passed --overwrite"
+    assert_kubectl_call \
+        "label node node-d amd.com/gpu-hw-acceptance=passed --overwrite"
+    assert_stdout_contains "PASS (Job Complete=True)"
+    # The result file is never consulted, so no MISSING-file diagnostic.
+    assert_stderr_not_contains "MISSING result file"
+    # The test-runner pod log is persisted on the pass path too.
+    assert_stdout_contains "pod-log saved="
+}
+
+# -------------------------------------------------------------------
+# 6b. Job Failed=True -> stage failed with generic reason=job-failed,
+# subtest=unknown (no result.json parse).
+# -------------------------------------------------------------------
+
+it "Failed job -> failed with reason=job-failed (no result parse)" && {
+    _reset_phase1_env
+    ts=$(_phase1_now_ts)
+    pod="cvf-pod-node-d-failnoresult"
+    _seed_job_failed "node-d" "$ts" "$pod" "gst-single"
     run __phase1_run node-d
     assert_status 0
     assert_kubectl_call \
@@ -476,36 +494,28 @@ it "missing result.json -> failed with reason=test-runner-did-not-emit-results" 
     assert_kubectl_call \
         "label node node-d amd.com/gpu-hw-acceptance=failed --overwrite"
     assert_kubectl_call \
-        "annotate node node-d amd.com/gpu-hw-acceptance-failure-reason=stage-gst-single:test-runner-did-not-emit-results --overwrite"
+        "annotate node node-d amd.com/gpu-hw-acceptance-failure-reason=stage-gst-single:job-failed --overwrite"
     assert_kubectl_call \
         "annotate node node-d amd.com/gpu-hw-acceptance-failed-subtest=unknown --overwrite"
-    assert_stderr_contains "MISSING result file"
+    assert_stderr_contains "FAILED (Job Failed=True)"
 }
 
 # -------------------------------------------------------------------
-# 7. recipe-not-found marker inside result.json -> stage failed with
-# reason=recipe-not-found, failed-subtest=<recipe>.
+# 6c. Failed job with pod logs present -> the captured pod-log tail is
+# surfaced in the diagnostic (logs are for triage only, never parsed
+# for the verdict).
 # -------------------------------------------------------------------
 
-it "recipe-not-found marker in result.json -> reason=recipe-not-found" && {
-    if ! command -v jq >/dev/null 2>&1; then
-        echo "      SKIP: jq not on PATH; recipe-not-found path needs jq" >&2
-        return 0
-    fi
+it "Failed job with pod logs -> pod-log tail surfaced" && {
     _reset_phase1_env
     ts=$(_phase1_now_ts)
-    pod="cvf-pod-node-e-recipe"
-    _seed_job_pass "node-e" "$ts" "$pod" "result-recipe-not-found.json" "gst-single"
-    run __phase1_run node-e
+    pod="cvf-pod-node-d-podlog"
+    _seed_job_failed "node-d" "$ts" "$pod" "gst-single"
+    kubectl_mock_set_pod_log "$pod" "amd-test-runner: FATAL could not open device /dev/kfd"
+    run __phase1_run node-d
     assert_status 0
-    assert_kubectl_call \
-        "annotate node node-e amd.com/gpu-hw-acceptance-stage-gst-single=failed --overwrite"
-    assert_kubectl_call \
-        "label node node-e amd.com/gpu-hw-acceptance=failed --overwrite"
-    assert_kubectl_call \
-        "annotate node node-e amd.com/gpu-hw-acceptance-failure-reason=stage-gst-single:recipe-not-found --overwrite"
-    assert_kubectl_call \
-        "annotate node node-e amd.com/gpu-hw-acceptance-failed-subtest=xgmi_lvl1 --overwrite"
+    assert_stderr_contains "pod-log tail:"
+    assert_stderr_contains "FATAL could not open device /dev/kfd"
 }
 
 # -------------------------------------------------------------------
@@ -522,9 +532,9 @@ it "parallel-submit: N nodes -> N CMs + N Jobs submitted, all before any wait po
     pod_a="cvf-pod-node-a-par"
     pod_b="cvf-pod-node-b-par"
     pod_c="cvf-pod-node-c-par"
-    _seed_job_pass "node-a" "$ts" "$pod_a" "result-pass.json" "gst-single"
-    _seed_job_pass "node-b" "$ts" "$pod_b" "result-pass.json" "gst-single"
-    _seed_job_pass "node-c" "$ts" "$pod_c" "result-pass.json" "gst-single"
+    _seed_job_pass "node-a" "$ts" "$pod_a" "" "gst-single"
+    _seed_job_pass "node-b" "$ts" "$pod_b" "" "gst-single"
+    _seed_job_pass "node-c" "$ts" "$pod_c" "" "gst-single"
     run __phase1_run node-a node-b node-c
     assert_status 0
     # 3 create-configmap calls.
@@ -682,7 +692,7 @@ it "PHASE_NODES env var is used when no positional args are given" && {
     _reset_phase1_env
     ts=$(_phase1_now_ts)
     pod="cvf-pod-env-fallback"
-    _seed_job_pass "node-env" "$ts" "$pod" "result-pass.json" "gst-single"
+    _seed_job_pass "node-env" "$ts" "$pod" "" "gst-single"
     export PHASE_NODES="node-env"
     run __phase1_run    # NB: no positional args
     assert_status 0
@@ -712,8 +722,8 @@ it "multi-stage all-pass: both per-stage annotations + aggregate passed" && {
     ts=$(_phase1_now_ts)
     pod1="cvf-pod-ms-pass-s1"
     pod2="cvf-pod-ms-pass-s2"
-    _seed_job_pass "node-m" "$ts" "$pod1" "result-pass.json" "gst-single"
-    _seed_job_pass "node-m" "$ts" "$pod2" "result-pass.json" "xgmi-lvl1"
+    _seed_job_pass "node-m" "$ts" "$pod1" "" "gst-single"
+    _seed_job_pass "node-m" "$ts" "$pod2" "" "xgmi-lvl1"
 
     run __phase1_run node-m
     assert_status 0
@@ -760,11 +770,9 @@ it "multi-stage first-fails: stage-2 NOT submitted, aggregate failed" && {
     ]'
     ts=$(_phase1_now_ts)
     pod1="cvf-pod-ms-fail-s1"
-    # Stage 1 returns hbm-fail; stage 2 would pass IF it ran. We seed
-    # stage 2 too so a regression that DOES submit stage 2 wouldn't be
-    # masked by a missing-result fallback -- the assertion explicitly
-    # checks NO submission happened.
-    _seed_job_pass "node-f" "$ts" "$pod1" "result-hbm-fail.json" "gst-single"
+    # Stage 1's Job fails (Failed=True); stage 2 must never be submitted
+    # (stop-on-first-failure). Verdict comes from the Job condition only.
+    _seed_job_failed "node-f" "$ts" "$pod1" "gst-single"
 
     run __phase1_run node-f
     assert_status 0
@@ -790,12 +798,12 @@ $(grep "${cm2}" "$KUBECTL_CALLS_FILE")"
     # Aggregate label =failed.
     assert_kubectl_call \
         "label node node-f amd.com/gpu-hw-acceptance=failed --overwrite"
-    # failed-subtest reflects stage-1's recipe.
+    # failed-subtest is unknown (no result parse).
     assert_kubectl_call \
-        "annotate node node-f amd.com/gpu-hw-acceptance-failed-subtest=hbm_lvl1 --overwrite"
-    # failure-reason carries the first failing stage name.
+        "annotate node node-f amd.com/gpu-hw-acceptance-failed-subtest=unknown --overwrite"
+    # failure-reason carries the first failing stage name + generic reason.
     assert_kubectl_call \
-        "annotate node node-f amd.com/gpu-hw-acceptance-failure-reason=stage-gst-single:subtest-failed:hbm_lvl1 --overwrite"
+        "annotate node node-f amd.com/gpu-hw-acceptance-failure-reason=stage-gst-single:job-failed --overwrite"
     # Skipped-stage progress banner.
     assert_stdout_contains "stage=xgmi-lvl1 skipped (no alive nodes left)"
 }
@@ -819,8 +827,8 @@ it "multi-stage cleanup: each stage deletes its Job and per-stage CM" && {
     ts=$(_phase1_now_ts)
     pod1="cvf-pod-cleanup-s1"
     pod2="cvf-pod-cleanup-s2"
-    _seed_job_pass "node-c1" "$ts" "$pod1" "result-pass.json" "gst-single"
-    _seed_job_pass "node-c1" "$ts" "$pod2" "result-pass.json" "xgmi-lvl1"
+    _seed_job_pass "node-c1" "$ts" "$pod1" "" "gst-single"
+    _seed_job_pass "node-c1" "$ts" "$pod2" "" "xgmi-lvl1"
     job1=$(_phase1_expected_job_name "node-c1" "$ts" "gst-single")
     job2=$(_phase1_expected_job_name "node-c1" "$ts" "xgmi-lvl1")
     cm1=$(_phase1_expected_cm_name "node-c1" "$ts" "gst-single")
@@ -867,8 +875,8 @@ it "skip-single-stage: middle stage Skip=true -> annotation=skipped, others run,
     ts=$(_phase1_now_ts)
     pod1="cvf-pod-skip-mid-s1"
     pod3="cvf-pod-skip-mid-s3"
-    _seed_job_pass "node-sk" "$ts" "$pod1" "result-pass.json" "gst-single"
-    _seed_job_pass "node-sk" "$ts" "$pod3" "result-pass.json" "pcie-lvl1"
+    _seed_job_pass "node-sk" "$ts" "$pod1" "" "gst-single"
+    _seed_job_pass "node-sk" "$ts" "$pod3" "" "pcie-lvl1"
 
     run __phase1_run node-sk
     assert_status 0
@@ -1018,10 +1026,10 @@ it "skip-then-fail: skipped stage does not poison failure-reason" && {
     ts=$(_phase1_now_ts)
     pod1="cvf-pod-skf-s1"
     pod3="cvf-pod-skf-s3"
-    _seed_job_pass "node-skf" "$ts" "$pod1" "result-pass.json" "gst-single"
-    # Stage 2's result is the hbm-fail fixture -- ensures the runner
-    # returns subtest=hbm_lvl1 in the failure-reason annotation.
-    _seed_job_pass "node-skf" "$ts" "$pod3" "result-hbm-fail.json" "pcie-lvl1"
+    _seed_job_pass   "node-skf" "$ts" "$pod1" "" "gst-single"
+    # Stage 2's Job fails -- the failure-reason must name stage 2, not the
+    # skipped stage 1.
+    _seed_job_failed "node-skf" "$ts" "$pod3"    "pcie-lvl1"
 
     run __phase1_run node-skf
     assert_status 0
@@ -1041,10 +1049,10 @@ it "skip-then-fail: skipped stage does not poison failure-reason" && {
     # failure-reason names stage 2 (the first real failure), NOT the
     # skipped stage 1.
     assert_kubectl_call_contains \
-        "amd.com/gpu-hw-acceptance-failure-reason=stage-pcie-lvl1:subtest-failed:hbm_lvl1"
-    # failed-subtest comes from stage 2's runner output.
+        "amd.com/gpu-hw-acceptance-failure-reason=stage-pcie-lvl1:job-failed"
+    # failed-subtest is unknown (no result parse).
     assert_kubectl_call \
-        "annotate node node-skf amd.com/gpu-hw-acceptance-failed-subtest=hbm_lvl1 --overwrite"
+        "annotate node node-skf amd.com/gpu-hw-acceptance-failed-subtest=unknown --overwrite"
 }
 
 assert_summary

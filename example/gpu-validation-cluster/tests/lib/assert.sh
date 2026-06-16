@@ -170,6 +170,13 @@ assert_stderr_contains() {
     fi
 }
 
+assert_stderr_not_contains() {
+    local needle="$1"
+    if grep -qF -- "$needle" <<<"$LAST_STDERR"; then
+        _assert_fail "expected stderr NOT to contain [${needle}], got: [${LAST_STDERR}]"
+    fi
+}
+
 assert_equals() {
     local expected="$1"
     local actual="$2"

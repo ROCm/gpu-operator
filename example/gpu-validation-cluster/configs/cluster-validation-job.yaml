@@ -1027,6 +1027,13 @@ spec:
               # patchable: cluster-validation-framework.images.orchestrator
               image: docker.io/bitnamilegacy/kubectl:1.33.4
               imagePullPolicy: IfNotPresent
+              # Run as root: this image defaults to UID 1001, which cannot
+              # write the root-owned /var/log/cluster-validation hostPath.
+              # The orchestrator writes its own cronjob-*.log there and
+              # persists each test-runner pod log (<job>_pod.log) for
+              # triage, so it must be able to write that shared volume.
+              securityContext:
+                runAsUser: 0
               command: ["/bin/bash", "-c"]
               envFrom:
                 - configMapRef:
