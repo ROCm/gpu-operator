@@ -76,6 +76,8 @@ const (
 	defaultBaseImageRegistry    = "docker.io"
 	defaultSourceImageRepo      = "docker.io/rocm/amdgpu-driver"
 	nfdOSReleaseLabelKey        = "feature.node.kubernetes.io/system-os_release.VERSION_ID"
+	// Required for OpenShift versions <= v4.18 to get the RHEL CoreOs 9.x version
+	nfdOSReleaseCoreOSLabelKey = "feature.node.kubernetes.io/system-os_release.RHEL_VERSION"
 )
 
 var (
@@ -242,11 +244,16 @@ func parseRHELVersion(labels map[string]string, osImage string) string {
 	// firstly check if NFD label for RHEL version is present
 	// if yes, use it directly
 	if labels != nil {
+		// Check for the existence of the RHEL_VERSION label which is only found in OCP <= v4.18
+		// The label was dropped in v4.19 where VERSION_ID now returns the RH CoreOS version
+		if rhelVersion, found := labels[nfdOSReleaseCoreOSLabelKey]; found {
+			return rhelVersion
+		}
+
 		if rhelVersion, found := labels[nfdOSReleaseLabelKey]; found {
 			return rhelVersion
 		}
 	}
-
 	// if NFD label not found, parse the RHEL version from OS image string
 	// https://github.com/openshift/release-controller/blob/c4b8d4c3c7674884f2e479c35a8876428aa08de8/pkg/rhcos/rhcos.go#L38-L42
 	// OpenShift < 4.19 Legacy format: e.g., 418.94.202410090804-0 → 9.4
