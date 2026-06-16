@@ -1,0 +1,299 @@
+---
+version: 2.0
+meta:
+
+
+image:
+  bind_dir: "/gpu-operator"
+  work_dir: "/gpu-operator"
+  
+
+e2e-targets:
+  gpu-operator-regression-mi210:
+    commands: [
+        "/bin/sh",
+        "-c",
+        "cat /warmd.json && cd /gpu-operator/tests/pytests && \
+         /gpu-operator/ci-internal/run_sanity.sh --app gpu-operator \
+         --registry direct --testbed /warmd.json --amdgpu-driver default-deviceconfig"
+    ]
+    owners: ["email:srivatsa.sangli@amd.com"]
+    tcp-ports: [5000]
+    area:
+    sub-area:
+    max-duration: 10h
+    build-dependencies:
+      - build-gpu-operator
+      - build-gpu-operator-k8s
+    resources:
+    - generic:
+      - type: GPUOP-Cluster
+        vendor: Pensando
+        props:
+          - name: gpu-series
+            value: MI210
+          - name: testbed-type
+            value: K8
+        count: 1
+
+  gpu-operator-regression-mi300x:
+    commands: [
+        "/bin/sh",
+        "-c",
+        "cat /warmd.json && cd /gpu-operator/tests/pytests && \
+         /gpu-operator/ci-internal/run_sanity.sh --app gpu-operator \
+         --registry direct --testbed /warmd.json --amdgpu-driver default-deviceconfig"
+    ]
+    owners: ["email:srivatsa.sangli@amd.com"]
+    tcp-ports: [5000]
+    area:
+    sub-area:
+    max-duration: 10h
+    build-dependencies:
+      - build-gpu-operator
+      - build-gpu-operator-k8s
+    resources:
+    - generic:
+      - type: GPUOP-Cluster
+        vendor: Pensando
+        props:
+          - name: gpu-series
+            value: MI300X
+          - name: testbed-type
+            value: K8
+        count: 1
+
+  gpu-operator-regression-mi325x:
+    commands: [
+        "/bin/sh",
+        "-c",
+        "cat /warmd.json && cd /gpu-operator/tests/pytests && \
+         /gpu-operator/ci-internal/run_sanity.sh --app gpu-operator \
+         --registry direct --testbed /warmd.json --amdgpu-driver default-deviceconfig"
+    ]
+    owners: ["email:srivatsa.sangli@amd.com"]
+    tcp-ports: [5000]
+    area:
+    sub-area:
+    max-duration: 10h
+    build-dependencies:
+      - build-gpu-operator
+      - build-gpu-operator-k8s
+    resources:
+    - generic:
+      - type: GPUOP-Cluster
+        vendor: Pensando
+        props:
+          - name: gpu-series
+            value: MI325X
+          - name: testbed-type
+            value: K8
+        count: 1
+
+  gpu-operator-regression-mi350x:
+    commands: [
+        "/bin/sh",
+        "-c",
+        "cat /warmd.json && cd /gpu-operator/tests/pytests && \
+         /gpu-operator/ci-internal/run_sanity.sh --app gpu-operator \
+         --registry direct --testbed /warmd.json --amdgpu-driver default-deviceconfig"
+    ]
+    owners: ["email:srivatsa.sangli@amd.com"]
+    tcp-ports: [5000]
+    area:
+    sub-area:
+    max-duration: 10h
+    build-dependencies:
+      - build-gpu-operator
+      - build-gpu-operator-k8s
+    resources:
+    - generic:
+      - type: GPUOP-Cluster
+        vendor: Pensando
+        props:
+          - name: gpu-series
+            value: MI350X
+          - name: testbed-type
+            value: K8
+        count: 1
+
+  gpu-operator-regression-mi350p:
+    commands: [
+        "/bin/sh",
+        "-c",
+        "cat /warmd.json && cd /gpu-operator/tests/pytests && \
+         /gpu-operator/ci-internal/run_sanity.sh --app gpu-operator \
+         --registry direct --testbed /warmd.json --amdgpu-driver default-deviceconfig"
+    ]
+    owners: ["email:srivatsa.sangli@amd.com"]
+    tcp-ports: [5000]
+    area:
+    sub-area:
+    max-duration: 10h
+    build-dependencies:
+      - build-gpu-operator
+      - build-gpu-operator-k8s
+    resources:
+    - generic:
+      - type: GPUOP-Cluster
+        vendor: Pensando
+        props:
+          - name: gpu-series
+            value: MI350P
+          - name: testbed-type
+            value: K8
+        count: 1
+
+
+  exporter-helmchart-regression-mi210x:
+    commands: [
+        "/bin/sh",
+        "-c",
+        "cat /warmd.json && cd /gpu-operator/tests/pytests && \
+         /gpu-operator/ci-internal/run_sanity.sh --app exporter \
+         --registry direct --testbed /warmd.json --amdgpu-driver inbox"
+    ]
+    owners: ["email:srivatsa.sangli@amd.com"]
+    tcp-ports: [5000]
+    area:
+    sub-area:
+    build-dependencies:
+      - build-external-device-metrics-exporter
+      - build-external-device-metrics-exporter-helm-artifact
+    resources:
+    - generic:
+      - type: GPUOP-Cluster
+        vendor: Pensando
+        count: 1
+        props:
+          - name: gpu-series
+            value: MI210
+          - name: testbed-type
+            value: K8
+
+  exporter-debian-regression-ubuntu-2204:
+    commands: [
+        "/bin/sh",
+        "-c",
+        "cat /warmd.json && cd /gpu-operator/tests/pytests && \
+         /gpu-operator/ci-internal/run_sanity.sh --app debian \
+         --registry direct --testbed /warmd.json --amdgpu-driver inbox"
+    ]
+    owners: ["email:srivatsa.sangli@amd.com"]
+    tcp-ports: [5000]
+    area:
+    sub-area:
+    build-dependencies:
+      - build-external-device-metrics-exporter-debian-package-ub22.04
+      - build-external-device-metrics-exporter-debian-package-ub24.04
+    resources:
+    - generic:
+      - type: GPUOP-Cluster
+        vendor: Pensando
+        count: 1
+        props:
+          - name: gpu-series
+            value: MI210
+          - name: testbed-type
+            value: K8
+
+  exporter-debian-regression-ubuntu-2404:
+    commands: [
+        "/bin/sh",
+        "-c",
+        "cat /warmd.json && cd /gpu-operator/tests/pytests && \
+         /gpu-operator/ci-internal/run_sanity.sh --app debian \
+         --registry direct --testbed /warmd.json --amdgpu-driver inbox"
+    ]
+    owners: ["email:srivatsa.sangli@amd.com"]
+    tcp-ports: [5000]
+    area:
+    sub-area:
+    build-dependencies:
+      - build-external-device-metrics-exporter-debian-package-ub22.04
+      - build-external-device-metrics-exporter-debian-package-ub24.04
+    resources:
+    - generic:
+      - type: GPUOP-Cluster
+        vendor: Pensando
+        count: 1
+        props:
+          - name: gpu-series
+            value: MI210
+          - name: testbed-type
+            value: K8
+
+  exporter-docker-regression:
+    commands: [
+        "/bin/sh",
+        "-c",
+        "cat /warmd.json && cd /gpu-operator/tests/pytests && \
+         /gpu-operator/ci-internal/run_sanity.sh --app docker \
+         --registry direct --testbed /warmd.json --amdgpu-driver inbox"
+    ]
+    owners: ["email:srivatsa.sangli@amd.com"]
+    tcp-ports: [5000]
+    area:
+    sub-area:
+    build-dependencies:
+      - build-external-device-metrics-exporter
+    resources:
+    - generic:
+      - type: GPUOP-Cluster
+        vendor: Pensando
+        count: 1
+        props:
+          - name: gpu-series
+            value: MI210
+          - name: testbed-type
+            value: K8
+
+  gpu-operator-regression-openshift:
+    commands: [
+        "/bin/sh",
+        "-c",
+        "cat /warmd.json && cd /gpu-operator/tests/pytests && \
+         /gpu-operator/ci-internal/run_sanity.sh --app gpu-operator \
+         --registry direct --testbed /warmd.json --amdgpu-driver default-deviceconfig"
+    ]
+    owners: ["email:srivatsa.sangli@amd.com"]
+    tcp-ports: [5000]
+    area:
+    sub-area:
+    build-dependencies:
+      - build-gpu-operator
+      - build-gpu-operator-k8s
+      - gpu-operator-olm-bundle-sanity-build
+    resources:
+    - generic:
+      - type: GPUOP-Cluster
+        vendor: Pensando
+        count: 1
+        props:
+          - name: testbed-type
+            value: OpenShift
+
+  dra-driver-pytest-regression:
+    commands: [
+        "/bin/sh",
+        "-c",
+        "cat /warmd.json && cd /gpu-operator/tests/pytests && \
+         /gpu-operator/ci-internal/run_sanity.sh --app dra-driver --registry direct --testbed /warmd.json \
+         --amdgpu-driver inbox"
+    ]
+    owners: ["email:leslie.wang@amd.com"]
+    tcp-ports: [5000]
+    area:
+    sub-area:
+    build-dependencies: []
+    resources:
+    - generic:
+      - type: K8-GPU-Node
+        vendor: Pensando
+        count: 1
+        props:
+          - name: testbed-type
+            value: K8
+
+logfiles:
+  - /gpu-operator/tests/pytests/pytest_logs.tgz
