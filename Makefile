@@ -128,6 +128,8 @@ CONTAINER_WORKDIR := /gpu-operator
 # In CI environments (e.g. GitHub Actions) there is no TTY, so omit -it flags.
 DOCKER_IT_FLAGS := $(if $(CI),,-it)
 BUILD_BASE_IMG ?= ubuntu:22.04
+DOCKER_CACHE_FROM ?=
+DOCKER_CACHE_TO ?=
 GOLANG_BASE_IMG ?= golang:1.26.4
 OPERATOR_CONTROLLER_BASE_IMAGE ?= registry.access.redhat.com/ubi9/ubi-minimal:9.7
 
@@ -370,18 +372,14 @@ docker-save-utils: ## Save the utils container image as tar.gz.
 .PHONY: docker-build-env
 docker-build-env: ## Build the docker shell container.
 	@echo "Building the Docker environment..."
-	@if [ -n $(INSECURE_REGISTRY) ]; then \
-    docker build \
-        -t $(DOCKER_BUILDER_IMAGE) \
-        --build-arg BUILD_BASE_IMG=$(BUILD_BASE_IMG) \
-        --build-arg INSECURE_REGISTRY=$(INSECURE_REGISTRY) \
-        -f Dockerfile.build .; \
-	else \
-		docker build \
-			-t $(DOCKER_BUILDER_IMAGE) \
-			--build-arg BUILD_BASE_IMG=$(BUILD_BASE_IMG) \
-			-f Dockerfile.build .; \
-	fi
+	docker buildx build \
+		-t $(DOCKER_BUILDER_IMAGE) \
+		--build-arg BUILD_BASE_IMG=$(BUILD_BASE_IMG) \
+		--build-arg INSECURE_REGISTRY=$(INSECURE_REGISTRY) \
+		$(if $(DOCKER_CACHE_FROM),--cache-from=$(DOCKER_CACHE_FROM)) \
+		$(if $(DOCKER_CACHE_TO),--cache-to=$(DOCKER_CACHE_TO)) \
+		--load \
+		-f Dockerfile.build .
 
 .PHONY: helm
 helm: ## Build helm charts for Kubernetes.
