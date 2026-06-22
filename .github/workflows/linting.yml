@@ -7,7 +7,7 @@ on:
   pull_request:
     branches:
     - main
-    types: [labeled]
+    types: [labeled, synchronize]
 
 jobs:
   call-workflow-passing-data:

@@ -5,7 +5,7 @@ on:
     branches:
     - main
     - 'release-*'
-    types: [labeled]
+    types: [labeled, synchronize]
 
 jobs:
   unit-test:
