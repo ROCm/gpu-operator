@@ -5,9 +5,11 @@ on:
     branches:
     - main
     - 'release-*'
+    types: [labeled]
 
 jobs:
   unit-test:
+    if: contains(github.event.pull_request.labels.*.name, 'CI-Run')
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
