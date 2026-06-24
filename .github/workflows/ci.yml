@@ -5,6 +5,11 @@ on:
     branches:
     - main
     - 'release-*'
+  workflow_dispatch:
+
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   build:
