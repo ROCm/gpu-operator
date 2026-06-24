@@ -1,6 +1,6 @@
 # Sample phase2.log fixture -- passing run.
 # Emitted by the cluster-validation-phase2-job-config Job container
-# (GPUOP-767) when all_reduce_perf completes cleanly and the bandwidth
+# when all_reduce_perf completes cleanly and the bandwidth
 # check inside validate-single-test.sh passes the PHASE2_BW_THRESHOLD.
 #
 # Trimmed for fixture purposes -- only the final "Avg bus bandwidth"
@@ -10,23 +10,23 @@
 [2026-05-19 17:32:10] mpirun --np 8 --host localhost --allow-run-as-root --mca btl ^vader,openib /root/rccl-tests/build/all_reduce_perf -b 1K -e 2G -f 2 -g 1 -n 6 -w 20
 # nThread 1 nGpus 1 minBytes 1024 maxBytes 2147483648 step: 2(factor) warmup iters: 20 iters: 6 validation: 1 graph: 0
 # Using devices
-#   Rank  0 Group  0 Pid     42 device  0 [0xc0] AMD Instinct MI300X
-#   Rank  1 Group  0 Pid     43 device  1 [0xc1] AMD Instinct MI300X
-#   Rank  2 Group  0 Pid     44 device  2 [0xc2] AMD Instinct MI300X
-#   Rank  3 Group  0 Pid     45 device  3 [0xc3] AMD Instinct MI300X
-#   Rank  4 Group  0 Pid     46 device  4 [0xc4] AMD Instinct MI300X
-#   Rank  5 Group  0 Pid     47 device  5 [0xc5] AMD Instinct MI300X
-#   Rank  6 Group  0 Pid     48 device  6 [0xc6] AMD Instinct MI300X
-#   Rank  7 Group  0 Pid     49 device  7 [0xc7] AMD Instinct MI300X
+# Rank 0 Group 0 Pid 42 device 0 [0xc0] AMD Instinct MI300X
+# Rank 1 Group 0 Pid 43 device 1 [0xc1] AMD Instinct MI300X
+# Rank 2 Group 0 Pid 44 device 2 [0xc2] AMD Instinct MI300X
+# Rank 3 Group 0 Pid 45 device 3 [0xc3] AMD Instinct MI300X
+# Rank 4 Group 0 Pid 46 device 4 [0xc4] AMD Instinct MI300X
+# Rank 5 Group 0 Pid 47 device 5 [0xc5] AMD Instinct MI300X
+# Rank 6 Group 0 Pid 48 device 6 [0xc6] AMD Instinct MI300X
+# Rank 7 Group 0 Pid 49 device 7 [0xc7] AMD Instinct MI300X
 #
-#                                                              out-of-place                       in-place
-#       size         count    type   redop     time   algbw   busbw  error     time   algbw   busbw  error
-#        (B)    (elements)                     (us)  (GB/s)  (GB/s)            (us)  (GB/s)  (GB/s)
-        1024           256   float     sum    13.21   0.08   0.14    N/A    12.10   0.08   0.15    N/A
-        2048           512   float     sum    13.84   0.15   0.26    N/A    13.05   0.16   0.27    N/A
-   536870912     134217728   float     sum  2189.41 245.21 429.13    N/A  2178.40 246.45 431.30    N/A
-  1073741824     268435456   float     sum  4304.55 249.45 436.54    N/A  4290.10 250.29 438.01    N/A
-  2147483648     536870912   float     sum  8556.43 250.95 439.16    N/A  8527.81 251.79 440.64    N/A
+# out-of-place in-place
+# size count type redop time algbw busbw error time algbw busbw error
+# (B) (elements) (us) (GB/s) (GB/s) (us) (GB/s) (GB/s)
+        1024 256 float sum 13.21 0.08 0.14 N/A 12.10 0.08 0.15 N/A
+        2048 512 float sum 13.84 0.15 0.26 N/A 13.05 0.16 0.27 N/A
+   536870912 134217728 float sum 2189.41 245.21 429.13 N/A 2178.40 246.45 431.30 N/A
+  1073741824 268435456 float sum 4304.55 249.45 436.54 N/A 4290.10 250.29 438.01 N/A
+  2147483648 536870912 float sum 8556.43 250.95 439.16 N/A 8527.81 251.79 440.64 N/A
 # Errors: 0
 # Avg bus bandwidth: 234.7
 #

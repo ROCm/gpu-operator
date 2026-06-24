@@ -27,7 +27,7 @@
 # * concurrency-cap-honored -- 8-node input, mocked apply, peak
 # concurrent pair_runners <= PHASE4_MAX_CONCURRENT_PAIRS=4 [TP TC15]
 #
-# GPUOP-828 full-mesh schedule tests (these use PHASE4_RAIL_COUNT=0
+# full-mesh schedule tests (these use PHASE4_RAIL_COUNT=0
 # to exercise the scheduler alone without seeding per-rail Job state;
 # the driver still walks the schedule, emits the per-round log lines,
 # and runs pair_runners that are no-ops because the rail loop iterates
@@ -92,9 +92,9 @@ source "${TEST_DIR}/lib/kubectl_mock.sh"
 source "${TEST_DIR}/lib/extract_script.sh"
 
 echo "================================================================"
-echo "  test_phase4.sh"
-echo "  ConfigMap: ${CONFIGMAP}"
-echo "  Fixtures:  ${FIXTURES_DIR}"
+echo " test_phase4.sh"
+echo " ConfigMap: ${CONFIGMAP}"
+echo " Fixtures: ${FIXTURES_DIR}"
 echo "================================================================"
 
 # --- one-time setup -------------------------------------------------
@@ -254,7 +254,7 @@ set +u
 
 # Helper: compute the per-(role, node, rail, round) Job name
 # PHASE4_DRIVER_SCRIPT generates inside _phase4_render. Mirrors the
-# driver exactly (GPUOP-828: round suffix added to disambiguate the
+# driver exactly (round suffix added to disambiguate the
 # same (role, node, rail) repeated across mesh rounds):
 # cvf-p4-${role}-${node}-r${rail_idx}-rd${round_idx} (when short enough)
 # cvf-p4-${role}-${sha1(node)|6}-r${rail_idx}-rd${round_idx} (when too long)
@@ -556,7 +556,7 @@ $(grep -E '^apply( |$)' "$KUBECTL_CALLS_FILE")"
 }
 
 # -------------------------------------------------------------------
-# 5. GPUOP-828: full-mesh round-robin EVEN [a,b,c,d] -> 3 rounds,
+# 5. full-mesh round-robin EVEN [a,b,c,d] -> 3 rounds,
 # 2 disjoint pairs/round, 6 pairs total = C(4,2). Stable ordering:
 # driver sort -u's the input first.
 # [TP TC1]
@@ -593,7 +593,7 @@ $(grep unpaired "$KUBECTL_CALLS_FILE")"
 }
 
 # -------------------------------------------------------------------
-# 6. GPUOP-828: full-mesh round-robin ODD [a,b,c,d,e] -> 5 rounds;
+# 6. full-mesh round-robin ODD [a,b,c,d,e] -> 5 rounds;
 # one node sits out per round (bye slot); 10 pairs total = C(5,2).
 # No node is permanently unpaired -- the per-N=1 "unpaired"
 # annotation must not appear. [TP TC2]
@@ -662,7 +662,7 @@ it "single pair all rails pass -> both nodes passed + per-(rail,round) annotatio
         "label node node-a amd.com/rail-bandwidth=passed --overwrite"
     assert_kubectl_call \
         "label node node-b amd.com/rail-bandwidth=passed --overwrite"
-    # GPUOP-828: per-(rail, round) annotations carry both BW and peer
+    # per-(rail, round) annotations carry both BW and peer
     # in the value. Spot-check rail 0 and rail 7 of round 0. BW value
     # comes from the ib-write-bw-pass.log fixture (388.42).
     assert_kubectl_call \
@@ -721,12 +721,12 @@ it "single rail fail (rail 5 below threshold) -> failed-rails=5, triangulation, 
         "annotate node node-a amd.com/rail-bandwidth-failed-rails=5 --overwrite"
     assert_kubectl_call \
         "annotate node node-b amd.com/rail-bandwidth-failed-rails=5 --overwrite"
-    # GPUOP-828: Rail 5 round-0 BW value preserved with peer identifier.
+    # Rail 5 round-0 BW value preserved with peer identifier.
     assert_kubectl_call \
         "annotate node node-a amd.com/rail-bandwidth-rail-5-round-0=180.50/peer=node-b --overwrite"
     assert_kubectl_call \
         "annotate node node-b amd.com/rail-bandwidth-rail-5-round-0=180.50/peer=node-a --overwrite"
-    # GPUOP-828: triangulation annotation pins out the failing
+    # triangulation annotation pins out the failing
     # (peer, rail, round) measurement on each side.
     assert_kubectl_call \
         "annotate node node-a amd.com/rail-bandwidth-triangulation=peer=node-b/rail=5/round=0 --overwrite"
@@ -768,13 +768,13 @@ it "all rails fail on one pair -> failed-rails=0,1,2,3,4,5,6,7" && {
         "label node node-b amd.com/rail-bandwidth=failed --overwrite"
     assert_kubectl_call \
         "annotate node node-b amd.com/rail-bandwidth-failed-rails=0,1,2,3,4,5,6,7 --overwrite"
-    # GPUOP-828: per-(rail, round) BW value preserved on every rail
+    # per-(rail, round) BW value preserved on every rail
     # with peer identifier (180.50 from fixture, round 0).
     assert_kubectl_call \
         "annotate node node-a amd.com/rail-bandwidth-rail-0-round-0=180.50/peer=node-b --overwrite"
     assert_kubectl_call \
         "annotate node node-a amd.com/rail-bandwidth-rail-7-round-0=180.50/peer=node-b --overwrite"
-    # GPUOP-828: triangulation lists every failing (peer, rail, round)
+    # triangulation lists every failing (peer, rail, round)
     # measurement -- in this case 8 entries on each side, all round 0.
     assert_kubectl_call_contains \
         "amd.com/rail-bandwidth-triangulation=peer=node-b/rail=0/round=0,peer=node-b/rail=1/round=0"
@@ -884,7 +884,7 @@ it "PHASE4_RAIL_COUNT=4 -> rails 0-3 annotated; rails 4-7 absent" && {
     _seed_pair_all_pass "node-a" "node-b" 4 "ib-write-bw-pass.log"
     run __phase4_run node-a node-b
     assert_status 0
-    # GPUOP-828: rails 0-3 annotated for round 0 (N=2 -> 1 round).
+    # rails 0-3 annotated for round 0 (N=2 -> 1 round).
     assert_kubectl_call \
         "annotate node node-a amd.com/rail-bandwidth-rail-0-round-0=388.42/peer=node-b --overwrite"
     assert_kubectl_call \
@@ -911,7 +911,7 @@ $(grep "rail-${rail}-" "$KUBECTL_CALLS_FILE")"
 
 it "8 nodes (full mesh, cap=4) -> 28 pairs across 7 rounds, all 8 nodes labeled" && {
     _reset_phase4_env
-    # GPUOP-828: full mesh on N=8 produces 7 rounds with 4 disjoint
+    # full mesh on N=8 produces 7 rounds with 4 disjoint
     # pairs/round = 28 pairs total. With PHASE4_MAX_CONCURRENT_PAIRS=4
     # all 4 pairs in each round can dispatch in parallel. We exercise
     # the scheduler alone (PHASE4_RAIL_COUNT=0) so we do not have to
@@ -949,7 +949,7 @@ it "8 nodes (full mesh, cap=4) -> 28 pairs across 7 rounds, all 8 nodes labeled"
 # promotes to 1 (serial) with a logged warning rather than deadlocking.
 it "PHASE4_MAX_CONCURRENT_PAIRS=0 is promoted to 1 with a warning" && {
     _reset_phase4_env
-    # GPUOP-828: PHASE4_RAIL_COUNT=0 exercises the scheduler / cap
+    # PHASE4_RAIL_COUNT=0 exercises the scheduler / cap
     # promotion logic without per-rail kubectl mocking.
     export PHASE4_RAIL_COUNT="0"
     export PHASE4_MAX_CONCURRENT_PAIRS="0"
@@ -967,7 +967,7 @@ it "PHASE4_MAX_CONCURRENT_PAIRS=0 is promoted to 1 with a warning" && {
 it "PHASE_NODES env var is used when no positional args are given" && {
     _reset_phase4_env
     export PHASE_NODES="node-env-only"
-    run __phase4_run    # NB: no positional args
+    run __phase4_run # NB: no positional args
     assert_status 0
     # Single-node fallback -> unpaired pass-label.
     assert_kubectl_call \
@@ -977,7 +977,7 @@ it "PHASE_NODES env var is used when no positional args are given" && {
 }
 
 # -------------------------------------------------------------------
-# GPUOP-828: Full-mesh pair-generator tests.
+# Full-mesh pair-generator tests.
 #
 # These tests exercise the circle-algorithm scheduler emitted by
 # PHASE4_DRIVER_SCRIPT for a range of N values (even and odd). For

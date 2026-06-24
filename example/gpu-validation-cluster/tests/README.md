@@ -192,25 +192,25 @@ Kubernetes cluster. They run anywhere `bash`, `awk`, `sed`, and
 
 ```
 tests/
-  README.md                              # this file
-  run_all.sh                             # entry point
-  test_phase_node_label_script.sh        # helper library
-  test_orchestrator_dry_run.sh           # orchestrator DRY_RUN mode
-  test_phase1.sh                         # PHASE1_SCRIPT
-  test_phase2.sh                         # PHASE2_SCRIPT
-  test_phase3.sh                         # PHASE3_CHECK_SCRIPT + PHASE3_SCRIPT
-  test_phase4.sh                         # PHASE4_DRIVER_SCRIPT
-  test_phase4_5.sh                       # PHASE45_PREFLIGHT_SCRIPT
+  README.md # this file
+  run_all.sh # entry point
+  test_phase_node_label_script.sh # helper library
+  test_orchestrator_dry_run.sh # orchestrator DRY_RUN mode
+  test_phase1.sh # PHASE1_SCRIPT
+  test_phase2.sh # PHASE2_SCRIPT
+  test_phase3.sh # PHASE3_CHECK_SCRIPT + PHASE3_SCRIPT
+  test_phase4.sh # PHASE4_DRIVER_SCRIPT
+  test_phase4_5.sh # PHASE45_PREFLIGHT_SCRIPT
   lib/
-    assert.sh                            # hand-rolled bash assertions
-    kubectl_mock.sh                      # recording kubectl shim
-    extract_script.sh                    # YAML block-scalar extractor
+    assert.sh # hand-rolled bash assertions
+    kubectl_mock.sh # recording kubectl shim
+    extract_script.sh # YAML block-scalar extractor
   fixtures/
-    phase1/                              # AGFHC result.json fixtures
-    phase2/                              # phase2.log fixtures
-    phase3/                              # lspci / ip / rdma / ibv_* shim fixtures
-    phase4/                              # ib_write_bw client-log fixtures
-    phase4_5/                            # DNS / RCCL exec-stdout fixtures
+    phase1/ # AGFHC result.json fixtures
+    phase2/ # phase2.log fixtures
+    phase3/ # lspci / ip / rdma / ibv_* shim fixtures
+    phase4/ # ib_write_bw client-log fixtures
+    phase4_5/ # DNS / RCCL exec-stdout fixtures
 ```
 
 ## How to run
@@ -296,7 +296,7 @@ no registration step is needed.
 ## Test-plan coverage mapping
 
 These tests realize the following cases from
-`docs-internal/codie/test-plans/-test-plan.md`:
+the test plan:
 
 | Test case | Description | Realized by |
 |---|---|---|
@@ -309,7 +309,7 @@ These tests realize the following cases from
 | TC14 | dryrun-phase1-2-enabled-only | `test_orchestrator_dry_run.sh` scenario 2 |
 
 These tests realize the following cases from
-`docs-internal/codie/test-plans/-test-plan.md` (PHASE2_SCRIPT
+the test plan (PHASE2_SCRIPT
 behavior):
 
 | Test case | Description | Realized by |
@@ -324,7 +324,7 @@ behavior):
 | TC10 | hung-job-cleanup | `test_phase2.sh` (same case — verifies `delete job . --ignore-not-found=true --wait=false`) |
 
 These tests realize the following cases from
-`docs-internal/codie/test-plans/-test-plan.md` (Phase 3 NIC health):
+the test plan (Phase 3 NIC health):
 
 | Test case | Description | Realized by |
 |---|---|---|
@@ -340,7 +340,7 @@ These tests realize the following cases from
 | TC12 | nic-not-allocated-timeout | `test_phase3.sh` ("no conditions + PHASE3_JOB_WAIT_TIME=0 -> reason=nic-not-allocated .") |
 
 These tests realize the following cases from
-`docs-internal/codie/test-plans/-test-plan.md` (Phase 4 pairwise
+the test plan (Phase 4 pairwise
 RDMA bandwidth):
 
 | Test case | Description | Realized by |
@@ -360,7 +360,7 @@ RDMA bandwidth):
 | TC15 | concurrency-cap-honored | `test_phase4.sh` ("16 nodes (8 pairs) with cap=8 -> .") |
 
 These tests realize the following cases from
-`docs-internal/codie/test-plans/-test-plan.md` (Phase 4.5 cross-node
+the test plan (Phase 4.5 cross-node
 connectivity matrix pre-flight):
 
 | Test case | Description | Realized by |

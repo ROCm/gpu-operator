@@ -73,9 +73,9 @@ source "${TEST_DIR}/lib/kubectl_mock.sh"
 source "${TEST_DIR}/lib/extract_script.sh"
 
 echo "================================================================"
-echo "  test_phase3.sh"
-echo "  ConfigMap: ${CONFIGMAP}"
-echo "  Fixtures:  ${FIXTURES_DIR}"
+echo " test_phase3.sh"
+echo " ConfigMap: ${CONFIGMAP}"
+echo " Fixtures: ${FIXTURES_DIR}"
 echo "================================================================"
 
 # --- one-time setup -------------------------------------------------
@@ -214,7 +214,7 @@ if [[ -n "$dev" ]]; then
     fi
 fi
 if [[ -n "${IBV_DEVINFO_RC_DEFAULT:-}" ]]; then
-    # GPUOP-836: optional stderr message so the pre-flight
+    # optional stderr message so the pre-flight
     # `ibv_devinfo 2>&1 >/dev/null` capture carries a representative
     # error string (e.g. "libibverbs: failed to load driver ionic_rdma").
     if [[ -n "${IBV_DEVINFO_STDERR_DEFAULT:-}" ]]; then
@@ -259,7 +259,7 @@ spec:
         kubernetes.io/hostname: $$NODE
       containers:
         - name: nic-health
-          # GPUOP-829: image is sed-substituted from
+          # image is sed-substituted from
           # ROCE_WORKLOAD_IMAGE by PHASE3_SCRIPT.
           image: $$ROCE_WORKLOAD_IMAGE
           resources:
@@ -324,11 +324,11 @@ kubectl_mock_init
 # Suffix for failure-reason annotation; mirrors ConfigMap default.
 export PHASE_FAILURE_REASON_ANNOTATION_SUFFIX="-failure-reason"
 
-# GPUOP-835: Check 5 (driver/firmware compat) defaults to enabled in the
+# Check 5 (driver/firmware compat) defaults to enabled in the
 # ConfigMap (fail-closed production stance). The legacy test bodies below
 # do not yet supply Check 5 fixtures -- per-test ConfigMap-default-enabled
-# Check 5 cases land with GPUOP-836. Disable Check 5 at the harness level
-# so the pre-GPUOP-835 cases continue to test checks 1-4 in isolation; the
+# Check 5 cases land with. Disable Check 5 at the harness level
+# so the pre-refactor cases continue to test checks 1-4 in isolation; the
 # pre-flight `nicctl --help` / `ibv_devinfo` shims above still cover the
 # pre-flight gate. Individual tests that exercise Check 5 are expected to
 # locally `export PHASE3_DRIVER_FW_CHECK_ENABLED=true` and provide
@@ -368,7 +368,7 @@ set +u
 
 it "shellcheck PHASE3_CHECK_SCRIPT (skip if shellcheck not on PATH)" && {
     if ! command -v shellcheck >/dev/null 2>&1; then
-        echo "      SKIP: shellcheck not on PATH"
+        echo " SKIP: shellcheck not on PATH"
     else
         run shellcheck --severity=warning "$CHECK_BODY"
         assert_status 0
@@ -425,8 +425,8 @@ mkdir -p "$PHASE3_FAKE_DRIVERS_DIR"
 
 # _seed_sysfs_net <root> <iface> <driver-name> <operstate>
 # Populate a fake /sys/class/net/<iface>/ tree under <root>:
-#   <root>/<iface>/operstate          (file with operstate text)
-#   <root>/<iface>/device/driver -> <DRIVERS_DIR>/<driver-name>
+# <root>/<iface>/operstate (file with operstate text)
+# <root>/<iface>/device/driver -> <DRIVERS_DIR>/<driver-name>
 _seed_sysfs_net() {
     local root="$1" iface="$2" drv="$3" state="$4"
     local d="${root}/${iface}"
@@ -437,8 +437,8 @@ _seed_sysfs_net() {
 
 # _seed_sysfs_ib <root> <dev> <driver-name> <fw_ver>
 # Populate a fake /sys/class/infiniband/<dev>/ tree:
-#   <root>/<dev>/fw_ver               (file with firmware string)
-#   <root>/<dev>/device/driver -> <DRIVERS_DIR>/<driver-name>
+# <root>/<dev>/fw_ver (file with firmware string)
+# <root>/<dev>/device/driver -> <DRIVERS_DIR>/<driver-name>
 # Pass an empty <fw_ver> to skip the fw_ver file entirely (simulates
 # unreadable / missing fw_ver, which the script tolerates by
 # skipping that device).
@@ -584,12 +584,12 @@ it "PHASE3_CHECK_SCRIPT real Pensando 6-functions-per-card layout -> nic_count=8
     for bus in 08 25 45 68 88 a5 c5 e8; do
         bridge_a=$(printf '%02x' $((16#${bus} - 2)))
         bridge_b=$(printf '%02x' $((16#${bus} - 1)))
-        printf '0000:%s:00.0 PCI bridge [0604]: AMD Pensando Systems DSC3 Salina Upstream Port [1dd8:0008]\n'     "$bridge_a" >>"$real_pensando_fixture"
-        printf '0000:%s:00.0 PCI bridge [0604]: AMD Pensando Systems DSC Virtual Downstream Port [1dd8:1001]\n'   "$bridge_b" >>"$real_pensando_fixture"
-        printf '0000:%s:00.0 Processing accelerators [1200]: AMD Pensando Systems TAWK IPC Device [1dd8:1012]\n'  "$bus"      >>"$real_pensando_fixture"
+        printf '0000:%s:00.0 PCI bridge [0604]: AMD Pensando Systems DSC3 Salina Upstream Port [1dd8:0008]\n' "$bridge_a" >>"$real_pensando_fixture"
+        printf '0000:%s:00.0 PCI bridge [0604]: AMD Pensando Systems DSC Virtual Downstream Port [1dd8:1001]\n' "$bridge_b" >>"$real_pensando_fixture"
+        printf '0000:%s:00.0 Processing accelerators [1200]: AMD Pensando Systems TAWK IPC Device [1dd8:1012]\n' "$bus" >>"$real_pensando_fixture"
         printf '0000:%s:00.1 Processing accelerators [1200]: AMD Pensando Systems Register/Memory Resource Device [1dd8:100f]\n' "$bus" >>"$real_pensando_fixture"
         printf '0000:%s:00.2 Processing accelerators [1200]: AMD Pensando Systems DSC PDS Core Management [1dd8:100c]\n' "$bus" >>"$real_pensando_fixture"
-        printf '0000:%s:00.3 Ethernet controller [0200]: AMD Pensando Systems DSC Ethernet Controller [1dd8:1002]\n' "$bus"  >>"$real_pensando_fixture"
+        printf '0000:%s:00.3 Ethernet controller [0200]: AMD Pensando Systems DSC Ethernet Controller [1dd8:1002]\n' "$bus" >>"$real_pensando_fixture"
     done
     export LSPCI_FIXTURE="$real_pensando_fixture"
     export IP_LINK_FIXTURE="${FIXTURES_DIR}/ip-link-pass.txt"
@@ -655,11 +655,11 @@ it "PHASE3_CHECK_SCRIPT one NIC link DOWN -> PHASE3_RESULT status=failed reason 
     # Lay down 8 ionic netdevs in mock sysfs; one (enP7p1s0f0) is down.
     _new_sysfs_net_root >/dev/null
     net_root="$PHASE3_NET_SYSFS_DIR"
-    _seed_sysfs_net "$net_root" "enP5p1s0f0"  "ionic" "up"
-    _seed_sysfs_net "$net_root" "enP6p1s0f0"  "ionic" "up"
-    _seed_sysfs_net "$net_root" "enP7p1s0f0"  "ionic" "down"
-    _seed_sysfs_net "$net_root" "enP8p1s0f0"  "ionic" "up"
-    _seed_sysfs_net "$net_root" "enP9p1s0f0"  "ionic" "up"
+    _seed_sysfs_net "$net_root" "enP5p1s0f0" "ionic" "up"
+    _seed_sysfs_net "$net_root" "enP6p1s0f0" "ionic" "up"
+    _seed_sysfs_net "$net_root" "enP7p1s0f0" "ionic" "down"
+    _seed_sysfs_net "$net_root" "enP8p1s0f0" "ionic" "up"
+    _seed_sysfs_net "$net_root" "enP9p1s0f0" "ionic" "up"
     _seed_sysfs_net "$net_root" "enP10p1s0f0" "ionic" "up"
     _seed_sysfs_net "$net_root" "enP11p1s0f0" "ionic" "up"
     _seed_sysfs_net "$net_root" "enP12p1s0f0" "ionic" "up"
@@ -827,7 +827,7 @@ it "PHASE3_CHECK_SCRIPT large failure list truncates PHASE3_RESULT tokens to MAX
 ${LAST_STDOUT}"
     fi
     reason_v=$(sed -nE 's/.*reason=([^ ]+).*/\1/p' <<<"$result_line")
-    nics_v=$(sed -nE   's/.*failed_nics=([^ ]+).*/\1/p' <<<"$result_line")
+    nics_v=$(sed -nE 's/.*failed_nics=([^ ]+).*/\1/p' <<<"$result_line")
     if [[ -z "$reason_v" ]]; then
         _assert_fail "PHASE3_RESULT line missing reason=...: ${result_line}"
     fi
@@ -847,7 +847,7 @@ _reset_phase3_env() {
     kubectl_mock_reset
     export PHASE3_LABEL_KEY="amd.com/nic-health"
     export PHASE3_EXPECTED_NIC_COUNT="8"
-    # GPUOP-829: PHASE3_SCRIPT sed-substitutes $$ROCE_WORKLOAD_IMAGE.
+    # PHASE3_SCRIPT sed-substitutes $$ROCE_WORKLOAD_IMAGE.
     # Default to a recognizable test tag so tests that exercise the
     # submit path render a valid (placeholder-free) Job template.
     export ROCE_WORKLOAD_IMAGE="docker.io/rocm/roce-workload:test-tag"
@@ -1150,7 +1150,7 @@ it "PHASE_NODES env var is used when no positional args are given" && {
     _reset_phase3_env
     _seed_job_complete "node-env" "$ts"
     export PHASE_NODES="node-env"
-    run __phase3_run    # NB: no positional args
+    run __phase3_run # NB: no positional args
     assert_status 0
     # Job was submitted for that node.
     expected_job=$(_phase3_expected_job_name "node-env" "$ts")
@@ -1161,7 +1161,7 @@ it "PHASE_NODES env var is used when no positional args are given" && {
 }
 
 # -------------------------------------------------------------------
-# PART D: PHASE3_SCRIPT sed pipeline rendering (GPUOP-829)
+# PART D: PHASE3_SCRIPT sed pipeline rendering
 #
 # These tests do NOT exercise __phase3_run end-to-end (the kubectl
 # mock's `apply` arm drains stdin and discards it, so rendered YAML
@@ -1202,12 +1202,12 @@ fi
 
 # Render the real template the same way PHASE3_SCRIPT does. Mirrors
 # the sed expression in cluster-validation-config.yaml PHASE3_SCRIPT
-# (around line ~2441 post-GPUOP-834). Caller sets NODE, JOB_NAME,
+# (around line ~2441 post-refactor). Caller sets NODE, JOB_NAME,
 # EXPECTED_NIC_COUNT, IMG.
 _render_phase3_real() {
     local node="$1" job_name="$2" nic_count="$3" img="$4"
     sed "s|\$\$NODE|${node}|g; \
-         s/^  name: cluster-validation-phase3-job/  name: ${job_name}/; \
+         s/^ name: cluster-validation-phase3-job/ name: ${job_name}/; \
          s|\$\$EXPECTED_NIC_COUNT|${nic_count}|g; \
          s|\$\$ROCE_WORKLOAD_IMAGE|${img}|g" \
         "$REAL_PHASE3_TPL"
@@ -1277,14 +1277,14 @@ PYEOF
 
 # D3. The container image MUST NOT be the obsolete
 # network-operator-utils tag anywhere in the source template
-# (post-GPUOP-834, this image is gone). Guards against accidental
+# (post-refactor, this image is gone). Guards against accidental
 # revert.
 it "PHASE3 template source: network-operator-utils:v1.1.0 has been removed" && {
     if grep -F 'docker.io/rocm/network-operator-utils:v1.1.0' \
        "$PHASE3_JOB_SOURCE_YAML" >/dev/null; then
         _assert_fail "regressed: network-operator-utils:v1.1.0 still referenced in ${PHASE3_JOB_SOURCE_YAML}"
     fi
-    # And the obsolete patchable comment must be gone too (GPUOP-829
+    # And the obsolete patchable comment must be gone too (
     # design doc §4: removed because the image is now centrally
     # pinned via ROCE_WORKLOAD_IMAGE).
     if grep -F 'patchable: cluster-validation-framework.images.nic-health' \
@@ -1353,12 +1353,12 @@ PYEOF
 # driver-version sysfs file anymore.
 #
 # Each Check 5 test:
-#   * _reset_check5_env -- shared reset + Check 5 opt-in + PASS
-#     fixtures for checks 1-4 so any failure has to come from Check 5
-#     (or pre-flight). The per-test mock /sys/class/infiniband/ tree
-#     is laid down via _seed_sysfs_ib (defined in PART B above).
-#   * supplies ROCE_WORKLOAD_IMAGE and optionally
-#     PHASE3_DRIVER_FW_STRICT.
+# * _reset_check5_env -- shared reset + Check 5 opt-in + PASS
+# fixtures for checks 1-4 so any failure has to come from Check 5
+# (or pre-flight). The per-test mock /sys/class/infiniband/ tree
+# is laid down via _seed_sysfs_ib (defined in PART B above).
+# * supplies ROCE_WORKLOAD_IMAGE and optionally
+# PHASE3_DRIVER_FW_STRICT.
 # -------------------------------------------------------------------
 
 _reset_check5_env() {
@@ -1448,8 +1448,8 @@ it "PHASE3_CHECK_SCRIPT Check 5 FAIL strict=true: fw not in image -> fw-image-mi
 
 # -------------------------------------------------------------------
 # E3. FAIL -> PASS via strict=false: same mismatch as E2, but
-#     warn-only mode suppresses the mismatch from the reason marker
-#     while still surfacing observed_fw= and the warning log line.
+# warn-only mode suppresses the mismatch from the reason marker
+# while still surfacing observed_fw= and the warning log line.
 # -------------------------------------------------------------------
 
 it "PHASE3_CHECK_SCRIPT Check 5 strict=false: mismatch surfaces in observed_fw + log, marker is passed" && {
@@ -1478,7 +1478,7 @@ it "PHASE3_CHECK_SCRIPT Check 5 strict=false: mismatch surfaces in observed_fw +
 
 # -------------------------------------------------------------------
 # E4. Check disabled: marker is byte-identical to the legacy
-#     pre-Check-5 contract -- no observed_fw= field at all.
+# pre-Check-5 contract -- no observed_fw= field at all.
 # -------------------------------------------------------------------
 
 it "PHASE3_CHECK_SCRIPT Check 5 disabled -> marker has no observed_fw= field" && {
@@ -1507,8 +1507,8 @@ it "PHASE3_CHECK_SCRIPT Check 5 disabled -> marker has no observed_fw= field" &&
 
 # -------------------------------------------------------------------
 # E5. Missing ROCE_WORKLOAD_IMAGE env: "no data" => SKIP, never FAIL.
-#     Phase 3 still passes (Checks 1-4 are clean in this fixture).
-#     observed_fw= is still emitted so the read values are visible.
+# Phase 3 still passes (Checks 1-4 are clean in this fixture).
+# observed_fw= is still emitted so the read values are visible.
 # -------------------------------------------------------------------
 
 it "PHASE3_CHECK_SCRIPT Check 5 missing ROCE_WORKLOAD_IMAGE -> SKIP, no fw-image-env-missing fail" && {
@@ -1532,7 +1532,7 @@ it "PHASE3_CHECK_SCRIPT Check 5 missing ROCE_WORKLOAD_IMAGE -> SKIP, no fw-image
 
 # -------------------------------------------------------------------
 # E6. Zero ionic devices in sysfs (empty tree): "no data" => SKIP,
-#     never FAIL. Phase 3 still passes (Checks 1-4 are clean).
+# never FAIL. Phase 3 still passes (Checks 1-4 are clean).
 # -------------------------------------------------------------------
 
 it "PHASE3_CHECK_SCRIPT Check 5 zero ionic devices -> SKIP, no sysfs-error fail" && {
@@ -1549,9 +1549,9 @@ it "PHASE3_CHECK_SCRIPT Check 5 zero ionic devices -> SKIP, no sysfs-error fail"
 
 # -------------------------------------------------------------------
 # E7. Partial fw read: 8 devices in sysfs, but 2 have no fw_ver file
-#     (simulates unreadable / driver bug). The 6 readable devices
-#     all match the image tag -> PASS. observed_fw= lists only the
-#     6 successfully-read devices.
+# (simulates unreadable / driver bug). The 6 readable devices
+# all match the image tag -> PASS. observed_fw= lists only the
+# 6 successfully-read devices.
 # -------------------------------------------------------------------
 
 it "PHASE3_CHECK_SCRIPT Check 5 partial fw read: 6/8 readable + all match -> PASS, observed_fw lists 6" && {
@@ -1585,8 +1585,8 @@ it "PHASE3_CHECK_SCRIPT Check 5 partial fw read: 6/8 readable + all match -> PAS
 
 # -------------------------------------------------------------------
 # E8. Driver filter: a non-ionic IB device (e.g. mlx5) must be
-#     skipped even if its fw_ver is populated -- only ionic devices
-#     participate in Check 5.
+# skipped even if its fw_ver is populated -- only ionic devices
+# participate in Check 5.
 # -------------------------------------------------------------------
 
 it "PHASE3_CHECK_SCRIPT Check 5 non-ionic IB device is skipped" && {
@@ -1613,9 +1613,9 @@ ${LAST_STDOUT}"
 
 # -------------------------------------------------------------------
 # E9. Pre-flight FAIL via broken ibv_devinfo -> single
-#     preflight-failed:ibv_devinfo=<msg> reason, checks 1-5 skipped.
-#     This is the only pre-flight gate left -- nicctl is no longer
-#     probed.
+# preflight-failed:ibv_devinfo=<msg> reason, checks 1-5 skipped.
+# This is the only pre-flight gate left -- nicctl is no longer
+# probed.
 # -------------------------------------------------------------------
 
 it "PHASE3_CHECK_SCRIPT pre-flight: broken ibv_devinfo -> FAIL preflight-failed:ibv_devinfo, checks skipped" && {
@@ -1656,8 +1656,8 @@ ${LAST_STDOUT}"
 # -------------------------------------------------------------------
 
 # F1. Marker carries observed_fw on a pass line -> orchestrator
-#     writes the observed-fw annotation and the =passed label. No
-#     failure-reason / failed-nics annotations.
+# writes the observed-fw annotation and the =passed label. No
+# failure-reason / failed-nics annotations.
 it "PHASE3_SCRIPT marker has observed_fw (pass) -> observed-fw annotation written" && {
     _reset_phase3_env
     expected_job=$(_phase3_expected_job_name "node-obs-fw" "$ts")
@@ -1684,13 +1684,13 @@ $(grep amd.com/nic-health "$KUBECTL_CALLS_FILE")"
 }
 
 # F2. Marker carries no observed_fw field (e.g. Check 5 disabled
-#     in-pod) -> orchestrator writes no observed-fw annotation.
-#     Today's pass label still goes through. The absence branch is
-#     intentionally a no-op so any prior observed-fw annotation
-#     stays as last-known-good for operators flipping the check off.
+# in-pod) -> orchestrator writes no observed-fw annotation.
+# Today's pass label still goes through. The absence branch is
+# intentionally a no-op so any prior observed-fw annotation
+# stays as last-known-good for operators flipping the check off.
 it "PHASE3_SCRIPT marker has no observed_fw field -> no observed-fw annotation written" && {
     _reset_phase3_env
-    _seed_job_complete "node-obs-none" "$ts"   # legacy pass-only marker
+    _seed_job_complete "node-obs-none" "$ts" # legacy pass-only marker
     run __phase3_run node-obs-none
     assert_status 0
     assert_kubectl_call \
@@ -1709,14 +1709,14 @@ $(grep amd.com/nic-health "$KUBECTL_CALLS_FILE")"
 }
 
 # F3. Marker on a FAILED node with fw-image-mismatch reason +
-#     observed_fw -> orchestrator writes:
-#       * label=failed
-#       * failure-reason=<fw-image-mismatch:.>
-#       * failed-nics=<csv>
-#       * observed-fw=<csv>
-#     i.e. today's failure annotations PLUS the new observed-fw
-#     annotation (per the design "regardless of pass/fail outcome
-#     whenever the marker carried them").
+# observed_fw -> orchestrator writes:
+# * label=failed
+# * failure-reason=<fw-image-mismatch:.>
+# * failed-nics=<csv>
+# * observed-fw=<csv>
+# i.e. today's failure annotations PLUS the new observed-fw
+# annotation (per the design "regardless of pass/fail outcome
+# whenever the marker carried them").
 it "PHASE3_SCRIPT marker on failed node with fw-image-mismatch -> failure annotations + observed-fw written" && {
     _reset_phase3_env
     expected_job=$(_phase3_expected_job_name "node-fw-mismatch" "$ts")

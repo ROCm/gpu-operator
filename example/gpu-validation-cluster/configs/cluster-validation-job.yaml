@@ -16,18 +16,18 @@ data:
       runPolicy:
         cleanPodPolicy: All
         backoffLimit: 0
-        ttlSecondsAfterFinished: 20     # <-update before deploy
+        ttlSecondsAfterFinished: 20 # <-update before deploy
       mpiReplicaSpecs:
         Launcher:
-          replicas: $$LAUNCHER_REPLICAS  # Value substituted at runtime from LAUNCHER_REPLICAS
+          replicas: $$LAUNCHER_REPLICAS # Value substituted at runtime from LAUNCHER_REPLICAS
           template:
             spec:
               # If nodeName is set, it will direct the launcher pod to run on the specified node for easier log access. Otherwise, it will be scheduled on any of the candidate nodes.
               nodeName: $$LOG_STORE_NODE_NAME
               # Only schedule on nodes labeled as candidate
               nodeSelector:
-                amd.com/cluster-validation-candidate: "true"        # Must match CANDIDATE_LABEL
-              serviceAccountName: cluster-validation-sa             # Must have permission to create MPIJobs
+                amd.com/cluster-validation-candidate: "true" # Must match CANDIDATE_LABEL
+              serviceAccountName: cluster-validation-sa # Must have permission to create MPIJobs
               restartPolicy: Never
               volumes:
                 - name: shared
@@ -141,7 +141,7 @@ data:
                         ${RCCL_ENV} \
                         $PERF_TEST_DIR/${test} -b ${START_MSG_SIZE} -e ${END_MSG_SIZE} \
                         -n ${ITER_COUNT} -w ${WARMUP_ITER_COUNT} -c ${CHECK_ITER_COUNT} \
-                        -f ${STEP_FACTOR} -g ${THREADS_PER_GPU}  | tee /shared/${test}.log
+                        -f ${STEP_FACTOR} -g ${THREADS_PER_GPU} | tee /shared/${test}.log
 
                       echo "Validating $test result..."
                       if ! /shared/validate-single-test.sh "$test" "$threshold"; then
@@ -153,7 +153,7 @@ data:
                     echo "All RCCL test runs done"
 
                     if [ "$failed" -ne 0 ]; then
-                      echo "Validation FAILED  for one or more tests ❌"
+                      echo "Validation FAILED for one or more tests ❌"
                       echo "Sleeping ${DEBUG_DELAY} secs before exiting to debug failure"
                       sleep ${DEBUG_DELAY}
                       echo "Launcher exiting with failure."
@@ -167,7 +167,7 @@ data:
                     echo "Launcher exiting with success"
 
         Worker:
-          replicas: $$WORKER_REPLICAS   # Dynamically set based on number of passed nodes
+          replicas: $$WORKER_REPLICAS # Dynamically set based on number of passed nodes
           template:
             metadata:
               annotations:
@@ -177,7 +177,7 @@ data:
             spec:
               # Only schedule on nodes labeled as candidate
               nodeSelector:
-                amd.com/cluster-validation-candidate: "true"        # Must match CANDIDATE_LABEL
+                amd.com/cluster-validation-candidate: "true" # Must match CANDIDATE_LABEL
               restartPolicy: Never
               containers:
               - name: rccl-test-worker
@@ -290,7 +290,7 @@ data:
 ---
 # =========================================================================
 # Phase 2 per-node Job template ConfigMap.
-# See docs-internal/codie/designs/GPUOP-692-phase2-gpu-mesh-validation-design.md
+# See the phase design notes
 # section 4 -> "Code Path: Phase 2 Job template ConfigMap".
 #
 # Holds a batch/v1.Job template for the Phase 2 single-node 8-GPU RCCL
@@ -469,12 +469,12 @@ data:
 ---
 # =========================================================================
 # Phase 3 per-node NIC health Job template
-# ConfigMap. See docs-internal/codie/designs/GPUOP-693-phase3-nic-health-design.md
+# ConfigMap. See the phase design notes
 # section 4 -> "Code Path: Phase 3 Job template".
 #
 # Holds a batch/v1.Job template for the per-node NIC health check
 # (NIC count, ip link UP, rdma link ACTIVE, ibv_devinfo + GID table,
-# plus driver/firmware compatibility -- GPUOP-829).
+# plus driver/firmware compatibility).
 # One Job per node that passed Phase 2 and carries the amd-nic=true
 # label. The template is sed-rendered by $PHASE3_SCRIPT -- the
 # substitution placeholders are $$NODE (target node hostname),
@@ -620,7 +620,7 @@ data:
 ---
 # =========================================================================
 # Phase 4 per-(pair,rail) Job template ConfigMap.
-# See docs-internal/codie/designs/GPUOP-694-phase4-rail-bandwidth-design.md
+# See the phase design notes
 # section 4 -> "Code Path: Phase 4 Job templates (server + client)".
 #
 # Holds TWO batch/v1.Job templates under separate ConfigMap data keys:
@@ -1013,12 +1013,12 @@ spec:
   # Default: every 30 minutes.
   # patchable: cluster-validation-framework.cronjob.schedule
   schedule: "*/30 * * * *"
-  concurrencyPolicy: Forbid                             # Dont overlap runs    
+  concurrencyPolicy: Forbid # Dont overlap runs 
   jobTemplate:
     spec:
       template:
         spec:
-          serviceAccountName: cluster-validation-sa  # must have permission to create MPIJobs
+          serviceAccountName: cluster-validation-sa # must have permission to create MPIJobs
           restartPolicy: Never
           containers:
             - name: submit-mpijob
@@ -1687,7 +1687,7 @@ spec:
                       return 0
                     fi
                     count=$(echo "$mpijobs" | wc -l)
-                    keep=3                                        # <-update before deploy
+                    keep=3 # <-update before deploy
                     if [[ "$count" -gt "$keep" ]]; then
                       del=$(echo "$mpijobs" | head -n -"$keep")
                       for job in $del; do

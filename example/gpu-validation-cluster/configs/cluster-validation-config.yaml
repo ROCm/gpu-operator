@@ -3,20 +3,20 @@ kind: ConfigMap
 metadata:
   name: cluster-validation-config
 data:
-  LOG_STORE_NODE_NAME: ""               # Specify a candidate node name to store logs for easier access, or leave empty to let the system pick one of the candidate nodes
-  JOB_NAME: cluster-validation-mpi-job  # Must match MPIJob metadata.name
+  LOG_STORE_NODE_NAME: "" # Specify a candidate node name to store logs for easier access, or leave empty to let the system pick one of the candidate nodes
+  JOB_NAME: cluster-validation-mpi-job # Must match MPIJob metadata.name
   # Resource defaults below. Override via config.json
   # ["cluster-validation-framework"].resources.* (gpu-cluster.sh patches
   # the deployed ConfigMap after this YAML is applied).
   # Fields below carry a `patchable:` marker showing the JSON path that
   # overrides them when gpu-cluster.sh runs.
-  WORKER_REPLICAS: "2"                                    # Worker Pods per MPIJob. patchable: cluster-validation-framework.resources.worker-replicas
-  LAUNCHER_REPLICAS: "1"                                  # Launcher Pods per MPIJob. patchable: cluster-validation-framework.resources.launcher-replicas
-  SLOTS_PER_WORKER: "8"                                   # MPI ranks per Worker pod. patchable: cluster-validation-framework.resources.slots-per-worker
-  GPU_PER_WORKER: "8"                                     # GPUs per Worker pod. patchable: cluster-validation-framework.resources.gpu-per-worker
-  PF_NIC_PER_WORKER: "0"                                  # PF-NICs per Worker pod. patchable: cluster-validation-framework.resources.pf-nic-per-worker
-  VF_NIC_PER_WORKER: "8"                                  # VF-NICs per Worker pod. patchable: cluster-validation-framework.resources.vf-nic-per-worker
-  NODE_VALIDATION_INTERVAL_MINS: "30"                     # Minimum minutes between validation runs per node. patchable: cluster-validation-framework.resources.node-validation-interval-mins
+  WORKER_REPLICAS: "2" # Worker Pods per MPIJob. patchable: cluster-validation-framework.resources.worker-replicas
+  LAUNCHER_REPLICAS: "1" # Launcher Pods per MPIJob. patchable: cluster-validation-framework.resources.launcher-replicas
+  SLOTS_PER_WORKER: "8" # MPI ranks per Worker pod. patchable: cluster-validation-framework.resources.slots-per-worker
+  GPU_PER_WORKER: "8" # GPUs per Worker pod. patchable: cluster-validation-framework.resources.gpu-per-worker
+  PF_NIC_PER_WORKER: "0" # PF-NICs per Worker pod. patchable: cluster-validation-framework.resources.pf-nic-per-worker
+  VF_NIC_PER_WORKER: "8" # VF-NICs per Worker pod. patchable: cluster-validation-framework.resources.vf-nic-per-worker
+  NODE_VALIDATION_INTERVAL_MINS: "30" # Minimum minutes between validation runs per node. patchable: cluster-validation-framework.resources.node-validation-interval-mins
   PF_NIC_NAD_NAME: "amd-host-device-nad"
   VF_NIC_NAD_NAME: "vf-amd-host-device-nad"
 
@@ -287,7 +287,7 @@ data:
   # Phase 4 (ib_write_bw server/client), and Phase 5 (multi-node RCCL).
   # patchable: cluster-validation-framework.images.roce-workload
   ROCE_WORKLOAD_IMAGE: "docker.io/rocm/roce-workload:ubuntu24_rocm-7.0.2_rccl-7.0.2_anp-v1.2.0_ainic-1.117.1-a-63"
-  MPIJOB_WAIT_TIME: "240"                                 # Phase 5: wallclock seconds for MPIJob completion. patchable: cluster-validation-framework.timeouts.phase5-mpijob-wait-secs
+  MPIJOB_WAIT_TIME: "240" # Phase 5: wallclock seconds for MPIJob completion. patchable: cluster-validation-framework.timeouts.phase5-mpijob-wait-secs
   DEBUG_DELAY: "20"
   WAIT_FOR_WORKERS: "true"
   ENABLE_SSH_CHECK: "true"
@@ -351,10 +351,10 @@ data:
   # `all_reduce_perf`; they mirror the Phase 5 MPI_LAUNCHER_ENV_VARS
   # defaults (1K.2G, step 2, 6 iters, 20 warmup) so a single tuning
   # change can be applied symmetrically when needed.
-  PHASE2_START_MSG_SIZE:    "1K"
-  PHASE2_END_MSG_SIZE:      "2G"
-  PHASE2_STEP_FACTOR:       "2"
-  PHASE2_ITER_COUNT:        "6"
+  PHASE2_START_MSG_SIZE: "1K"
+  PHASE2_END_MSG_SIZE: "2G"
+  PHASE2_STEP_FACTOR: "2"
+  PHASE2_ITER_COUNT: "6"
   PHASE2_WARMUP_ITER_COUNT: "20"
   # Default 100 GB/s -- intra-node Avg bus bandwidth baseline. MI300X
   # with full xGMI fabric measures ~250-300 GB/s; MI308X (PCIe-only,
@@ -362,13 +362,13 @@ data:
   # threshold; raise per-deployment for fabric-rich SKUs. Validate
   # against measured baseline before rollout to a new SKU (see design doc
   # design §8). Tunable via ConfigMap edit -- no code change needed.
-  PHASE2_BW_THRESHOLD:      "100"
+  PHASE2_BW_THRESHOLD: "100"
   # Per-node Job wallclock budget. all_reduce_perf with the defaults above
   # completes in well under a minute on healthy MI300 xGMI; 600s leaves
   # headroom for pod scheduling, image pull, and a slow-but-passing run.
   # PHASE2_SCRIPT counts a node as `timeout` failure past this budget.
   # patchable: cluster-validation-framework.timeouts.phase2-job-wait-secs
-  PHASE2_JOB_WAIT_TIME:     "600"
+  PHASE2_JOB_WAIT_TIME: "600"
   # Stripped variant of RCCL_ENV_VARS for the single-node Phase 2 path:
   # drops NCCL_NET_PLUGIN (no librccl-anp -- collectives stay on xGMI)
   # and every NCCL_IB_* / IONIC_* / GDR-fabric tunable (no NIC / no
@@ -406,11 +406,11 @@ data:
   # === Per-Phase Skip Flags ===
   # One flag per phase. Patched in from config.json["cluster-validation-framework"]["skip-tests"]
   # by gpu-cluster.sh after this YAML is applied.
-  SKIP_GPU_HW_ACCEPTANCE:    "false"    # Phase 1: GPU hardware acceptance (test-runner / RVS / AGFHC). patchable: cluster-validation-framework.skip-tests.skip-phase1-gpu-hw-acceptance
-  SKIP_GPU_MESH_VALIDATION:  "false"    # Phase 2: Intra-node GPU collective / mesh validation. patchable: cluster-validation-framework.skip-tests.skip-phase2-gpu-mesh-validation
-  SKIP_NIC_VALIDATION:       "false"    # Phase 3: Per-node NIC health (requires amd-nic=true). patchable: cluster-validation-framework.skip-tests.skip-phase3-nic-validation
-  SKIP_RAIL_BANDWIDTH_TEST:  "false"    # Phase 4: Pairwise rail bandwidth. patchable: cluster-validation-framework.skip-tests.skip-phase4-rail-bandwidth-test
-  SKIP_RCCL_TEST:            "false"    # Phase 5: Multi-node RCCL via MPIJob. patchable: cluster-validation-framework.skip-tests.skip-phase5-rccl-test
+  SKIP_GPU_HW_ACCEPTANCE: "false" # Phase 1: GPU hardware acceptance (test-runner / RVS / AGFHC). patchable: cluster-validation-framework.skip-tests.skip-phase1-gpu-hw-acceptance
+  SKIP_GPU_MESH_VALIDATION: "false" # Phase 2: Intra-node GPU collective / mesh validation. patchable: cluster-validation-framework.skip-tests.skip-phase2-gpu-mesh-validation
+  SKIP_NIC_VALIDATION: "false" # Phase 3: Per-node NIC health (requires amd-nic=true). patchable: cluster-validation-framework.skip-tests.skip-phase3-nic-validation
+  SKIP_RAIL_BANDWIDTH_TEST: "false" # Phase 4: Pairwise rail bandwidth. patchable: cluster-validation-framework.skip-tests.skip-phase4-rail-bandwidth-test
+  SKIP_RCCL_TEST: "false" # Phase 5: Multi-node RCCL via MPIJob. patchable: cluster-validation-framework.skip-tests.skip-phase5-rccl-test
 
   # === GPU Validation Tests Definitions ===
   # RVS: ROCm Validation Suite. Recipe + argument reference
@@ -474,40 +474,40 @@ data:
   GPU_VALIDATION_STAGES_JSON: |
     [
       {
-        "Name":           "gpu-stress",
-        "Image":          "docker.io/rocm/test-runner:v1.4.0",
-        "Framework":      "RVS",
-        "Recipe":         "gst_single",
-        "Iterations":     1,
+        "Name": "gpu-stress",
+        "Image": "docker.io/rocm/test-runner:v1.4.0",
+        "Framework": "RVS",
+        "Recipe": "gst_single",
+        "Iterations": 1,
         "TimeoutSeconds": 1800,
-        "Arguments":      "--parallel"
+        "Arguments": "--parallel"
       },
       {
-        "Name":           "xgmi-lvl1",
-        "Image":          "docker.io/rocm/test-runner:v1.4.0",
-        "Framework":      "AGFHC",
-        "Recipe":         "xgmi_lvl1",
-        "Iterations":     1,
+        "Name": "xgmi-lvl1",
+        "Image": "docker.io/rocm/test-runner:v1.4.0",
+        "Framework": "AGFHC",
+        "Recipe": "xgmi_lvl1",
+        "Iterations": 1,
         "TimeoutSeconds": 300,
-        "Arguments":      ""
+        "Arguments": ""
       },
       {
-        "Name":           "pcie-lvl1",
-        "Image":          "docker.io/rocm/test-runner:v1.4.0",
-        "Framework":      "AGFHC",
-        "Recipe":         "pcie_lvl1",
-        "Iterations":     1,
+        "Name": "pcie-lvl1",
+        "Image": "docker.io/rocm/test-runner:v1.4.0",
+        "Framework": "AGFHC",
+        "Recipe": "pcie_lvl1",
+        "Iterations": 1,
         "TimeoutSeconds": 300,
-        "Arguments":      ""
+        "Arguments": ""
       },
       {
-        "Name":           "hbm-lvl1",
-        "Image":          "docker.io/rocm/test-runner:v1.4.0",
-        "Framework":      "AGFHC",
-        "Recipe":         "hbm_lvl1",
-        "Iterations":     1,
+        "Name": "hbm-lvl1",
+        "Image": "docker.io/rocm/test-runner:v1.4.0",
+        "Framework": "AGFHC",
+        "Recipe": "hbm_lvl1",
+        "Iterations": 1,
         "TimeoutSeconds": 300,
-        "Arguments":      ""
+        "Arguments": ""
       }
     ]
 
@@ -535,11 +535,11 @@ data:
     if [ -z "$nodes" ]; then
       echo "[Node Selection: WARNING] Selector '${NODE_SELECTOR_LABEL}' matched 0 nodes in the cluster."
       echo "[Node Selection] Nothing applies custom labels automatically; only NFD sets"
-      echo "[Node Selection]   feature.node.kubernetes.io/amd-gpu and .../amd-nic."
+      echo "[Node Selection] feature.node.kubernetes.io/amd-gpu and .../amd-nic."
       echo "[Node Selection] If you configured a custom node-selector-labels value, label the"
       echo "[Node Selection] target nodes, e.g.: kubectl label node <node> ${NODE_SELECTOR_LABEL%%=*}=${NODE_SELECTOR_LABEL#*=}"
       echo "[Node Selection] Current node labels for reference:"
-      kubectl get nodes --show-labels 2>/dev/null | sed 's/^/[Node Selection]   /' || true
+      kubectl get nodes --show-labels 2>/dev/null | sed 's/^/[Node Selection] /' || true
     fi
 
     candidates=()
@@ -686,8 +686,8 @@ data:
       # prevent a single SSH failure from aborting the script.
       # ----------------------------------------------------------------
       echo "--- Phase 4.5: N*N SSH mesh check ---"
-      echo "    src pods: $WORKER_PODS"
-      echo "    dst IPs:  $WORKER_IPS"
+      echo " src pods: $WORKER_PODS"
+      echo " dst IPs: $WORKER_IPS"
       # ssh_mesh_failed is initialised here (alongside failed_pairs)
       # so the verdict block can read it under `set -u`
       # even if the mesh loop records zero failures.
@@ -718,7 +718,7 @@ data:
         ssh_mesh_failed=true
         echo "WARN: N*N SSH mesh check failed for ${#failed_pairs[@]} pair(s) (ssh_mesh_failed=true):"
         for pair in "${failed_pairs[@]}"; do
-          echo "    $pair"
+          echo " $pair"
         done
         echo "WARN: continuing to subsequent checks (verdict gating below will aggregate failures)."
       else
@@ -747,8 +747,8 @@ data:
       WORKER_NODES=$(kubectl get pods -n "$NAMESPACE" -l "$JOB_LABELS" \
                        -o jsonpath='{range .items[*]}{.spec.nodeName}{"\n"}{end}' \
                      | awk 'NF' | sort -u | tr '\n' ' ')
-      echo "    nodes:    $WORKER_NODES"
-      echo "    via pod:  $FIRST_POD"
+      echo " nodes: $WORKER_NODES"
+      echo " via pod: $FIRST_POD"
 
       dns_misses=()
       while IFS= read -r line; do
@@ -779,7 +779,7 @@ data:
         dns_failed=true
         echo "WARN: DNS check recorded ${#dns_misses[@]} miss(es) (dns_failed=true):"
         for miss in "${dns_misses[@]}"; do
-          echo "    $miss"
+          echo " $miss"
         done
         echo "WARN: continuing to subsequent checks (verdict gating below will aggregate failures)."
       else
@@ -805,8 +805,8 @@ data:
       # `set -u`.
       # ----------------------------------------------------------------
       echo "--- Phase 4.5: mpirun --hostfile no-op spawn check ---"
-      echo "    via pod:  $FIRST_POD"
-      echo "    np:       $(echo $WORKER_IPS | wc -w) (one rank per worker IP)"
+      echo " via pod: $FIRST_POD"
+      echo " np: $(echo $WORKER_IPS | wc -w) (one rank per worker IP)"
 
       mpi_spawn_failed=false
       # --prefix is REQUIRED for cross-node spawn: SSH non-interactive
@@ -864,9 +864,9 @@ data:
       # `set -u`.
       # ----------------------------------------------------------------
       echo "--- Phase 4.5: RCCL topology probe ---"
-      echo "    via pod:  $FIRST_POD"
-      echo "    np:       $(($(echo $WORKER_IPS | wc -w) * 8)) (8 ranks per worker IP)"
-      echo "    timeout:  60s (soft-fail on timeout per design §6)"
+      echo " via pod: $FIRST_POD"
+      echo " np: $(($(echo $WORKER_IPS | wc -w) * 8)) (8 ranks per worker IP)"
+      echo " timeout: 60s (soft-fail on timeout per design §6)"
 
       rccl_topo_failed=false
       rccl_topo_timeout=false
@@ -968,14 +968,14 @@ data:
       # (union of HARD + SOFT classes).
       hard_failed=false
       annotation_classes=()
-      if [ "$ssh_mesh_failed"  = "true" ]; then
-        annotation_classes+=("ssh-mesh");    hard_failed=true
+      if [ "$ssh_mesh_failed" = "true" ]; then
+        annotation_classes+=("ssh-mesh"); hard_failed=true
       fi
-      if [ "$dns_failed"       = "true" ]; then
-        annotation_classes+=("dns");         hard_failed=true
+      if [ "$dns_failed" = "true" ]; then
+        annotation_classes+=("dns"); hard_failed=true
       fi
       if [ "$mpi_spawn_failed" = "true" ]; then
-        annotation_classes+=("mpi-spawn");   hard_failed=true
+        annotation_classes+=("mpi-spawn"); hard_failed=true
       fi
       if [ "$rccl_topo_failed" = "true" ]; then
         annotation_classes+=("rccl-topology"); hard_failed=true
@@ -997,7 +997,7 @@ data:
         else
           echo "WARN: Phase 4.5 pre-flight soft-failed: $reason (annotating but not aborting per design §6)"
         fi
-        echo "    annotating participating nodes: $WORKER_NODES"
+        echo " annotating participating nodes: $WORKER_NODES"
         for node in $WORKER_NODES; do
           kubectl annotate node "$node" \
             "amd.com/phase4_5-failure-reason=$reason" \
@@ -1343,7 +1343,7 @@ data:
         declare -A stage_job_to_node=()
         declare -A stage_node_to_job=()
         declare -A stage_node_to_cm=()
-        declare -A stage_job_status=()  # passed | failed | timeout | submit-failed
+        declare -A stage_job_status=() # passed | failed | timeout | submit-failed
         declare -A stage_job_subtest=()
         declare -A stage_job_reason=()
         local stage_job_names=""
@@ -1385,7 +1385,7 @@ data:
             # $$PHASE1_CONFIG_MAP -- per-stage per-node CM (config-volume)
             # Plus the metadata.name rewrite so each Job gets a unique name.
             if sed "s|\$\$NODE|${node}|g; \
-                s/^  name: cluster-validation-test-runner-job/  name: ${job_name}/; \
+                s/^ name: cluster-validation-test-runner-job/ name: ${job_name}/; \
                 s|\$\$GPU_PER_WORKER|${GPU_PER_WORKER}|g; \
                 s|\$\$TEST_RUNNER_IMAGE|${stage_image}|g; \
                 s|\$\$PHASE1_CONFIG_MAP|${cm_name}|g" \
@@ -1740,9 +1740,9 @@ data:
     # Indexed by job name. Declared local so the orchestrator shell stays
     # clean when re-sourced.
     declare -A phase2_job_to_node=()
-    declare -A phase2_job_status=()  # "passed" | "failed" | "timeout" | "submit-failed"
-    declare -A phase2_job_reason=()  # failure reason annotation value
-    declare -A phase2_job_bw=()      # measured Avg bus bandwidth, when parseable
+    declare -A phase2_job_status=() # "passed" | "failed" | "timeout" | "submit-failed"
+    declare -A phase2_job_reason=() # failure reason annotation value
+    declare -A phase2_job_bw=() # measured Avg bus bandwidth, when parseable
     local phase2_job_names=""
 
     # ---- Step 1: Parallel-submit Phase 2 Job per node ---------------------
@@ -1768,7 +1768,7 @@ data:
         # fixed metadata.name to our unique per-node job_name so multiple
         # nodes can run concurrently without name collision.
         if sed "s|\$\$NODE|${node}|g; \
-            s/^  name: cluster-validation-phase2-job/  name: ${job_name}/; \
+            s/^ name: cluster-validation-phase2-job/ name: ${job_name}/; \
             s|\$\$ROCE_WORKLOAD_IMAGE|${ROCE_WORKLOAD_IMAGE}|g" \
             "$job_template" | kubectl apply -f - >/dev/null; then
             echo "[Phase 2] submitted job=$job_name node=$node"
@@ -1974,7 +1974,7 @@ data:
   # listed in $PHASE3_AMD_NIC_PCI_IDS. Default 8 matches the Pensando
   # MI300 fleet baseline (validated on smc300x-ccs-aus-gpuf268). Override
   # for SKUs with a different NIC population.
-  PHASE3_EXPECTED_NIC_COUNT:    "8"
+  PHASE3_EXPECTED_NIC_COUNT: "8"
   # PCI vendor:device allowlist for AMD/Pensando NIC Physical Functions,
   # as a comma-separated list. `1dd8:1002` is the "DSC Ethernet Controller"
   # PF on the AMD Pensando DSC fleet (DSC-25 / DSC-200 / Salina) -- it is
@@ -1987,13 +1987,13 @@ data:
   # naturally excludes SR-IOV VFs (which carry a different device ID),
   # PCI bridges, and Processing-accelerator sub-functions that share the
   # vendor ID but are not NIC PFs.
-  PHASE3_AMD_NIC_PCI_IDS:       "1dd8:1002"
+  PHASE3_AMD_NIC_PCI_IDS: "1dd8:1002"
   # Minimum number of GID table entries required per RDMA device. Each
   # configured RoCEv2 GID slot prints a `GID[` line in
   # `ibv_devinfo -d $dev -v`. Default 1 catches "GID table empty"
   # (driver misconfig, RoCE not initialized); raise to require multiple
   # RoCE versions.
-  PHASE3_MIN_GID_COUNT:         "1"
+  PHASE3_MIN_GID_COUNT: "1"
   # Per-node Phase 3 Job wallclock budget (seconds). The four structural
   # checks (lspci / ip link / rdma link / ibv_devinfo) complete in well
   # under a second on a healthy node; 120s leaves headroom for image
@@ -2002,7 +2002,7 @@ data:
   # PHASE3_JOB_WAIT_TIME"). PHASE3_SCRIPT treats a Job that
   # exceeds this budget as `nic-not-allocated` failure.
   # patchable: cluster-validation-framework.timeouts.phase3-job-wait-secs
-  PHASE3_JOB_WAIT_TIME:         "120"
+  PHASE3_JOB_WAIT_TIME: "120"
 
   # ---- Phase 3 Check 5 (firmware <-> workload-image alignment) inputs ---
   # The in-pod check compares each NIC's running firmware version (as
@@ -2030,7 +2030,7 @@ data:
   # `fw-image-mismatch:<iface>=<observed_fw>/image=<image-tag>`. "false":
   # mismatches surface only via the `observed-fw` node annotation and
   # Phase 3 still passes.
-  PHASE3_DRIVER_FW_STRICT:        "true"
+  PHASE3_DRIVER_FW_STRICT: "true"
 
   # === Phase 3 Check Script: in-Job 4-check NIC health + self-labelling ===
   # Embedded into the per-node Phase 3 Job (cluster-validation-phase3-job-config
@@ -2166,18 +2166,18 @@ data:
     # ---- Check 2: link state UP for every ionic-driven interface ----------
     # TWO fixes vs the original implementation:
     # 1. Enumerate by DRIVER, not interface-name prefix. systemd-predictable
-    #    naming on Pensando NICs varies across hosts -- some report
-    #    `enP5p1s0f0` (slot scheme), others `enp104s0f3` (bus scheme),
-    #    others `ens<n>` (older enumeration). The previous prefix filter
-    #    `enP|ens` silently missed `enp*` and false-passed with zero
-    #    iterations.
+    # naming on Pensando NICs varies across hosts -- some report
+    # `enP5p1s0f0` (slot scheme), others `enp104s0f3` (bus scheme),
+    # others `ens<n>` (older enumeration). The previous prefix filter
+    # `enP|ens` silently missed `enp*` and false-passed with zero
+    # iterations.
     # 2. Read link state from sysfs (`operstate`), NOT from `ip link`.
-    #    The Phase 3 pod runs on the cluster pod network -- ionic netdevs
-    #    are in the HOST netns, not the pod's, so `ip link` cannot see
-    #    them and netlink-based tooling (ethtool, ip) returns "no such
-    #    device". sysfs is a single global kernel filesystem mounted
-    #    inside the pod regardless of netns, so `/sys/class/net/<if>/`
-    #    is always accessible.
+    # The Phase 3 pod runs on the cluster pod network -- ionic netdevs
+    # are in the HOST netns, not the pod's, so `ip link` cannot see
+    # them and netlink-based tooling (ethtool, ip) returns "no such
+    # device". sysfs is a single global kernel filesystem mounted
+    # inside the pod regardless of netns, so `/sys/class/net/<if>/`
+    # is always accessible.
     for d in "$PHASE3_NET_SYSFS_DIR"/*/; do
       iface=$(basename "$d")
       drv=$(basename "$(readlink "$d/device/driver" 2>/dev/null)" 2>/dev/null)
@@ -2250,16 +2250,16 @@ data:
     #
     # sysfs path notes:
     # * `/sys/class/infiniband/<dev>/fw_ver` is populated by every
-    #   RDMA driver's `ib_device.ops.query_device()` and reflects the
-    #   running firmware on the card (driver cached from the NIC's
-    #   admin command at probe time).
+    # RDMA driver's `ib_device.ops.query_device()` and reflects the
+    # running firmware on the card (driver cached from the NIC's
+    # admin command at probe time).
     # * Why sysfs instead of `ethtool -i <netdev>`: the Phase 3 pod
-    #   runs on the cluster pod network. ionic netdevs are in the HOST
-    #   netns, not the pod's, so ethtool (netlink) cannot reach them.
-    #   /sys/class/infiniband IS visible inside the pod -- sysfs is a
-    #   single global kernel filesystem mounted regardless of netns,
-    #   and the existing Check 4 already reads
-    #   /sys/class/infiniband/*/ports/*/gids/ from the same place.
+    # runs on the cluster pod network. ionic netdevs are in the HOST
+    # netns, not the pod's, so ethtool (netlink) cannot reach them.
+    # /sys/class/infiniband IS visible inside the pod -- sysfs is a
+    # single global kernel filesystem mounted regardless of netns,
+    # and the existing Check 4 already reads
+    # /sys/class/infiniband/*/ports/*/gids/ from the same place.
     #
     # Strict-mode-aware (PHASE3_DRIVER_FW_STRICT): true => mismatch
     # fails the node; false => mismatch only surfaces via the
@@ -2533,8 +2533,8 @@ data:
     # submitted -> timeout (terminal, no marker)
     # submit-failed (terminal, no marker)
     declare -A phase3_job_to_node=()
-    declare -A phase3_job_status=()  # "submitted" | "submit-failed" | "complete" | "failed" | "timeout"
-    declare -A phase3_job_reason=()  # orchestrator-side failure reason (timeout/submit-failed only)
+    declare -A phase3_job_status=() # "submitted" | "submit-failed" | "complete" | "failed" | "timeout"
+    declare -A phase3_job_reason=() # orchestrator-side failure reason (timeout/submit-failed only)
     local phase3_job_names=""
 
     # ---- Step 1: Parallel-submit Phase 3 Job per node ---------------------
@@ -2558,7 +2558,7 @@ data:
         # Render template. The Phase 3 template defines three
         # $$-prefixed placeholders: $$NODE (target hostname),
         # $$EXPECTED_NIC_COUNT (NIC resource request count), and
-        # $$ROCE_WORKLOAD_IMAGE (container image; GPUOP-829 -- mirrors
+        # $$ROCE_WORKLOAD_IMAGE (container image; -- mirrors
         # the PHASE4_DRIVER_SCRIPT substitution pattern so Phases 3/4/5
         # all pin to the same ROCE_WORKLOAD_IMAGE ConfigMap key). Also
         # rewrite the template's fixed metadata.name to our unique
@@ -2566,7 +2566,7 @@ data:
         # without name collision.
         local image="${ROCE_WORKLOAD_IMAGE:-rocm/roce-workload:latest}"
         if sed "s|\$\$NODE|${node}|g; \
-            s/^  name: cluster-validation-phase3-job/  name: ${job_name}/; \
+            s/^ name: cluster-validation-phase3-job/ name: ${job_name}/; \
             s|\$\$EXPECTED_NIC_COUNT|${PHASE3_EXPECTED_NIC_COUNT}|g; \
             s|\$\$ROCE_WORKLOAD_IMAGE|${image}|g" \
             "$job_template" | kubectl apply -f - >/dev/null; then
@@ -2664,7 +2664,7 @@ data:
         # PHASE3_DRIVER_FW_CHECK_ENABLED=false (in which case we do NOT
         # clear any prior annotation on the node -- last-known-good is
         # more useful than empty for operators flipping the check off).
-        observed_fw=$(echo "$log_line"     | sed -nE 's/.*observed_fw=([^ ]+).*/\1/p')
+        observed_fw=$(echo "$log_line" | sed -nE 's/.*observed_fw=([^ ]+).*/\1/p')
         case "$status" in
             passed)
                 echo "[Phase 3] orchestrator-side label: node=$node status=passed"
@@ -2672,7 +2672,7 @@ data:
                     || echo "[Phase 3] WARN: label_phase_passed failed for $node" >&2
                 ;;
             failed)
-                reason=$(echo "$log_line"      | sed -nE 's/.*reason=([^ ]+).*/\1/p')
+                reason=$(echo "$log_line" | sed -nE 's/.*reason=([^ ]+).*/\1/p')
                 failed_nics=$(echo "$log_line" | sed -nE 's/.*failed_nics=([^ ]+).*/\1/p')
                 echo "[Phase 3] orchestrator-side label: node=$node status=failed reason=${reason:-no-reason} failed_nics=${failed_nics:-<none>}"
                 label_phase_failed "$node" "$PHASE3_LABEL_KEY" "${reason:-no-reason}" \
@@ -2753,14 +2753,14 @@ data:
   # this value (e.g. PHASE4_RAIL_COUNT=4) is the supported way to skip
   # rails 4-7 on partially-cabled testbeds without code changes
   # (design §7 test case "rail-count-override").
-  PHASE4_RAIL_COUNT:           "8"
+  PHASE4_RAIL_COUNT: "8"
   # Minimum acceptable measured bandwidth per rail in Gbps. A rail is
   # marked failed if `ib_write_bw` "BW average" parses to a value below
   # this threshold; a node is marked failed iff ANY of its tested rails
   # fell below threshold. Default 380 Gbps is ~95% of the 400 Gbps line
   # rate target for a single Pensando 400G NIC (design §1) and leaves
   # headroom for protocol overhead and cable-marginality jitter.
-  PHASE4_BW_THRESHOLD:         "380"
+  PHASE4_BW_THRESHOLD: "380"
   # Per-rail wallclock budget in seconds for a single (pair, rail)
   # measurement -- covers server pod startup, client pod startup,
   # `ib_write_bw` handshake + transfer, and log scrape. Default 180s
@@ -2769,7 +2769,7 @@ data:
   # PHASE4_RAIL_COUNT * PHASE4_PAIR_WAIT_TIME (rails serialized within
   # a pair); on default values that is 8 * 180 = 1440s per pair.
   # patchable: cluster-validation-framework.timeouts.phase4-pair-wait-secs
-  PHASE4_PAIR_WAIT_TIME:       "180"
+  PHASE4_PAIR_WAIT_TIME: "180"
   # Cap on concurrent pair runners. The driver forks up to this many
   # `pair_runner` background functions in parallel; further pairs queue
   # until a slot frees. Default 8 keeps the cluster API server happy on
@@ -2785,7 +2785,7 @@ data:
   # matches the per-rail NAD naming convention shipped in
   # `nad-per-rail.yaml`; override only if the fleet uses a different
   # NAD naming scheme.
-  PHASE4_NAD_NAME_PREFIX:      "amd-host-device-nad-rail-"
+  PHASE4_NAD_NAME_PREFIX: "amd-host-device-nad-rail-"
   # Prefix for the RDMA device name passed to `ib_write_bw -d`. The
   # in-pod command is rendered as
   # `ib_write_bw -d ${PHASE4_IB_DEV_PREFIX}${RAIL_IDX} -i 1 -F .`,
@@ -2793,7 +2793,7 @@ data:
   # `ionic_` matches the device-naming convention exposed by the AMD
   # Pensando ionic_rdma kernel driver (`/sys/class/infiniband/ionic_N`).
   # Override for non-Pensando NICs (e.g. `mlx5_` on Mellanox).
-  PHASE4_IB_DEV_PREFIX:        "ionic_"
+  PHASE4_IB_DEV_PREFIX: "ionic_"
 
   # === Phase 4 (Pairwise Rail Bandwidth Test) driver script ===
   # Orchestrator-side driver. Sourced (not exec'd) by `run_phase4` in
@@ -2814,7 +2814,7 @@ data:
   #
   # Contract (design §4 -> "Code Path: PHASE4_DRIVER_SCRIPT"):
   # 1. Sort the input nodes and build a full-mesh round-robin
-  # schedule using the circle algorithm (GPUOP-828):
+  # schedule using the circle algorithm:
   # - For N input nodes there are N-1 rounds. Each round contains
   # floor(N/2) disjoint pairs (every node appears in at most one
   # pair per round); for odd N a different node "sits out" each
@@ -2937,7 +2937,7 @@ data:
 
     # ---- Sort input -------------------------------------------------------
     # Stable, deduped ordering so the schedule is reproducible across
-    # re-sources (design §7 / GPUOP-828 test cases
+    # re-sources (design §7 test cases
     # "mesh-roundrobin-N{2,4,5,6,7,8}").
     local sorted_nodes
     sorted_nodes=$(printf '%s\n' $local_phase4_nodes | LC_ALL=C sort -u | tr '\n' ' ')
@@ -2950,7 +2950,7 @@ data:
 
     echo "[Phase 4] sorted input ($phase4_count nodes): ${phase4_sorted[*]}"
 
-    # ---- Full-mesh round-robin schedule (GPUOP-828) ----------------------
+    # ---- Full-mesh round-robin schedule ----------------------
     # Circle algorithm. For an even N nodes (indices 0..N-1) we fix
     # node 0 and rotate the remaining N-1 indices around it: in each
     # round, position k (k=0..N/2-1) plays position N-1-k after the
@@ -2964,7 +2964,7 @@ data:
     # out differs every round, so each real node sits out exactly
     # once across the N rounds.
     #
-    # TODO(GPUOP-828): clusters larger than ~16 nodes amplify the
+    # TODO: clusters larger than ~16 nodes amplify the
     # number of scheduled pairs quadratically (e.g. N=32 -> 31 rounds
     # * 16 pairs = 496 measurements). For those topologies prefer to
     # partition the input by rack and run the mesh schedule per
@@ -3003,7 +3003,7 @@ data:
             phase4_circle+=("-1")
             phase4_has_bye="true"
         fi
-        local phase4_circle_size="${#phase4_circle[@]}"   # always even
+        local phase4_circle_size="${#phase4_circle[@]}" # always even
         local phase4_round_count=$(( phase4_circle_size - 1 ))
         local phase4_half=$(( phase4_circle_size / 2 ))
 
@@ -3067,7 +3067,7 @@ data:
 
     # ---- Unpaired (lone) node fast-path ----------------------------------
     # Only triggers for N=1 (no peer in the whole cluster). With the
-    # full-mesh schedule (GPUOP-828), odd N no longer leaves a node
+    # full-mesh schedule, odd N no longer leaves a node
     # permanently unpaired -- each real node sits out exactly one round
     # but is paired in all the others. Design §6 + test case
     # "single-node-input".
@@ -3106,14 +3106,14 @@ data:
     # not collide. Stdout: rendered YAML; stderr: errors.
     _phase4_render() {
         local tmpl="$1"
-        local role="$2"      # "server" | "client"
+        local role="$2" # "server" | "client"
         local node="$3"
         local rail_idx="$4"
         local round_idx="$5"
         local nad_name="$6"
-        local peer_ip="$7"   # empty string for server
+        local peer_ip="$7" # empty string for server
         local image="${ROCE_WORKLOAD_IMAGE:-rocm/roce-workload:latest}"
-        # GPUOP-828: include the round index so the same (role, node,
+        # include the round index so the same (role, node,
         # rail) repeated across mesh rounds gets a unique k8s Job name
         # (we explicit-delete after each rail, but the unique name is
         # belt-and-suspenders against ttl-GC racing the next round).
@@ -3130,13 +3130,13 @@ data:
         fi
         # Rewrite the template's fixed metadata.name to the unique name
         # in addition to substituting the $$-placeholders.
-        local name_re_server='^  name: cluster-validation-phase4-server-job'
-        local name_re_client='^  name: cluster-validation-phase4-client-job'
+        local name_re_server='^ name: cluster-validation-phase4-server-job'
+        local name_re_client='^ name: cluster-validation-phase4-client-job'
         local rename_expr
         if [[ "$role" == "server" ]]; then
-            rename_expr="s|${name_re_server}|  name: ${job_name}|"
+            rename_expr="s|${name_re_server}| name: ${job_name}|"
         else
-            rename_expr="s|${name_re_client}|  name: ${job_name}|"
+            rename_expr="s|${name_re_client}| name: ${job_name}|"
         fi
         sed "${rename_expr}; \
              s|\$\$NODE|${node}|g; \
@@ -3193,7 +3193,7 @@ data:
     # job -- if not, almost always a NAD/admission issue.
     _phase4_wait_for_pod_ip() {
         local job_name="$1"
-        local timeout="$2"   # seconds
+        local timeout="$2" # seconds
         local start_time elapsed pod_ip pod_count
         start_time=$(date +%s)
         while true; do
@@ -3203,10 +3203,10 @@ data:
                     --no-headers 2>/dev/null | wc -l)
                 if [[ "$pod_count" -eq 0 ]]; then
                     echo "[Phase 4] wait_for_pod_ip job=$job_name timeout -- no pod (admission rejected?)" >&2
-                    return 2   # nad-missing-ish
+                    return 2 # nad-missing-ish
                 fi
                 echo "[Phase 4] wait_for_pod_ip job=$job_name timeout -- pod never got IP" >&2
-                return 1       # peer-pod-unready
+                return 1 # peer-pod-unready
             fi
             pod_ip=$(kubectl get pods -l "job-name=${job_name}" \
                 -o jsonpath='{.items[0].status.podIP}' 2>/dev/null || echo "")
@@ -3287,7 +3287,7 @@ data:
 
     # ---- Helper: record_rail_result ---------------------------------------
     # Writes a per-(node, rail, round) result file inside the state dir
-    # (GPUOP-828: full-mesh schedule means a node has up to N-1 rounds
+    # (full-mesh schedule means a node has up to N-1 rounds
     # of data per rail). Concurrency note: within a single round, no
     # two pair_runners ever touch the SAME (node, rail, round) tuple
     # because the round's pairs are node-disjoint by construction.
@@ -3297,8 +3297,8 @@ data:
         local node="$1"
         local rail_idx="$2"
         local round_idx="$3"
-        local bw_value="$4"   # empty if failure
-        local reason="$5"     # empty if pass
+        local bw_value="$4" # empty if failure
+        local reason="$5" # empty if pass
         local peer="$6"
         local node_dir="${PHASE4_STATE_DIR}/results/${node}"
         local base="${node_dir}/rail-${rail_idx}-round-${round_idx}"
@@ -3318,7 +3318,7 @@ data:
     # Run inside a background subshell -- mutate state only via
     # _phase4_record_rail_result (file writes). Iterates rails serially
     # so the per-rail NAD is only claimed by one pod-pair at a time.
-    # The round index (GPUOP-828) is passed in so each measurement is
+    # The round index is passed in so each measurement is
     # recorded under its own (node, rail, round) tuple in state.
     pair_runner() {
         local node_a="$1"
@@ -3474,7 +3474,7 @@ data:
             # Persist both endpoints. A failing measurement fails BOTH
             # nodes for that (rail, round) tuple. Same BW value for
             # both endpoints -- they measured the same point-to-point
-            # flow. With GPUOP-828 full mesh, the per-rail pass/fail
+            # flow. With full mesh, the per-rail pass/fail
             # at the NODE level becomes "ALL rounds for that rail
             # passed" (see aggregation block).
             _phase4_record_rail_result "$node_a" "$rail" "$round_idx" \
@@ -3498,7 +3498,7 @@ data:
     }
 
     # ---- Bounded-parallel, round-by-round pair_runner dispatch -----------
-    # GPUOP-828: We iterate rounds sequentially. Within a round, pairs
+    # We iterate rounds sequentially. Within a round, pairs
     # are node-disjoint by construction (circle algorithm guarantee),
     # so they can all run in parallel without contention; we still cap
     # parallelism at PHASE4_MAX_CONCURRENT_PAIRS to keep the k8s API
@@ -3513,7 +3513,7 @@ data:
         PHASE4_MAX_CONCURRENT_PAIRS=1
     fi
     echo "[Phase 4] dispatching pair_runners (cap=${PHASE4_MAX_CONCURRENT_PAIRS}, rounds=${#phase4_rounds[@]})"
-    local pair_idx=0   # global, monotonic across rounds (for log scrape)
+    local pair_idx=0 # global, monotonic across rounds (for log scrape)
     local round_idx=0
     for round_entry in "${phase4_rounds[@]}"; do
         # Skip empty rounds (defensive -- the scheduler never emits
@@ -3561,7 +3561,7 @@ data:
     echo "[Phase 4] all rounds complete (total pairs forked=${pair_idx})"
 
     # ---- Aggregation: per-node pass/fail + annotations -------------------
-    # GPUOP-828: A node passes iff EVERY (rail, round) measurement it
+    # A node passes iff EVERY (rail, round) measurement it
     # participated in produced a BW value >= PHASE4_BW_THRESHOLD with
     # no recorded reason. A rail with at least one failing round goes
     # into failed-rails; the full list of failing (peer, rail, round)
@@ -3854,10 +3854,10 @@ data:
 
       # Generate PF NAD list (for PF)
       PF_NAD_LIST=$(printf "${PF_NIC_NAD_NAME},%.0s" $(seq 1 $PF_NIC_PER_WORKER))
-      PF_NAD_LIST=${PF_NAD_LIST%,}  # remove trailing comma
+      PF_NAD_LIST=${PF_NAD_LIST%,} # remove trailing comma
       # Generate VF NAD list (for VF)
       VF_NAD_LIST=$(printf "${VF_NIC_NAD_NAME},%.0s" $(seq 1 $VF_NIC_PER_WORKER))
-      VF_NAD_LIST=${VF_NAD_LIST%,}  # remove trailing comma
+      VF_NAD_LIST=${VF_NAD_LIST%,} # remove trailing comma
 
       if [ "$PF_NIC_PER_WORKER" -gt 0 ]; then
         NAD_ANNOTATION="$PF_NAD_LIST"
@@ -3867,7 +3867,7 @@ data:
         NAD_ANNOTATION=""
       fi
 
-      sed "s/^  name: cluster-validation-mpi-job/  name: ${new_job}/; \
+      sed "s/^ name: cluster-validation-mpi-job/ name: ${new_job}/; \
           s|\$\$WORKER_REPLICAS|${actual_worker_replicas}|g; \
           s|\$\$LAUNCHER_REPLICAS|${LAUNCHER_REPLICAS}|g; \
           s|\$\$LOG_STORE_NODE_NAME|${LOG_STORE_NODE_NAME}|g; \
