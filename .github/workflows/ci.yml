@@ -5,11 +5,14 @@ on:
     branches:
     - main
     - 'release-*'
-    types: [labeled, synchronize]
+  workflow_dispatch:
+
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   build:
-    if: contains(github.event.pull_request.labels.*.name, 'CI-Run')
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code

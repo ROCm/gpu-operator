@@ -7,10 +7,9 @@ on:
   pull_request:
     branches:
     - main
-    types: [labeled, synchronize]
+  workflow_dispatch:
 
 jobs:
   call-workflow-passing-data:
     name: Documentation
-    if: github.event_name == 'push' || contains(github.event.pull_request.labels.*.name, 'CI-Run')
     uses: ROCm/rocm-docs-core/.github/workflows/linting.yml@develop
