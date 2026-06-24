@@ -12,6 +12,7 @@
     "**/tests/pytests/**",
     "**/knowledge/**",
     "**/tests/**",
+    "**/example/gpu-validation-cluster/**",
     "**/docs-internal/**"
   ]
 }
