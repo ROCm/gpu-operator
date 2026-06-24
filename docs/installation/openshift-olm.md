@@ -323,7 +323,7 @@ spec:
 You can alternatively create a namespaced `NodeFeatureRule` custom resource to avoid modifying `NodeFeatureDiscovery` which could possibly interrupt the existing node label.
 
 ```yaml
-apiVersion: nfd.openshift.io/v1alpha1
+apiVersion: nfd.k8s-sigs.io/v1alpha1
 kind: NodeFeatureRule
 metadata:
   name: amd-gpu-operator-nfdrule
