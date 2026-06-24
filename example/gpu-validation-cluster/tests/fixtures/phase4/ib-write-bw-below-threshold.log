@@ -1,0 +1,17 @@
+# Sample ib_write_bw client log fixture -- below-threshold result.
+# BW average column 4 is 180.50, well under the default 380 Gbps
+# threshold. PHASE4_DRIVER_SCRIPT classifies this as
+# reason="below-threshold:180.50" (the literal BW value is suffixed
+# onto the reason string for diagnostics) and writes a per-rail
+# annotation with the same value.
+[phase4-client] starting ib_write_bw -d rdma_dev_5 -i 1 -F 10.42.0.19
+---------------------------------------------------------------------------------------
+                    RDMA_Write BW Test
+ Device         : rdma_dev_5
+ Mtu            : 4096[B]
+ Link type      : Ethernet
+---------------------------------------------------------------------------------------
+ #bytes     #iterations    BW peak[Gb/sec]    BW average[Gb/sec]   MsgRate[Mpps]
+ 65536      5000             192.18             180.50                 0.344162
+---------------------------------------------------------------------------------------
+[phase4-client] ib_write_bw exit=0

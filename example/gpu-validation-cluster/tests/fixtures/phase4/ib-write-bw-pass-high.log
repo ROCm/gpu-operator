@@ -1,0 +1,14 @@
+# Sample ib_write_bw client log fixture -- passing run with a higher BW
+# value used to distinguish per-rail annotations in mixed-pass tests.
+# Same shape as ib-write-bw-pass.log; BW average column 4 is 392.18.
+[phase4-client] starting ib_write_bw -d rdma_dev_0 -i 1 -F 10.42.0.18
+---------------------------------------------------------------------------------------
+                    RDMA_Write BW Test
+ Device         : rdma_dev_0
+ Mtu            : 4096[B]
+ Link type      : Ethernet
+---------------------------------------------------------------------------------------
+ #bytes     #iterations    BW peak[Gb/sec]    BW average[Gb/sec]   MsgRate[Mpps]
+ 65536      5000             394.55             392.18                 0.747823
+---------------------------------------------------------------------------------------
+[phase4-client] ib_write_bw exit=0

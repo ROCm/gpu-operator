@@ -16,25 +16,37 @@ data:
       runPolicy:
         cleanPodPolicy: All
         backoffLimit: 0
-        ttlSecondsAfterFinished: 20     # <-update before deploy
+        ttlSecondsAfterFinished: 20 # <-update before deploy
       mpiReplicaSpecs:
         Launcher:
-          replicas: $$LAUNCHER_REPLICAS  # Value substituted at runtime from LAUNCHER_REPLICAS
+          replicas: $$LAUNCHER_REPLICAS # Value substituted at runtime from LAUNCHER_REPLICAS
           template:
             spec:
               # If nodeName is set, it will direct the launcher pod to run on the specified node for easier log access. Otherwise, it will be scheduled on any of the candidate nodes.
               nodeName: $$LOG_STORE_NODE_NAME
               # Only schedule on nodes labeled as candidate
               nodeSelector:
-                amd.com/cluster-validation-candidate: "true"        # Must match CANDIDATE_LABEL
-              serviceAccountName: cluster-validation-sa             # Must have permission to create MPIJobs
+                amd.com/cluster-validation-candidate: "true" # Must match CANDIDATE_LABEL
+              serviceAccountName: cluster-validation-sa # Must have permission to create MPIJobs
               restartPolicy: Never
               volumes:
                 - name: shared
                   emptyDir: {}
+                # Node-local log archive so launcher output persists past
+                # MPIJob cleanPodPolicy=All + ttlSecondsAfterFinished=20.
+                # Same hostPath pattern as Phase 2/3/4 -- writes show up
+                # as /var/log/cluster-validation/<ts>_phase5_launcher.log
+                # on the node pinned via nodeName=$$LOG_STORE_NODE_NAME.
+                - name: log-storage
+                  hostPath:
+                    path: /var/log/cluster-validation
+                    type: DirectoryOrCreate
               initContainers:
                 - name: wait-for-worker-pods
-                  image: docker.io/rocm/network-operator-utils:v1.1.0
+                  # Needs kubectl on PATH (the preflight script runs
+                  # kubectl get/wait/exec against the worker pods).
+                  # patchable: cluster-validation-framework.images.preflight-init
+                  image: docker.io/bitnamilegacy/kubectl:1.33.4
                   imagePullPolicy: IfNotPresent
                   envFrom:
                     - configMapRef:
@@ -42,17 +54,27 @@ data:
                   volumeMounts:
                     - name: shared
                       mountPath: /shared
+                    - name: log-storage
+                      mountPath: /var/log/cluster-validation
                   command: ["/bin/bash", "-c"]
                   args:
                     - |
-                      # Load wait-for-worker script from ConfigMap
-                      echo "$WAIT_FOR_WORKERS_SCRIPT" > /shared/wait-for-worker.sh
+                      # Persist preflight stdout+stderr to a host-mounted
+                      # log file so failures here (SSH mesh / DNS / mpirun
+                      # spawn / RCCL topology probe) survive pod GC. Same
+                      # pattern as the launcher main container.
+                      TS=$(date -u +%Y-%m-%dT%H-%M-%S.%6NZ)
+                      HOST_LOG="/var/log/cluster-validation/${TS}_phase4_5_preflight.log"
+                      exec &> >(tee -a "${HOST_LOG}")
+
+                      # Load Phase 4.5 pre-flight script from ConfigMap
+                      echo "$PHASE45_PREFLIGHT_SCRIPT" > /shared/wait-for-worker.sh
                       chmod +x /shared/wait-for-worker.sh
                       /shared/wait-for-worker.sh
 
               containers:
               - name: rccl-launcher
-                image: $$RCCL_WORKLOAD_IMAGE
+                image: $$ROCE_WORKLOAD_IMAGE
                 imagePullPolicy: Always
                 envFrom:
                   - configMapRef:
@@ -60,10 +82,21 @@ data:
                 volumeMounts:
                   - name: shared
                     mountPath: /shared
-              
+                  - name: log-storage
+                    mountPath: /var/log/cluster-validation
+
                 command: ["/bin/bash", "-c"]
                 args:
                   - |
+                    # Persist full launcher stdout+stderr to a host-mounted
+                    # log file so post-mortem is possible even after the
+                    # MPIJob is GC'd (cleanPodPolicy=All +
+                    # ttlSecondsAfterFinished=20). Pattern matches Phase
+                    # 2/3/4 jobs that already use /var/log/cluster-validation.
+                    TS=$(date -u +%Y-%m-%dT%H-%M-%S.%6NZ)
+                    HOST_LOG="/var/log/cluster-validation/${TS}_phase5_launcher.log"
+                    exec &> >(tee -a "${HOST_LOG}")
+
                     exec 2>&1
                     set -euxo pipefail
 
@@ -87,7 +120,7 @@ data:
                     echo "$VALIDATE_RCCL_TEST_SCRIPT" > /shared/validate-single-test.sh
                     chmod +x /shared/validate-single-test.sh
 
-                    # -- mpi run start --- 
+                    # -- mpi run start ---
                     NP=$(( WORKER_REPLICAS * SLOTS_PER_WORKER ))
                     echo "MPI NP = $NP"
                     failed=0
@@ -98,14 +131,17 @@ data:
                       echo "-------------------------------------------"
                       echo "Running $test (threshold: $threshold)..."
 
-                      ${OMPI_DIR}/bin/mpirun --np $NP \
+                      # --prefix tells mpirun to set PATH +
+                      # LD_LIBRARY_PATH on remote ranks so SSH
+                      # non-interactive shells can find orted.
+                      ${OMPI_DIR}/bin/mpirun --prefix "${OMPI_DIR}" --np $NP \
                         -x PATH -x LD_LIBRARY_PATH -x LD_PRELOAD \
                         --allow-run-as-root --mca plm_rsh_agent "$RSH_AGENT" \
                         --mca btl ^vader,openib -mca btl_tcp_if_include $MCA_IF \
                         ${RCCL_ENV} \
                         $PERF_TEST_DIR/${test} -b ${START_MSG_SIZE} -e ${END_MSG_SIZE} \
                         -n ${ITER_COUNT} -w ${WARMUP_ITER_COUNT} -c ${CHECK_ITER_COUNT} \
-                        -f ${STEP_FACTOR} -g ${THREADS_PER_GPU}  | tee /shared/${test}.log
+                        -f ${STEP_FACTOR} -g ${THREADS_PER_GPU} | tee /shared/${test}.log
 
                       echo "Validating $test result..."
                       if ! /shared/validate-single-test.sh "$test" "$threshold"; then
@@ -117,7 +153,7 @@ data:
                     echo "All RCCL test runs done"
 
                     if [ "$failed" -ne 0 ]; then
-                      echo "Validation FAILED  for one or more tests ❌"
+                      echo "Validation FAILED for one or more tests ❌"
                       echo "Sleeping ${DEBUG_DELAY} secs before exiting to debug failure"
                       sleep ${DEBUG_DELAY}
                       echo "Launcher exiting with failure."
@@ -131,7 +167,7 @@ data:
                     echo "Launcher exiting with success"
 
         Worker:
-          replicas: $$WORKER_REPLICAS   # Dynamically set based on number of passed nodes
+          replicas: $$WORKER_REPLICAS # Dynamically set based on number of passed nodes
           template:
             metadata:
               annotations:
@@ -141,11 +177,11 @@ data:
             spec:
               # Only schedule on nodes labeled as candidate
               nodeSelector:
-                amd.com/cluster-validation-candidate: "true"        # Must match CANDIDATE_LABEL
+                amd.com/cluster-validation-candidate: "true" # Must match CANDIDATE_LABEL
               restartPolicy: Never
               containers:
               - name: rccl-test-worker
-                image: $$RCCL_WORKLOAD_IMAGE
+                image: $$ROCE_WORKLOAD_IMAGE
                 imagePullPolicy: Always
                 securityContext:
                   capabilities:
@@ -197,9 +233,17 @@ data:
           nodeSelector:
             kubernetes.io/hostname: $$NODE
           volumes:
-          - name: config-volume # Config map volume
+          # Phase-1 multi-stage refactor: the config-volume now
+          # points at a per-stage, per-node ConfigMap created on the fly
+          # by PHASE1_SCRIPT (named cvf-phase1-<stage>-<node-hash>-<ts>).
+          # Each per-stage CM holds a single-recipe GPU_VALIDATION_TESTS_JSON
+          # so the test-runner CLI -- which only ever executes the first
+          # TestCases[] entry -- runs exactly the one recipe for this stage.
+          # The orchestrator deletes the per-stage CM after the stage's
+          # Job is parsed.
+          - name: config-volume # Per-stage single-recipe config map
             configMap:
-              name: cluster-validation-config
+              name: $$PHASE1_CONFIG_MAP
           - hostPath: # Specify to use this directory on the host as volume
               path: /var/log/cluster-validation
               type: DirectoryOrCreate
@@ -244,6 +288,658 @@ data:
       backoffLimit: 0
       ttlSecondsAfterFinished: 300 # TTL for the job to be auto cleaned up after finishing
 ---
+# =========================================================================
+# Phase 2 per-node Job template ConfigMap.
+# See the phase design notes
+# section 4 -> "Code Path: Phase 2 Job template ConfigMap".
+#
+# Holds a batch/v1.Job template for the Phase 2 single-node 8-GPU RCCL
+# all_reduce_perf test. One Job per node (no MPIJob -- mpirun runs with
+# --host localhost). The template is sed-rendered by $PHASE2_SCRIPT
+# the only substitution placeholder is $$NODE (target node hostname).
+#
+# Image, env vars (PHASE2_*, PHASE2_RCCL_ENV_VARS), perf-test path, BW
+# threshold, and the VALIDATE_RCCL_TEST_SCRIPT body all come from the
+# cluster-validation-config ConfigMap via envFrom -- so threshold tuning
+# does not require touching this template.
+# =========================================================================
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: cluster-validation-phase2-job-config
+data:
+  cluster-validation-phase2-job-config.yaml: |
+    apiVersion: batch/v1
+    kind: Job
+    metadata:
+      # Job name is per-node; PHASE2_SCRIPT renders the final unique
+      # name (e.g. cluster-validation-phase2-job-<node>) before apply.
+      name: cluster-validation-phase2-job
+      labels:
+        amd.com/cluster-validation-created: "true"
+    spec:
+      template:
+        spec:
+          serviceAccountName: cluster-validation-sa
+          # Pin the Job to the target node. PHASE2_SCRIPT substitutes
+          # $$NODE with the node hostname (one Job per Phase-1-passed
+          # node). amd.com/gpu: 8 below makes this a sole-tenant Job
+          # for the node's GPUs.
+          nodeSelector:
+            kubernetes.io/hostname: $$NODE
+          restartPolicy: Never
+          volumes:
+            # Scratch space for rendered env scripts and the
+            # validate-single-test.sh body (sourced from
+            # VALIDATE_RCCL_TEST_SCRIPT in cluster-validation-config).
+            - name: shared
+              emptyDir: {}
+            # Memory-backed /dev/shm for RCCL inter-rank shmem.
+            # Default container /dev/shm is 64Mi tmpfs which is too
+            # small for 8-rank RCCL all_reduce — NCCL aborts with
+            # "No space left on device" creating shmem segments
+            # (~10MiB per rank pair). Mount a sized Memory emptyDir
+            # at /dev/shm to give RCCL room. 16Gi is a comfortable
+            # upper bound (consumes node RAM, not GPU HBM).
+            - name: dshm
+              emptyDir:
+                medium: Memory
+                sizeLimit: 16Gi
+            # Node-local log archive. Persists across pod GC so
+            # operators can debug failures after the fact. Matches
+            # the pattern used by Phase 1 test-runner + Phase 5
+            # launcher. Filename includes a UTC timestamp prefix.
+            - name: log-storage
+              hostPath:
+                path: /var/log/cluster-validation
+                type: DirectoryOrCreate
+          containers:
+            - name: phase2-rccl
+              # Same image used by Phase 5 launcher/worker (see
+              # cluster-validation-mpijob-config above). Substituted at
+              # deploy time from ROCE_WORKLOAD_IMAGE.
+              image: $$ROCE_WORKLOAD_IMAGE
+              imagePullPolicy: Always
+              envFrom:
+                - configMapRef:
+                    name: cluster-validation-config
+              # Single-GPU-per-rank, 8 ranks, all on this one node ->
+              # request all 8 GPUs. Hardcoded (not $$GPU_PER_WORKER) per
+              # design doc section 4: Phase 2 is intentionally an 8-GPU
+              # sole-tenant single-node stress of the xGMI mesh.
+              resources:
+                requests:
+                  amd.com/gpu: 8
+                limits:
+                  amd.com/gpu: 8
+              volumeMounts:
+                - name: shared
+                  mountPath: /shared
+                - name: dshm
+                  mountPath: /dev/shm
+                - name: log-storage
+                  mountPath: /var/log/cluster-validation
+              env:
+                - name: NODE_NAME
+                  valueFrom:
+                    fieldRef:
+                      fieldPath: spec.nodeName
+              command: ["/bin/bash", "-c"]
+              args:
+                - |
+                  exec 2>&1
+                  set -uo pipefail
+
+                  # Node-local persistent log target. PHASE2_SCRIPT cleans
+                  # up the pod but this file survives on the host for
+                  # post-mortem (matches Phase 1 / 5 pattern).
+                  TS=$(date -u +%Y-%m-%dT%H-%M-%S.%6NZ)
+                  HOST_LOG="/var/log/cluster-validation/${TS}_phase2_intranode-rccl.log"
+
+                  # --- prepare phase2 rccl env ---
+                  # PHASE2_RCCL_ENV_VARS is a stripped variant of the
+                  # Phase 5 RCCL_ENV_VARS: drops NCCL_NET_PLUGIN and
+                  # IB-related tunables (no fabric -- single node).
+                  echo "$PHASE2_RCCL_ENV_VARS" > /shared/phase2_rccl_env.sh
+                  chmod +x /shared/phase2_rccl_env.sh
+                  # shellcheck disable=SC1091
+                  source /shared/phase2_rccl_env.sh
+
+                  # --- prepare validation script ---
+                  # Reuse the same Avg-bus-bandwidth parser as Phase 5
+                  # (design doc section 2). Sourced from
+                  # VALIDATE_RCCL_TEST_SCRIPT in cluster-validation-config.
+                  echo "$VALIDATE_RCCL_TEST_SCRIPT" > /shared/validate-single-test.sh
+                  chmod +x /shared/validate-single-test.sh
+
+                  # --- run all_reduce_perf across all 8 local GPUs ---
+                  # --host localhost: no SSH, no MPIJob, no fabric.
+                  # --mca btl ^vader,openib: same exclude list as Phase 5
+                  # launcher (avoid the vader shared-mem BTL and the
+                  # OpenIB BTL; we only want TCP/self for OMPI control).
+                  # PHASE2_* sizing knobs all come from
+                  # cluster-validation-config envFrom above.
+                  # --host localhost:$GPU_PER_WORKER declares N slots on
+                  # this node so mpirun can launch N ranks (one per GPU).
+                  # Without the ":N" Open MPI defaults to 1 slot and
+                  # aborts with "not enough slots available".
+                  # GPU_PER_WORKER comes from cluster-validation-config
+                  # envFrom above (templated from config.json at deploy
+                  # time).
+                  mpirun --np $GPU_PER_WORKER --host localhost:$GPU_PER_WORKER --allow-run-as-root \
+                         --mca btl ^vader,openib \
+                         $PERF_TEST_DIR/all_reduce_perf \
+                           -b $PHASE2_START_MSG_SIZE -e $PHASE2_END_MSG_SIZE \
+                           -f $PHASE2_STEP_FACTOR -g 1 \
+                           -n $PHASE2_ITER_COUNT -w $PHASE2_WARMUP_ITER_COUNT \
+                         2>&1 | tee /shared/phase2_intranode_all_reduce.log "${HOST_LOG}"
+                  mpirun_rc=${PIPESTATUS[0]}
+
+                  if [ "$mpirun_rc" -ne 0 ]; then
+                    # mpirun crash / RCCL init failure / xGMI init
+                    # failure. PHASE2_SCRIPT (driver) inspects the log
+                    # tail and writes failed-reason=rccl-crash via node
+                    # annotation. Exit non-zero so the Job is marked
+                    # Failed and PHASE2_SCRIPT can detect it.
+                    echo "phase2 mpirun exited $mpirun_rc -- RCCL test crashed"
+                    exit "$mpirun_rc"
+                  fi
+
+                  # --- threshold check ---
+                  # validate-single-test.sh reads /shared/<test>.log,
+                  # extracts the Avg bus bandwidth line, and exits
+                  # non-zero if below the supplied threshold. The Job
+                  # exit code is what PHASE2_SCRIPT uses to classify
+                  # pass vs bus-bw-below-threshold (see design section
+                  # 4 -> Code Path: PHASE2_SCRIPT).
+                  if ! /shared/validate-single-test.sh \
+                       "phase2_intranode_all_reduce" "$PHASE2_BW_THRESHOLD"; then
+                    echo "phase2 bandwidth below threshold ($PHASE2_BW_THRESHOLD GB/s)"
+                    exit 1
+                  fi
+
+                  echo "phase2 all_reduce_perf PASSED (>= $PHASE2_BW_THRESHOLD GB/s)"
+      # No retries: a Phase 2 failure is a hard hardware/topology
+      # signal -- PHASE2_SCRIPT handles label/annotation and the next
+      # CronJob tick re-tests if appropriate.
+      backoffLimit: 0
+      # TTL keeps completed Jobs around briefly for log capture by
+      # PHASE2_SCRIPT, then GC.
+      ttlSecondsAfterFinished: 300
+---
+# =========================================================================
+# Phase 3 per-node NIC health Job template
+# ConfigMap. See the phase design notes
+# section 4 -> "Code Path: Phase 3 Job template".
+#
+# Holds a batch/v1.Job template for the per-node NIC health check
+# (NIC count, ip link UP, rdma link ACTIVE, ibv_devinfo + GID table,
+# plus driver/firmware compatibility).
+# One Job per node that passed Phase 2 and carries the amd-nic=true
+# label. The template is sed-rendered by $PHASE3_SCRIPT -- the
+# substitution placeholders are $$NODE (target node hostname),
+# $$EXPECTED_NIC_COUNT (expected NIC count, sourced from
+# PHASE3_EXPECTED_NIC_COUNT in cluster-validation-config), and
+# $$ROCE_WORKLOAD_IMAGE (rocm/roce-workload image tag, sourced from
+# ROCE_WORKLOAD_IMAGE in cluster-validation-config -- same image used
+# by Phases 2/4/5; ships nicctl for Check 5).
+#
+# Image (rocm/roce-workload, same as Phases 2/4/5), env vars
+# (PHASE3_*), and the PHASE3_CHECK_SCRIPT body all come from the
+# cluster-validation-config ConfigMap via envFrom -- so
+# threshold/expected-count tuning does not require touching this
+# template.
+#
+# The container runs privileged because the in-Job checks need
+# rdma/ibv tooling access to NIC device files; the cluster-validation-sa
+# already carries node label/annotate permissions (per
+# cluster-validation-role) so PHASE3_CHECK_SCRIPT can self-label the
+# node via in-pod kubectl.
+# =========================================================================
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: cluster-validation-phase3-job-config
+data:
+  cluster-validation-phase3-job-config.yaml: |
+    apiVersion: batch/v1
+    kind: Job
+    metadata:
+      # Job name is per-node; PHASE3_SCRIPT renders the final unique
+      # name (e.g. cluster-validation-phase3-job-<node>) before apply.
+      name: cluster-validation-phase3-job
+      labels:
+        amd.com/cluster-validation-created: "true"
+    spec:
+      template:
+        spec:
+          # cluster-validation-sa already has node label/annotate
+          # permissions per cluster-validation-role -- in-pod kubectl
+          # writes the amd.com/nic-health label and failure annotations
+          # directly from PHASE3_CHECK_SCRIPT.
+          serviceAccountName: cluster-validation-sa
+          # Pin the Job to the target node. PHASE3_SCRIPT substitutes
+          # $$NODE with the node hostname (one Job per Phase-2-passed
+          # node with amd-nic=true). amd.com/nic: $$EXPECTED_NIC_COUNT
+          # below makes this a sole-tenant Job for the node's NICs so
+          # the pod sees them all via PCIe device passthrough.
+          nodeSelector:
+            kubernetes.io/hostname: $$NODE
+          restartPolicy: Never
+          volumes:
+            # Node-local log archive; persists across pod GC.
+            - name: log-storage
+              hostPath:
+                path: /var/log/cluster-validation
+                type: DirectoryOrCreate
+          containers:
+            - name: nic-health
+              # roce-workload image (substituted at render time from
+              # ROCE_WORKLOAD_IMAGE in cluster-validation-config) --
+              # same image Phases 2/4/5 use. Ships ibv_devinfo + rdma +
+              # ethtool. Check 5 reads firmware-version from
+              # `ethtool -i <iface>` and substring-matches it against
+              # the image reference itself, so the workload image's tag
+              # is the authoritative declaration of which firmware was
+              # qualified with this workload.
+              image: $$ROCE_WORKLOAD_IMAGE
+              imagePullPolicy: IfNotPresent
+              # Privileged is required for rdma link show / ibv_devinfo
+              # to access the NIC device files mounted via the
+              # amd.com/nic device plugin (see design doc section 4 ->
+              # Code Path: Phase 3 Job template).
+              securityContext:
+                privileged: true
+              envFrom:
+                # Sources PHASE3_CHECK_SCRIPT, PHASE3_LABEL_KEY,
+                # PHASE3_EXPECTED_NIC_COUNT, PHASE3_AMD_NIC_PCI_IDS,
+                # PHASE3_MIN_GID_COUNT, and the label/annotate
+                # helper conventions used by PHASE3_CHECK_SCRIPT.
+                - configMapRef:
+                    name: cluster-validation-config
+              env:
+                # NODE_NAME is consumed by PHASE3_CHECK_SCRIPT's
+                # self-label step (kubectl label node "$NODE_NAME" .).
+                # Downward-API resolution -- kept independent of the
+                # nodeSelector substitution above so the script can run
+                # under a static nodeSelector if needed for tests.
+                - name: NODE_NAME
+                  valueFrom:
+                    fieldRef:
+                      fieldPath: spec.nodeName
+                # Workload image reference (same value substituted into
+                # `image:` above). PHASE3_CHECK_SCRIPT's Check 5
+                # substring-matches each NIC's ethtool firmware-version
+                # against this string. PHASE3_SCRIPT sed-renders the
+                # value at Job-template instantiation time, so the env
+                # carries the FULL reference (registry/repo:tag).
+                - name: ROCE_WORKLOAD_IMAGE
+                  value: $$ROCE_WORKLOAD_IMAGE
+              # Sole-tenant on the node's NICs. PHASE3_SCRIPT substitutes
+              # $$EXPECTED_NIC_COUNT from PHASE3_EXPECTED_NIC_COUNT in
+              # cluster-validation-config (default "8"). This both
+              # schedules the pod onto all amd.com/nic devices on the
+              # node (via the device plugin) and gates admission if any
+              # NICs are unhealthy/unallocated -- the Job stays pending
+              # and PHASE3_SCRIPT times it out as nic-not-allocated.
+              resources:
+                requests:
+                  amd.com/nic: $$EXPECTED_NIC_COUNT
+                limits:
+                  amd.com/nic: $$EXPECTED_NIC_COUNT
+              volumeMounts:
+                - name: log-storage
+                  mountPath: /var/log/cluster-validation
+              command: ["/bin/bash", "-c"]
+              args:
+                - |
+                  # PHASE3_CHECK_SCRIPT is sourced from
+                  # cluster-validation-config via envFrom above. It
+                  # runs the four health checks (NIC count, ip link,
+                  # rdma link, ibv_devinfo+GID) and self-labels the
+                  # node via in-pod kubectl per the design helper
+                  # conventions (PHASE3_LABEL_KEY +
+                  # PHASE_FAILURE_REASON_ANNOTATION_SUFFIX).
+                  echo "$PHASE3_CHECK_SCRIPT" > /tmp/check.sh
+                  chmod +x /tmp/check.sh
+                  # Persist full check.sh output to node-local
+                  # /var/log/cluster-validation/ for post-mortem.
+                  # PIPESTATUS preserves check.sh's exit code (tee
+                  # always exits 0, which would mask failures).
+                  TS=$(date -u +%Y-%m-%dT%H-%M-%S.%6NZ)
+                  HOST_LOG="/var/log/cluster-validation/${TS}_phase3_nic-health.log"
+                  /tmp/check.sh 2>&1 | tee "${HOST_LOG}"
+                  exit ${PIPESTATUS[0]}
+      # No retries: a Phase 3 failure is a hard NIC/topology signal
+      # PHASE3_SCRIPT (orchestrator) inspects the resulting node label
+      # and the next CronJob tick re-tests if appropriate.
+      backoffLimit: 0
+      # TTL keeps completed Jobs around briefly for log capture by
+      # PHASE3_SCRIPT, then GC.
+      ttlSecondsAfterFinished: 300
+---
+# =========================================================================
+# Phase 4 per-(pair,rail) Job template ConfigMap.
+# See the phase design notes
+# section 4 -> "Code Path: Phase 4 Job templates (server + client)".
+#
+# Holds TWO batch/v1.Job templates under separate ConfigMap data keys:
+# * cluster-validation-phase4-server-job-config.yaml -- ib_write_bw
+# server, one per (pair, rail) instance. Pinned to node A of the
+# pair, requests one rail's NAD, runs `ib_write_bw -d $DEV -F`
+# (server mode, waits for client connect, exits on completion).
+# * cluster-validation-phase4-client-job-config.yaml -- ib_write_bw
+# client, one per (pair, rail) instance. Pinned to node B of the
+# pair, requests the same rail's NAD on the peer side, runs
+# `ib_write_bw -d $DEV -F $PEER_POD_IP`, parses "BW average"
+# from the test output, tees to /shared/phase4_rail${RAIL_IDX}.log
+# so PHASE4_DRIVER_SCRIPT can read the BW value via
+# `kubectl logs`.
+#
+# The driver script (PHASE4_DRIVER_SCRIPT, sibling script) is
+# responsible for: (a) sed-rendering each template once per (pair,
+# rail) with unique Job names; (b) discovering the server pod IP
+# after admission and substituting $$PEER_POD_IP into the client
+# template; (c) waiting for both Jobs up to PHASE4_PAIR_WAIT_TIME
+# seconds; (d) parsing the client log; (e) cleanup.
+#
+# Substitution placeholders (sed-rendered by PHASE4_DRIVER_SCRIPT):
+# $$NODE -- target node hostname (kubernetes.io/hostname).
+# Server pins to node A; client pins to node B.
+# $$PEER_POD_IP -- server pod IP discovered post-admission.
+# Client-template only (server has no peer arg).
+# $$RAIL_IDX -- rail index 0.PHASE4_RAIL_COUNT-1. Selects the
+# RDMA device via ${PHASE4_IB_DEV_PREFIX}${RAIL_IDX}.
+# $$NAD_NAME -- per-rail NetworkAttachmentDefinition name
+# (typically ${PHASE4_NAD_NAME_PREFIX}${RAIL_IDX},
+# e.g. amd-host-device-nad-rail-3). Requested via
+# the standard Multus annotation
+# k8s.v1.cni.cncf.io/networks. Pod admission is
+# rejected if the NAD does not exist -- driver
+# records that as failed-reason=nad-missing.
+#
+# Image: rocm/roce-workload (substituted from ROCE_WORKLOAD_IMAGE in
+# cluster-validation-config). The image ships OFED userspace and
+# ib_write_bw -- no init-container fetch needed. envFrom pulls all
+# PHASE4_* variables plus the helper
+# conventions so the container scripts can self-resolve device names
+# and thresholds without further substitution.
+#
+# Resources: amd.com/nic: 1 -- the device-plugin gate ensures the
+# pod only schedules when the requested rail's NIC is allocatable.
+# IPC_LOCK + privileged are required for RDMA verbs (ib_write_bw
+# uses pinned memory and direct verbs access).
+# =========================================================================
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: cluster-validation-phase4-job-config
+data:
+  cluster-validation-phase4-server-job-config.yaml: |
+    apiVersion: batch/v1
+    kind: Job
+    metadata:
+      # Job name is per-(pair, rail); PHASE4_DRIVER_SCRIPT renders the
+      # final unique name (e.g.
+      # cluster-validation-phase4-server-job-<node>-rail-<idx>) before
+      # apply.
+      name: cluster-validation-phase4-server-job
+      labels:
+        amd.com/cluster-validation-created: "true"
+        amd.com/cluster-validation-phase4-role: "server"
+    spec:
+      template:
+        metadata:
+          # Per-rail NetworkAttachmentDefinition request. The Multus
+          # admission controller attaches the rail-specific host
+          # device (amd-host-device-nad-rail-${RAIL_IDX}) to the pod's
+          # net namespace; ib_write_bw uses it via the RDMA verbs
+          # device name resolved from ${PHASE4_IB_DEV_PREFIX}${RAIL_IDX}.
+          annotations:
+            k8s.v1.cni.cncf.io/networks: $$NAD_NAME
+          labels:
+            amd.com/cluster-validation-created: "true"
+            amd.com/cluster-validation-phase4-role: "server"
+        spec:
+          serviceAccountName: cluster-validation-sa
+          # Pin the Job to node A of the pair. PHASE4_DRIVER_SCRIPT
+          # substitutes $$NODE per (pair, rail) instance.
+          nodeSelector:
+            kubernetes.io/hostname: $$NODE
+          restartPolicy: Never
+          volumes:
+            - name: shared
+              emptyDir: {}
+            - name: log-storage
+              hostPath:
+                path: /var/log/cluster-validation
+                type: DirectoryOrCreate
+          containers:
+            - name: phase4-ib-server
+              # rocm/roce-workload -- ships OFED + ib_write_bw. Same
+              # image used by the client template below. Substituted
+              # at deploy time from ROCE_WORKLOAD_IMAGE in
+              # cluster-validation-config.
+              image: $$ROCE_WORKLOAD_IMAGE
+              imagePullPolicy: IfNotPresent
+              envFrom:
+                # Sources PHASE4_RAIL_COUNT, PHASE4_BW_THRESHOLD,
+                # PHASE4_PAIR_WAIT_TIME, PHASE4_NAD_NAME_PREFIX,
+                # PHASE4_IB_DEV_PREFIX plus the
+                # label/annotate helper conventions.
+                - configMapRef:
+                    name: cluster-validation-config
+              env:
+                # RAIL_IDX is sed-substituted at render time so the
+                # container script can resolve the RDMA device name
+                # without a separate templating layer.
+                - name: RAIL_IDX
+                  value: "$$RAIL_IDX"
+                # POD_IP is discovered by PHASE4_DRIVER_SCRIPT
+                # post-admission via downward API on the live pod
+                # (status.podIP). Exposed here so the in-container
+                # logs include the IP for diagnostics.
+                - name: POD_IP
+                  valueFrom:
+                    fieldRef:
+                      fieldPath: status.podIP
+                - name: NODE_NAME
+                  valueFrom:
+                    fieldRef:
+                      fieldPath: spec.nodeName
+              # IPC_LOCK + privileged: ib_write_bw uses pinned memory
+              # and direct RDMA verbs (rdma_dev_${RAIL_IDX}); both
+              # require elevated privilege. Mirrors the Phase 5 worker
+              # pod's NIC-access posture.
+              securityContext:
+                privileged: true
+                capabilities:
+                  add: ["IPC_LOCK"]
+              # Sole-tenant on the requested rail's NIC. The device
+              # plugin gates admission until the rail's NIC is
+              # allocatable; if not, the pod stays pending and
+              # PHASE4_DRIVER_SCRIPT times it out as nic-not-allocated.
+              resources:
+                requests:
+                  amd.com/nic: 1
+                limits:
+                  amd.com/nic: 1
+              volumeMounts:
+                - name: shared
+                  mountPath: /shared
+                - name: log-storage
+                  mountPath: /var/log/cluster-validation
+              command: ["/bin/bash", "-c"]
+              args:
+                - |
+                  exec 2>&1
+                  set -uo pipefail
+
+                  # Resolve the RDMA device for this rail. The naming
+                  # convention (rdma_dev_${RAIL_IDX}) is set by the
+                  # cluster's NAD/device-plugin wiring; the prefix is
+                  # configurable via PHASE4_IB_DEV_PREFIX so different
+                  # fleets can adapt without touching the template.
+                  DEV="${PHASE4_IB_DEV_PREFIX}${RAIL_IDX}"
+                  echo "[phase4-server] node=${NODE_NAME} rail=${RAIL_IDX} dev=${DEV} pod_ip=${POD_IP}"
+
+                  # Node-local persistent log target (survives pod GC).
+                  TS=$(date -u +%Y-%m-%dT%H-%M-%S.%6NZ)
+                  HOST_LOG="/var/log/cluster-validation/${TS}_phase4-server_rail${RAIL_IDX}.log"
+
+                  # Server mode: ib_write_bw with no peer IP. -F skips
+                  # the CPU frequency check (required in containers
+                  # where /proc/cpuinfo cpu_MHz is unreliable). -i 1
+                  # pins to the device's port 1. The server blocks
+                  # until a client connects, runs one BW test, then
+                  # exits 0 on success.
+                  ib_write_bw -d "${DEV}" -i 1 -F \
+                    2>&1 | tee "/shared/phase4_rail${RAIL_IDX}_server.log" "${HOST_LOG}"
+                  ib_rc=${PIPESTATUS[0]}
+
+                  if [ "$ib_rc" -ne 0 ]; then
+                    # ib_write_bw server-side crash. PHASE4_DRIVER_SCRIPT
+                    # inspects the log tail and writes failed-reason=
+                    # ib-write-bw-crashed via the per-rail annotation
+                    # on node A. Exit non-zero so the Job is marked
+                    # Failed and the driver can detect it.
+                    echo "[phase4-server] ib_write_bw exited ${ib_rc}"
+                    exit "$ib_rc"
+                  fi
+
+                  echo "[phase4-server] rail ${RAIL_IDX} server completed cleanly"
+      # No retries: a Phase 4 failure is a hard per-(pair, rail)
+      # signal -- PHASE4_DRIVER_SCRIPT handles label/annotation and
+      # the next CronJob tick re-tests if appropriate.
+      backoffLimit: 0
+      # TTL keeps completed Jobs around briefly for log capture by
+      # PHASE4_DRIVER_SCRIPT, then GC.
+      ttlSecondsAfterFinished: 300
+  cluster-validation-phase4-client-job-config.yaml: |
+    apiVersion: batch/v1
+    kind: Job
+    metadata:
+      # Job name is per-(pair, rail); PHASE4_DRIVER_SCRIPT renders the
+      # final unique name (e.g.
+      # cluster-validation-phase4-client-job-<node>-rail-<idx>) before
+      # apply. The driver renders the client template AFTER the server
+      # pod's IP is known (substituted into $$PEER_POD_IP below).
+      name: cluster-validation-phase4-client-job
+      labels:
+        amd.com/cluster-validation-created: "true"
+        amd.com/cluster-validation-phase4-role: "client"
+    spec:
+      template:
+        metadata:
+          # Same per-rail NAD as the server -- the client needs the
+          # same rail's NIC on its own node to drive ib_write_bw
+          # against the matching device on the server.
+          annotations:
+            k8s.v1.cni.cncf.io/networks: $$NAD_NAME
+          labels:
+            amd.com/cluster-validation-created: "true"
+            amd.com/cluster-validation-phase4-role: "client"
+        spec:
+          serviceAccountName: cluster-validation-sa
+          # Pin the Job to node B of the pair. PHASE4_DRIVER_SCRIPT
+          # substitutes $$NODE per (pair, rail) instance.
+          nodeSelector:
+            kubernetes.io/hostname: $$NODE
+          restartPolicy: Never
+          volumes:
+            - name: shared
+              emptyDir: {}
+            - name: log-storage
+              hostPath:
+                path: /var/log/cluster-validation
+                type: DirectoryOrCreate
+          containers:
+            - name: phase4-ib-client
+              image: $$ROCE_WORKLOAD_IMAGE
+              imagePullPolicy: IfNotPresent
+              envFrom:
+                - configMapRef:
+                    name: cluster-validation-config
+              env:
+                - name: RAIL_IDX
+                  value: "$$RAIL_IDX"
+                # PEER_POD_IP is the server pod's status.podIP,
+                # discovered by PHASE4_DRIVER_SCRIPT after the server
+                # Job's pod transitions to Running and substituted
+                # into this template just before apply.
+                - name: PEER_POD_IP
+                  value: "$$PEER_POD_IP"
+                - name: NODE_NAME
+                  valueFrom:
+                    fieldRef:
+                      fieldPath: spec.nodeName
+              securityContext:
+                privileged: true
+                capabilities:
+                  add: ["IPC_LOCK"]
+              resources:
+                requests:
+                  amd.com/nic: 1
+                limits:
+                  amd.com/nic: 1
+              volumeMounts:
+                - name: shared
+                  mountPath: /shared
+                - name: log-storage
+                  mountPath: /var/log/cluster-validation
+              command: ["/bin/bash", "-c"]
+              args:
+                - |
+                  exec 2>&1
+                  set -uo pipefail
+
+                  DEV="${PHASE4_IB_DEV_PREFIX}${RAIL_IDX}"
+                  echo "[phase4-client] node=${NODE_NAME} rail=${RAIL_IDX} dev=${DEV} peer=${PEER_POD_IP}"
+
+                  # Node-local persistent log target (survives pod GC).
+                  TS=$(date -u +%Y-%m-%dT%H-%M-%S.%6NZ)
+                  HOST_LOG="/var/log/cluster-validation/${TS}_phase4-client_rail${RAIL_IDX}.log"
+
+                  if [ -z "${PEER_POD_IP:-}" ]; then
+                    # Defensive: if the driver failed to substitute
+                    # $$PEER_POD_IP (e.g. server pod never reached
+                    # Running), the client cannot run. Exit non-zero
+                    # so the driver records reason=peer-pod-unready.
+                    echo "[phase4-client] PEER_POD_IP empty -- aborting"
+                    exit 1
+                  fi
+
+                  # Client mode: ib_write_bw against the server pod IP.
+                  # -F skips CPU freq check; -i 1 pins to port 1. The
+                  # client connects, runs one BW test, prints
+                  # "BW average[Gb/sec] = <value>" on stdout, exits 0.
+                  # PHASE4_DRIVER_SCRIPT greps "BW average" from this
+                  # log to populate the per-rail annotation.
+                  ib_write_bw -d "${DEV}" -i 1 -F "${PEER_POD_IP}" \
+                    2>&1 | tee "/shared/phase4_rail${RAIL_IDX}_client.log" "${HOST_LOG}"
+                  ib_rc=${PIPESTATUS[0]}
+
+                  if [ "$ib_rc" -ne 0 ]; then
+                    echo "[phase4-client] ib_write_bw exited ${ib_rc}"
+                    exit "$ib_rc"
+                  fi
+
+                  # Surface the parsed BW value to stdout for the
+                  # driver's `kubectl logs` consumption. The driver
+                  # also re-parses the full log for robustness; this
+                  # echo is a convenience marker.
+                  bw_line=$(grep -E '^[[:space:]]*[0-9]+[[:space:]]+[0-9]+.*BW average' \
+                              "/shared/phase4_rail${RAIL_IDX}_client.log" || true)
+                  if [ -z "$bw_line" ]; then
+                    # No BW line: PHASE4_DRIVER_SCRIPT records
+                    # failed-reason=parse-failed.
+                    echo "[phase4-client] no BW average line in client log"
+                    exit 1
+                  fi
+                  echo "[phase4-client] rail ${RAIL_IDX} ${bw_line}"
+      backoffLimit: 0
+      ttlSecondsAfterFinished: 300
+---
 apiVersion: v1
 kind: ServiceAccount
 metadata:
@@ -265,6 +961,14 @@ rules:
     resources: ["jobs"]
     verbs: ["get", "list", "watch", "create", "delete", "patch"]
 
+  # Allow ConfigMap operations -- Phase 1
+  # creates one per-stage per-node ConfigMap on the fly (cvf-phase1-<stage>-
+  # <node-hash>-<ts>) holding the single-recipe GPU_VALIDATION_TESTS_JSON
+  # payload, then deletes it after the stage's Job is parsed.
+  - apiGroups: [""]
+    resources: ["configmaps"]
+    verbs: ["get", "list", "watch", "create", "delete", "patch", "update"]
+
   # Allow node operations
   - apiGroups: [""]
     resources: ["nodes"]
@@ -279,6 +983,12 @@ rules:
   - apiGroups: [""]
     resources: ["pods", "pods/exec"]
     verbs: ["get", "list", "watch", "create", "update"]
+
+  # Allow orchestrator to read Phase 3 Job pod logs to parse the
+  # PHASE3_RESULT marker emitted by PHASE3_CHECK_SCRIPT.
+  - apiGroups: [""]
+    resources: ["pods/log"]
+    verbs: ["get", "list"]
 
 ---
 apiVersion: rbac.authorization.k8s.io/v1
@@ -300,176 +1010,736 @@ kind: CronJob
 metadata:
   name: cluster-validation-cron-job
 spec:
-  # schedule: "0 0 * * *"
-  # schedule every 10 minutes (Change as needed)
-  schedule: "__CRONJOB_SCHEDULE__"
-  concurrencyPolicy: Forbid                             # Dont overlap runs    
+  # Default: every 30 minutes.
+  # patchable: cluster-validation-framework.cronjob.schedule
+  schedule: "*/30 * * * *"
+  concurrencyPolicy: Forbid # Dont overlap runs 
   jobTemplate:
     spec:
       template:
         spec:
-          serviceAccountName: cluster-validation-sa  # must have permission to create MPIJobs
+          serviceAccountName: cluster-validation-sa # must have permission to create MPIJobs
           restartPolicy: Never
           containers:
             - name: submit-mpijob
-              image: docker.io/rocm/network-operator-utils:v1.1.0
+              # Orchestrator runs bash + kubectl throughout (selection,
+              # label/annotate, MPIJob poll, cleanup). Needs kubectl on PATH.
+              # patchable: cluster-validation-framework.images.orchestrator
+              image: docker.io/bitnamilegacy/kubectl:1.33.4
               imagePullPolicy: IfNotPresent
+              # Run as root: this image defaults to UID 1001, which cannot
+              # write the root-owned /var/log/cluster-validation hostPath.
+              # The orchestrator writes its own cronjob-*.log there and
+              # persists each test-runner pod log (<job>_pod.log) for
+              # triage, so it must be able to write that shared volume.
+              securityContext:
+                runAsUser: 0
               command: ["/bin/bash", "-c"]
               envFrom:
                 - configMapRef:
                     name: cluster-validation-config
               args:
                 - |
+                  # =========================================================
+                  # Multi-Phase CronJob Orchestrator (, owned by
+                  #). See design doc §4 -> "Code Path: CronJob
+                  # bash state machine (run-phases.sh)".
+                  #
+                  # Pipeline:
+                  # Phase 0 -> Phase 1 -> Phase 2 -> Phase 3 -> Phase 4
+                  # -> Phase 4.5 -> Phase 5
+                  # Each phase:
+                  # * exits early if its SKIP_* flag is "true"
+                  # * runs run_phaseN <node-list> (stub by default; sources
+                  # $PHASE{N}_SCRIPT from the ConfigMap if defined)
+                  # * narrows the live-node pool via filter_passed_nodes,
+                  # keyed on $PHASE{N}_LABEL_KEY
+                  #
+                  # Phase-script contract: each run_phaseN script writes
+                  # $PHASE{N}_LABEL_KEY=passed|failed on every input node
+                  # before returning (see design §5). Labels are the ONLY
+                  # contract; stdout/stderr are not parsed.
+                  #
+                  # DRY_RUN=1 mode: run_phaseN stubs become `:`; Phase 0
+                  # candidate selection is skipped (no kubectl writes);
+                  # the planned phase order + filtered pool per phase is
+                  # printed to stdout.
+                  #
+                  # Final exit: non-zero if any phase produced failed
+                  # nodes (preserves existing fail-loud behavior).
+                  # =========================================================
+
                   # --- Redirect all output to a timestamped log file ---
                   LOG_DIR=/var/log/cluster-validation
                   mkdir -p "$LOG_DIR"
                   LOG_TS=$(date +%Y%m%d-%H%M%S)
                   LOG_FILE="${LOG_DIR}/cronjob-${LOG_TS}.log"
-                  exec > >(tee -a "$LOG_FILE") 2>&1
 
-                  set -euo pipefail
+                  # Prefix every stdout/stderr line with a wall-clock
+                  # timestamp. Sourced phase scripts inherit this
+                  # redirect so all output is timestamped uniformly.
+                  # The EXIT trap closes the pipe + reaps the formatter
+                  # so the parent does not exit before the file is
+                  # fully drained (bounded so a stuck formatter cannot
+                  # hang the CronJob pod).
+                  _ts_prefix() {
+                    while IFS= read -r line; do
+                      printf '[%s] %s\n' \
+                        "$(date '+%Y-%m-%d %H:%M:%S.%3N')" "$line"
+                    done
+                  }
+                  exec > >(_ts_prefix | tee -a "$LOG_FILE") 2>&1
+                  _ts_pid=$!
+                  _flush_ts_pipe() {
+                    exec 1>&- 2>&-
+                    if [ -n "${_ts_pid:-}" ]; then
+                      for _i in 1 2 3 4 5; do
+                        if ! kill -0 "$_ts_pid" 2>/dev/null; then
+                          break
+                        fi
+                        sleep 0.2
+                      done
+                    fi
+                  }
+                  trap _flush_ts_pipe EXIT
 
-                  echo -e "\n$(date): ===Step 1: Determining candidate nodes==="
-                  echo "$CRONJOB_CANDIDATE_NODES_SELECTION_SCRIPT" > /tmp/select-and-label-candidate.sh
-                  chmod +x /tmp/select-and-label-candidate.sh
-                  if ! /tmp/select-and-label-candidate.sh; then
+                  # Allow inner helpers to fail without taking the
+                  # orchestrator down -- a failed phase must be logged
+                  # and the pipeline must continue with the remaining
+                  # nodes. `pipefail` + `-u` stay on for early detection
+                  # of typos and pipe wiring bugs.
+                  set -uo pipefail
+
+                  DRY_RUN="${DRY_RUN:-0}"
+                  if [[ "${DRY_RUN}" == "1" ]]; then
+                    echo "[Orchestrator] DRY_RUN=1 -- no kubectl writes will be performed"
+                  fi
+
+                  # --- Source the node-metadata helper library ---
+                  # Provides label_phase_passed, label_phase_failed,
+                  # annotate_phase_value, filter_passed_nodes.
+                  echo "$PHASE_NODE_LABEL_SCRIPT" > /tmp/phase-node-label.sh
+                  chmod +x /tmp/phase-node-label.sh
+                  # shellcheck disable=SC1091
+                  source /tmp/phase-node-label.sh
+
+                  # ---------------------------------------------------------
+                  # Phase failure accounting. Each run_phaseN writes labels
+                  # in the cluster, but we also track whether *this run*
+                  # produced any non-passed nodes so the CronJob can exit
+                  # non-zero (fail-loud, design §6).
+                  # ---------------------------------------------------------
+                  ANY_PHASE_FAILED=0
+
+                  # account_phase_failures <phase_name> <input_pool> <passed_pool>
+                  # Logs the per-phase pass/fail split and bumps the global
+                  # failure counter when input != passed. Empty inputs are
+                  # not a failure (no work to do).
+                  account_phase_failures() {
+                    local phase_name="$1"
+                    local input_pool="$2"
+                    local passed_pool="$3"
+                    local in_count out_count
+                    in_count=$(echo "$input_pool" | wc -w)
+                    out_count=$(echo "$passed_pool" | wc -w)
+                    local failed_count=$(( in_count - out_count ))
+                    echo "[Orchestrator] ${phase_name}: input=${in_count} passed=${out_count} failed=${failed_count}"
+                    if [[ "$failed_count" -gt 0 ]]; then
+                      ANY_PHASE_FAILED=1
+                    fi
+                  }
+
+                  # nodes_with_label <label-selector>
+                  # Emits, on stdout, the space-separated list of node names
+                  # currently matching <label-selector>. Returns empty on
+                  # error or when no nodes match. Honors DRY_RUN by still
+                  # reading state (read is non-mutating).
+                  nodes_with_label() {
+                    local selector="$1"
+                    kubectl get nodes -l "$selector" -o name 2>/dev/null \
+                      | sed 's|node/||' | tr '\n' ' ' | sed 's/ *$//'
+                  }
+
+                  # intersect <pool_a> <pool_b>
+                  # Emits, on stdout, the space-separated intersection of
+                  # two space-separated node-name pools. Order follows
+                  # pool_a. Empty input on either side yields empty output.
+                  intersect() {
+                    local a="$1"
+                    local b="$2"
+                    [[ -z "$a" || -z "$b" ]] && return 0
+                    local out=""
+                    local x y
+                    for x in $a; do
+                      for y in $b; do
+                        if [[ "$x" == "$y" ]]; then
+                          if [[ -z "$out" ]]; then
+                            out="$x"
+                          else
+                            out="$out $x"
+                          fi
+                          break
+                        fi
+                      done
+                    done
+                    echo "$out"
+                  }
+
+                  # ---------------------------------------------------------
+                  # run_phaseN <space-separated-node-list>
+                  #
+                  # Default behavior:
+                  # * print a banner identifying the phase
+                  # * if $PHASE{N}_SCRIPT is non-empty, drop it to a tmp
+                  # file and `source` it so the per-phase code runs in
+                  # the orchestrator's shell (helpers + env stay live)
+                  # * otherwise, no-op (downstream work hasn't landed yet)
+                  #
+                  # Phase-script contract: the sourced script MUST label
+                  # every node in its input list with $PHASE{N}_LABEL_KEY
+                  # before returning. The orchestrator does not parse
+                  # phase-script stdout -- labels are the gate.
+                  #
+                  # DRY_RUN=1 overrides ALL run_phaseN bodies with `:` so
+                  # the same phase plan can be exercised without any
+                  # cluster mutation.
+                  # ---------------------------------------------------------
+                  _run_phase_generic() {
+                    local phase_num="$1"
+                    local phase_label="$2"
+                    local script_var_name="$3"
+                    local nodes="$4"
+                    echo "------------------------------------------------------------------"
+                    echo "[Phase ${phase_num}] ${phase_label}"
+                    echo "[Phase ${phase_num}] input nodes: ${nodes:-<empty>}"
+                    echo "------------------------------------------------------------------"
+                    if [[ -z "$nodes" ]]; then
+                      echo "[Phase ${phase_num}] no input nodes -- nothing to do"
+                      return 0
+                    fi
+                    # Look up the per-phase script body. Indirect expansion
+                    # is required because env-var names are computed from
+                    # the phase number.
+                    local script_body="${!script_var_name:-}"
+                    if [[ -z "$script_body" ]]; then
+                      echo "[Phase ${phase_num}] ${script_var_name} not set -- stub no-op"
+                      return 0
+                    fi
+                    local script_path="/tmp/run-phase${phase_num}.sh"
+                    echo "$script_body" > "$script_path"
+                    chmod +x "$script_path"
+                    echo "[Phase ${phase_num}] sourcing ${script_var_name} from $script_path"
+                    # PHASE_NODES is the documented input handle for per-phase
+                    # scripts. Stays in sync with the positional arg.
+                    PHASE_NODES="$nodes"
+                    export PHASE_NODES
+                    # shellcheck disable=SC1090
+                    source "$script_path" $nodes
+                    local rc=$?
+                    if [[ "$rc" -ne 0 ]]; then
+                      echo "[Phase ${phase_num}] WARNING: ${script_var_name} exited ${rc}; continuing with whatever labels were written"
+                    fi
+                    return 0
+                  }
+
+                  # ---------------------------------------------------------
+                  # run_phase1 -- GPU HW acceptance (, dedicated wiring
+                  #). Replaces the generic-dispatch stub
+                  # delivered. See design doc §4 -> "Code Path:
+                  # orchestrator wiring".
+                  #
+                  # Contract: write $PHASE1_SCRIPT to a tmp path, chmod +x,
+                  # source it with the input node list as positional args.
+                  # The sourced PHASE1_SCRIPT writes
+                  # $PHASE1_LABEL_KEY=passed|failed on every input node
+                  # before returning. The orchestrator does not parse
+                  # PHASE1_SCRIPT stdout -- labels are the gate.
+                  # ---------------------------------------------------------
+                  run_phase1() {
+                    local nodes="$1"
+                    echo "------------------------------------------------------------------"
+                    echo "[Phase 1] GPU HW acceptance"
+                    echo "[Phase 1] input nodes: ${nodes:-<empty>}"
+                    echo "------------------------------------------------------------------"
+                    if [[ -z "$nodes" ]]; then
+                      echo "[Phase 1] no input nodes -- nothing to do"
+                      return 0
+                    fi
+                    if [[ -z "${PHASE1_SCRIPT:-}" ]]; then
+                      echo "[Phase 1] PHASE1_SCRIPT not set -- nothing to source"
+                      return 0
+                    fi
+                    local script_path="/tmp/run-phase1.sh"
+                    echo "$PHASE1_SCRIPT" > "$script_path"
+                    chmod +x "$script_path"
+                    echo "[Phase 1] sourcing PHASE1_SCRIPT from $script_path"
+                    # PHASE_NODES is the documented input handle for per-phase
+                    # scripts. Stays in sync with the positional args.
+                    PHASE_NODES="$nodes"
+                    export PHASE_NODES
+                    # shellcheck disable=SC1090
+                    source "$script_path" $nodes
+                    local rc=$?
+                    if [[ "$rc" -ne 0 ]]; then
+                      echo "[Phase 1] WARNING: PHASE1_SCRIPT exited ${rc}; continuing with whatever labels were written"
+                    fi
+                    return 0
+                  }
+                  # ---------------------------------------------------------
+                  # run_phase2 -- Intra-node GPU collective (, dedicated
+                  # wiring). Replaces the generic-dispatch
+                  # stub delivered. See design doc §4 -> "Code
+                  # Path: orchestrator wiring".
+                  #
+                  # Contract: write $PHASE2_SCRIPT to a tmp path, chmod +x,
+                  # source it with the input node list as positional args.
+                  # The sourced PHASE2_SCRIPT writes
+                  # $PHASE2_LABEL_KEY=passed|failed on every input node
+                  # before returning. The orchestrator does not parse
+                  # PHASE2_SCRIPT stdout -- labels are the gate.
+                  # ---------------------------------------------------------
+                  run_phase2() {
+                    local nodes="$1"
+                    echo "------------------------------------------------------------------"
+                    echo "[Phase 2] Intra-node GPU collective"
+                    echo "[Phase 2] input nodes: ${nodes:-<empty>}"
+                    echo "------------------------------------------------------------------"
+                    if [[ -z "$nodes" ]]; then
+                      echo "[Phase 2] no input nodes -- nothing to do"
+                      return 0
+                    fi
+                    if [[ -z "${PHASE2_SCRIPT:-}" ]]; then
+                      echo "[Phase 2] PHASE2_SCRIPT not set -- nothing to source"
+                      return 0
+                    fi
+                    local script_path="/tmp/run-phase2.sh"
+                    echo "$PHASE2_SCRIPT" > "$script_path"
+                    chmod +x "$script_path"
+                    echo "[Phase 2] sourcing PHASE2_SCRIPT from $script_path"
+                    # PHASE_NODES is the documented input handle for per-phase
+                    # scripts. Stays in sync with the positional args.
+                    PHASE_NODES="$nodes"
+                    export PHASE_NODES
+                    # shellcheck disable=SC1090
+                    source "$script_path" $nodes
+                    local rc=$?
+                    if [[ "$rc" -ne 0 ]]; then
+                      echo "[Phase 2] WARNING: PHASE2_SCRIPT exited ${rc}; continuing with whatever labels were written"
+                    fi
+                    return 0
+                  }
+                  # ---------------------------------------------------------
+                  # run_phase3 -- Per-node NIC health (, dedicated
+                  # wiring). Replaces the generic-dispatch
+                  # stub delivered. See design doc §4 -> "Code
+                  # Path: PHASE3_SCRIPT + orchestrator wiring".
+                  #
+                  # Contract: write $PHASE3_SCRIPT to a tmp path, chmod +x,
+                  # source it with the input node list as positional args.
+                  # The sourced PHASE3_SCRIPT submits one
+                  # Phase 3 Job per node (template mounted at
+                  # /phase3-configs/cluster-validation-phase3-job-config.yaml)
+                  # and waits up to PHASE3_JOB_WAIT_TIME for completion.
+                  # The in-pod PHASE3_CHECK_SCRIPT self-labels
+                  # the node via in-pod kubectl; PHASE3_SCRIPT only fills
+                  # in label_phase_failed for nodes whose Job could not
+                  # run (submit-failed -> job-creation-failed; timeout ->
+                  # nic-not-allocated). The orchestrator does not parse
+                  # PHASE3_SCRIPT stdout -- labels are the gate.
+                  #
+                  # The caller (cronjob orchestrator) is responsible for
+                  # narrowing the input pool to amd-nic=true BEFORE
+                  # invoking run_phase3; PHASE3_SCRIPT trusts its $@
+                  # list is already nic-capable.
+                  # ---------------------------------------------------------
+                  run_phase3() {
+                    local nodes="$1"
+                    echo "------------------------------------------------------------------"
+                    echo "[Phase 3] Per-node NIC health"
+                    echo "[Phase 3] input nodes: ${nodes:-<empty>}"
+                    echo "------------------------------------------------------------------"
+                    if [[ -z "$nodes" ]]; then
+                      echo "[Phase 3] no input nodes -- nothing to do"
+                      return 0
+                    fi
+                    if [[ -z "${PHASE3_SCRIPT:-}" ]]; then
+                      echo "[Phase 3] PHASE3_SCRIPT not set -- nothing to source"
+                      return 0
+                    fi
+                    local script_path="/tmp/run-phase3.sh"
+                    echo "$PHASE3_SCRIPT" > "$script_path"
+                    chmod +x "$script_path"
+                    echo "[Phase 3] sourcing PHASE3_SCRIPT from $script_path"
+                    # PHASE_NODES is the documented input handle for per-phase
+                    # scripts. Stays in sync with the positional args.
+                    PHASE_NODES="$nodes"
+                    export PHASE_NODES
+                    # shellcheck disable=SC1090
+                    source "$script_path" $nodes
+                    local rc=$?
+                    if [[ "$rc" -ne 0 ]]; then
+                      echo "[Phase 3] WARNING: PHASE3_SCRIPT exited ${rc}; continuing with whatever labels were written"
+                    fi
+                    return 0
+                  }
+                  # ---------------------------------------------------------
+                  # run_phase4 -- Pairwise rail bandwidth (, dedicated
+                  # wiring). Replaces the generic-dispatch
+                  # stub delivered. See design doc §4 -> "Code
+                  # Path: orchestrator wiring".
+                  #
+                  # Contract: write $PHASE4_DRIVER_SCRIPT to a tmp path,
+                  # chmod +x, source it with the input node list as
+                  # positional args. The sourced PHASE4_DRIVER_SCRIPT
+                  # submits per-(pair, rail) server + client
+                  # Jobs (templates mounted at /phase4-configs/.), parses
+                  # "BW average" from client logs, and writes
+                  # $PHASE4_LABEL_KEY=passed|failed on every input node
+                  # plus per-rail annotations
+                  # (amd.com/rail-bandwidth-rail-{N}=<Gbps>,
+                  # amd.com/rail-bandwidth-failed-rails=.) before
+                  # returning. The orchestrator does not parse
+                  # PHASE4_DRIVER_SCRIPT stdout -- labels are the gate.
+                  #
+                  # The caller (cronjob orchestrator) is responsible for
+                  # narrowing the input pool to Phase-3-passed
+                  # (amd.com/nic-health=passed) BEFORE invoking
+                  # run_phase4; PHASE4_DRIVER_SCRIPT trusts its $@ list
+                  # is already nic-healthy.
+                  # ---------------------------------------------------------
+                  run_phase4() {
+                    local nodes="$1"
+                    echo "------------------------------------------------------------------"
+                    echo "[Phase 4] Pairwise rail bandwidth"
+                    echo "[Phase 4] input nodes: ${nodes:-<empty>}"
+                    echo "------------------------------------------------------------------"
+                    if [[ -z "$nodes" ]]; then
+                      echo "[Phase 4] no input nodes -- nothing to do"
+                      return 0
+                    fi
+                    if [[ -z "${PHASE4_DRIVER_SCRIPT:-}" ]]; then
+                      echo "[Phase 4] PHASE4_DRIVER_SCRIPT not set -- nothing to source"
+                      return 0
+                    fi
+                    local script_path="/tmp/run-phase4.sh"
+                    echo "$PHASE4_DRIVER_SCRIPT" > "$script_path"
+                    chmod +x "$script_path"
+                    echo "[Phase 4] sourcing PHASE4_DRIVER_SCRIPT from $script_path"
+                    # PHASE_NODES is the documented input handle for per-phase
+                    # scripts. Stays in sync with the positional args.
+                    PHASE_NODES="$nodes"
+                    export PHASE_NODES
+                    # shellcheck disable=SC1090
+                    source "$script_path" $nodes
+                    local rc=$?
+                    if [[ "$rc" -ne 0 ]]; then
+                      echo "[Phase 4] WARNING: PHASE4_DRIVER_SCRIPT exited ${rc}; continuing with whatever labels were written"
+                    fi
+                    return 0
+                  }
+                  # ---------------------------------------------------------
+                  # run_phase5 -- Multi-node RCCL via MPIJob (,
+                  # dedicated wiring). Replaces the
+                  # generic-dispatch stub delivered. See
+                  # design doc §4 -> "Code Path: orchestrator wiring +
+                  # cleanup of old in-CronJob block".
+                  #
+                  # Contract: write $PHASE5_SCRIPT to a tmp path, source
+                  # it once to register the run_phase5_main function,
+                  # then invoke run_phase5_main "$nodes" with the input
+                  # node list as a single space-separated argument.
+                  #
+                  # The sourced PHASE5_SCRIPT (/.2) defines
+                  # run_phase5_main which: applies the SKIP_RCCL_TEST
+                  # short-circuit, enforces PHASE5_MIN_WORKERS, renders
+                  # and submits the MPIJob with actual_worker_replicas
+                  # equal to the input count, waits for completion,
+                  # writes $PHASE5_LABEL_KEY=passed|failed on every
+                  # input node via label_phase_passed/label_phase_failed
+                  #, and dumps per-worker logs.
+                  # The orchestrator does not parse PHASE5_SCRIPT
+                  # stdout -- labels are the gate.
+                  #
+                  # The caller (cronjob orchestrator) is responsible for
+                  # narrowing the input pool to nodes surviving Phase
+                  # 4.5 BEFORE invoking run_phase5; run_phase5_main
+                  # trusts its argument list is already 4.5-passed.
+                  #
+                  # Cleanup-of-old-MPIJobs and CronJob fail-loud exit
+                  # logic intentionally remain in the orchestrator
+                  # (cleanup_old_mpijobs, collect_launcher_logs, and
+                  # the ANY_PHASE_FAILED exit gate below) -- they are
+                  # cross-phase concerns, not per-phase script logic.
+                  # ---------------------------------------------------------
+                  run_phase5() {
+                    local nodes="$1"
+                    echo "------------------------------------------------------------------"
+                    echo "[Phase 5] Multi-node RCCL via MPIJob"
+                    echo "[Phase 5] input nodes: ${nodes:-<empty>}"
+                    echo "------------------------------------------------------------------"
+                    if [[ -z "$nodes" ]]; then
+                      echo "[Phase 5] no input nodes -- nothing to do"
+                      return 0
+                    fi
+                    if [[ -z "${PHASE5_SCRIPT:-}" ]]; then
+                      echo "[Phase 5] PHASE5_SCRIPT not set -- nothing to source"
+                      return 0
+                    fi
+                    local script_path="/tmp/run-phase5.sh"
+                    echo "$PHASE5_SCRIPT" > "$script_path"
+                    chmod +x "$script_path"
+                    echo "[Phase 5] sourcing PHASE5_SCRIPT from $script_path"
+                    # PHASE_NODES is the documented input handle for per-phase
+                    # scripts. Stays in sync with the run_phase5_main arg.
+                    PHASE_NODES="$nodes"
+                    export PHASE_NODES
+                    # shellcheck disable=SC1090
+                    source "$script_path"
+                    if ! declare -f run_phase5_main >/dev/null; then
+                      echo "[Phase 5] WARNING: PHASE5_SCRIPT did not define run_phase5_main; skipping"
+                      return 0
+                    fi
+                    run_phase5_main "$nodes"
+                    local rc=$?
+                    if [[ "$rc" -ne 0 ]]; then
+                      echo "[Phase 5] WARNING: run_phase5_main exited ${rc}; continuing with whatever labels were written"
+                    fi
+                    return 0
+                  }
+
+                  # Phase 4.5 -- cross-node connectivity matrix.
+                  # No SKIP_* flag of its own; downstream work may add one
+                  # and may re-define this function via the same
+                  # source-from-ConfigMap mechanism by overriding the
+                  # generic stub.
+                  maybe_run_phase45() {
+                    local nodes="$1"
+                    # Diagnostics go to stderr so the captured stdout
+                    # (consumed via `$(maybe_run_phase45 .)`) carries only
+                    # the node list and nothing else.
+                    echo "------------------------------------------------------------------" >&2
+                    echo "[Phase 4.5] Cross-node connectivity matrix" >&2
+                    echo "[Phase 4.5] input nodes: ${nodes:-<empty>}" >&2
+                    echo "------------------------------------------------------------------" >&2
+                    local script_body="${PHASE45_SCRIPT:-}"
+                    if [[ -z "$script_body" || -z "$nodes" ]]; then
+                      echo "[Phase 4.5] no script defined or empty pool -- pass-through" >&2
+                      echo "$nodes"
+                      return 0
+                    fi
+                    local script_path="/tmp/run-phase45.sh"
+                    echo "$script_body" > "$script_path"
+                    chmod +x "$script_path"
+                    PHASE_NODES="$nodes"
+                    export PHASE_NODES
+                    # shellcheck disable=SC1090
+                    source "$script_path" $nodes
+                    # Phase 4.5 pass-through: re-emit input on stdout so the
+                    # caller can pipe to Phase 5. The phase script is
+                    # expected to filter via its own logic (e.g. by writing
+                    # PHASE4_LABEL_KEY on a node it deems broken). For now,
+                    # we trust the input pool.
+                    echo "$nodes"
+                  }
+
+                  # DRY_RUN override: replace every run_phaseN body with `:`
+                  # so phase scripts don't execute but the pipeline still
+                  # walks every phase and prints the plan.
+                  if [[ "${DRY_RUN}" == "1" ]]; then
+                    run_phase1() { echo "[Phase 1] DRY_RUN -- skipping run_phase1 ($1)"; }
+                    run_phase2() { echo "[Phase 2] DRY_RUN -- skipping run_phase2 ($1)"; }
+                    run_phase3() { echo "[Phase 3] DRY_RUN -- skipping run_phase3 ($1)"; }
+                    run_phase4() { echo "[Phase 4] DRY_RUN -- skipping run_phase4 ($1)"; }
+                    run_phase5() { echo "[Phase 5] DRY_RUN -- skipping run_phase5 ($1)"; }
+                    maybe_run_phase45() {
+                      echo "[Phase 4.5] DRY_RUN -- pass-through ($1)" >&2
+                      echo "$1"
+                    }
+                  fi
+
+                  # ---------------------------------------------------------
+                  # Phase 0 -- Candidate selection
+                  # ---------------------------------------------------------
+                  echo -e "\n$(date): ===Phase 0: Determining candidate nodes==="
+                  if [[ "${DRY_RUN}" == "1" ]]; then
+                    # In DRY_RUN, do NOT label nodes. Just read whatever
+                    # nodes currently match the candidate selector so the
+                    # downstream phase plan has something to show.
+                    candidates=$(nodes_with_label "${CANDIDATE_LABEL}")
+                    if [[ -z "$candidates" ]]; then
+                      echo "[Phase 0] DRY_RUN: no nodes currently match ${CANDIDATE_LABEL} -- using empty pool"
+                    fi
+                  else
+                    echo "$CRONJOB_CANDIDATE_NODES_SELECTION_SCRIPT" > /tmp/select-and-label-candidate.sh
+                    chmod +x /tmp/select-and-label-candidate.sh
+                    if ! /tmp/select-and-label-candidate.sh; then
+                      # Insufficient candidates is not a CronJob failure
+                      # the next tick will retry. Preserves existing
+                      # behavior from the linear orchestrator.
+                      echo "[Phase 0] insufficient candidates -- exiting 0"
+                      exit 0
+                    fi
+                    candidates=$(nodes_with_label "${CANDIDATE_LABEL}")
+                  fi
+                  echo "[Phase 0] candidate nodes: ${candidates:-<empty>}"
+
+                  # Empty candidate pool is a clean no-op exit (design §6).
+                  if [[ -z "$candidates" ]]; then
+                    echo "[Orchestrator] empty candidate pool after Phase 0 -- exiting 0"
                     exit 0
                   fi
-                  nodes=$(kubectl get nodes -l "${CANDIDATE_LABEL}" -o name | sed 's|node/||')
 
-                  echo -e "\n$(date): ===Step 2: Submitting test runner jobs for each candidate node==="
-                  # Define variables BEFORE calling the modularized script
-                  job_names=""
-                  declare -A job_to_node
-                  passed_nodes=""
-                  failed_nodes=""
-                  
-                  # Call the modularized GPU validation script
-                  echo "$GPU_VALIDATION_TEST_SCRIPT" > /tmp/gpu-validation-test.sh
-                  chmod +x /tmp/gpu-validation-test.sh
-                  source /tmp/gpu-validation-test.sh
-
-                  echo -e "\n$(date): ===Step 3: Submitting MPIJob==="
-
-                  # Check if RCCL test should be skipped
-                  if [[ "${SKIP_RCCL_TEST,,}" == "true" ]]; then
-                    echo "SKIP_RCCL_TEST is set to true. Skipping MPI Job RCCL test."
-                    echo "=================================================================="
-
-                    # Label passed nodes with success status and remove candidate label
-                    CLUSTER_VALIDATION_STATUS_LABEL=${SUCCESS_LABEL}
-                    echo -e "\n$(date): ===Labeling nodes (RCCL test skipped)==="
-                    for n in $passed_nodes; do
-                      echo "Labeling node $n with $CLUSTER_VALIDATION_STATUS_LABEL"
-                      kubectl label node "$n" "$CLUSTER_VALIDATION_STATUS_LABEL" --overwrite
-                    done
-                    CANDIDATE_LABEL_KEY=${CANDIDATE_LABEL%%=*}
-                    for n in $passed_nodes; do
-                      echo "Removing candidate label on node: $n"
-                      kubectl label node "$n" "${CANDIDATE_LABEL_KEY}-" --overwrite
-                    done
-                    echo "[CronJob Result: $CLUSTER_VALIDATION_STATUS_LABEL] Cluster Validation Status updated on Candidate Nodes (RCCL test skipped)"
-                    echo "=================================================================="
-                    echo "[CronJob Completed] $(date)"
-                    exit 0
-                  fi
-
-                  ts=$(date +%Y%m%d-%H%M)
-                  new_job="cluster-validation-mpi-job-${ts}"
-                  # Calculate worker replicas based on passed nodes count
-                  actual_worker_replicas=$passed_count
-
-                  # Generate PF NAD list (for PF)
-                  PF_NAD_LIST=$(printf "${PF_NIC_NAD_NAME},%.0s" $(seq 1 $PF_NIC_PER_WORKER))
-                  PF_NAD_LIST=${PF_NAD_LIST%,}  # remove trailing comma
-                  # Generate VF NAD list (for VF)
-                  VF_NAD_LIST=$(printf "${VF_NIC_NAD_NAME},%.0s" $(seq 1 $VF_NIC_PER_WORKER))
-                  VF_NAD_LIST=${VF_NAD_LIST%,}  # remove trailing comma
-
-                  if [ "$PF_NIC_PER_WORKER" -gt 0 ]; then
-                    NAD_ANNOTATION="$PF_NAD_LIST"
-                  elif [ "$VF_NIC_PER_WORKER" -gt 0 ]; then
-                    NAD_ANNOTATION="$VF_NAD_LIST"
+                  # ---------------------------------------------------------
+                  # Phase 1 -- GPU HW acceptance
+                  # ---------------------------------------------------------
+                  if [[ "${SKIP_GPU_HW_ACCEPTANCE,,}" != "true" ]]; then
+                    run_phase1 "$candidates"
+                    phase1_passed=$(filter_passed_nodes "$candidates" "$PHASE1_LABEL_KEY")
+                    account_phase_failures "Phase 1" "$candidates" "$phase1_passed"
                   else
-                    NAD_ANNOTATION=""
+                    echo "[Phase 1] SKIP_GPU_HW_ACCEPTANCE=true -- pass-through"
+                    phase1_passed="$candidates"
                   fi
 
-                  sed "s/^  name: cluster-validation-mpi-job/  name: ${new_job}/; \
-                      s|\$\$WORKER_REPLICAS|${actual_worker_replicas}|g; \
-                      s|\$\$LAUNCHER_REPLICAS|${LAUNCHER_REPLICAS}|g; \
-                      s|\$\$LOG_STORE_NODE_NAME|${LOG_STORE_NODE_NAME}|g; \
-                      s|\$\$SLOTS_PER_WORKER|${SLOTS_PER_WORKER}|g; \
-                      s|\$\$GPU_PER_WORKER|${GPU_PER_WORKER}|g; \
-                      s|\$\$PF_NIC_PER_WORKER|${PF_NIC_PER_WORKER}|g; \
-                      s|\$\$VF_NIC_PER_WORKER|${VF_NIC_PER_WORKER}|g; \
-                      s|\$\$NAD_ANNOTATION|${NAD_ANNOTATION}|g; \
-                      s|\$\$RCCL_WORKLOAD_IMAGE|${RCCL_WORKLOAD_IMAGE}|g" \
-                      /mpi-configs/cluster-validation-mpijob-config.yaml | kubectl apply -f -   
-                  echo "[MPIJob: Submitted for $actual_worker_replicas worker node(s)]"
-                  echo "=================================================================="
-
-                  echo -e "\n$(date): ===Step 4: Waiting for MPIJob completion==="
-                  if kubectl wait mpijob "$new_job" --for=condition=Succeeded --timeout=${MPIJOB_WAIT_TIME}s; then
-                    CLUSTER_VALIDATION_STATUS_LABEL=${SUCCESS_LABEL}
-                    job_status=passed
-                    echo "$(date): MPIJob $new_job succeeded ✅"
-                    echo "[MPIJob Result: Passed]"
+                  # ---------------------------------------------------------
+                  # Phase 2 -- Intra-node GPU collective
+                  # ---------------------------------------------------------
+                  if [[ "${SKIP_GPU_MESH_VALIDATION,,}" != "true" ]]; then
+                    run_phase2 "$phase1_passed"
+                    phase2_passed=$(filter_passed_nodes "$phase1_passed" "$PHASE2_LABEL_KEY")
+                    account_phase_failures "Phase 2" "$phase1_passed" "$phase2_passed"
                   else
-                    CLUSTER_VALIDATION_STATUS_LABEL=${FAILURE_LABEL}
-                    job_status=failed
-                    echo "$(date): MPIJob $new_job failed ❌"
-                    echo "[MPIJob Result: Failed]"
-                    sleep ${DEBUG_DELAY}
+                    echo "[Phase 2] SKIP_GPU_MESH_VALIDATION=true -- pass-through"
+                    phase2_passed="$phase1_passed"
                   fi
-                  echo "=================================================================="
 
-                  echo -e "\n$(date): ===Step 5: Labeling nodes based on MPIJob result==="
-                  for n in $passed_nodes; do
-                    echo "Labeling node $n with $CLUSTER_VALIDATION_STATUS_LABEL"
-                    kubectl label node "$n" "$CLUSTER_VALIDATION_STATUS_LABEL" --overwrite
-                  done
-                  CANDIDATE_LABEL_KEY=${CANDIDATE_LABEL%%=*}
-                  for n in $passed_nodes; do
-                    echo "Removing candidate label on node: $n"
-                    kubectl label node "$n" "${CANDIDATE_LABEL_KEY}-" --overwrite
-                  done
-                  echo "[CronJob Result: $CLUSTER_VALIDATION_STATUS_LABEL] Cluster Validation Status updated on Candidate Nodes"
-                  echo "=================================================================="
-
-                  echo -e "\n$(date): ===Retrieving launcher pod logs==="
-                  LAUNCHER_POD=$(kubectl get pods -l "training.kubeflow.org/job-name=${new_job},training.kubeflow.org/replica-type=launcher" \
-                    -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || true)
-                  if [ -n "$LAUNCHER_POD" ]; then
-                    LAUNCHER_LOG_FILE="${LOG_DIR}/launcher-${new_job}.log"
-                    echo "Saving launcher pod logs ($LAUNCHER_POD) to $LAUNCHER_LOG_FILE"
-                    kubectl logs "$LAUNCHER_POD" --all-containers=true > "$LAUNCHER_LOG_FILE" 2>&1 || \
-                      echo "Warning: Failed to retrieve launcher pod logs"
+                  # ---------------------------------------------------------
+                  # Phase 3 -- Per-node NIC health
+                  # Narrows by amd-nic=true before invoking; nodes without
+                  # NIC labels are silently dropped at this gate (they
+                  # cannot participate in NIC-requiring phases).
+                  # ---------------------------------------------------------
+                  if [[ "${SKIP_NIC_VALIDATION,,}" != "true" ]]; then
+                    nic_capable=$(intersect "$phase2_passed" "$(nodes_with_label 'feature.node.kubernetes.io/amd-nic=true')")
+                    echo "[Phase 3] nic-capable subset: ${nic_capable:-<empty>}"
+                    if [[ -n "$nic_capable" ]]; then
+                      run_phase3 "$nic_capable"
+                      phase3_passed=$(filter_passed_nodes "$nic_capable" "$PHASE3_LABEL_KEY")
+                      account_phase_failures "Phase 3" "$nic_capable" "$phase3_passed"
+                    else
+                      echo "[Phase 3] no NIC-capable nodes -- skipping"
+                      phase3_passed=""
+                    fi
                   else
-                    echo "Warning: Could not find launcher pod for MPIJob $new_job"
+                    echo "[Phase 3] SKIP_NIC_VALIDATION=true -- pass-through"
+                    phase3_passed="$phase2_passed"
                   fi
-                  echo "=================================================================="
 
-                  echo -e "\n$(date): ===Step 6: Cleaning up old MPIJobs==="
-                  mpijobs=$(kubectl get mpijobs -o jsonpath='{.items[*].metadata.name}' \
-                            | tr ' ' '\n' | grep '^cluster-validation-mpi-job-' | sort)
-                  count=$(echo "$mpijobs" | wc -l)
-                  keep=3                                        # <-update before deploy 
-                  if [ "$count" -gt "$keep" ]; then
-                    del=$(echo "$mpijobs" | head -n -"$keep")
-                    for job in $del; do
-                      echo "Deleting old MPIJob: $job"
-                      kubectl delete mpijob "$job" --ignore-not-found
+                  # ---------------------------------------------------------
+                  # Phase 4 -- Pairwise rail bandwidth
+                  # Dedicated run_phase4 wiring landed via;
+                  # sources PHASE4_DRIVER_SCRIPT and the
+                  # /phase4-configs mount carries the server + client
+                  # Job templates from cluster-validation-phase4-job-config.
+                  # ---------------------------------------------------------
+                  if [[ "${SKIP_RAIL_BANDWIDTH_TEST,,}" != "true" ]]; then
+                    run_phase4 "$phase3_passed"
+                    phase4_passed=$(filter_passed_nodes "$phase3_passed" "$PHASE4_LABEL_KEY")
+                    account_phase_failures "Phase 4" "$phase3_passed" "$phase4_passed"
+                  else
+                    echo "[Phase 4] SKIP_RAIL_BANDWIDTH_TEST=true -- pass-through"
+                    phase4_passed="$phase3_passed"
+                  fi
+
+                  # ---------------------------------------------------------
+                  # Phase 4.5 -- Cross-node connectivity matrix
+                  # No SKIP_* flag; maybe_run_phase45 is itself a pass-through
+                  # unless PHASE45_SCRIPT is defined.
+                  # ---------------------------------------------------------
+                  phase45_passed=$(maybe_run_phase45 "$phase4_passed")
+
+                  # ---------------------------------------------------------
+                  # Phase 5 -- Multi-node RCCL via MPIJob
+                  # ---------------------------------------------------------
+                  if [[ "${SKIP_RCCL_TEST,,}" != "true" ]]; then
+                    run_phase5 "$phase45_passed"
+                    phase5_passed=$(filter_passed_nodes "$phase45_passed" "$PHASE5_LABEL_KEY")
+                    account_phase_failures "Phase 5" "$phase45_passed" "$phase5_passed"
+                  else
+                    echo "[Phase 5] SKIP_RCCL_TEST=true -- pass-through"
+                    phase5_passed="$phase45_passed"
+                  fi
+
+                  # ---------------------------------------------------------
+                  # Cleanup -- old MPIJobs (only meaningful when Phase 5 ran)
+                  # ---------------------------------------------------------
+                  cleanup_old_mpijobs() {
+                    if [[ "${DRY_RUN}" == "1" ]]; then
+                      echo "[Cleanup] DRY_RUN -- skipping old-MPIJob cleanup"
+                      return 0
+                    fi
+                    echo -e "\n$(date): ===Cleanup: pruning old MPIJobs==="
+                    local mpijobs count keep del
+                    mpijobs=$(kubectl get mpijobs -o jsonpath='{.items[*].metadata.name}' 2>/dev/null \
+                              | tr ' ' '\n' | grep '^cluster-validation-mpi-job-' | sort || true)
+                    if [[ -z "$mpijobs" ]]; then
+                      echo "[Cleanup] no cluster-validation MPIJobs present"
+                      return 0
+                    fi
+                    count=$(echo "$mpijobs" | wc -l)
+                    keep=3 # <-update before deploy
+                    if [[ "$count" -gt "$keep" ]]; then
+                      del=$(echo "$mpijobs" | head -n -"$keep")
+                      for job in $del; do
+                        echo "[Cleanup] Deleting old MPIJob: $job"
+                        kubectl delete mpijob "$job" --ignore-not-found
+                      done
+                    fi
+                  }
+
+                  # ---------------------------------------------------------
+                  # Launcher log collection -- only when Phase 5 produced an
+                  # MPIJob (i.e. SKIP_RCCL_TEST != true and the phase script
+                  # actually submitted one). The orchestrator does not own
+                  # the job name; we discover any active launcher pods.
+                  # ---------------------------------------------------------
+                  collect_launcher_logs() {
+                    if [[ "${DRY_RUN}" == "1" ]]; then
+                      echo "[Logs] DRY_RUN -- skipping launcher log collection"
+                      return 0
+                    fi
+                    if [[ "${SKIP_RCCL_TEST,,}" == "true" ]]; then
+                      return 0
+                    fi
+                    echo -e "\n$(date): ===Collecting launcher pod logs==="
+                    local launcher_pods pod
+                    launcher_pods=$(kubectl get pods \
+                      -l "training.kubeflow.org/replica-type=launcher" \
+                      -o jsonpath='{.items[*].metadata.name}' 2>/dev/null || true)
+                    if [[ -z "$launcher_pods" ]]; then
+                      echo "[Logs] no launcher pods found"
+                      return 0
+                    fi
+                    for pod in $launcher_pods; do
+                      local log_file="${LOG_DIR}/launcher-${pod}.log"
+                      echo "[Logs] saving ${pod} -> ${log_file}"
+                      kubectl logs "$pod" --all-containers=true > "$log_file" 2>&1 \
+                        || echo "[Logs] WARNING: failed to retrieve logs for $pod"
                     done
-                  fi
+                  }
 
-                  # Fail the overall cronjob if any test runner jobs failed
-                  if [ $failed_count -gt 0 ]; then
-                    echo "Test runner jobs failed on $failed_count node(s). Failing cronjob."
-                    echo "[CronJob Result: FAILED] ❌"
-                    sleep ${DEBUG_DELAY}
+                  cleanup_old_mpijobs
+                  collect_launcher_logs
+
+                  # ---------------------------------------------------------
+                  # Fail-loud exit (design §6)
+                  # ---------------------------------------------------------
+                  echo "=================================================================="
+                  if [[ "$ANY_PHASE_FAILED" -ne 0 ]]; then
+                    echo "[CronJob Result: FAILED] one or more phases produced failed nodes"
+                    sleep "${DEBUG_DELAY}"
                     exit 1
                   fi
-
                   echo "[CronJob Completed] $(date)"
                   echo "=================================================================="
               volumeMounts:
@@ -477,6 +1747,40 @@ spec:
                   mountPath: /mpi-configs
                 - name: test-runner-configs
                   mountPath: /test-runner-configs
+                # Phase 2 per-node Job template
+                # source for PHASE2_SCRIPT. PHASE2_SCRIPT sed-renders the
+                # template at /phase2-configs/cluster-validation-phase2-job-config.yaml
+                # (substituting $$NODE per Phase-1-passed node) and applies
+                # the resulting batch/v1.Job. Mirrors the mpi-configs and
+                # test-runner-configs mounts above; backed by the
+                # cluster-validation-phase2-job-config ConfigMap.
+                - name: phase2-configs
+                  mountPath: /phase2-configs
+                # Phase 3 per-node Job template
+                # source for PHASE3_SCRIPT. PHASE3_SCRIPT sed-renders the
+                # template at /phase3-configs/cluster-validation-phase3-job-config.yaml
+                # (substituting $$NODE and $$EXPECTED_NIC_COUNT per
+                # nic-capable Phase-2-passed node) and applies the resulting
+                # batch/v1.Job. Mirrors the phase2-configs mount above;
+                # backed by the cluster-validation-phase3-job-config
+                # ConfigMap.
+                - name: phase3-configs
+                  mountPath: /phase3-configs
+                # Phase 4 per-(pair, rail) Job
+                # template source for PHASE4_DRIVER_SCRIPT.
+                # PHASE4_DRIVER_SCRIPT sed-renders the server and client
+                # templates at
+                # /phase4-configs/cluster-validation-phase4-server-job-config.yaml
+                # and
+                # /phase4-configs/cluster-validation-phase4-client-job-config.yaml
+                # (substituting $$NODE, $$RAIL_IDX, $$NAD_NAME, and
+                # $$PEER_POD_IP per (pair, rail) instance) and applies
+                # the resulting batch/v1.Jobs. Mirrors the phase2-configs
+                # and phase3-configs mounts above; backed by the
+                # cluster-validation-phase4-job-config ConfigMap
+                #.
+                - name: phase4-configs
+                  mountPath: /phase4-configs
                 - name: cluster-validation-logs
                   mountPath: /var/log/cluster-validation
           volumes:
@@ -486,6 +1790,28 @@ spec:
             - name: test-runner-configs
               configMap:
                 name: cluster-validation-test-runner-job-config
+            # backing ConfigMap for the
+            # /phase2-configs mount above. cluster-validation-phase2-job-config
+            # is defined earlier in this manifest and contains
+            # the per-node Phase 2 RCCL all_reduce_perf Job template.
+            - name: phase2-configs
+              configMap:
+                name: cluster-validation-phase2-job-config
+            # backing ConfigMap for the
+            # /phase3-configs mount above. cluster-validation-phase3-job-config
+            # is defined earlier in this manifest and contains
+            # the per-node Phase 3 NIC-health Job template.
+            - name: phase3-configs
+              configMap:
+                name: cluster-validation-phase3-job-config
+            # backing ConfigMap for the
+            # /phase4-configs mount above. cluster-validation-phase4-job-config
+            # is defined earlier in this manifest
+            # and contains the per-(pair, rail) Phase 4 ib_write_bw
+            # server and client Job templates under separate data keys.
+            - name: phase4-configs
+              configMap:
+                name: cluster-validation-phase4-job-config
             - name: cluster-validation-logs
               hostPath:
                 path: /var/log/cluster-validation

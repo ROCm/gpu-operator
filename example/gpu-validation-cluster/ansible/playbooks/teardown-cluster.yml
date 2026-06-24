@@ -1,17 +1,22 @@
 ---
 # Teardown GPU Validation Cluster
-# Usage: ansible-playbook playbooks/teardown-cluster.yml
+# Usage:
+#   ansible-playbook playbooks/teardown-cluster.yml
+#   ansible-playbook playbooks/teardown-cluster.yml -e cleanup_test_logs=true
 
 - name: Teardown cluster on all nodes
   hosts: cluster_nodes
   gather_facts: no
   become: yes
+  vars:
+    # Set to true to also remove /var/log/cluster-validation on each node.
+    cleanup_test_logs: false
 
   tasks:
     - name: Run teardown script
       shell: |
         cd {{ script_dir }}
-        CONFIG_DIR={{ config_dir }} ./gpu-cluster.sh teardown
+        CONFIG_DIR={{ config_dir }} CLEANUP_TEST_LOGS={{ cleanup_test_logs | bool | string | lower }} ./gpu-cluster.sh teardown
       args:
         executable: /bin/bash
       ignore_errors: yes

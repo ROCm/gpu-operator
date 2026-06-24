@@ -56,17 +56,50 @@
   become: yes
 
   tasks:
-    - name: Update apt cache
-      apt:
-        update_cache: yes
-        cache_valid_time: 3600
-      when: ansible_os_family == "Debian"
-
+    # Probe docker BEFORE the first apt update. If docker is already
+    # installed and working we leave the host's apt sources untouched;
+    # only when we are going to (re)install docker do we normalize its apt
+    # source below. This keeps the playbook from disturbing a healthy host.
     - name: Check if Docker is installed
       command: docker --version
       register: docker_check
       ignore_errors: yes
       changed_when: false
+
+    # A docker apt source left by prior provisioning -- often BOTH a
+    # hand-written docker.list AND an Ansible-generated
+    # download_docker_com_linux_ubuntu.list -- can declare the same repo
+    # with a `signed-by` that conflicts (or is empty), so `apt update`
+    # aborts with "Conflicting values set for option Signed-By ...
+    # download.docker.com" and the whole play dies before docker installs.
+    # When we are about to install docker, unconditionally remove ALL
+    # pre-existing docker source files first; we recreate one canonical
+    # entry (correct signed-by) a few tasks below. Done BEFORE the first
+    # apt cache update so that update can't trip over the conflict.
+    - name: Remove pre-existing docker apt source files (before cache update)
+      shell: |
+        set -o pipefail
+        matches=$(ls -1 /etc/apt/sources.list.d/*docker*.list \
+                        /etc/apt/sources.list.d/*docker*.sources \
+                        /etc/apt/sources.list.d/download_docker_com*.list \
+                        2>/dev/null || true)
+        if [ -n "$matches" ]; then
+          echo "$matches" | xargs rm -f
+          echo "REMOVED"
+        fi
+      args:
+        executable: /bin/bash
+      register: docker_apt_source_cleanup
+      changed_when: "'REMOVED' in (docker_apt_source_cleanup.stdout | default(''))"
+      when:
+        - ansible_os_family == "Debian"
+        - docker_check.rc != 0
+
+    - name: Update apt cache
+      apt:
+        update_cache: yes
+        cache_valid_time: 3600
+      when: ansible_os_family == "Debian"
 
     - name: Install Docker prerequisites
       apt:
@@ -80,18 +113,34 @@
         - ansible_os_family == "Debian"
         - docker_check.rc != 0
 
-    - name: Add Docker GPG key
-      apt_key:
-        url: https://download.docker.com/linux/ubuntu/gpg
-        state: present
+    - name: Ensure apt keyrings directory exists
+      file:
+        path: /etc/apt/keyrings
+        state: directory
+        mode: '0755'
       when:
         - ansible_os_family == "Debian"
         - docker_check.rc != 0
 
-    - name: Add Docker repository
+    # Use the modern keyring path (NOT the deprecated apt_key, which writes
+    # to the global trusted.gpg). force:yes refreshes the key so a stale
+    # one left by a prior provisioning is replaced with a known-good copy.
+    - name: Add Docker GPG key to /etc/apt/keyrings/docker.asc
+      get_url:
+        url: https://download.docker.com/linux/ubuntu/gpg
+        dest: /etc/apt/keyrings/docker.asc
+        mode: '0644'
+        force: yes
+      when:
+        - ansible_os_family == "Debian"
+        - docker_check.rc != 0
+
+    - name: Add Docker repository (canonical entry with explicit signed-by)
       apt_repository:
-        repo: "deb [arch=amd64] https://download.docker.com/linux/ubuntu {{ ansible_distribution_release }} stable"
+        repo: "deb [arch=amd64 signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu {{ ansible_distribution_release }} stable"
+        filename: docker
         state: present
+        update_cache: yes
       when:
         - ansible_os_family == "Debian"
         - docker_check.rc != 0
@@ -108,12 +157,67 @@
         - ansible_os_family == "Debian"
         - docker_check.rc != 0
 
-    - name: Start and enable Docker service
+    # Some GPU hosts ship a NATIVE k3s install (k3s.service / k3s-agent.service
+    # under /etc/systemd/system) from a prior bringup. That k3s binds host
+    # ports 6443/6444 (we run with --net=host inside the container), so our
+    # containerized k3s server fails with "bind: address already in use".
+    # Stop + disable any such native units before starting our stack.
+    - name: Find native k3s systemd units (if any)
+      # `systemctl list-unit-files 'k3s*.service'` exits rc=1 when no units
+      # match (the common case on a fresh host). Combined with set -o
+      # pipefail that fails the pipe, so we explicitly mask it with
+      # failed_when: false -- empty stdout is the legitimate "no native
+      # k3s installed" signal, which the next task handles via `when:`.
+      shell: |
+        set -o pipefail
+        systemctl list-unit-files --no-legend 'k3s*.service' 2>/dev/null \
+          | awk '{print $1}' | tr '\n' ' '
+      args:
+        executable: /bin/bash
+      register: native_k3s_units
+      changed_when: false
+      failed_when: false
+
+    - name: Stop + disable native k3s units (if any are present)
+      shell: |
+        set -eu
+        for U in {{ native_k3s_units.stdout }}; do
+          systemctl stop "$U"    2>/dev/null || true
+          systemctl disable "$U" 2>/dev/null || true
+        done
+        # Belt-and-suspenders: in case k3s was started manually
+        if command -v /usr/local/bin/k3s-killall.sh >/dev/null 2>&1; then
+          /usr/local/bin/k3s-killall.sh 2>/dev/null || true
+        fi
+      args:
+        executable: /bin/bash
+      register: native_k3s_stop
+      changed_when: native_k3s_units.stdout | trim != ''
+      when: native_k3s_units.stdout | trim != ''
+
+    # Some GPU hosts get the `docker` group from LDAP/SSSD only and not
+    # /etc/group. systemd's docker.socket unit has `SocketGroup=docker`
+    # and resolves it before SSSD is fully up at boot, so the socket fails
+    # with exit code 216/GROUP and the service never starts. Ensuring a
+    # local /etc/group entry makes resolution work via files-NSS at boot.
+    - name: Ensure local /etc/group has a 'docker' entry (idempotent)
+      group:
+        name: docker
+        state: present
+      when: ansible_os_family == "Debian"
+
+    # Always (re)start docker — previously this only ran when docker was
+    # newly installed (`when: docker_check.rc != 0`), so hosts where the
+    # daemon had failed at boot stayed broken across re-runs.
+    - name: Reset any failed docker units (idempotent, no-op when clean)
+      shell: systemctl reset-failed docker.socket docker.service 2>/dev/null || true
+      changed_when: false
+
+    - name: Start and enable Docker service (always)
       systemd:
         name: docker
         state: started
         enabled: yes
-      when: docker_check.rc != 0
 
     - name: Add user to docker group
       user:
@@ -234,11 +338,42 @@
   hosts: server_nodes
   gather_facts: yes
   become: yes
+  vars:
+    # Pass `-e force_restart=true` to force-recreate the container even
+    # when it already looks healthy (e.g. after editing gpu-cluster.sh
+    # or config.json in a way that requires a fresh start).
+    force_restart: false
 
   tasks:
+    # Idempotency probe: container is "healthy" iff it is currently Up
+    # AND its kubectl can reach the apiserver. If both true, skip the
+    # destructive rm + run so re-runs don't churn k3s state.
+    - name: Probe existing server container health
+      shell: |
+        set -o pipefail
+        UP=$(docker ps --filter name=^server$ --format '{% raw %}{{.Status}}{% endraw %}' | head -1)
+        if [ -z "$UP" ]; then
+          echo "missing"
+          exit 0
+        fi
+        if docker exec server kubectl get --raw=/readyz >/dev/null 2>&1; then
+          echo "healthy"
+        else
+          echo "unhealthy"
+        fi
+      args:
+        executable: /bin/bash
+      register: server_health
+      changed_when: false
+
+    - name: Show server container health
+      debug:
+        msg: "server health: {{ server_health.stdout }} (force_restart={{ force_restart }})"
+
     - name: Stop existing server container if running
       command: docker rm -f server
       ignore_errors: yes
+      when: server_health.stdout != 'healthy' or (force_restart | bool)
 
     - name: Start server container
       shell: |
@@ -247,11 +382,13 @@
         sleep 5
       args:
         executable: /bin/bash
+      when: server_health.stdout != 'healthy' or (force_restart | bool)
 
     - name: Wait for server to be ready
       wait_for:
         timeout: 50
       delegate_to: localhost
+      when: server_health.stdout != 'healthy' or (force_restart | bool)
 
     - name: Check server container status
       shell: 'docker ps --filter name=server --format "{{ ''{{'' }}.Names{{ ''}}'' }}: {{ ''{{'' }}.Status{{ ''}}'' }}"'
@@ -287,6 +424,8 @@
   gather_facts: no
   become: yes
   serial: 1  # Start agents one at a time to avoid overwhelming the server
+  vars:
+    force_restart: false
 
   tasks:
     - name: Get server IP and token
@@ -298,9 +437,43 @@
       debug:
         msg: "Connecting to server at {{ server_ip }}"
 
+    # Agent "healthy" iff: container Up AND it has an established TCP
+    # connection from inside the container to the k3s apiserver port
+    # (6443) on the server. This is local to the agent host (no
+    # cross-node SSH needed) and catches both "container died" and
+    # "container Up but k3s agent crashed / lost supervisor link".
+    - name: Probe existing agent container health
+      shell: |
+        set -o pipefail
+        UP=$(docker ps --filter name=^agent$ --format '{% raw %}{{.Status}}{% endraw %}' | head -1)
+        if [ -z "$UP" ]; then
+          echo "missing"
+          exit 0
+        fi
+        # ss inside the agent container; k3s-agent holds an ESTAB conn
+        # to <server_ip>:6443. Match either peer in case ss column
+        # ordering changes between distros.
+        if docker exec agent ss -tn state established 2>/dev/null \
+             | awk '{print $3, $4}' \
+             | grep -qE "(:6443\s|\s{{ server_ip }}:6443)"; then
+          echo "healthy"
+        else
+          echo "unhealthy"
+        fi
+      args:
+        executable: /bin/bash
+      register: agent_health
+      changed_when: false
+      failed_when: false
+
+    - name: Show agent container health
+      debug:
+        msg: "agent health: {{ agent_health.stdout }} (force_restart={{ force_restart }})"
+
     - name: Stop existing agent container if running
       command: docker rm -f agent
       ignore_errors: yes
+      when: agent_health.stdout != 'healthy' or (force_restart | bool)
 
     - name: Start agent container
       shell: |
@@ -309,11 +482,13 @@
         sleep 5
       args:
         executable: /bin/bash
+      when: agent_health.stdout != 'healthy' or (force_restart | bool)
 
     - name: Wait for agent to be ready
       wait_for:
         timeout: 15
       delegate_to: localhost
+      when: agent_health.stdout != 'healthy' or (force_restart | bool)
 
     - name: Check agent container status
       shell: 'docker ps --filter name=agent --format "{{ ''{{'' }}.Names{{ ''}}'' }}: {{ ''{{'' }}.Status{{ ''}}'' }}"'
@@ -352,6 +527,65 @@
       debug:
         msg: "{{ cluster_info.stdout_lines }}"
 
+    # The bringup install runs inside the backgrounded gpu-cluster.sh on
+    # the server. Earlier this play only checked that nodes joined, so a
+    # half-installed cluster (operators missing because the install aborted
+    # during post-start k3s flapping) still reported success. Explicitly
+    # verify the helm releases reached STATUS=deployed and the CVF CronJob
+    # exists, retrying while operators reconcile, and fail loudly otherwise.
+    - name: Check whether network operator is enabled in config.json
+      command: docker exec server jq -r 'if .["network-operator"]["install-network-operator"] == null then true else .["network-operator"]["install-network-operator"] end' /configs/config.json
+      register: net_op_enabled
+      changed_when: false
+
+    - name: Build expected Helm release list
+      set_fact:
+        expected_helm_releases: >-
+          {{
+            [
+              { 'release': 'cert-manager',     'ns': 'cert-manager' },
+              { 'release': 'amd-gpu-operator', 'ns': 'kube-amd-gpu' }
+            ]
+            + (
+              [ { 'release': 'amd-network-operator', 'ns': 'kube-amd-network' } ]
+              if (net_op_enabled.stdout | trim | bool) else []
+            )
+          }}
+
+    - name: Verify required Helm releases are deployed
+      shell: |
+        set -o pipefail
+        docker exec server helm status "{{ item.release }}" -n "{{ item.ns }}" -o json 2>/dev/null \
+          | jq -r '.info.status' 2>/dev/null
+      args:
+        executable: /bin/bash
+      register: helm_release_status
+      changed_when: false
+      retries: 30
+      delay: 10
+      until: helm_release_status.stdout == "deployed"
+      loop: "{{ expected_helm_releases }}"
+      loop_control:
+        label: "{{ item.release }}"
+
+    - name: Check whether CVF is enabled in config.json
+      command: docker exec server jq -r '.["cluster-validation-framework"]["install-cvf"] // false' /configs/config.json
+      register: cvf_enabled
+      changed_when: false
+
+    - name: Verify CVF CronJob exists (when CVF enabled)
+      command: docker exec server kubectl get cronjob cluster-validation-cron-job -n default
+      register: cvf_cronjob
+      changed_when: false
+      retries: 30
+      delay: 10
+      until: cvf_cronjob.rc == 0
+      when: cvf_enabled.stdout | trim | bool
+
+    - name: Installation verification passed
+      debug:
+        msg: "All operators deployed and CVF state verified."
+
 - name: Summary
   hosts: localhost
   connection: local
@@ -369,7 +603,7 @@
           Agent Nodes: {{ groups['agent_nodes'] | length }}
 
           To check cluster status:
-            ansible-playbook playbooks/check-status.yml
+            ansible-playbook playbooks/cvf.yml -e action=status
 
           To teardown cluster:
             ansible-playbook playbooks/teardown-cluster.yml

@@ -1,0 +1,28 @@
+# Sample phase2.log fixture -- mpirun crash (non-zero exit).
+# Emitted by the cluster-validation-phase2-job-config Job container
+# when all_reduce_perf aborts mid-run (xGMI link failure,
+# RCCL assertion, segfault, etc.). The Job's container script wraps
+# mpirun and prints a "phase2 mpirun exited <N>" marker on non-zero
+# exit; PHASE2_SCRIPT keys off this exact phrase to classify the
+# failure as rccl-crash.
+[2026-05-19 17:34:55] mpirun --np 8 --host localhost --allow-run-as-root --mca btl ^vader,openib /root/rccl-tests/build/all_reduce_perf -b 1K -e 2G -f 2 -g 1 -n 6 -w 20
+# nThread 1 nGpus 1 minBytes 1024 maxBytes 2147483648 step: 2(factor) warmup iters: 20 iters: 6 validation: 1 graph: 0
+# Using devices
+# Rank 0 Group 0 Pid 61 device 0 [0xc0] AMD Instinct MI300X
+# Rank 1 Group 0 Pid 62 device 1 [0xc1] AMD Instinct MI300X
+# Rank 2 Group 0 Pid 63 device 2 [0xc2] AMD Instinct MI300X
+NCCL WARN [Rank 3] proxyConnect transport=0 reconnect failed
+NCCL INFO Channel 00/02 : 0 1 2 3 4 5 6 7
+NCCL ERROR misc/xgmi.cc:412 GPU 3 xGMI link 2 reported HW error
+[Rank 3] RCCL FATAL: xgmi-init-failure: cannot initialize peer device 4
+--------------------------------------------------------------------------
+Primary job terminated normally, but 1 process returned
+a non-zero exit code. Per user-direction, the job has been aborted.
+--------------------------------------------------------------------------
+--------------------------------------------------------------------------
+mpirun detected that one or more processes exited with non-zero status, thus causing
+the job to be terminated. The first process to exit was:
+  Process name: [[40132,1],3]
+  Exit code: 1
+--------------------------------------------------------------------------
+phase2 mpirun exited 1

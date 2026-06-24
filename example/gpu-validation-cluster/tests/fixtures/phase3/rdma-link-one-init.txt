@@ -1,0 +1,8 @@
+link rocep5s0/1 state ACTIVE physical_state LINK_UP netdev enP5p1s0f0
+link rocep6s0/1 state ACTIVE physical_state LINK_UP netdev enP6p1s0f0
+link rocep7s0/1 state INIT physical_state LINK_UP netdev enP7p1s0f0
+link rocep8s0/1 state ACTIVE physical_state LINK_UP netdev enP8p1s0f0
+link rocep9s0/1 state ACTIVE physical_state LINK_UP netdev enP9p1s0f0
+link rocep10s0/1 state ACTIVE physical_state LINK_UP netdev enP10p1s0f0
+link rocep11s0/1 state ACTIVE physical_state LINK_UP netdev enP11p1s0f0
+link rocep12s0/1 state ACTIVE physical_state LINK_UP netdev enP12p1s0f0

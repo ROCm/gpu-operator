@@ -1,0 +1,29 @@
+# Sample phase2.log fixture -- bandwidth-below-threshold fail.
+# Emitted by the cluster-validation-phase2-job-config Job container
+# when all_reduce_perf completes cleanly BUT the measured
+# Avg bus bandwidth is below PHASE2_BW_THRESHOLD. validate-single-test.sh
+# emits the "phase2 bandwidth below threshold" marker line and exits
+# non-zero, which surfaces as Job=Failed=True with this marker present
+# in the container log.
+#
+# This fixture also stresses the threshold-too-high inject case from
+# the design doc test plan (set PHASE2_BW_THRESHOLD=9999) -- the log
+# shape is identical; only the threshold parameter differs.
+[2026-05-19 17:33:42] mpirun --np 8 --host localhost --allow-run-as-root --mca btl ^vader,openib /root/rccl-tests/build/all_reduce_perf -b 1K -e 2G -f 2 -g 1 -n 6 -w 20
+# nThread 1 nGpus 1 minBytes 1024 maxBytes 2147483648 step: 2(factor) warmup iters: 20 iters: 6 validation: 1 graph: 0
+# Using devices
+# Rank 0 Group 0 Pid 52 device 0 [0xc0] AMD Instinct MI300X
+# Rank 1 Group 0 Pid 53 device 1 [0xc1] AMD Instinct MI300X
+#
+# out-of-place in-place
+# size count type redop time algbw busbw error time algbw busbw error
+# (B) (elements) (us) (GB/s) (GB/s) (us) (GB/s) (GB/s)
+   536870912 134217728 float sum 5421.10 99.04 173.32 N/A 5402.66 99.37 173.91 N/A
+  1073741824 268435456 float sum 10821.85 99.22 173.65 N/A 10791.41 99.50 174.13 N/A
+  2147483648 536870912 float sum 21724.81 98.85 172.99 N/A 21680.45 99.05 173.34 N/A
+# Errors: 0
+# Avg bus bandwidth: 173.7
+#
+[phase2] validate-single-test.sh "phase2_intranode_all_reduce" 200
+[phase2] measured-bw=173.7 threshold=200
+phase2 bandwidth below threshold: measured=173.7 threshold=200

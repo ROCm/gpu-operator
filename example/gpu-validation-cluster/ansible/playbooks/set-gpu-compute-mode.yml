@@ -1,0 +1,118 @@
+---
+# Switch the GPU compute-partition mode on target hosts (default: agent_nodes)
+# and reboot to make the change stick.
+#
+# Usage:
+#   ansible-playbook -i inventory.test.yml playbooks/set-gpu-compute-mode.yml \
+#       -e partition=SPX
+#   ansible-playbook -i inventory.test.yml playbooks/set-gpu-compute-mode.yml \
+#       -e partition=SPX -e target=agent-node-1
+#
+# Vars (all optional):
+#   partition  -- SPX (default) | CPX | TPX | QPX | DPX
+#   target     -- inventory pattern (default: agent_nodes)
+#   skip_reboot -- true to set the partition but skip the reboot
+#                 (only useful if the firmware applies it live; on
+#                 MI300/MI308 a reboot is normally required to reclaim BARs)
+#
+# After this completes, re-run setup-cluster.yml to rejoin the agent
+# container to k3s -- the existing tasks in that playbook are idempotent
+# and will recreate /var/lib/gpu-validation-cluster state cleanly.
+
+- name: Drain CVF agent container before partition change
+  hosts: "{{ target | default('agent_nodes') }}"
+  gather_facts: no
+  become: yes
+  tasks:
+    - name: Stop agent container if present
+      command: docker rm -f agent
+      changed_when: false
+      failed_when: false
+
+- name: Set GPU compute partition mode
+  hosts: "{{ target | default('agent_nodes') }}"
+  gather_facts: yes
+  become: yes
+  vars:
+    partition: SPX
+    skip_reboot: false
+  tasks:
+    - name: Verify rocm-smi is installed
+      command: which rocm-smi
+      register: rocm_smi_check
+      changed_when: false
+
+    - name: Show current compute partition (before)
+      command: rocm-smi --showcomputepartition
+      register: partition_before
+      changed_when: false
+
+    - debug:
+        msg: "{{ partition_before.stdout_lines }}"
+
+    - name: Set compute partition to {{ partition }}
+      command: rocm-smi --setcomputepartition {{ partition }}
+      register: partition_set
+      # rocm-smi exits 0 even when the change is queued for next boot.
+      # Inspect stdout if you need to distinguish live vs deferred.
+      changed_when: true
+
+    - debug:
+        msg: "{{ partition_set.stdout_lines }}"
+
+    - name: Show current compute partition (after, pre-reboot)
+      command: rocm-smi --showcomputepartition
+      register: partition_after_pre_reboot
+      changed_when: false
+
+    - debug:
+        msg: "{{ partition_after_pre_reboot.stdout_lines }}"
+
+    # MI300/MI308 generally need a reboot to free PCIe BAR space allocated
+    # for the now-removed CPX shadow PFs. Without the reboot the amdgpu
+    # driver may keep the previous partition layout in /sys.
+    - name: Reboot node to apply partition change
+      reboot:
+        msg: "Reboot for GPU compute-partition change to {{ partition }}"
+        connect_timeout: 30
+        reboot_timeout: 900       # up to 15 min for hardware POST + boot
+        pre_reboot_delay: 5
+        post_reboot_delay: 30
+        test_command: whoami
+      when: not (skip_reboot | bool)
+
+    - name: Wait for docker daemon to come back after reboot
+      shell: |
+        for i in $(seq 1 30); do
+          if docker info >/dev/null 2>&1; then exit 0; fi
+          sleep 5
+        done
+        exit 1
+      args:
+        executable: /bin/bash
+      changed_when: false
+      when: not (skip_reboot | bool)
+
+    - name: Show current compute partition (after reboot)
+      command: rocm-smi --showcomputepartition
+      register: partition_after_reboot
+      changed_when: false
+      when: not (skip_reboot | bool)
+
+    - debug:
+        msg: "{{ partition_after_reboot.stdout_lines }}"
+      when: not (skip_reboot | bool)
+
+- name: Summary
+  hosts: localhost
+  connection: local
+  gather_facts: no
+  tasks:
+    - debug:
+        msg: |
+          ============================================================
+          GPU partition change complete.
+          Next:
+            ansible-playbook -i inventory.test.yml playbooks/setup-cluster.yml
+            ansible-playbook -i inventory.test.yml playbooks/cvf.yml -e action=fresh-run -e suspend_cronjob=true
+          ============================================================

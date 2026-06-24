@@ -221,7 +221,7 @@
             - Cluster state cleaned up
 
           To verify:
-            ansible-playbook playbooks/check-status.yml
+            ansible-playbook playbooks/cvf.yml -e action=status
 
           To re-add nodes:
             ansible-playbook playbooks/add-agent-nodes.yml --limit node-name

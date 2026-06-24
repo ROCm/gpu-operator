@@ -1,0 +1,15 @@
+# Sample ib_write_bw client log fixture -- crashed run.
+# ib_write_bw exited non-zero before emitting the "BW average" line.
+# PHASE4_DRIVER_SCRIPT's parse step finds no value -> classifies as
+# reason="ib-write-bw-crashed" (when paired with Failed=True from
+# the client Job's terminal condition).
+[phase4-client] starting ib_write_bw -d rdma_dev_2 -i 1 -F 10.42.0.20
+---------------------------------------------------------------------------------------
+                    RDMA_Write BW Test
+ Device         : rdma_dev_2
+---------------------------------------------------------------------------------------
+ibv_create_qp failed: Cannot allocate memory
+Couldn't create QP
+Unable to create QP.
+ethernet_client_exchange_data: Couldn't read remote address
+[phase4-client] ib_write_bw exit=1

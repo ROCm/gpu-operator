@@ -1,0 +1,33 @@
+# Sample ib_write_bw client log fixture -- passing run >= 380 Gbps threshold.
+# Emitted by the cluster-validation-phase4-client-job container
+# when ib_write_bw completes cleanly against the server
+# pod on the paired node, using one specific rail (PHASE4_IB_DEV_PREFIX
+# + RAIL_IDX). PHASE4_DRIVER_SCRIPT only consumes the "BW average" line:
+# it greps for "BW average" then takes column 4 of the next data row.
+#
+# Trimmed to the minimum needed by _phase4_parse_bw_average -- the header
+# line containing "BW average", followed by a data row whose first
+# column is a numeric byte count.
+[phase4-client] starting ib_write_bw -d rdma_dev_3 -i 1 -F 10.42.0.17
+---------------------------------------------------------------------------------------
+                    RDMA_Write BW Test
+ Dual-port : OFF Device : rdma_dev_3
+ Number of qps : 1 Transport type : IB
+ Connection type : RC Using SRQ : OFF
+ PCIe relax order: ON
+ TX depth : 128
+ CQ Moderation : 1
+ Mtu : 4096[B]
+ Link type : Ethernet
+ GID index : 3
+ Max inline data : 0[B]
+ rdma_cm QPs : OFF
+ Data ex. method : Ethernet
+---------------------------------------------------------------------------------------
+ local address: LID 0000 QPN 0x0042 PSN 0x12af34 RKey 0x180100 VAddr 0x007fa9b8000000
+ remote address: LID 0000 QPN 0x0051 PSN 0x6e74c2 RKey 0x180101 VAddr 0x007f0fc8000000
+---------------------------------------------------------------------------------------
+ #bytes #iterations BW peak[Gb/sec] BW average[Gb/sec] MsgRate[Mpps]
+ 65536 5000 391.04 388.42 0.740434
+---------------------------------------------------------------------------------------
+[phase4-client] ib_write_bw exit=0

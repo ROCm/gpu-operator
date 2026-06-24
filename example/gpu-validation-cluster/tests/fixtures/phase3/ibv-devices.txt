@@ -1,0 +1,10 @@
+    device                 node GUID
+    ------              ----------------
+    rocep5s0            aabbccddeeff0000
+    rocep6s0            aabbccddeeff0001
+    rocep7s0            aabbccddeeff0002
+    rocep8s0            aabbccddeeff0003
+    rocep9s0            aabbccddeeff0004
+    rocep10s0           aabbccddeeff0005
+    rocep11s0           aabbccddeeff0006
+    rocep12s0           aabbccddeeff0007

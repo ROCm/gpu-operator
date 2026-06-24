@@ -34,12 +34,14 @@ RUN curl -sfL https://github.com/k3s-io/k3s/releases/download/${K3S_VERSION}/k3s
     mkdir -p /var/lib/rancher/k3s/agent
 
 RUN mkdir -p /images && \
-    skopeo copy docker://ghcr.io/k8snetworkplumbingwg/multus-cni:${MULTUS_CNI_VERSION} oci-archive:/images/multus-cni-${MULTUS_CNI_VERSION}.tar && \
-    zstd -19 /images/multus-cni-${MULTUS_CNI_VERSION}.tar -o /images/multus-cni-${MULTUS_CNI_VERSION}.tar.zst && \
-    rm /images/multus-cni-${MULTUS_CNI_VERSION}.tar && \
-    skopeo copy docker://registry.k8s.io/nfd/node-feature-discovery:${NFD_VERSION} oci-archive:/images/nfd-${NFD_VERSION}.tar && \
-    zstd -19 /images/nfd-${NFD_VERSION}.tar -o /images/nfd-${NFD_VERSION}.tar.zst && \
-    rm /images/nfd-${NFD_VERSION}.tar
+    skopeo copy \
+        docker://ghcr.io/k8snetworkplumbingwg/multus-cni:${MULTUS_CNI_VERSION} \
+        docker-archive:/images/multus-cni-${MULTUS_CNI_VERSION}.tar:ghcr.io/k8snetworkplumbingwg/multus-cni:${MULTUS_CNI_VERSION} && \
+    zstd -19 --rm /images/multus-cni-${MULTUS_CNI_VERSION}.tar && \
+    skopeo copy \
+        docker://registry.k8s.io/nfd/node-feature-discovery:${NFD_VERSION} \
+        docker-archive:/images/nfd-${NFD_VERSION}.tar:registry.k8s.io/nfd/node-feature-discovery:${NFD_VERSION} && \
+    zstd -19 --rm /images/nfd-${NFD_VERSION}.tar
 
 # Set kubeconfig environment variable
 ENV KUBECONFIG=/etc/rancher/k3s/k3s.yaml
