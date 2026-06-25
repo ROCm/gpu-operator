@@ -1,0 +1,1 @@
+../skills/bmc-einj-enable/SKILL.md
