@@ -5,9 +5,9 @@
 /helm-charts-k8s/charts/*.tgz
 *.out
 
-# node app for e2e test
-id_rsa*
-nodeapp
+# node app for e2e test (ephemeral build artifacts, not the source dir)
+/tests/e2e/nodeapp/id_rsa*
+/tests/e2e/nodeapp/nodeapp
 
 # Sphinx documentation
 _build/
