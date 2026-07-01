@@ -11,3 +11,7 @@ updates:
     schedule:
       interval: "daily"
     versioning-strategy: increase
+  - package-ecosystem: "github-actions"
+    directory: "/" # Scans .github/workflows for action/reusable-workflow refs
+    schedule:
+      interval: "weekly"

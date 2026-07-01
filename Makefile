@@ -132,6 +132,10 @@ DOCKER_CACHE_FROM ?=
 DOCKER_CACHE_TO ?=
 GOLANG_BASE_IMG ?= golang:1.26.4
 OPERATOR_CONTROLLER_BASE_IMAGE ?= registry.access.redhat.com/ubi9/ubi-minimal:9.7
+# Helm binary installed into the build-shell image (Dockerfile.build). Pin the
+# version and its published sha256 together; bump both when upgrading.
+HELM_VERSION ?= v3.19.0
+HELM_SHA256 ?= a7f81ce08007091b86d8bd696eb4d86b8d0f2e1b9f6c714be62f82f96a594496
 
 ##################
 # Documentation website build variables
@@ -376,6 +380,8 @@ docker-build-env: ## Build the docker shell container.
 		-t $(DOCKER_BUILDER_IMAGE) \
 		--build-arg BUILD_BASE_IMG=$(BUILD_BASE_IMG) \
 		--build-arg INSECURE_REGISTRY=$(INSECURE_REGISTRY) \
+		--build-arg HELM_VERSION=$(HELM_VERSION) \
+		--build-arg HELM_SHA256=$(HELM_SHA256) \
 		$(if $(DOCKER_CACHE_FROM),--cache-from=$(DOCKER_CACHE_FROM)) \
 		$(if $(DOCKER_CACHE_TO),--cache-to=$(DOCKER_CACHE_TO)) \
 		--load \

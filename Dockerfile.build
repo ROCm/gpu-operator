@@ -54,9 +54,12 @@ RUN wget https://go.dev/dl/go1.26.4.linux-amd64.tar.gz && \
 
 ENV PATH="/usr/local/go/bin:${PATH}"
 
-RUN curl -fsSL -o get_helm.sh https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 && \
-    chmod 700 get_helm.sh && \
-    ./get_helm.sh && rm get_helm.sh
+ARG HELM_VERSION=v3.19.0
+ARG HELM_SHA256=a7f81ce08007091b86d8bd696eb4d86b8d0f2e1b9f6c714be62f82f96a594496
+RUN curl -fsSL -o helm.tar.gz "https://get.helm.sh/helm-${HELM_VERSION}-linux-amd64.tar.gz" && \
+    echo "${HELM_SHA256}  helm.tar.gz" | sha256sum -c - && \
+    tar -xzf helm.tar.gz --strip-components=1 -C /usr/local/bin linux-amd64/helm && \
+    rm helm.tar.gz
 
 RUN curl -sSL https://github.com/arttor/helmify/releases/download/v0.4.13/helmify_Linux_x86_64.tar.gz \
     -o helmify_Linux_x86_64.tar.gz && \
