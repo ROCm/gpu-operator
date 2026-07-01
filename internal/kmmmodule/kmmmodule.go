@@ -324,18 +324,6 @@ func resolveDockerfile(cmName string, devConfig *amdv1alpha1.DeviceConfig) (stri
 		}
 	case "sles":
 		dockerfileTemplate = dockerfileTemplateSLES
-	// FIX ME
-	// add the RHEL back when it is fully supported
-	/*case "rhel":
-	dockerfileTemplate = dockerfileTemplateRHEL
-	versionSplits := strings.Split(version, ".")
-	dockerfileTemplate = strings.Replace(dockerfileTemplate, "$$MAJOR_VERSION", versionSplits[0], -1)
-	if devConfig.Spec.RedhatSubscriptionUsername == "" || devConfig.Spec.RedhatSubscriptionPassword == "" {
-		return "", fmt.Errorf("Redhat subscription RedhatSubscriptionUsername and RedhatSubscriptionPassword required")
-	}
-	dockerfileTemplate = strings.Replace(dockerfileTemplate, "$$REDHAT_SUBSCRIPTION_USERNAME", devConfig.Spec.RedhatSubscriptionUsername, -1)
-	dockerfileTemplate = strings.Replace(dockerfileTemplate, "$$REDHAT_SUBSCRIPTION_PASSWORD", devConfig.Spec.RedhatSubscriptionPassword, -1)
-	*/
 	default:
 		return "", fmt.Errorf("not supported OS: %s", osDistro)
 	}
