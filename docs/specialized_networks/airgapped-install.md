@@ -37,6 +37,10 @@ gcr.io/kaniko-project/executor:v1.23.2
 docker.io/ubuntu:<Ubuntu OS version>
 docker.io/busybox:1.36
 
+# SLES base and prebuilt driver images (only needed for SLES GPU nodes)
+registry.suse.com/bci/bci-micro:<codestream>  # e.g. 15.7 or 16.0
+registry.suse.com/third-party/amd/amdgpu-driver:sles-<codestream>-<ga-kernel>-default-<driver-version>
+
 # Node Feature Discovery
 registry.k8s.io/nfd/node-feature-discovery:v0.18.3
 
@@ -142,6 +146,22 @@ docker push ${INTERNAL_REGISTRY}/busybox:${BUSYBOX_VERSION}
 docker pull registry.k8s.io/nfd/node-feature-discovery:${NFD_VERSION}
 docker tag registry.k8s.io/nfd/node-feature-discovery:${NFD_VERSION} ${INTERNAL_REGISTRY}/nfd/node-feature-discovery:${NFD_VERSION}
 docker push ${INTERNAL_REGISTRY}/nfd/node-feature-discovery:${NFD_VERSION}
+
+# SLES base and prebuilt driver images (only needed for SLES GPU nodes)
+# Update these to match your SLES codestream and driver version.
+# GA_KERNEL is the kernel version embedded in the SUSE prebuilt image tag — check registry.suse.com/third-party/amd/amdgpu-driver for available tags.
+CODESTREAM="16.0"               # e.g. 15.7 or 16.0
+GA_KERNEL="6.12.0-160000.5"     # GA kernel for the codestream
+DRIVER_VERSION="31.30"          # same as spec.driver.version in DeviceConfig
+SLES_TAG="sles-${CODESTREAM}-${GA_KERNEL}-default-${DRIVER_VERSION}"
+
+docker pull registry.suse.com/bci/bci-micro:${CODESTREAM}
+docker tag  registry.suse.com/bci/bci-micro:${CODESTREAM} ${INTERNAL_REGISTRY}/bci/bci-micro:${CODESTREAM}
+docker push ${INTERNAL_REGISTRY}/bci/bci-micro:${CODESTREAM}
+
+docker pull registry.suse.com/third-party/amd/amdgpu-driver:${SLES_TAG}
+docker tag  registry.suse.com/third-party/amd/amdgpu-driver:${SLES_TAG} ${INTERNAL_REGISTRY}/third-party/amd/amdgpu-driver:${SLES_TAG}
+docker push ${INTERNAL_REGISTRY}/third-party/amd/amdgpu-driver:${SLES_TAG}
 
 # Cert-manager images
 CERT_MANAGER_IMAGES=(
@@ -298,6 +318,23 @@ spec:
   configManager:
     enable: false
     image: internal-registry.example.com/rocm/device-config-manager:<version>
+```
+
+```{Note}
+For **SLES GPU nodes**, also set `spec.driver.imageBuild.baseImageRegistry` to your internal
+registry. This tells the operator to pull both the `bci-micro` base image and the SUSE prebuilt
+driver source from the internal mirror instead of `registry.suse.com`. The image paths under the
+internal registry must preserve the original SUSE paths (`/bci/bci-micro` and
+`/third-party/amd/amdgpu-driver`), as mirrored in step 1.
+```
+
+```yaml
+  driver:
+    enable: true
+    version: "<driver-version>"
+    image: internal-registry.example.com/rocm/driver-image
+    imageBuild:
+      baseImageRegistry: "internal-registry.example.com"
 ```
 
 ## Verification
