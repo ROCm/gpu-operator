@@ -4,19 +4,19 @@
 
 The test runner's test recipes are built upon ROCm Validation Suite (RVS). Here is a full list of supported test recipes by RVS.
 
-| GPU       | babel | gpup_single | gst_single | iet_single | pbqt_single | pebb_single | tst_single | gst_ext | gst_selfcheck | gst_stress | iet_stress | gst_thermal | iet_thermal |
-|--------------|-------|-------------|------------|------------|-------------|-------------|------------|---------|---------------|------------|------------|-------------|-------------|
-| MI210     | ✓     | ✓           | ✓          | ✓          | ✓           | ✓           | ✓          |         |               |            |            |             |             |
-| MI300X    | ✓     |             | ✓          | ✓          | ✓           | ✓           |            | ✓       | ✓             | ✓          | ✓          |             |             |
-| MI300A    |       |             |            |            |             | ✓           |            |         |               |            | ✓          |             |             |
-| MI300X-HF |       |             | ✓          |            |             |             |            |         |               |            | ✓          |             |             |
-| MI308X    | ✓     |             | ✓          | ✓          |             |             |            |         |               |            | ✓          | ✓           | ✓           |
-| MI308X-HF | ✓     |             | ✓          |            |             |             |            |         |               |            | ✓          | ✓           | ✓           |
-| MI325X    | ✓     |             | ✓          |            | ✓           | ✓           |            |         |               |            | ✓          |             |             |
-| MI350P-450W  | ✓     |             | ✓          |            |             |             |            |         |               |            | ✓          |             |             |
-| MI350P-600W  | ✓     |             | ✓          |            |             |             |            |         |               |            | ✓          |             |             |
-| MI350X    | ✓     |             | ✓          |            | ✓           | ✓           |            |         |               |            | ✓          |             |             |
-| MI355X    | ✓     |             | ✓          |            | ✓           | ✓           |            |         |               |            | ✓          |             |             |
+| GPU          | babel | babel_single | gpup_single | gst_single | iet_single | pbqt_single | pebb_single | tst_single | gst_ext | gst_selfcheck | gst_stress | iet_stress | gst_thermal | iet_thermal |
+|--------------|-------|--------------|-------------|------------|------------|-------------|-------------|------------|---------|---------------|------------|------------|-------------|-------------|
+| MI210        | ✓     |              | ✓           | ✓          | ✓          | ✓           | ✓           | ✓          |         |               |            |            |             |             |
+| MI300X       | ✓     |              |             | ✓          | ✓          | ✓           | ✓           |            | ✓       | ✓             | ✓          | ✓          |             |             |
+| MI300A       |       |              |             |            |            |             | ✓           |            |         |               |            | ✓          |             |             |
+| MI300X-HF    |       |              |             | ✓          |            |             |             |            |         |               |            | ✓          |             |             |
+| MI308X       | ✓     |              |             | ✓          | ✓          |             |             |            |         |               |            | ✓          | ✓           | ✓           |
+| MI308X-HF    | ✓     |              |             | ✓          |            |             |             |            |         |               |            | ✓          | ✓           | ✓           |
+| MI325X       | ✓     |              |             | ✓          |            | ✓           | ✓           |            |         |               |            | ✓          |             |             |
+| MI350P-450W  |       | ✓            |             | ✓          |            |             |             |            |         |               |            | ✓          |             |             |
+| MI350P-600W  |       | ✓            |             | ✓          |            |             |             |            |         |               |            | ✓          |             |             |
+| MI350X       | ✓     |              |             | ✓          |            | ✓           | ✓           |            |         |               |            | ✓          |             |             |
+| MI355X       | ✓     |              |             | ✓          |            | ✓           | ✓           |            |         |               |            | ✓          |             |             |
 
 ### Radeon GPU test recipes
 
