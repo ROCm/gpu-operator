@@ -1,4 +1,4 @@
-FROM registry.access.redhat.com/ubi9/ubi-minimal:9.7
+FROM registry.access.redhat.com/ubi9/ubi-minimal:9.8
 
 LABEL name="amd-gpu-operator-utils"
 LABEL maintainer="sriram.ravishankar@amd.com,yan.sun3@amd.com"
