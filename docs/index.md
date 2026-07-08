@@ -21,10 +21,14 @@ The AMD GPU Operator simplifies the deployment and management of AMD Instinct GP
 | --- | --- |
 | AMD Instinct™ MI355X | ✅ Supported |
 | AMD Instinct™ MI350X | ✅ Supported |
+| AMD Instinct™ MI350P | ✅ Supported |
 | AMD Instinct™ MI325X | ✅ Supported |
 | AMD Instinct™ MI300X | ✅ Supported |
 | AMD Instinct™ MI250 | ✅ Supported |
 | AMD Instinct™ MI210 | ✅ Supported |
+| AMD Radeon™ AI PRO R9700S | ✅ Supported |
+| AMD Radeon™ AI PRO R9600D | ✅ Supported |
+| AMD Radeon™ Pro W7900 | ✅ Supported |
 
 ### OS & Platform Support Matrix
 
