@@ -17,6 +17,10 @@ rules:
   resources: [workflowtaskresults]
   verbs: [create, patch]
 - apiGroups:
+  - argoproj.io
+  resources: [workflows/finalizers]
+  verbs: [update]
+- apiGroups:
   - batch
   resources: [jobs]
   verbs: [get, list, watch, create, patch, delete]
