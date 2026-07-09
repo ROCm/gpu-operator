@@ -9,4 +9,4 @@ dependencies:
   repository: file://./charts/remediation-crds
   version: v1.0.0
 digest: sha256:0806f6b6d7aa21be77bf1c91e720ae3238338a16f107df450a53b02ef940db1b
-generated: "2026-07-06T09:55:31.790213445Z"
+generated: "2026-07-09T09:40:11.647230235Z"
