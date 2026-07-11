@@ -172,7 +172,7 @@ func (n *remediationMgr) HandleRemediation(ctx context.Context, devConfig *amdv1
 	if devConfig.Spec.RemediationWorkflow.Config == nil || devConfig.Spec.RemediationWorkflow.Config.Name == "" {
 		if result, err := n.helper.createConfigMapFromImage(ctx, devConfig); err != nil {
 			return res, err
-		} else if result.Requeue {
+		} else if result.RequeueAfter > 0 {
 			return result, nil
 		}
 	}

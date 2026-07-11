@@ -66,7 +66,7 @@ RUN curl -sSL https://github.com/arttor/helmify/releases/download/v0.4.13/helmif
     tar -C /usr/local/bin/ -xzf helmify_Linux_x86_64.tar.gz && \
     rm helmify_Linux_x86_64.tar.gz
 
-RUN curl -o /usr/local/bin/kubectl -LO 'https://dl.k8s.io/release/v1.30.4/bin/linux/amd64/kubectl' && \
+RUN curl -o /usr/local/bin/kubectl -LO 'https://dl.k8s.io/release/v1.36.2/bin/linux/amd64/kubectl' && \
     chmod +x /usr/local/bin/kubectl
 
 ARG INSECURE_REGISTRY

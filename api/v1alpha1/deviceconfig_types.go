@@ -36,6 +36,7 @@ import (
 	monitoringv1 "github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring/v1"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/intstr"
 )
 
@@ -1083,5 +1084,9 @@ type DeviceConfigList struct {
 }
 
 func init() {
-	SchemeBuilder.Register(&DeviceConfig{}, &DeviceConfigList{})
+	SchemeBuilder.Register(func(s *runtime.Scheme) error {
+		s.AddKnownTypes(GroupVersion, &DeviceConfig{}, &DeviceConfigList{})
+		metav1.AddToGroupVersion(s, GroupVersion)
+		return nil
+	})
 }
