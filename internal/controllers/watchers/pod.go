@@ -51,6 +51,24 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 )
 
+// KMM labels its helper pods with kmm.node.kubernetes.io/pod-type. Build pods
+// carry the value "build" and sign pods "sign" in the deployed ROCm KMM fork;
+// the package that defines these is internal to KMM and not importable, so the
+// values are duplicated here.
+const (
+	kmmPodTypeLabelKey   = "kmm.node.kubernetes.io/pod-type"
+	kmmPodTypeBuildValue = "build"
+	kmmPodTypeSignValue  = "sign"
+)
+
+// isKMMBuildOrSignPod reports whether the pod is a KMM build or sign helper pod.
+// Both share the same recreate-if-missing lifecycle (KMM's Sync respawns them),
+// so both can be safely deleted to retrigger KMM.
+func isKMMBuildOrSignPod(labels map[string]string) bool {
+	podType := labels[kmmPodTypeLabelKey]
+	return podType == kmmPodTypeBuildValue || podType == kmmPodTypeSignValue
+}
+
 //go:generate mockgen -source=pod.go -package=watchers -destination=mock_pod.go PodEventHandlerAPI
 type PodEventHandlerAPI interface {
 	Create(ctx context.Context, evt event.CreateEvent, q workqueue.TypedRateLimitingInterface[reconcile.Request])
@@ -116,14 +134,35 @@ func (h *PodEventHandler) Update(
 	}
 
 	logger := log.FromContext(ctx)
-	// if any builder pod container status went to ContainerStatusUnknown, delete the pod
-	// otherwise the build pod won't be automatically retriggered
-	for _, containerStatus := range pod.Status.ContainerStatuses {
-		if containerStatus.State.Waiting != nil && containerStatus.State.Waiting.Reason == "ContainerStatusUnknown" {
-			if err := h.client.Delete(ctx, pod); err != nil {
-				logger.Error(err, fmt.Sprintf("failed to delete ContainerStatusUnknown pod %+v", pod.GetName()))
+	// Delete ContainerStatusUnknown build/sign pods to retrigger KMM, but only when the node
+	// is Ready — deleting while NotReady causes KMM to spawn a replacement before the kubelet
+	// volume registry re-syncs, producing a FailedMount on the Dockerfile ConfigMap.
+	if isKMMBuildOrSignPod(pod.Labels) {
+		for _, containerStatus := range pod.Status.ContainerStatuses {
+			if containerStatus.State.Waiting != nil && containerStatus.State.Waiting.Reason == "ContainerStatusUnknown" {
+				node := &v1.Node{}
+				if err := h.client.Get(ctx, types.NamespacedName{Name: pod.Spec.NodeName}, node); err != nil {
+					logger.Error(err, "failed to get node for ContainerStatusUnknown pod, skipping deletion",
+						"pod", pod.GetName(), "node", pod.Spec.NodeName)
+					break
+				}
+				nodeReady := false
+				for _, cond := range node.Status.Conditions {
+					if cond.Type == v1.NodeReady && cond.Status == v1.ConditionTrue {
+						nodeReady = true
+						break
+					}
+				}
+				if !nodeReady {
+					logger.Info("skipping ContainerStatusUnknown pod deletion: node is not Ready, will retry when node recovers",
+						"pod", pod.GetName(), "node", pod.Spec.NodeName)
+					break
+				}
+				if err := h.client.Delete(ctx, pod); err != nil {
+					logger.Error(err, "failed to delete ContainerStatusUnknown pod", "pod", pod.GetName())
+				}
+				break
 			}
-			break
 		}
 	}
 
@@ -189,8 +228,7 @@ func hasExpectedPodLabel(obj metav1.Object) bool {
 	if labels == nil {
 		return false
 	}
-	value := labels["kmm.node.kubernetes.io/pod-type"]
-	isKMMBuilder := value == "builder"
+	isKMMBuildOrSign := isKMMBuildOrSignPod(labels)
 	_, isWorkerMgrPod := labels[utils.WorkerActionLabelKey]
-	return isKMMBuilder || isWorkerMgrPod
+	return isKMMBuildOrSign || isWorkerMgrPod
 }
