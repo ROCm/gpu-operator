@@ -181,7 +181,7 @@ remediationWorkflow:
   # Container image used for executing GPU validation tests during remediation workflows.
   # This image runs test suites to verify GPU health after remediation completes.
   # Default image supports only RVS tests. Contact AMD for AGFHC-enabled test runner.
-  testerImage: docker.io/rocm/test-runner:v1.4.1
+  testerImage: docker.io/rocm/test-runner:v1.5.1
 
   # Maximum number of remediation workflows that can execute concurrently across the cluster.
   # Helps maintain minimum node availability by preventing excessive simultaneous remediations.
@@ -251,7 +251,7 @@ remediationWorkflow:
 
 **TtlForFailedWorkflows** - Defines the time-to-live (TTL) duration for retaining failed workflow objects and their associated pods before automatic cleanup. This field accepts a duration string in standard formats (e.g., "24h", "30m", "1h30m"). Retaining failed workflows allows for post-mortem analysis and troubleshooting. Once the specified duration expires, the workflow resources are automatically garbage collected by the system. The default retention period is 24 hours.
 
-**TesterImage** - Specifies the container image for executing GPU validation tests during remediation workflows. This image must align with `Spec.TestRunner.Image` specifications and runs test suites to verify GPU health after remediation completion. If unspecified, the default image is `docker.io/rocm/test-runner:v1.4.1`.
+**TesterImage** - Specifies the container image for executing GPU validation tests during remediation workflows. This image must align with `Spec.TestRunner.Image` specifications and runs test suites to verify GPU health after remediation completion. If unspecified, the default image is `docker.io/rocm/test-runner:v1.5.1`.
 
 > **Note:** The default image supports only RVS test execution. For AGFHC test framework support within workflows, contact your AMD representative to obtain access to the AGFHC-enabled test runner image.
 

@@ -250,6 +250,7 @@ update-version: update-helm-metadata ## Update the Project version in helm chart
 	sed -i 's|defaultConfigManagerImage.*=.*"docker.io/rocm/device-config-manager:[^"]*"|defaultConfigManagerImage = "docker.io/rocm/device-config-manager:${PROJECT_VERSION}"|' internal/configmanager/configmanager.go
 	sed -i 's|defaultMetricsExporterImage.*=.*"docker.io/rocm/device-metrics-exporter:[^"]*"|defaultMetricsExporterImage = "docker.io/rocm/device-metrics-exporter:${PROJECT_VERSION}"|' internal/metricsexporter/metricsexporter.go
 	sed -i 's|defaultTestRunnerImage.*=.*"docker.io/rocm/test-runner:[^"]*"|defaultTestRunnerImage = "docker.io/rocm/test-runner:${PROJECT_VERSION}"|' internal/testrunner/testrunner.go
+	sed -i 's|DefaultTestRunnerImage.*=.*"docker.io/rocm/test-runner:[^"]*"|DefaultTestRunnerImage = "docker.io/rocm/test-runner:${PROJECT_VERSION}"|' internal/controllers/remediation_handler.go
 	${MAKE} fmt
 
 .PHONY: update-version-in-ci
