@@ -1,4 +1,4 @@
-ARG GOLANG_BASE_IMG=golang:1.26.4
+ARG GOLANG_BASE_IMG=golang:1.26.5
 ARG OPERATOR_CONTROLLER_BASE_IMAGE=registry.access.redhat.com/ubi9/ubi-minimal:9.8
 
 # Build the manager binary
