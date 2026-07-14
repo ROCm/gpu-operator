@@ -122,7 +122,7 @@ CONTAINER_DOCKER_SOCKET ?= /var/run/docker.sock
 DOCKER_GID := $(shell stat -c '%g' $(HOST_DOCKER_SOCKET))
 USER_UID := $(shell id -u)
 USER_GID := $(shell id -g)
-DOCKER_BUILDER_TAG := v1.6
+DOCKER_BUILDER_TAG := v1.7
 DOCKER_BUILDER_IMAGE := $(DOCKER_REGISTRY)/gpu-operator-build:$(DOCKER_BUILDER_TAG)
 CONTAINER_WORKDIR := /gpu-operator
 # In CI environments (e.g. GitHub Actions) there is no TTY, so omit -it flags.
@@ -130,7 +130,7 @@ DOCKER_IT_FLAGS := $(if $(CI),,-it)
 BUILD_BASE_IMG ?= ubuntu:22.04
 DOCKER_CACHE_FROM ?=
 DOCKER_CACHE_TO ?=
-GOLANG_BASE_IMG ?= golang:1.26.4
+GOLANG_BASE_IMG ?= golang:1.26.5
 OPERATOR_CONTROLLER_BASE_IMAGE ?= registry.access.redhat.com/ubi9/ubi-minimal:9.8
 # Helm binary installed into the build-shell image (Dockerfile.build). Pin the
 # version and its published sha256 together; bump both when upgrading.
