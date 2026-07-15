@@ -64,15 +64,17 @@ spec:
             port: 8081
           initialDelaySeconds: 5
           periodSeconds: 10
-        # TODO(user): Configure the resources accordingly based on the project requirements.
-        # More info: https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/
+        # Keep in sync with the Helm chart controller-manager resources
+        # (helm-charts-k8s/values.yaml). The previous 384Mi limit was the
+        # kubebuilder scaffold default and caused intermittent OOMKilled
+        # events on OpenShift under load.
         resources:
           limits:
-            cpu: 500m
-            memory: 384Mi
+            cpu: 1000m
+            memory: 1Gi
           requests:
-            cpu: 10m
-            memory: 64Mi
+            cpu: 100m
+            memory: 256Mi
       serviceAccountName: controller-manager
       terminationGracePeriodSeconds: 10
       tolerations:
