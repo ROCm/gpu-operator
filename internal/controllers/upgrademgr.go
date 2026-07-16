@@ -832,7 +832,7 @@ func (h *upgradeMgrHelper) getPodsToDrainOrDelete(ctx context.Context, deviceCon
 	}
 
 	for _, pod := range pods.Items {
-		if strings.HasPrefix(pod.Name, fmt.Sprintf("%v-%v", deviceConfig.Name, "metrics-exporter")) || strings.HasPrefix(pod.Name, fmt.Sprintf("%v-%v", deviceConfig.Name, "device-config-manager")) || strings.HasPrefix(pod.Name, fmt.Sprintf("%v-%v", deviceConfig.Name, "device-plugin")) || strings.HasPrefix(pod.Name, fmt.Sprintf("%v-%v", deviceConfig.Name, "node-labeller")) || strings.HasPrefix(pod.Name, fmt.Sprintf("%v-%v", deviceConfig.Name, "test-runner")) {
+		if strings.HasPrefix(pod.Name, fmt.Sprintf("%v-%v", deviceConfig.Name, "metrics-exporter")) || strings.HasPrefix(pod.Name, fmt.Sprintf("%v-%v", deviceConfig.Name, "device-config-manager")) || strings.HasPrefix(pod.Name, fmt.Sprintf("%v-%v", deviceConfig.Name, "device-plugin")) || strings.HasPrefix(pod.Name, fmt.Sprintf("%v-%v", deviceConfig.Name, "node-labeller")) || strings.HasPrefix(pod.Name, fmt.Sprintf("%v-%v", deviceConfig.Name, "test-runner")) || strings.HasPrefix(pod.Name, fmt.Sprintf("%v-%v", deviceConfig.Name, "dra-driver")) {
 			newPods = append(newPods, pod)
 			continue
 		}
@@ -1329,7 +1329,8 @@ func (h *upgradeMgrHelper) getRebootPod(nodeName string, dc *amdv1alpha1.DeviceC
 				{
 					Name:            "reboot-container",
 					Image:           utilsImage,
-					Command:         []string{"/nsenter", "--all", "--target=1", "--", "sudo", "reboot"},
+					// Flush filesystems before reboot to avoid exec-format errors from unflushed overlay writes.
+					Command:         []string{"/nsenter", "--all", "--target=1", "--", "sh", "-c", "sync; sudo reboot"},
 					Stdin:           true,
 					TTY:             true,
 					SecurityContext: &v1.SecurityContext{Privileged: ptr.To(true)},
