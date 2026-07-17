@@ -16,7 +16,7 @@ This guide walks through installing the AMD GPU Operator on a Kubernetes cluster
 
 ### System Requirements
 
-- Kubernetes cluster v1.29.0 or later
+- Kubernetes cluster v1.29.0 to v1.36.x
 - Helm v3.2.0 or later
 - `kubectl` command-line tool configured with access to the cluster
 - Cluster admin privileges

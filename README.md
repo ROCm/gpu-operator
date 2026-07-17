@@ -6,7 +6,7 @@ For the most detailed and up-to-date documentation please visit our Instinct Doc
 
 ## Introduction
 
-AMD GPU Operator simplifies the deployment and management of AMD Instinct GPU accelerators within Kubernetes clusters. This project enables seamless configuration and operation of GPU-accelerated workloads, including machine learning, Generative AI, and other GPU-intensive applications.
+AMD GPU Operator simplifies the deployment and management of AMD Instinct™ and AMD Radeon™ GPU accelerators within Kubernetes clusters. This project enables seamless configuration and operation of GPU-accelerated workloads, including machine learning, Generative AI, and other GPU-intensive applications.
 
 ## Components
 
