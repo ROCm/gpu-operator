@@ -1,23 +1,26 @@
 # Release Notes
 
-## GPU Operator v1.5.1 (beta) Release Notes
+## GPU Operator v1.5.1 Release Notes
 
-The AMD GPU Operator v1.5.1 (beta) release extends hardware support to the **AMD Instinct MI350P** and **AMD Radeon AI Pro** GPU families, and updates the Device Metrics Exporter with configurable exporter arguments.
+The AMD GPU Operator v1.5.1 release extends hardware support to the **AMD Instinct™ MI350P** and **AMD Radeon™ AI PRO** GPU families, and updates the Device Metrics Exporter with configurable exporter arguments.
 
 ### Release Highlights
 
-- **AMD Instinct MI350P Platform Support**
-  - The GPU Operator now supports AMD Instinct MI350P GPUs on both vanilla Kubernetes and OpenShift.
+- **AMD Instinct™ MI350P Platform Support**
+  - The GPU Operator now supports AMD Instinct™ MI350P GPUs on both vanilla Kubernetes and OpenShift.
   - Requires ROCm 7.13+ (amdgpu driver 6.19+).
   - All core operator features are supported: driver management (KMM), device plugin, node labeller, metrics exporter, test runner, DCM, DRA driver, and NPD integration.
-  - > **Note:** Auto Node Remediation (ANR) is not fully supported on MI350P in this beta release.
+  - > **Note:** Auto Node Remediation (ANR) is not fully supported on MI350P in this release.
 
-- **AMD Radeon AI Pro Platform Support**
-  - The GPU Operator now supports AMD Radeon AI Pro workstation GPUs (RDNA 4 architecture, e.g. Radeon AI Pro R9700S) on Kubernetes.
+- **AMD Radeon™ AI PRO Platform Support**
+  - The GPU Operator now supports AMD Radeon™ AI PRO workstation GPUs (RDNA 4 architecture, e.g. Radeon AI PRO R9700/R9700S) on Kubernetes.
   - Requires ROCm 7.13+ (amdgpu driver 6.19+).
   - **Supported features:** driver management, device plugin workload scheduling, and metrics monitoring.
   - **Not supported:** GPU partitioning (DCM), XGMI topology-aware scheduling, and full ECC metrics — these are Instinct (CDNA) platform features and do not apply to Radeon (RDNA) GPUs.
-  - > **Note:** Auto Node Remediation (ANR) is not fully supported on Radeon AI platforms in this beta release.
+  - > **Note:** Auto Node Remediation (ANR) is not fully supported on Radeon AI PRO platforms in this release.
+
+- **ROCm 7.14 Managed Stack**
+  - The metrics exporter, test runner, and DCM operand images are packaged with ROCm 7.14 runtime libraries in this release.
 
 - **Device Metrics Exporter: Configurable Exporter Arguments**
   - The Helm chart now supports passing arbitrary arguments to the exporter at deploy time via new deployment options:
@@ -27,12 +30,13 @@ The AMD GPU Operator v1.5.1 (beta) release extends hardware support to the **AMD
 
 ### Platform Support
 
-- **AMD Instinct MI350P**: Kubernetes 1.29 – 1.35, OpenShift 4.21
-- **AMD Radeon AI Pro**: Kubernetes 1.29 – 1.35
+- **AMD Instinct™ MI350P**: Kubernetes 1.29 – 1.36, OpenShift 4.21 – 4.22
+- **AMD Radeon™ AI PRO**: Kubernetes 1.29 – 1.36
 
 ### Fixes
 
-- Platform support additions for MI350P and Radeon AI Pro GPU families.
+- Platform support additions for MI350P and Radeon AI PRO GPU families.
+- **Driver upgrade reboot could leave operands with `exec format error`** — the driver-upgrade reboot pod now flushes filesystems (`sync`) before rebooting the node, and the DRA driver is now included in the pre-reboot drain list, preventing truncated operand executables after an operator-managed upgrade reboot. [[ROCm/gpu-operator#606]](https://github.com/ROCm/gpu-operator/pull/606)
 
 ### Known Limitations
 
@@ -44,10 +48,6 @@ The AMD GPU Operator v1.5.1 (beta) release extends hardware support to the **AMD
 
 - **Node Labeller reports incorrect product name for Radeon AI GPUs**
   - On Radeon AI platforms, the `amd.com/gpu.product-name` node label is populated as `AMD_Radeon_Graphics` instead of the specific model name (e.g., `AMD Radeon AI Pro R9700S`). This is a known issue and will be fixed in a future release.
-
-- **Device Metrics Exporter: CPER-based health detection and `GPU_AFID_ERRORS` disabled in this release**
-  - CPER-based health detection is not functional and the `GPU_AFID_ERRORS` field is disabled in this release for **all platforms**, including MI350P, Radeon AI, and existing MI2xx/MI3xx deployments.
-  - **Users on MI2xx/MI3xx platforms who rely on CPER-based health detection or `GPU_AFID_ERRORS` should not upgrade the Device Metrics Exporter to `v1.5.1-beta.0` until this is resolved in a future release.**
 
 - **Device Metrics Exporter: `gfx_activity` idle uptick on Radeon AI**
   - On Radeon AI platforms, `gfx_activity` may show a spurious uptick when the GPU is idle. This is a cosmetic issue and does not indicate actual GPU activity.
