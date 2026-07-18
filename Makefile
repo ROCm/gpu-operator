@@ -4,7 +4,7 @@ ifneq ("$(wildcard dev.env)","")
 endif
 
 # Default version for the project.
-PROJECT_VERSION ?= v0.0.1
+PROJECT_VERSION ?= v1.5.1
 
 ####################################
 # GPU Operator Image Build variables

@@ -57,7 +57,7 @@ metadata:
     operators.operatorframework.io/project_layout: go.kubebuilder.io/v3
     repository: https://github.com/ROCm/gpu-operator
     support: Advanced Micro Devices, Inc.
-  name: amd-gpu-operator.v0.0.1
+  name: amd-gpu-operator.v1.5.1
   namespace: placeholder
 spec:
   apiservicedefinitions: {}
@@ -1764,4 +1764,4 @@ spec:
   maturity: stable
   provider:
     name: Advanced Micro Devices, Inc.
-  version: 0.0.1
+  version: 1.5.1
