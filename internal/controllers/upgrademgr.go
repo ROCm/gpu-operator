@@ -1327,8 +1327,8 @@ func (h *upgradeMgrHelper) getRebootPod(nodeName string, dc *amdv1alpha1.DeviceC
 			ImagePullSecrets:   imagePullSecrets,
 			Containers: []v1.Container{
 				{
-					Name:            "reboot-container",
-					Image:           utilsImage,
+					Name:  "reboot-container",
+					Image: utilsImage,
 					// Flush filesystems before reboot to avoid exec-format errors from unflushed overlay writes.
 					Command:         []string{"/nsenter", "--all", "--target=1", "--", "sh", "-c", "sync; sudo reboot"},
 					Stdin:           true,
