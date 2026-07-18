@@ -6,7 +6,7 @@ For the most detailed and up-to-date documentation please visit our Instinct Doc
 
 ## Introduction
 
-AMD GPU Operator simplifies the deployment and management of AMD Instinct GPU accelerators within Kubernetes clusters. This project enables seamless configuration and operation of GPU-accelerated workloads, including machine learning, Generative AI, and other GPU-intensive applications.
+AMD GPU Operator simplifies the deployment and management of AMD Instinct™ and AMD Radeon™ GPU accelerators within Kubernetes clusters. This project enables seamless configuration and operation of GPU-accelerated workloads, including machine learning, Generative AI, and other GPU-intensive applications.
 
 ## Components
 
@@ -125,7 +125,7 @@ The AMD GPU Operator is licensed under the [Apache License 2.0](LICENSE).
 
 ## gpu-operator-charts
 
-![Version: v0.0.1](https://img.shields.io/badge/Version-v0.0.1-informational?style=flat-square) ![Type: application](https://img.shields.io/badge/Type-application-informational?style=flat-square) ![AppVersion: dev](https://img.shields.io/badge/AppVersion-dev-informational?style=flat-square)
+![Version: v1.5.1](https://img.shields.io/badge/Version-v1.5.1-informational?style=flat-square) ![Type: application](https://img.shields.io/badge/Type-application-informational?style=flat-square) ![AppVersion: v1.5.1](https://img.shields.io/badge/AppVersion-v1.5.1-informational?style=flat-square)
 
 AMD GPU Operator simplifies the deployment and management of AMD Instinct GPU accelerators within Kubernetes clusters.
 
@@ -158,7 +158,7 @@ Kubernetes: `>= 1.29.0-0`
 | global.imagePullSecrets | list | `[]` | Global image pull secret(s) applied to all component pods and subcharts. If specified, these secrets will be used by: - GPU operator controller manager deployment - Remediation workflow controller - All helm hooks (pre-upgrade, pre-delete, post-delete) - DeviceConfig-managed components (via commonConfig.imageRegistrySecrets) - KMM controller and webhook pods (automatically inherited) - KMM builder/signer/worker pods (automatically uses first secret as fallback)  Format: [{"name": "myGlobalSecret"}] or [{"name": "secret1"}, {"name": "secret2"}]  Note: For NFD subchart, you must manually set the field to match global secrets:   node-feature-discovery.imagePullSecrets: [{"name": "myGlobalSecret"}] |
 | controllerManager.affinity | object | `{"nodeAffinity":{"preferredDuringSchedulingIgnoredDuringExecution":[{"preference":{"matchExpressions":[{"key":"node-role.kubernetes.io/control-plane","operator":"Exists"}]},"weight":1}]}}` | Deployment affinity configs for controller manager |
 | controllerManager.manager.image.repository | string | `"docker.io/rocm/amd-gpu-operator"` | AMD GPU operator controller manager image repository |
-| controllerManager.manager.image.tag | string | `"dev"` | AMD GPU operator controller manager image tag |
+| controllerManager.manager.image.tag | string | `"v1.5.1"` | AMD GPU operator controller manager image tag |
 | controllerManager.manager.imagePullPolicy | string | `"Always"` | Image pull policy for AMD GPU operator controller manager pod |
 | controllerManager.manager.imagePullSecrets | string | `""` | Image pull secret name for pulling AMD GPU operator controller manager image if registry needs credential to pull image |
 | controllerManager.nodeSelector | object | `{}` | Node selector for AMD GPU operator controller manager deployment |
