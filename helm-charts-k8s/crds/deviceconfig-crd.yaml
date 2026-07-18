@@ -12,7 +12,7 @@ metadata:
     helm.sh/chart: gpu-operator-charts-v1.5.1
     app.kubernetes.io/name: gpu-operator-charts
     app.kubernetes.io/instance: amd-gpu
-    app.kubernetes.io/version: "dev"
+    app.kubernetes.io/version: "v1.5.1"
     app.kubernetes.io/managed-by: Helm
 spec:
   group: amd.com

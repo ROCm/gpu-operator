@@ -68,7 +68,7 @@ const (
 	RemediationTaintKey        = "amd-gpu-unhealthy"
 	DefaultConfigMapSuffix     = "default-conditional-workflow-mappings"
 	DefaultTemplate            = "default-template"
-	DefaultTestRunnerImage     = "docker.io/rocm/test-runner:v0.0.1"
+	DefaultTestRunnerImage     = "docker.io/rocm/test-runner:v1.5.1"
 	TestRunnerServiceAccount   = "amd-gpu-operator-test-runner"
 	AmdGpuRemediationRequired  = "amd-gpu-remediation-required"
 	AmdGpuRemediationSucceeded = "amd-gpu-remediation-succeeded"
