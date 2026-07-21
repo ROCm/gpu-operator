@@ -348,11 +348,12 @@ docs-lint: ## Run docs Markdown lint + spelling (full ROCm-style docs lint).
 ##@ Build
 
 manager: $(shell find -name "*.go") go.mod go.sum  ## Build manager binary.
-	go build -ldflags="-X main.Version=$(PROJECT_VERSION) -X main.GitCommit=$(GIT_COMMIT) -X main.BuildTag=$(HOURLY_TAG_LABEL)" -o $@ ./cmd
+	GOOS=linux GOARCH=amd64 go build -ldflags="-X main.Version=$(PROJECT_VERSION) -X main.GitCommit=$(GIT_COMMIT) -X main.BuildTag=$(HOURLY_TAG_LABEL)" -o $@.amd64 ./cmd
+	GOOS=linux GOARCH=arm64 go build -ldflags="-X main.Version=$(PROJECT_VERSION) -X main.GitCommit=$(GIT_COMMIT) -X main.BuildTag=$(HOURLY_TAG_LABEL)" -o $@.arm64 ./cmd
 
 .PHONY: docker-build
 docker-build: ## Build docker image with the manager.
-	DOCKER_BUILDKIT=1 docker build -t $(IMG) --label HOURLY_TAG=$(HOURLY_TAG_LABEL) --build-arg TARGET=manager --build-arg GOLANG_BASE_IMG=$(GOLANG_BASE_IMG) --build-arg OPERATOR_CONTROLLER_BASE_IMAGE=$(OPERATOR_CONTROLLER_BASE_IMAGE) .
+	DOCKER_BUILDKIT=1 docker build --platform linux/amd64,linux/arm64 -t $(IMG) --label HOURLY_TAG=$(HOURLY_TAG_LABEL) --build-arg TARGET=manager --build-arg GOLANG_BASE_IMG=$(GOLANG_BASE_IMG) --build-arg OPERATOR_CONTROLLER_BASE_IMAGE=$(OPERATOR_CONTROLLER_BASE_IMAGE) .
 
 .PHONY: docker-push
 docker-push: ## Push docker image with the manager.
@@ -364,7 +365,7 @@ docker-save: ## Save the container image with the manager.
 
 .PHONY: docker-build-utils
 docker-build-utils: ## Build docker image for utils container.
-	DOCKER_BUILDKIT=1 docker build -t $(UTILS_IMG) --label HOURLY_TAG=$(HOURLY_TAG_LABEL) -f internal/utils_container/Dockerfile .
+	DOCKER_BUILDKIT=1 docker build --platform linux/amd64,linux/arm64 -t $(UTILS_IMG) --label HOURLY_TAG=$(HOURLY_TAG_LABEL) -f internal/utils_container/Dockerfile .
 
 .PHONY: docker-push-utils
 docker-push-utils: ## Push docker image for utils container.
@@ -434,7 +435,7 @@ bundle-build: operator-sdk manifests kustomize ## OpenShift Build OLM bundle.
 		     KUBECTL_CMD=${KUBECTL_CMD} ./hack/generate-bundle
 	cp $(shell pwd)/hack/openshift-patch/olm-bundle-patch/*.yaml $(shell pwd)/bundle/manifests/
 	${OPERATOR_SDK} bundle validate ./bundle
-	docker build --label HOURLY_TAG=$(HOURLY_TAG_LABEL) -f bundle.Dockerfile -t $(BUNDLE_IMG) .
+	DOCKER_BUILDKIT=1 docker build --platform linux/amd64,linux/arm64 --label HOURLY_TAG=$(HOURLY_TAG_LABEL) -f bundle.Dockerfile -t $(BUNDLE_IMG) .
 
 .PHONY: dep-docs
 dep-docs:

@@ -1,5 +1,5 @@
 /bin/
-/manager
+/manager*
 *.tgz
 /*gpu-operator*.tgz
 /helm-charts-k8s/charts/*.tgz
@@ -26,6 +26,7 @@ tests/pytests/*
 
 .cline_storage
 .vscode
+.idea
 branch_policy.yml
 tools-internal/*
 docs-internal/*
