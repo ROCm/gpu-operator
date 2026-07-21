@@ -2,6 +2,46 @@ apiVersion: v1
 entries:
   gpu-operator-charts:
   - apiVersion: v2
+    appVersion: v1.5.1
+    created: "2026-07-21T22:28:26.037867945Z"
+    dependencies:
+    - condition: node-feature-discovery.enabled
+      name: node-feature-discovery
+      repository: https://kubernetes-sigs.github.io/node-feature-discovery/charts
+      version: v0.18.3
+    - condition: kmm.enabled
+      name: kmm
+      repository: file://./charts/kmm
+      version: v1.0.0
+    - condition: remediation.installCRDs
+      name: remediation-crds
+      repository: file://./charts/remediation-crds
+      version: v1.0.0
+    description: AMD GPU Operator simplifies the deployment and management of AMD
+      Instinct GPU accelerators within Kubernetes clusters.
+    digest: efbd23fe2297350ac23dedf1b916874138f57dd2796b444d1a7f241eaaefc6a8
+    home: https://github.com/ROCm/gpu-operator
+    icon: https://raw.githubusercontent.com/ROCm/k8s-device-plugin/master/helm/logo.png
+    keywords:
+    - kubernetes
+    - cluster
+    - hardware
+    - amd
+    - gpu
+    - ai
+    - deep learning
+    - monitoring
+    kubeVersion: '>= 1.29.0-0'
+    maintainers:
+    - name: Yan Sun <Yan.Sun3@amd.com>
+    name: gpu-operator-charts
+    sources:
+    - https://github.com/ROCm/gpu-operator
+    type: application
+    urls:
+    - https://rocm.github.io/gpu-operator/charts/gpu-operator-charts-v1.5.1.tgz
+    version: v1.5.1
+  - apiVersion: v2
     appVersion: v1.5.1-beta.0
     created: "2026-06-04T05:35:57.435308311Z"
     dependencies:
@@ -441,4 +481,4 @@ entries:
     urls:
     - https://rocm.github.io/gpu-operator/charts/gpu-operator-charts-v1.0.0.tgz
     version: v1.0.0
-generated: "2026-06-04T05:35:57.178777171Z"
+generated: "2026-07-21T22:28:25.822057025Z"
