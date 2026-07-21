@@ -38,6 +38,7 @@ The AMD GPU Operator v1.5.1 release extends hardware support to the **AMD Instin
 - Platform support additions for MI350P and Radeon AI PRO GPU families.
 - **Driver upgrade reboot could leave operands with `exec format error`** — the driver-upgrade reboot pod now flushes filesystems (`sync`) before rebooting the node, and the DRA driver is now included in the pre-reboot drain list, preventing truncated operand executables after an operator-managed upgrade reboot. [[ROCm/gpu-operator#606]](https://github.com/ROCm/gpu-operator/pull/606)
 - **DRA driver requires v1.0.1+ with amdgpu driver 6.19.14 / release 31.40 and later** — starting with amdgpu driver `6.19.14` (packaged release `31.40`), a change in the driver's version-reporting scheme prevented earlier DRA driver versions from advertising GPUs, so DRA workloads could not be scheduled. When using the DRA driver with amdgpu `6.19.14` / `31.40` or later, deploy DRA driver **v1.0.1 or later**.
+- **Device Metrics Exporter: `gfx_activity` idle uptick on Radeon AI resolved** — on Radeon AI platforms, `gfx_activity` now shows true idle values.
 
 ### Known Limitations
 
@@ -49,9 +50,6 @@ The AMD GPU Operator v1.5.1 release extends hardware support to the **AMD Instin
 
 - **Node Labeller reports incorrect product name for Radeon AI GPUs**
   - On Radeon AI platforms, the `amd.com/gpu.product-name` node label is populated as `AMD_Radeon_Graphics` instead of the specific model name (e.g., `AMD Radeon AI Pro R9700S`). This is a known issue and will be fixed in a future release.
-
-- **Device Metrics Exporter: `gfx_activity` idle uptick on Radeon AI**
-  - On Radeon AI platforms, `gfx_activity` may show a spurious uptick when the GPU is idle. This is a cosmetic issue and does not indicate actual GPU activity.
 
 ## GPU Operator v1.5.0 Release Notes
 
