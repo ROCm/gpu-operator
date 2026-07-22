@@ -24,10 +24,6 @@ html_theme_options = {
     "link_main_doc": True,
     "repository_url": "https://github.com/rocm/gpu-operator",
     # Add any additional theme options here
-    "announcement": (
-        "You're viewing documentation from a development branch. "
-        "Please switch to the release branch for the officially released documentation."
-    ),
     "show_navbar_depth": 0,
 }
 extensions = ["rocm_docs","sphinx_substitution_extensions"]
