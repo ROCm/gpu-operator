@@ -176,7 +176,7 @@ After creating the ConfigMap, you need to associate it with the Device Config Ma
       enable: True
 
       # image for the device-config-manager container
-      image: "rocm/device-config-manager:v1.5.0"
+      image: "rocm/device-config-manager:v1.5.1"
 
       # image pull policy for config manager. Accepted values are Always, IfNotPresent, Never
       imagePullPolicy: IfNotPresent
