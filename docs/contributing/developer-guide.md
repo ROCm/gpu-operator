@@ -128,7 +128,7 @@ docker run --rm \
   gpu-op-k8s-e2e:latest \
   -kubeconfig /kubeconfig \
   -operatorchart /helm-charts \
-  -operatortag v1.5.0 \
+  -operatortag v1.5.1 \
   -test.timeout 60m
 ```
 
@@ -146,7 +146,7 @@ docker run --rm -v /path/to/kubeconfig:/kubeconfig:ro \
 
 ```bash
 # Full install+verify+teardown
-make -C tests/k8s-e2e all KUBECONFIG=/path/to/kubeconfig OPERATOR_TAG=v1.5.0
+make -C tests/k8s-e2e all KUBECONFIG=/path/to/kubeconfig OPERATOR_TAG=v1.5.1
 
 # Verify only (pre-deployed)
 make -C tests/k8s-e2e verify KUBECONFIG=/path/to/kubeconfig

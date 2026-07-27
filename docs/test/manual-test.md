@@ -124,7 +124,7 @@ spec:
         name: test-runner-volume
       containers:
       - name: amd-test-runner
-        image: docker.io/rocm/test-runner:v1.5.0
+        image: docker.io/rocm/test-runner:v1.5.1
         imagePullPolicy: IfNotPresent
         securityContext: # setup security context for container to get access to device related interfaces
           privileged: true
@@ -274,7 +274,7 @@ spec:
           requests:
             amd.com/gpu: 8 # requesting all GPUs on the node
         name: amd-test-runner
-        image: docker.io/rocm/test-runner:v1.5.0
+        image: docker.io/rocm/test-runner:v1.5.1
         imagePullPolicy: IfNotPresent
         securityContext: # setup security context for container to get access to device related interfaces
           privileged: true
@@ -450,7 +450,7 @@ spec:
             name: test-runner-volume
           containers:
           - name: init-test-runner
-            image: docker.io/rocm/test-runner:v1.5.0
+            image: docker.io/rocm/test-runner:v1.5.1
             imagePullPolicy: IfNotPresent
             securityContext: # setup security context for container to get access to device related interfaces
               privileged: true
@@ -660,7 +660,7 @@ spec:
         name: test-runner-volume
       containers:
       - name: amd-test-runner
-        image: docker.io/rocm/test-runner:v1.5.0
+        image: docker.io/rocm/test-runner:v1.5.1
         imagePullPolicy: IfNotPresent
         securityContext: # setup security context for container to get access to device related interfaces
           privileged: true
@@ -832,7 +832,7 @@ spec:
         name: test-runner-volume
       containers:
       - name: amd-test-runner
-        image: docker.io/rocm/test-runner:v1.5.0
+        image: docker.io/rocm/test-runner:v1.5.1
         imagePullPolicy: IfNotPresent
         securityContext: # setup security context for container to get access to device related interfaces
           privileged: true
