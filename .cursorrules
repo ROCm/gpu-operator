@@ -1,0 +1,47 @@
+# Branch Naming Convention
+
+All branches must follow the `user/<github-login>/<description>` format.
+
+## Get your exact GitHub username
+
+```bash
+if command -v gh &>/dev/null; then
+  LOGIN=$(gh api user --jq .login 2>/dev/null)
+else
+  LOGIN=$(git config github.user 2>/dev/null)
+fi
+```
+
+Never infer from git config `user.name` or email — the org username may differ (e.g. `jsmith-amd` not `jsmith`).
+
+## Allowed branch prefixes
+
+| Prefix | Created by |
+|---|---|
+| `user/<login>/<desc>` | Developers |
+| `team/<name>/<desc>` | Teams |
+| `bot/<bot>/<desc>` | CI automation |
+| `collab/*` | Collaborative (new) |
+| `collab-*` | Collaborative (legacy) |
+| `revert-*` | GitHub auto-created |
+| `copilot/*` | GitHub Copilot |
+| `dependabot/*` | Dependabot |
+
+## Description rules
+
+- ASCII only — no Unicode, emoji, or special characters
+- Hyphens, underscores, or dots as separators — no slashes
+- No leading dot (e.g. `.fix-rdma` is invalid)
+- Include a ticket ID if one exists: `user/<login>/JIRA-1234-fix-something`
+
+## Create and push
+
+```bash
+DEFAULT=$(git remote show origin 2>/dev/null | awk '/HEAD branch/{print $NF}')
+DEFAULT=${DEFAULT:-master}
+git fetch origin
+git checkout -b "user/${LOGIN}/short-description" origin/${DEFAULT}
+git push -u origin "user/${LOGIN}/short-description"
+```
+
+See: https://amd.atlassian.net/wiki/spaces/EN/pages/1810205147/GitHub+Branch+Protection+Rulesets
