@@ -350,7 +350,7 @@ The AMD GPU Operator v1.3.0 release introduces new features, most notably of whi
 
     - *Impact:* The DeviceConfig will report an error if you specify `"6.4.0"` or `"6.3.0"` for the `spec.driver.version`.
     - *Root Cause:* The version specified in the CR would still have to match the version string on Radeon repo.
-    - *Recommendation:* Although this will be fixed in a future version of the GPU Operator, for the time being you will instead need to specific `"6.4"` or `"6.3"` when installing those versions of the ROCm amdgpu driver.
+    - *Recommendation:* Although this will be fixed in a future version of the GPU Operator, for the time being you will instead need to specify `"6.4"` or `"6.3"` when installing those versions of the ROCm amdgpu driver.
 
 > **Note:** All current and historical limitations for the GPU Operator, including their latest statuses and any associated workarounds or fixes, are tracked in the following documentation page: [Known Issues and Limitations](https://instinct.docs.amd.com/projects/gpu-operator/en/latest/knownlimitations.html).  
    Please refer to this page regularly for the most up-to-date information.

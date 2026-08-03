@@ -103,7 +103,7 @@
 
     - *Impact:* The DeviceConfig will report an error if you specify `"6.4.0"` or `"6.3.0"` for the `spec.driver.version`.
     - *Root Cause:* The version specified in the CR would still have to match the version string on Radeon repo.
-    - *Recommendation:* Although this will be fixed in a future version of the GPU Operator, for the time being you will instead need to specific `"6.4"` or `"6.3"` when installing those versions of the ROCm amdgpu driver.
+    - *Recommendation:* Although this will be fixed in a future version of the GPU Operator, for the time being you will instead need to specify `"6.4"` or `"6.3"` when installing those versions of the ROCm amdgpu driver.
 
 17. **Device plugin crashes when unable to establish watcher on kubelet device plugin path**
 
