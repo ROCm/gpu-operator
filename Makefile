@@ -20,6 +20,9 @@ IMAGE_TAG ?= dev
 IMG ?= $(IMAGE_TAG_BASE):$(IMAGE_TAG)
 HOURLY_TAG_LABEL ?= latest
 
+# You can use docker or podman as a container engine. Notice that there are some options that might be only valid for one of them.
+CONTAINER_ENGINE ?= docker
+
 # KMM related images
 KMM_IMAGE_TAG ?= latest
 KMM_SIGNER_IMG ?= $(DOCKER_REGISTRY)/kernel-module-management-signimage:$(KMM_IMAGE_TAG)
@@ -40,6 +43,9 @@ UTILS_IMAGE_NAME ?= $(IMAGE_NAME)-utils
 UTILS_IMG ?= $(DOCKER_REGISTRY)/$(UTILS_IMAGE_NAME):$(UTILS_IMAGE_TAG)
 DRA_DRIVER_IMAGE_TAG ?= latest
 DRA_DRIVER_IMG = $(DOCKER_REGISTRY)/k8s-gpu-dra-driver:$(DRA_DRIVER_IMAGE_TAG)
+REMEDIATION_CONFIGMAP_UTIL_IMAGE_TAG ?= latest
+REMEDIATION_CONFIGMAP_UTIL_IMAGE_NAME ?= $(IMAGE_NAME)-remediation-configmap-util
+REMEDIATION_CONFIGMAP_UTIL_IMG = $(DOCKER_REGISTRY)/$(REMEDIATION_CONFIGMAP_UTIL_IMAGE_NAME):$(REMEDIATION_CONFIGMAP_UTIL_IMAGE_TAG)
 
 #######################
 # Helm Charts variables
@@ -150,7 +156,7 @@ HTML_DIR := $(BUILD_DIR)/html
 .PHONY: default
 default: docker-build-env ## Quick start to build everything from docker shell container.
 	@echo "Starting a shell in the Docker build container..."
-	@docker run --rm $(DOCKER_IT_FLAGS) --privileged \
+	@$(CONTAINER_ENGINE) run --rm $(DOCKER_IT_FLAGS) --privileged \
 	    --network host \
 		--name gpu-operator-build \
 		-e "USER_NAME=$(shell whoami)" \
@@ -168,7 +174,7 @@ default: docker-build-env ## Quick start to build everything from docker shell c
 .PHONY: docker/shell
 docker/shell: docker-build-env ## Bring up and attach to a container that has dev environment configured.
 	@echo "Starting a shell in the Docker build container..."
-	@docker run --rm -it --privileged \
+	@$(CONTAINER_ENGINE) run --rm -it --privileged \
 		--name gpu-operator-build \
 		-e "USER_NAME=$(shell whoami)" \
 		-e "USER_UID=$(shell id -u)" \
@@ -352,32 +358,44 @@ manager: $(shell find -name "*.go") go.mod go.sum  ## Build manager binary.
 
 .PHONY: docker-build
 docker-build: ## Build docker image with the manager.
-	DOCKER_BUILDKIT=1 docker build -t $(IMG) --label HOURLY_TAG=$(HOURLY_TAG_LABEL) --build-arg TARGET=manager --build-arg GOLANG_BASE_IMG=$(GOLANG_BASE_IMG) --build-arg OPERATOR_CONTROLLER_BASE_IMAGE=$(OPERATOR_CONTROLLER_BASE_IMAGE) .
+	DOCKER_BUILDKIT=1 $(CONTAINER_ENGINE) build -t $(IMG) --label HOURLY_TAG=$(HOURLY_TAG_LABEL) --build-arg TARGET=manager --build-arg GOLANG_BASE_IMG=$(GOLANG_BASE_IMG) --build-arg OPERATOR_CONTROLLER_BASE_IMAGE=$(OPERATOR_CONTROLLER_BASE_IMAGE) .
 
 .PHONY: docker-push
 docker-push: ## Push docker image with the manager.
-	docker push $(IMG)
+	$(CONTAINER_ENGINE) push $(IMG)
 
 .PHONY: docker-save
 docker-save: ## Save the container image with the manager.
-	docker save $(IMG) | gzip > $(IMAGE_NAME).tar.gz
+	$(CONTAINER_ENGINE) save $(IMG) | gzip > $(IMAGE_NAME).tar.gz
 
 .PHONY: docker-build-utils
 docker-build-utils: ## Build docker image for utils container.
-	DOCKER_BUILDKIT=1 docker build -t $(UTILS_IMG) --label HOURLY_TAG=$(HOURLY_TAG_LABEL) -f internal/utils_container/Dockerfile .
+	DOCKER_BUILDKIT=1 $(CONTAINER_ENGINE) build -t $(UTILS_IMG) --label HOURLY_TAG=$(HOURLY_TAG_LABEL) -f internal/utils_container/Dockerfile .
 
 .PHONY: docker-push-utils
 docker-push-utils: ## Push docker image for utils container.
-	docker push $(UTILS_IMG)
+	$(CONTAINER_ENGINE) push $(UTILS_IMG)
 
 .PHONY: docker-save-utils
 docker-save-utils: ## Save the utils container image as tar.gz.
-	docker save $(UTILS_IMG) | gzip > $(IMAGE_NAME)-utils.tar.gz
+	$(CONTAINER_ENGINE) save $(UTILS_IMG) | gzip > $(IMAGE_NAME)-utils.tar.gz
+
+.PHONY: docker-build-remediation-configmap-util
+docker-build-remediation-configmap-util: ## Build the docker image for remediation configmap util.
+	DOCKER_BUILDKIT=1 $(CONTAINER_ENGINE) build -t $(REMEDIATION_CONFIGMAP_UTIL_IMG) --label HOURLY_TAG=$(HOURLY_TAG_LABEL) --build-arg version=$(PROJECT_VERSION) --build-arg release=$(IMAGE_TAG) -f internal/remediation_config_utils_container/Dockerfile internal/remediation_config_utils_container
+
+.PHONY: docker-push-remediation-configmap-util
+docker-push-remediation-configmap-util: ## Push the docker image for remediation configmap util.
+	$(CONTAINER_ENGINE) push $(REMEDIATION_CONFIGMAP_UTIL_IMG)
+
+.PHONY: docker-save-remediation-configmap-util
+docker-save-remediation-configmap-util: ## Save the docker image for remediation configmap util.
+	$(CONTAINER_ENGINE) save $(REMEDIATION_CONFIGMAP_UTIL_IMG) | gzip > $(IMAGE_NAME)-remediation-configmap-util.tar.gz
 
 .PHONY: docker-build-env
 docker-build-env: ## Build the docker shell container.
 	@echo "Building the Docker environment..."
-	docker buildx build \
+	$(CONTAINER_ENGINE) buildx build \
 		-t $(DOCKER_BUILDER_IMAGE) \
 		--build-arg BUILD_BASE_IMG=$(BUILD_BASE_IMG) \
 		--build-arg INSECURE_REGISTRY=$(INSECURE_REGISTRY) \
@@ -434,7 +452,7 @@ bundle-build: operator-sdk manifests kustomize ## OpenShift Build OLM bundle.
 		     KUBECTL_CMD=${KUBECTL_CMD} ./hack/generate-bundle
 	cp $(shell pwd)/hack/openshift-patch/olm-bundle-patch/*.yaml $(shell pwd)/bundle/manifests/
 	${OPERATOR_SDK} bundle validate ./bundle
-	docker build --label HOURLY_TAG=$(HOURLY_TAG_LABEL) -f bundle.Dockerfile -t $(BUNDLE_IMG) .
+	$(CONTAINER_ENGINE) build --label HOURLY_TAG=$(HOURLY_TAG_LABEL) -f bundle.Dockerfile -t $(BUNDLE_IMG) .
 
 .PHONY: dep-docs
 dep-docs:
@@ -553,11 +571,11 @@ operator-sdk:
 
 .PHONY: bundle-push
 bundle-push:
-	docker push $(BUNDLE_IMG)
+	$(CONTAINER_ENGINE) push $(BUNDLE_IMG)
 
 .PHONY: bundle-save
 bundle-save:
-	docker save $(BUNDLE_IMG) | gzip > $(IMAGE_NAME)-olm-bundle.tar.gz
+	$(CONTAINER_ENGINE) save $(BUNDLE_IMG) | gzip > $(IMAGE_NAME)-olm-bundle.tar.gz
 
 .PHONY: bundle-scorecard-test
 bundle-scorecard-test:
