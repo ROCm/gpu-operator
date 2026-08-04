@@ -36,6 +36,7 @@ RUN cd helm-charts-k8s/charts && \
     tar -xvzf node-feature-discovery-chart-0.18.3.tgz
 
 ARG TARGET
+# No defaults: buildx sets these per --platform; a default would pin the arch.
 ARG TARGETARCH
 ARG TARGETOS
 
@@ -50,7 +51,7 @@ FROM ${OPERATOR_CONTROLLER_BASE_IMAGE}
 ARG TARGET
 ARG TARGETARCH
 
-COPY --from=builder /opt/app-root/src/${TARGET}.${TARGETARCH} /usr/local/bin/manager
+COPY --from=builder /opt/app-root/src/${TARGET} /usr/local/bin/manager
 COPY --from=builder /opt/app-root/src/kubectl /usr/local/bin/kubectl
 COPY --from=builder /opt/app-root/src/LICENSE /licenses/LICENSE
 COPY --from=builder /opt/app-root/src/helm-charts-k8s/crds/deviceconfig-crd.yaml \

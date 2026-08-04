@@ -1,5 +1,4 @@
 FROM registry.access.redhat.com/ubi9/ubi-minimal:9.8
-ARG TARGETARCH
 
 LABEL name="amd-gpu-operator-utils"
 LABEL maintainer="sriram.ravishankar@amd.com,yan.sun3@amd.com"
@@ -16,11 +15,12 @@ RUN microdnf install -y util-linux pciutils kmod tar jq systemd && \
 
 ADD LICENSE /licenses/LICENSE
 
-# Install kubectl and oc with architecture detection
+# Install kubectl and oc
+# No default: buildx sets TARGETARCH per --platform.
 ARG TARGETARCH
 RUN mkdir -p /oc && cd /oc && \
     curl -SsLO "https://mirror.openshift.com/pub/openshift-v4/clients/ocp/latest/openshift-client-linux-${TARGETARCH}-rhel9.tar.gz" && \
-    tar -xzf openshift-client-linux-${TARGETARCH}-rhel9.tar.gz -C /oc && \
+    tar -xzf "openshift-client-linux-${TARGETARCH}-rhel9.tar.gz" -C /oc && \
     cp ./kubectl /usr/local/bin && chmod +x /usr/local/bin/kubectl && \
     cp ./oc /usr/local/bin && chmod +x /usr/local/bin/oc && \
     rm -rf /oc

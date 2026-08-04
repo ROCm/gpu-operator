@@ -67,6 +67,35 @@ make docker-push
 
 > Note: If you're using a remote registry that requires authentication, ensure you've logged in using `docker login` before pushing.
 
+### Building the controller manager image for a specific architecture
+
+`make docker-build` runs `$(CONTAINER_ENGINE) buildx build` and is architecture-configurable through the `PLATFORM` variable, which defaults to `linux/amd64`. Set it to a single platform, or a comma-separated list for a multi-arch build. This works with `docker buildx` and with `podman` 4.0+ (which aliases `podman buildx build` to `podman build`).
+
+```bash
+# Default: builds a linux/amd64 image and loads it into the local image store
+make docker-build
+
+# Build a single arm64 image
+make docker-build PLATFORM=linux/arm64
+```
+
+`buildx` populates the `TARGETOS`/`TARGETARCH` build arguments per platform, which drive both the Go cross-compilation (`GOOS`/`GOARCH`) and the architecture-specific `kubectl` download. With no override, `make docker-build` produces a `linux/amd64` image, unchanged from the previous default.
+
+A single-platform build is loaded into the local image store automatically. A **multi-platform** `PLATFORM` (e.g. `linux/amd64,linux/arm64`) cannot be loaded locally — buildx must push the resulting manifest list straight to a registry, which the `docker-build` target does not do. For that case, run buildx directly with `--push`.
+
+The utils container image build follows the same convention through the same `PLATFORM` variable:
+
+```bash
+make docker-build-utils                  # linux/amd64
+make docker-build-utils PLATFORM=linux/arm64
+```
+
+> Note: When building for an architecture different from your host, register QEMU emulation once per host so the runtime stage can execute:
+>
+> ```bash
+> docker run --privileged --rm tonistiigi/binfmt --install arm64,ppc64le
+> ```
+
 - Generate Helm charts:
   - For vanilla Kubernetes: `make helm`
   - For OpenShift: `OPENSHIFT=1 make helm`
