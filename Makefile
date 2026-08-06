@@ -353,12 +353,15 @@ docs-lint: ## Run docs Markdown lint + spelling (full ROCm-style docs lint).
 
 ##@ Build
 
-manager: $(shell find -name "*.go") go.mod go.sum  ## Build manager binary.
+manager: $(shell find -name "*.go") go.mod go.sum  ## Build manager binary (honors GOOS/GOARCH from the environment).
 	go build -ldflags="-X main.Version=$(PROJECT_VERSION) -X main.GitCommit=$(GIT_COMMIT) -X main.BuildTag=$(HOURLY_TAG_LABEL)" -o $@ ./cmd
 
+# Build platform, default amd64. Set to a list (linux/amd64,linux/arm64) for multi-arch.
+PLATFORM ?= linux/amd64
+
 .PHONY: docker-build
-docker-build: ## Build docker image with the manager.
-	DOCKER_BUILDKIT=1 $(CONTAINER_ENGINE) build -t $(IMG) --label HOURLY_TAG=$(HOURLY_TAG_LABEL) --build-arg TARGET=manager --build-arg GOLANG_BASE_IMG=$(GOLANG_BASE_IMG) --build-arg OPERATOR_CONTROLLER_BASE_IMAGE=$(OPERATOR_CONTROLLER_BASE_IMAGE) .
+docker-build: ## Build docker image with the manager (PLATFORM, default linux/amd64).
+	DOCKER_BUILDKIT=1 $(CONTAINER_ENGINE) buildx build --platform "$(PLATFORM)" -t $(IMG) --label HOURLY_TAG=$(HOURLY_TAG_LABEL) --build-arg TARGET=manager --build-arg GOLANG_BASE_IMG=$(GOLANG_BASE_IMG) --build-arg OPERATOR_CONTROLLER_BASE_IMAGE=$(OPERATOR_CONTROLLER_BASE_IMAGE) .
 
 .PHONY: docker-push
 docker-push: ## Push docker image with the manager.
@@ -369,8 +372,8 @@ docker-save: ## Save the container image with the manager.
 	$(CONTAINER_ENGINE) save $(IMG) | gzip > $(IMAGE_NAME).tar.gz
 
 .PHONY: docker-build-utils
-docker-build-utils: ## Build docker image for utils container.
-	DOCKER_BUILDKIT=1 $(CONTAINER_ENGINE) build -t $(UTILS_IMG) --label HOURLY_TAG=$(HOURLY_TAG_LABEL) -f internal/utils_container/Dockerfile .
+docker-build-utils: ## Build docker image for utils container (PLATFORM, default linux/amd64).
+	DOCKER_BUILDKIT=1 $(CONTAINER_ENGINE) buildx build --platform "$(PLATFORM)" -t $(UTILS_IMG) --label HOURLY_TAG=$(HOURLY_TAG_LABEL) -f internal/utils_container/Dockerfile .
 
 .PHONY: docker-push-utils
 docker-push-utils: ## Push docker image for utils container.
