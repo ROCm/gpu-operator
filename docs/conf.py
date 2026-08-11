@@ -22,6 +22,7 @@ html_theme = "rocm_docs_theme"
 html_theme_options = {
     "flavor": "instinct",
     "link_main_doc": True,
+    "use_download_button": True,
     "repository_url": "https://github.com/rocm/gpu-operator",
     # Add any additional theme options here
     "announcement": (
@@ -36,6 +37,11 @@ extensions = ["rocm_docs","sphinx_substitution_extensions"]
 external_toc_path = "./sphinx/_toc.yml"
 
 exclude_patterns = ['.venv']
+
+# Generate llms.txt and llms-full.txt after each build (the llms.txt standard,
+# https://llmstxt.org/). See the rocm-docs-core guide:
+# https://rocm.docs.amd.com/projects/rocm-docs-core/en/latest/user_guide/llms.html
+rocm_docs_generate_llms = True
 
 rst_prolog = """
 .. |version| replace:: v{version}
