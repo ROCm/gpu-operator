@@ -29,11 +29,14 @@ KMM looks for driver images based on tags, the controller will use these methods
 | --------- | ----------- | ------------------- |
 | `Ubuntu 24.04.1 LTS` | `Ubuntu` | `24.04` |
 | `Red Hat Enterprise Linux CoreOS 9.6.20250916-0 (Plow)` | `coreos` | `9.6` |
+| `SUSE Linux Enterprise Server 15 SP7` | `sles` | `15.7` |
+| `SUSE Linux Enterprise Server 16.0` | `sles` | `16.0` |
 
 | OS | Tag Format | Example Image Tag |
 | ---- | ------------ | ------------------- |
 | `ubuntu` | `ubuntu-<OS version>-<kernel>-<driver version>` | `ubuntu-22.04-6.8.0-40-generic-6.1.3` |
 | `coreos` | `coreos-<OS version>-<kernel>-<driver version>` | `coreos-9.6-5.14.0-427.28.1.el9_4.x86_64-6.2.2` |
+| `sles` | `sles-<codestream>-<GA kernel>-default-<driver version>` | `sles-15.7-6.4.0-150700.53-default-31.30` |
 
 When a DeviceConfig is created with driver management enabled (`spec.driver.enable=true`), KMM will:
 

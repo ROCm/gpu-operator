@@ -22,6 +22,11 @@ The AMD GPU Operator v1.5.1 release extends hardware support to the **AMD Instin
 - **ROCm 7.14 Managed Stack**
   - The metrics exporter, test runner, and DCM operand images are packaged with ROCm 7.14 runtime libraries in this release.
 
+- **SUSE Linux Enterprise Server (SLES) Support**
+  - The GPU Operator now supports SLES 15 and SLES 16 GPU worker nodes on vanilla Kubernetes.
+  - Driver management (KMM) resolves prebuilt amdgpu driver images from `registry.suse.com`, and the DeviceConfig spec validates the requested driver version against the SUSE registry before rollout.
+  - The AMD GPU Operator is listed as **SUSE Ready** for SLES 15 and SLES 16 in the [SUSE Partner Software Catalog](https://www.suse.com/pcsc/viewVersionPage?versionID=26965).
+
 - **Device Metrics Exporter: Configurable Exporter Arguments**
   - The Helm chart now supports passing arbitrary arguments to the exporter at deploy time via new deployment options:
     - `--exit-on-rocpctl-error`: Exit instead of auto-disabling profiler metrics after consecutive errors.
@@ -32,6 +37,7 @@ The AMD GPU Operator v1.5.1 release extends hardware support to the **AMD Instin
 
 - **AMD Instinct™ MI350P**: Kubernetes 1.29 – 1.36, OpenShift 4.21 – 4.22
 - **AMD Radeon™ AI PRO**: Kubernetes 1.29 – 1.36
+- **SUSE Linux Enterprise Server (SLES) 15 / 16**: Kubernetes 1.29 – 1.36
 
 ### Fixes
 
