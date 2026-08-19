@@ -112,7 +112,7 @@ func NewDeviceConfigReconciler(
 	workerMgr workermgr.WorkerMgrAPI,
 	isOpenShift bool,
 	kmmWatchEnabled bool) *DeviceConfigReconciler {
-	upgradeMgrHandler := newUpgradeMgrHandler(client, k8sConfig, isOpenShift)
+	upgradeMgrHandler := newUpgradeMgrHandler(client, k8sConfig)
 	remediationMgrHandler := newRemediationMgrHandler(client, apiReader, k8sConfig, isOpenShift)
 	helper := newDeviceConfigReconcilerHelper(client, kmmHandler, dpHandler, nlHandler, upgradeMgrHandler, remediationMgrHandler, metricsHandler, testrunnerHandler, configmanagerHandler, workerMgr, isOpenShift, kmmWatchEnabled)
 	podEventHandler := watchers.NewPodEventHandler(client, workerMgr)

@@ -62,7 +62,6 @@ import (
 
 const (
 	defaultUtilsImage          = "docker.io/rocm/gpu-operator-utils:latest"
-	defaultOcUtilsImage        = "docker.io/rocm/gpu-operator-utils:rhubi-latest"
 	defaultSAName              = "amd-gpu-operator-utils-container"
 	driverUpgradeStateLabelKey = "operator.amd.com/gpu-driver-upgrade-state"
 	upgradeRequiredLabelValue  = "upgrade-required"
@@ -100,13 +99,13 @@ type upgradeMgrAPI interface {
 	GetNodeBootId(nodeName string) string
 }
 
-func newUpgradeMgrHandler(client client.Client, k8sConfig *rest.Config, isOpenShift bool) upgradeMgrAPI {
+func newUpgradeMgrHandler(client client.Client, k8sConfig *rest.Config) upgradeMgrAPI {
 	k8sIntf, err := kubernetes.NewForConfig(k8sConfig)
 	if err != nil {
 		return nil
 	}
 	return &upgradeMgr{
-		helper: newUpgradeMgrHelperHandler(client, k8sIntf, isOpenShift),
+		helper: newUpgradeMgrHelperHandler(client, k8sIntf),
 	}
 }
 
@@ -363,7 +362,6 @@ type upgradeMgrHelper struct {
 	nodeBootID           *sync.Map
 	init                 bool
 	currentSpec          driverSpec
-	isOpenShift          bool
 }
 
 type driverSpec struct {
@@ -372,14 +370,13 @@ type driverSpec struct {
 }
 
 // Initialize upgrade manager helper interface
-func newUpgradeMgrHelperHandler(client client.Client, k8sInterface kubernetes.Interface, isOpenShift bool) upgradeMgrHelperAPI {
+func newUpgradeMgrHelperHandler(client client.Client, k8sInterface kubernetes.Interface) upgradeMgrHelperAPI {
 	return &upgradeMgrHelper{
 		client:               client,
 		k8sInterface:         k8sInterface,
 		nodeStatus:           new(sync.Map),
 		nodeUpgradeStartTime: new(sync.Map),
 		nodeBootID:           new(sync.Map),
-		isOpenShift:          isOpenShift,
 	}
 }
 
@@ -1302,9 +1299,6 @@ func (h *upgradeMgrHelper) getRebootPod(nodeName string, dc *amdv1alpha1.DeviceC
 	nodeSelector := map[string]string{}
 	nodeSelector["kubernetes.io/hostname"] = nodeName
 	utilsImage := defaultUtilsImage
-	if h.isOpenShift {
-		utilsImage = defaultOcUtilsImage
-	}
 	serviceaccount := defaultSAName
 	if dc.Spec.CommonConfig.UtilsContainer.Image != "" {
 		utilsImage = dc.Spec.CommonConfig.UtilsContainer.Image
