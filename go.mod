@@ -1,9 +1,9 @@
 module github.com/ROCm/gpu-operator
 
-go 1.26.5
+go 1.26.7
 
 require (
-	github.com/argoproj/argo-workflows/v4 v4.0.5
+	github.com/argoproj/argo-workflows/v4 v4.0.6
 	github.com/go-logr/logr v1.4.3
 	github.com/onsi/ginkgo/v2 v2.28.1
 	github.com/onsi/gomega v1.39.1
@@ -15,7 +15,7 @@ require (
 	github.com/stern/stern v1.32.0
 	github.com/stretchr/testify v1.11.1
 	go.uber.org/mock v0.5.2
-	golang.org/x/exp v0.0.0-20251219203646-944ab1f22d93
+	golang.org/x/exp v0.0.0-20260410095643-746e56fc9e2f
 	gopkg.in/check.v1 v1.0.0-20201130134442-10cb98267c6c
 	gopkg.in/yaml.v3 v3.0.1
 	k8s.io/api v0.36.2
