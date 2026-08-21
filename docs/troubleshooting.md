@@ -18,6 +18,31 @@ To collect logs from the AMD GPU Operator:
 kubectl logs -n kube-amd-gpu <pod-name>
 ```
 
+## No AMD GPU Nodes Detected
+
+If the operator deploys no pods, or tooling reports that no AMD GPU nodes were found in the cluster, the nodes are most likely missing the NFD label that the operator selects on.
+
+Check whether the label is present on the node:
+
+```bash
+kubectl get node <node-name> -o jsonpath='{.metadata.labels}' | tr ',' '\n' | grep amd-gpu
+```
+
+That label is produced only by an NFD rule that you supply. Two common reasons for it to be missing:
+
+1. **No rule was applied.** On OpenShift the OLM bundle does not include a `NodeFeatureDiscovery` or `NodeFeatureRule` resource, so nothing labels the node until you create one. Follow the [OpenShift installation guide](./installation/openshift-olm) and apply the NFD resource from that page in full.
+
+2. **The rule does not list your GPU's device ID.** Find the device ID of the installed GPU and compare it against the rule you applied:
+
+```bash
+lspci -nn -d 1002:
+kubectl get nodefeaturerule -A -o yaml
+```
+
+If your device ID is absent, add it and re-apply the resource.
+
+On Kubernetes the Helm chart installs the full device list for you when `installdefaultNFDRule` is enabled.
+
 ## Potential Issues with ``DeviceConfig``
 
 * Please refer to {ref}`typical-deployment-scenarios` for more information and get corresponding ```helm install``` commands and configs that fits your specific use case.

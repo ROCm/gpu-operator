@@ -1,0 +1,35 @@
+name: nfd-device-id-check
+
+# Verifies that every copy of the AMD GPU PCI device-ID list agrees with the
+# source of truth, hack/k8s-patch/template-patch/gpu-nfd-default-rule.yaml.
+#
+# The list is duplicated across the NodeFeatureRule template, its generated
+# helm copy, and two copy-paste YAML blocks in the OpenShift install docs.
+# Nothing in the build enforces agreement and they have already diverged once:
+# commit 9c5ef17e added the Radeon AI PRO R9700 (0x7551) to the rule but not to
+# the docs, so OLM users on Radeon hardware received no GPU labels at all and
+# every test failed with "No nodes with AMD/GPU found" (GPUOP-1062).
+#
+# This is a thin caller of the Makefile target so that contributors get the
+# identical result locally via 'make check-nfd-device-ids'.
+#
+# Deliberately not filtered on paths: a path-filtered workflow never reports a
+# status on unrelated PRs, which stalls merges if it is configured as a
+# required status check. The check takes about a second, so it runs on every PR.
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  device-id-drift:
+    name: AMD GPU device-ID lists in sync
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out PR head
+        uses: actions/checkout@v4
+
+      - name: Check device-ID lists
+        run: make check-nfd-device-ids
