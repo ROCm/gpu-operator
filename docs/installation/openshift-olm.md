@@ -295,7 +295,25 @@ spec:
                       "7408", # MI250X
                       "740c", # MI250/MI250X
                       "738c", # MI100
-                      "738e"  # MI100
+                      "738e", # MI100
+                      # AMD Radeon Pro
+                      "7460", # V710
+                      "7448", # W7900
+                      "744b", # W7900D
+                      "744a", # W7900 Dual Slot
+                      "7449", # W7800 48GB
+                      "745e", # W7800
+                      "73a2", # W6900X
+                      "73a3", # W6800 GL-XL
+                      "73ab", # W6800X / W6800X Duo
+                      "73a1", # V620
+                      "7551", # AI PRO R9700 / R9700S / R9600D
+                      # AMD Radeon
+                      "7550", # RX 9070 / 9070 XT
+                      "744c", # RX 7900 XT / 7900 XTX / 7900 GRE / 7900M
+                      "73af", # RX 6900 XT
+                      "73bf", # RX 6800 / 6800 XT / 6900 XT
+                      "7590"  # RX 9060 XT
                     ]}
         - name: amd-vgpu
           labels:
@@ -314,7 +332,10 @@ spec:
                       "74bc", # MI308X-HF VF
                       "74b5", # MI300X VF
                       "74bd", # MI300X-HF VF
-                      "7410"  # MI210 VF
+                      "7410", # MI210 VF
+                      # AMD Radeon Pro
+                      "7461", # V710 MxGPU
+                      "73ae"  # V620 MxGPU
                     ]}
 ```
 
@@ -352,7 +373,25 @@ spec:
                   "7408", # MI250X
                   "740c", # MI250/MI250X
                   "738c", # MI100
-                  "738e"  # MI100
+                  "738e", # MI100
+                  # AMD Radeon Pro
+                  "7460", # V710
+                  "7448", # W7900
+                  "744b", # W7900D
+                  "744a", # W7900 Dual Slot
+                  "7449", # W7800 48GB
+                  "745e", # W7800
+                  "73a2", # W6900X
+                  "73a3", # W6800 GL-XL
+                  "73ab", # W6800X / W6800X Duo
+                  "73a1", # V620
+                  "7551", # AI PRO R9700 / R9700S / R9600D
+                  # AMD Radeon
+                  "7550", # RX 9070 / 9070 XT
+                  "744c", # RX 7900 XT / 7900 XTX / 7900 GRE / 7900M
+                  "73af", # RX 6900 XT
+                  "73bf", # RX 6800 / 6800 XT / 6900 XT
+                  "7590"  # RX 9060 XT
                 ]}
     - name: amd-vgpu
       labels:
@@ -371,7 +410,10 @@ spec:
                   "74bc", # MI308X-HF VF
                   "74b5", # MI300X VF
                   "74bd", # MI300X-HF VF
-                  "7410"  # MI210 VF
+                  "7410", # MI210 VF
+                  # AMD Radeon Pro
+                  "7461", # V710 MxGPU
+                  "73ae"  # V620 MxGPU
                 ]}
 ```
 

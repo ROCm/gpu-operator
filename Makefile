@@ -345,6 +345,10 @@ docs-lint: ## Run docs Markdown lint + spelling (full ROCm-style docs lint).
 	${MAKE} docs-lint-markdown
 	${MAKE} docs-lint-spelling
 
+.PHONY: check-nfd-device-ids
+check-nfd-device-ids: ## Verify the AMD GPU PCI device-ID lists agree across the NFD rule templates and the OpenShift docs.
+	python3 $(shell pwd)/hack/check-nfd-device-ids.py --root $(shell pwd)
+
 ##@ Build
 
 manager: $(shell find -name "*.go") go.mod go.sum  ## Build manager binary.
