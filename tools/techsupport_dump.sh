@@ -324,6 +324,14 @@ spec:
       labels:
         app: techsupport-${UUID}
     spec:
+      # Tolerate every taint. Without this the collector is itself evicted by
+      # taints such as amd-dcm=up:NoExecute during GPU partitioning, which is
+      # precisely when node-level state needs to be captured.
+      tolerations:
+      - operator: Exists
+      # hostPID + host root let us reach kubelet's journal and on-disk state,
+      # which live outside the container.
+      hostPID: true
       containers:
       - name: busybox
         image: busybox:1.37
@@ -332,6 +340,14 @@ spec:
         args:
         - sleep
         - 1h
+        volumeMounts:
+        - name: host-root
+          mountPath: /host
+          readOnly: true
+      volumes:
+      - name: host-root
+        hostPath:
+          path: /
 EOF
 ${KUBECTL} apply -f /tmp/techsupport-${UUID}.json
 
@@ -541,5 +557,56 @@ REASON
 		${KUBECTL} exec ${dbgpod} -- sh -c "lsmod || true" >${TECH_SUPPORT_FILE}/${node}/lsmod.txt
 		log "   dmesg"
 		${KUBECTL} exec ${dbgpod} -- sh -c "dmesg || true" >${TECH_SUPPORT_FILE}/${node}/dmesg.txt
+
+		# kubelet state.
+		#
+		# When a device plugin registers successfully but the node still reports
+		# amd.com/gpu as 0 or missing, the deciding evidence is on the kubelet
+		# side, not in the plugin's own log. None of it was previously collected.
+		mkdir -p ${TECH_SUPPORT_FILE}/${node}/kubelet
+		# Two files on purpose: a wide but filtered view of the device-manager
+		# traffic, plus a bounded slice of the raw journal for context. An
+		# unbounded journal is tens of MB per node, and techsupport is collected
+		# once per failed testcase.
+		log "   kubelet device-manager journal"
+		${KUBECTL} exec ${dbgpod} -- sh -c \
+			"nsenter -t 1 -m -u -i -n -p -- journalctl --no-pager -u kubelet --since '-3 hours' 2>/dev/null \
+			 | grep -iE 'devicemanager|device.?plugin|endpoint|amd\.com/gpu|allocatable|Allocate' | tail -n 5000 || true" \
+			>${TECH_SUPPORT_FILE}/${node}/kubelet/kubelet-devicemanager.log 2>&1
+		log "   kubelet journal (bounded)"
+		${KUBECTL} exec ${dbgpod} -- sh -c \
+			"nsenter -t 1 -m -u -i -n -p -- journalctl --no-pager -u kubelet --since '-60 min' -n 5000 || true" \
+			>${TECH_SUPPORT_FILE}/${node}/kubelet/kubelet-journal.log 2>&1
+		log "   kubelet device-plugins dir"
+		# Socket names and mtimes show which plugin registered last and when.
+		${KUBECTL} exec ${dbgpod} -- sh -c \
+			"ls -la /host/var/lib/kubelet/device-plugins/ || true" \
+			>${TECH_SUPPORT_FILE}/${node}/kubelet/device-plugins-dir.txt 2>&1
+		log "   kubelet device-plugin checkpoint"
+		# RegisteredDevices vs. what the node advertises is the key comparison;
+		# also surfaces stale PodDeviceEntries for pods that no longer exist.
+		${KUBECTL} exec ${dbgpod} -- sh -c \
+			"cat /host/var/lib/kubelet/device-plugins/kubelet_internal_checkpoint || true" \
+			>${TECH_SUPPORT_FILE}/${node}/kubelet/kubelet_internal_checkpoint.json 2>&1
+		log "   kubelet version/flags"
+		${KUBECTL} exec ${dbgpod} -- sh -c \
+			"nsenter -t 1 -m -u -i -n -p -- sh -c 'kubelet --version; echo; cat /etc/default/kubelet 2>/dev/null; cat /var/lib/kubelet/kubeadm-flags.env 2>/dev/null' || true" \
+			>${TECH_SUPPORT_FILE}/${node}/kubelet/kubelet-version-flags.txt 2>&1
+
+		# GPU topology straight from the host.
+		#
+		# amd-smi output is otherwise only collected via the metrics-exporter
+		# pod, which is evicted by the amd-dcm taint during partitioning - so it
+		# is missing exactly when a partitioning issue is being debugged.
+		mkdir -p ${TECH_SUPPORT_FILE}/${node}/gpu-topology
+		log "   gpu topology"
+		${KUBECTL} exec ${dbgpod} -- sh -c \
+			"echo -n 'kfd_topology_nodes: '; ls /host/sys/class/kfd/kfd/topology/nodes/ 2>/dev/null | wc -l; \
+			 echo -n 'amdgpu_xcp_devices: '; ls -d /host/sys/devices/platform/amdgpu_xcp_* 2>/dev/null | wc -l; \
+			 echo -n 'amdgpu_version: '; cat /host/sys/module/amdgpu/version 2>/dev/null || echo NOT-LOADED" \
+			>${TECH_SUPPORT_FILE}/${node}/gpu-topology/sysfs-summary.txt 2>&1
+		${KUBECTL} exec ${dbgpod} -- sh -c \
+			"nsenter -t 1 -m -u -i -n -p -- amd-smi partition || true" \
+			>${TECH_SUPPORT_FILE}/${node}/gpu-topology/amd-smi-partition.txt 2>&1
 	done
 done
