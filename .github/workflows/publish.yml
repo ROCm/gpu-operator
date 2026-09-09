@@ -63,7 +63,6 @@ jobs:
           mv gpu-operator.tar.gz "gpu-operator-${PUSH_TAG}.tar.gz"
           mv gpu-operator-utils.tar.gz "gpu-operator-utils-${PUSH_TAG}.tar.gz"
           mv gpu-operator-olm-bundle.tar.gz "gpu-operator-olm-bundle-${PUSH_TAG}.tar.gz"
-          mv gpu-operator-remediation-configmap-util.tar.gz "gpu-operator-remediation-configmap-util-${PUSH_TAG}.tar.gz"
           mv "gpu-operator-helm-k8s-${PROJECT_VERSION}.tgz" "gpu-operator-helm-k8s-${PUSH_TAG}.tgz"
           echo "Renamed artifacts:"
           ls -la
@@ -129,8 +128,6 @@ jobs:
                      "docker.io/amdpsdo/gpu-operator-utils:${PUSH_TAG}"
           push_image "artifacts/gpu-operator-olm-bundle-${PUSH_TAG}.tar.gz" \
                      "docker.io/amdpsdo/gpu-operator-bundle:${PUSH_TAG}"
-          push_image "artifacts/gpu-operator-remediation-configmap-util-${PUSH_TAG}.tar.gz" \
-                     "docker.io/amdpsdo/gpu-operator-remediation-configmap-util:${PUSH_TAG}"
 
       - name: Save dedup marker
         if: inputs.dedup_key != '' && steps.s3-upload.outcome == 'success' && steps.registry-push.outcome == 'success'

@@ -47,13 +47,12 @@ jobs:
             -e "IMAGE_TAG=${PUSH_TAG}" \
             -e "HOURLY_TAG_LABEL=${PUSH_TAG}" \
             -e "UTILS_IMAGE_TAG=${PUSH_TAG}" \
-            -e "REMEDIATION_CONFIGMAP_UTIL_IMAGE_TAG=${PUSH_TAG}" \
             -e "PROJECT_VERSION=${PROJECT_VERSION}" \
             -v /var/run/docker.sock:/var/run/docker.sock \
             -v "${{ github.workspace }}:/gpu-operator" \
             -w /gpu-operator \
             gpu-operator-build:dev \
-            'bash -c "set -euo pipefail && source ~/.bashrc 2>/dev/null || true && git config --global --add safe.directory /gpu-operator && make generate manager manifests && make docker-build && make docker-save && make docker-build-utils && make docker-save-utils && make bundle-build && make bundle-save && make docker-build-remediation-configmap-util && make docker-save-remediation-configmap-util"'
+            bash -c "set -euo pipefail && source ~/.bashrc 2>/dev/null || true && git config --global --add safe.directory /gpu-operator && make generate manager manifests && make docker-build && make docker-save && make docker-build-utils && make docker-save-utils && make bundle-build && make bundle-save"
 
       - name: Upload image artifacts
         uses: actions/upload-artifact@v4
@@ -64,4 +63,3 @@ jobs:
             gpu-operator.tar.gz
             gpu-operator-utils.tar.gz
             gpu-operator-olm-bundle.tar.gz
-            gpu-operator-remediation-configmap-util.tar.gz
