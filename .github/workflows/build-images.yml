@@ -1,0 +1,85 @@
+name: Build Images
+
+on:
+  workflow_call:
+    inputs:
+      push_tag:
+        required: true
+        type: string
+        description: 'Image tag for build and push (e.g. v0.0.1-20260909)'
+      project_version:
+        required: true
+        type: string
+        description: 'Project version from Makefile (e.g. v0.0.1)'
+
+jobs:
+  build:
+    name: Build container images
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build dev container
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: Dockerfile.build
+          load: true
+          tags: gpu-operator-build:dev
+          cache-from: type=gha,scope=build-env
+          cache-to: type=gha,mode=max,scope=build-env
+
+      - name: Build images inside dev container
+        env:
+          PUSH_TAG: ${{ inputs.push_tag }}
+          PROJECT_VERSION: ${{ inputs.project_version }}
+        run: |
+          docker run --rm --privileged \
+            --network host \
+            -e CI=true \
+            -e "DOCKER_REGISTRY=docker.io/amdpsdo" \
+            -e "IMAGE_NAME=gpu-operator" \
+            -e "IMAGE_TAG=${PUSH_TAG}" \
+            -e "HOURLY_TAG_LABEL=${PUSH_TAG}" \
+            -e "UTILS_IMAGE_TAG=${PUSH_TAG}" \
+            -e "REMEDIATION_CONFIGMAP_UTIL_IMAGE_TAG=${PUSH_TAG}" \
+            -e "PROJECT_VERSION=${PROJECT_VERSION}" \
+            -v /var/run/docker.sock:/var/run/docker.sock \
+            -v "${{ github.workspace }}:/gpu-operator" \
+            -w /gpu-operator \
+            gpu-operator-build:dev \
+            bash -c '
+              set -euo pipefail
+              source ~/.bashrc 2>/dev/null || true
+              git config --global --add safe.directory /gpu-operator
+
+              make generate manager manifests
+
+              make docker-build
+              make docker-save
+
+              make docker-build-utils
+              make docker-save-utils
+
+              make bundle-build
+              make bundle-save
+
+              make docker-build-remediation-configmap-util
+              make docker-save-remediation-configmap-util
+            '
+
+      - name: Upload image artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-images-${{ inputs.push_tag }}
+          retention-days: 1
+          path: |
+            gpu-operator.tar.gz
+            gpu-operator-utils.tar.gz
+            gpu-operator-olm-bundle.tar.gz
+            gpu-operator-remediation-configmap-util.tar.gz
