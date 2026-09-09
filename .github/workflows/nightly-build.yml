@@ -4,14 +4,6 @@ on:
   schedule:
     - cron: '0 13 * * *'
   workflow_dispatch:
-  pull_request:
-    branches: [main]
-    paths:
-      - '.github/workflows/nightly-build.yml'
-      - '.github/workflows/build-images.yml'
-      - '.github/workflows/build-helm.yml'
-      - '.github/workflows/publish.yml'
-      - '.github/scripts/**'
 
 concurrency:
   group: gpuop-nightly
@@ -43,7 +35,7 @@ jobs:
   resolve:
     name: Resolve
     needs: init
-    uses: sangli-pensando/rocm-common-infra-operator/.github/workflows/nightly-resolve.yml@c4e383403c1e6a0bc8cc3127ec2eb2a647dcee4d
+    uses: ROCm/common-infra-operator/.github/workflows/nightly-resolve.yml@71da675c5fba3328eb470e13a0fc9ad1401f5456
     with:
       component: gpu-operator
       version: ${{ needs.init.outputs.project_version }}
@@ -74,7 +66,6 @@ jobs:
     needs: [resolve, build-images, build-helm]
     if: >-
       always()
-      && github.event_name != 'pull_request'
       && needs.resolve.outputs.build_needed == 'true'
       && needs.build-images.result == 'success'
       && needs.build-helm.result == 'success'
@@ -100,7 +91,7 @@ jobs:
     name: Summary
     needs: [resolve, build-images, build-helm, publish, validate]
     if: always() && needs.resolve.outputs.build_needed == 'true'
-    uses: sangli-pensando/rocm-common-infra-operator/.github/workflows/nightly-summary.yml@c4e383403c1e6a0bc8cc3127ec2eb2a647dcee4d
+    uses: ROCm/common-infra-operator/.github/workflows/nightly-summary.yml@71da675c5fba3328eb470e13a0fc9ad1401f5456
     with:
       component: gpu-operator
       push_tag: ${{ needs.resolve.outputs.push_tag }}
