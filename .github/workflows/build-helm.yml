@@ -39,14 +39,6 @@ jobs:
           PUSH_TAG: ${{ inputs.push_tag }}
           PROJECT_VERSION: ${{ inputs.project_version }}
         run: |
-          cat > /tmp/build-helm.sh << 'SCRIPT'
-          set -euo pipefail
-          source ~/.bashrc 2>/dev/null || true
-          git config --global --add safe.directory /gpu-operator
-          make generate manifests helm-k8s
-          SCRIPT
-          chmod +x /tmp/build-helm.sh
-
           docker run --rm --privileged \
             --network host \
             -e CI=true \
@@ -58,10 +50,9 @@ jobs:
             -e "HELM_APP_VERSION=${PUSH_TAG}" \
             -v /var/run/docker.sock:/var/run/docker.sock \
             -v "${{ github.workspace }}:/gpu-operator" \
-            -v /tmp/build-helm.sh:/tmp/build-helm.sh:ro \
             -w /gpu-operator \
             gpu-operator-build:dev \
-            bash /tmp/build-helm.sh
+            bash /gpu-operator/.github/scripts/build-helm.sh
 
       - name: Upload Helm chart artifact
         uses: actions/upload-artifact@v4

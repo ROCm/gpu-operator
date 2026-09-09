@@ -39,20 +39,6 @@ jobs:
           PUSH_TAG: ${{ inputs.push_tag }}
           PROJECT_VERSION: ${{ inputs.project_version }}
         run: |
-          cat > /tmp/build.sh << 'SCRIPT'
-          set -euo pipefail
-          source ~/.bashrc 2>/dev/null || true
-          git config --global --add safe.directory /gpu-operator
-          make generate manager manifests
-          make docker-build
-          make docker-save
-          make docker-build-utils
-          make docker-save-utils
-          make bundle-build
-          make bundle-save
-          SCRIPT
-          chmod +x /tmp/build.sh
-
           docker run --rm --privileged \
             --network host \
             -e CI=true \
@@ -64,10 +50,9 @@ jobs:
             -e "PROJECT_VERSION=${PROJECT_VERSION}" \
             -v /var/run/docker.sock:/var/run/docker.sock \
             -v "${{ github.workspace }}:/gpu-operator" \
-            -v /tmp/build.sh:/tmp/build.sh:ro \
             -w /gpu-operator \
             gpu-operator-build:dev \
-            bash /tmp/build.sh
+            bash /gpu-operator/.github/scripts/build-images.sh
 
       - name: Upload image artifacts
         uses: actions/upload-artifact@v4
