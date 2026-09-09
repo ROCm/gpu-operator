@@ -54,6 +54,13 @@ jobs:
             gpu-operator-build:dev \
             bash /gpu-operator/.github/scripts/build-helm.sh
 
+      - name: Fix file ownership
+        run: |
+          docker run --rm \
+            -v "${{ github.workspace }}:/gpu-operator" \
+            -w /gpu-operator \
+            alpine chown -R $(id -u):$(id -g) helm-charts-k8s/
+
       - name: Upload Helm chart artifact
         uses: actions/upload-artifact@v4
         with:
