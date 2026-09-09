@@ -11,7 +11,7 @@ on:
       - '.github/workflows/build-images.yml'
       - '.github/workflows/build-helm.yml'
       - '.github/workflows/publish.yml'
-      - '.github/workflows/build-summary.yml'
+      - '.github/scripts/**'
 
 concurrency:
   group: gpuop-nightly
@@ -24,59 +24,32 @@ permissions:
 
 jobs:
 
-  resolve:
-    name: Resolve
+  init:
+    name: Init
     runs-on: ubuntu-24.04
     outputs:
-      project_version: ${{ steps.resolve.outputs.project_version }}
-      push_tag:        ${{ steps.resolve.outputs.push_tag }}
-      s3_prefix:       ${{ steps.resolve.outputs.s3_prefix }}
-      date:            ${{ steps.resolve.outputs.date }}
-      sha:             ${{ steps.resolve.outputs.sha }}
-      build_needed:    ${{ steps.dedup.outputs.cache-hit != 'true' }}
+      project_version: ${{ steps.version.outputs.project_version }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Resolve parameters
-        id: resolve
+      - name: Read project version
+        id: version
         run: |
-          set -euo pipefail
-          PROJECT_VERSION=$(grep -m1 'PROJECT_VERSION ?=' Makefile | awk '{print $NF}')
-          DATE=$(date -u +%Y%m%d)
-          SHA=$(git rev-parse --short HEAD)
-          PUSH_TAG="${PROJECT_VERSION}-${DATE}"
-          S3_PREFIX="gpu-operator/nightly/${DATE}"
+          VERSION=$(grep -m1 'PROJECT_VERSION ?=' Makefile | awk '{print $NF}')
+          echo "project_version=${VERSION}" >> "$GITHUB_OUTPUT"
+          echo "Project version: ${VERSION}"
 
-          echo "project_version=${PROJECT_VERSION}" >> "$GITHUB_OUTPUT"
-          echo "push_tag=${PUSH_TAG}"               >> "$GITHUB_OUTPUT"
-          echo "s3_prefix=${S3_PREFIX}"             >> "$GITHUB_OUTPUT"
-          echo "date=${DATE}"                       >> "$GITHUB_OUTPUT"
-          echo "sha=${SHA}"                         >> "$GITHUB_OUTPUT"
-
-          echo "Project version : ${PROJECT_VERSION}"
-          echo "Push tag        : ${PUSH_TAG}"
-          echo "S3 prefix       : ${S3_PREFIX}"
-          echo "Date            : ${DATE}"
-          echo "SHA             : ${SHA}"
-
-      - name: Check dedup cache
-        id: dedup
-        if: github.event_name == 'schedule'
-        continue-on-error: true
-        uses: actions/cache/restore@v4
-        with:
-          key: dedup-gpuop-${{ steps.resolve.outputs.date }}-${{ steps.resolve.outputs.sha }}
-          path: .dedup-marker
-          lookup-only: true
-
-      - name: Dedup summary
-        if: steps.dedup.outputs.cache-hit == 'true'
-        run: |
-          {
-            echo "## Nightly Build — Skipped"
-            echo "Build already succeeded for \`${{ steps.resolve.outputs.push_tag }}\` at SHA \`${{ steps.resolve.outputs.sha }}\`."
-          } >> "$GITHUB_STEP_SUMMARY"
+  resolve:
+    name: Resolve
+    needs: init
+    uses: sangli-pensando/rocm-common-infra-operator/.github/workflows/nightly-resolve.yml@c4e383403c1e6a0bc8cc3127ec2eb2a647dcee4d
+    with:
+      component: gpu-operator
+      version: ${{ needs.init.outputs.project_version }}
+      s3_component_prefix: gpu-operator
+      trigger_event: ${{ github.event_name }}
+      trigger_sha: ${{ github.sha }}
 
   build-images:
     name: Build Images
@@ -85,7 +58,7 @@ jobs:
     uses: ./.github/workflows/build-images.yml
     with:
       push_tag: ${{ needs.resolve.outputs.push_tag }}
-      project_version: ${{ needs.resolve.outputs.project_version }}
+      project_version: ${{ needs.resolve.outputs.version }}
 
   build-helm:
     name: Build Helm
@@ -94,7 +67,7 @@ jobs:
     uses: ./.github/workflows/build-helm.yml
     with:
       push_tag: ${{ needs.resolve.outputs.push_tag }}
-      project_version: ${{ needs.resolve.outputs.project_version }}
+      project_version: ${{ needs.resolve.outputs.version }}
 
   publish:
     name: Publish
@@ -108,9 +81,9 @@ jobs:
     uses: ./.github/workflows/publish.yml
     with:
       push_tag: ${{ needs.resolve.outputs.push_tag }}
-      project_version: ${{ needs.resolve.outputs.project_version }}
+      project_version: ${{ needs.resolve.outputs.version }}
       s3_prefix: ${{ needs.resolve.outputs.s3_prefix }}
-      dedup_key: dedup-gpuop-${{ needs.resolve.outputs.date }}-${{ needs.resolve.outputs.sha }}
+      dedup_key: dedup-gpu-operator-${{ needs.resolve.outputs.date }}-${{ github.sha }}
     secrets: inherit
 
   validate:
@@ -127,12 +100,22 @@ jobs:
     name: Summary
     needs: [resolve, build-images, build-helm, publish, validate]
     if: always() && needs.resolve.outputs.build_needed == 'true'
-    uses: ./.github/workflows/build-summary.yml
+    uses: sangli-pensando/rocm-common-infra-operator/.github/workflows/nightly-summary.yml@c4e383403c1e6a0bc8cc3127ec2eb2a647dcee4d
     with:
+      component: gpu-operator
       push_tag: ${{ needs.resolve.outputs.push_tag }}
-      project_version: ${{ needs.resolve.outputs.project_version }}
+      version: ${{ needs.resolve.outputs.version }}
       s3_prefix: ${{ needs.resolve.outputs.s3_prefix }}
-      build_images_result: ${{ needs.build-images.result }}
-      build_helm_result: ${{ needs.build-helm.result }}
-      publish_result: ${{ needs.publish.result }}
-      validate_result: ${{ needs.validate.result }}
+      s3_bucket: ${{ vars.THEROCK_BUCKET_NAME }}
+      trigger_sha: ${{ github.sha }}
+      prev_nightly_sha: ${{ needs.resolve.outputs.prev_nightly_sha }}
+      commit_log: ${{ needs.resolve.outputs.commit_log }}
+      stages: |
+        Build Images|${{ needs.build-images.result }}
+        Build Helm|${{ needs.build-helm.result }}
+        Publish|${{ needs.publish.result }}
+        Validate|${{ needs.validate.result }}
+      docker_images: |
+        amdpsdo/gpu-operator:${{ needs.resolve.outputs.push_tag }}
+        amdpsdo/gpu-operator-utils:${{ needs.resolve.outputs.push_tag }}
+        amdpsdo/gpu-operator-bundle:${{ needs.resolve.outputs.push_tag }}
