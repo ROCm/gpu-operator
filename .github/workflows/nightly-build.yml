@@ -81,7 +81,7 @@ jobs:
     name: Validate
     needs: [resolve, publish]
     if: always() && needs.publish.result == 'success'
-    uses: ROCm/common-infra-operator/.github/workflows/rocm-orchestrator.yml@main
+    uses: ROCm/common-infra-operator/.github/workflows/rocm-orchestrator.yml@71da675c5fba3328eb470e13a0fc9ad1401f5456
     with:
       component: gpu-operator
       scenario: nightly
