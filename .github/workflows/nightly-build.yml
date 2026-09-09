@@ -1,0 +1,112 @@
+name: Nightly Build
+
+on:
+  schedule:
+    - cron: '0 13 * * *'
+  workflow_dispatch:
+
+concurrency:
+  group: gpuop-nightly
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  id-token: write
+  actions: write
+
+jobs:
+
+  init:
+    name: Init
+    runs-on: ubuntu-24.04
+    outputs:
+      project_version: ${{ steps.version.outputs.project_version }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Read project version
+        id: version
+        run: |
+          VERSION=$(grep -m1 'PROJECT_VERSION ?=' Makefile | awk '{print $NF}')
+          echo "project_version=${VERSION}" >> "$GITHUB_OUTPUT"
+          echo "Project version: ${VERSION}"
+
+  resolve:
+    name: Resolve
+    needs: init
+    uses: ROCm/common-infra-operator/.github/workflows/nightly-resolve.yml@71da675c5fba3328eb470e13a0fc9ad1401f5456
+    with:
+      component: gpu-operator
+      version: ${{ needs.init.outputs.project_version }}
+      s3_component_prefix: gpu-operator
+      trigger_event: ${{ github.event_name }}
+      trigger_sha: ${{ github.sha }}
+
+  build-images:
+    name: Build Images
+    needs: resolve
+    if: needs.resolve.outputs.build_needed == 'true'
+    uses: ./.github/workflows/build-images.yml
+    with:
+      push_tag: ${{ needs.resolve.outputs.push_tag }}
+      project_version: ${{ needs.resolve.outputs.version }}
+
+  build-helm:
+    name: Build Helm
+    needs: resolve
+    if: needs.resolve.outputs.build_needed == 'true'
+    uses: ./.github/workflows/build-helm.yml
+    with:
+      push_tag: ${{ needs.resolve.outputs.push_tag }}
+      project_version: ${{ needs.resolve.outputs.version }}
+
+  publish:
+    name: Publish
+    needs: [resolve, build-images, build-helm]
+    if: >-
+      always()
+      && needs.resolve.outputs.build_needed == 'true'
+      && needs.build-images.result == 'success'
+      && needs.build-helm.result == 'success'
+    uses: ./.github/workflows/publish.yml
+    with:
+      push_tag: ${{ needs.resolve.outputs.push_tag }}
+      project_version: ${{ needs.resolve.outputs.version }}
+      s3_prefix: ${{ needs.resolve.outputs.s3_prefix }}
+      dedup_key: dedup-gpu-operator-${{ needs.resolve.outputs.date }}-${{ github.sha }}
+    secrets: inherit
+
+  validate:
+    name: Validate
+    needs: [resolve, publish]
+    if: always() && needs.publish.result == 'success'
+    uses: ROCm/common-infra-operator/.github/workflows/rocm-orchestrator.yml@71da675c5fba3328eb470e13a0fc9ad1401f5456
+    with:
+      component: gpu-operator
+      scenario: nightly
+      s3_prefix: ${{ needs.resolve.outputs.s3_prefix }}
+
+  results:
+    name: Summary
+    needs: [resolve, build-images, build-helm, publish, validate]
+    if: always() && needs.resolve.outputs.build_needed == 'true'
+    uses: ROCm/common-infra-operator/.github/workflows/nightly-summary.yml@71da675c5fba3328eb470e13a0fc9ad1401f5456
+    with:
+      component: gpu-operator
+      push_tag: ${{ needs.resolve.outputs.push_tag }}
+      version: ${{ needs.resolve.outputs.version }}
+      s3_prefix: ${{ needs.resolve.outputs.s3_prefix }}
+      s3_bucket: ${{ vars.THEROCK_BUCKET_NAME }}
+      trigger_sha: ${{ github.sha }}
+      prev_nightly_sha: ${{ needs.resolve.outputs.prev_nightly_sha }}
+      commit_log: ${{ needs.resolve.outputs.commit_log }}
+      stages: |
+        Build Images|${{ needs.build-images.result }}
+        Build Helm|${{ needs.build-helm.result }}
+        Publish|${{ needs.publish.result }}
+        Validate|${{ needs.validate.result }}
+      docker_images: |
+        amdpsdo/gpu-operator:${{ needs.resolve.outputs.push_tag }}
+        amdpsdo/gpu-operator-utils:${{ needs.resolve.outputs.push_tag }}
+        amdpsdo/gpu-operator-bundle:${{ needs.resolve.outputs.push_tag }}
