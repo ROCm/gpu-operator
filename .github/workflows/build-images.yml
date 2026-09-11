@@ -54,12 +54,20 @@ jobs:
             gpu-operator-build:dev \
             bash /gpu-operator/.github/scripts/build-images.sh
 
+      - name: Rename artifacts with push tag
+        env:
+          PUSH_TAG: ${{ inputs.push_tag }}
+        run: |
+          mv gpu-operator.tar.gz "gpu-operator-${PUSH_TAG}.tar.gz"
+          mv gpu-operator-utils.tar.gz "gpu-operator-utils-${PUSH_TAG}.tar.gz"
+          mv gpu-operator-olm-bundle.tar.gz "gpu-operator-olm-bundle-${PUSH_TAG}.tar.gz"
+
       - name: Upload image artifacts
         uses: actions/upload-artifact@v4
         with:
           name: build-images-${{ inputs.push_tag }}
           retention-days: 1
           path: |
-            gpu-operator.tar.gz
-            gpu-operator-utils.tar.gz
-            gpu-operator-olm-bundle.tar.gz
+            gpu-operator-${{ inputs.push_tag }}.tar.gz
+            gpu-operator-utils-${{ inputs.push_tag }}.tar.gz
+            gpu-operator-olm-bundle-${{ inputs.push_tag }}.tar.gz

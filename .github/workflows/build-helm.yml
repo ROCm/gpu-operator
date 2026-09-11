@@ -61,9 +61,17 @@ jobs:
             -w /gpu-operator \
             alpine chown -R $(id -u):$(id -g) helm-charts-k8s/
 
+      - name: Rename Helm chart with push tag
+        env:
+          PUSH_TAG: ${{ inputs.push_tag }}
+          PROJECT_VERSION: ${{ inputs.project_version }}
+        run: |
+          mv "helm-charts-k8s/gpu-operator-helm-k8s-${PROJECT_VERSION}.tgz" \
+             "helm-charts-k8s/gpu-operator-helm-k8s-${PUSH_TAG}.tgz"
+
       - name: Upload Helm chart artifact
         uses: actions/upload-artifact@v4
         with:
           name: build-helm-${{ inputs.push_tag }}
           retention-days: 1
-          path: helm-charts-k8s/gpu-operator-helm-k8s-${{ inputs.project_version }}.tgz
+          path: helm-charts-k8s/gpu-operator-helm-k8s-${{ inputs.push_tag }}.tgz
