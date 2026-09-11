@@ -69,13 +69,25 @@ jobs:
       && needs.resolve.outputs.build_needed == 'true'
       && needs.build-images.result == 'success'
       && needs.build-helm.result == 'success'
-    uses: ./.github/workflows/publish.yml
+    uses: ROCm/common-infra-operator/.github/workflows/rocm-publish.yml@71da675c5fba3328eb470e13a0fc9ad1401f5456
     with:
-      push_tag: ${{ needs.resolve.outputs.push_tag }}
-      project_version: ${{ needs.resolve.outputs.version }}
+      component: gpu-operator
+      image_tag: ${{ needs.resolve.outputs.push_tag }}
+      version: ${{ needs.resolve.outputs.version }}
+      suffix: ${{ needs.resolve.outputs.suffix }}
       s3_prefix: ${{ needs.resolve.outputs.s3_prefix }}
-      dedup_key: dedup-gpu-operator-${{ needs.resolve.outputs.date }}-${{ github.sha }}
-    secrets: inherit
+      trigger_sha: ${{ github.sha }}
+      s3_bucket: ${{ vars.THEROCK_BUCKET_NAME }}
+      artifact_names: build-images-${{ needs.resolve.outputs.push_tag }},build-helm-${{ needs.resolve.outputs.push_tag }}
+      s3_file_globs: "*.tar.gz,*.tgz"
+      docker_images: |
+        gpu-operator-${{ needs.resolve.outputs.push_tag }}.tar.gz|amdpsdo/gpu-operator:${{ needs.resolve.outputs.push_tag }}|amdpsdo/gpu-operator:${{ needs.resolve.outputs.push_tag }}|false
+        gpu-operator-utils-${{ needs.resolve.outputs.push_tag }}.tar.gz|amdpsdo/gpu-operator-utils:${{ needs.resolve.outputs.push_tag }}|amdpsdo/gpu-operator-utils:${{ needs.resolve.outputs.push_tag }}|false
+        gpu-operator-olm-bundle-${{ needs.resolve.outputs.push_tag }}.tar.gz|amdpsdo/gpu-operator-bundle:${{ needs.resolve.outputs.push_tag }}|amdpsdo/gpu-operator-bundle:${{ needs.resolve.outputs.push_tag }}|false
+    secrets:
+      ROCK_CI_S3_SECRET: ${{ secrets.ROCK_CI_S3_SECRET }}
+      DOCKER_TOKEN: ${{ secrets.DOCKER_TOKEN }}
+      DOCKER_USERNAME: ${{ vars.DOCKER_USERNAME }}
 
   validate:
     name: Validate
