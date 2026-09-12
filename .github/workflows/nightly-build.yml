@@ -35,7 +35,7 @@ jobs:
   resolve:
     name: Resolve
     needs: init
-    uses: ROCm/common-infra-operator/.github/workflows/nightly-resolve.yml@71da675c5fba3328eb470e13a0fc9ad1401f5456
+    uses: ROCm/common-infra-operator/.github/workflows/nightly-resolve.yml@d322879bf9fcd790a8ab92aed150874c52a957ed
     with:
       component: gpu-operator
       version: ${{ needs.init.outputs.project_version }}
@@ -69,7 +69,7 @@ jobs:
       && needs.resolve.outputs.build_needed == 'true'
       && needs.build-images.result == 'success'
       && needs.build-helm.result == 'success'
-    uses: ROCm/common-infra-operator/.github/workflows/rocm-publish.yml@71da675c5fba3328eb470e13a0fc9ad1401f5456
+    uses: ROCm/common-infra-operator/.github/workflows/rocm-publish.yml@d322879bf9fcd790a8ab92aed150874c52a957ed
     with:
       component: gpu-operator
       image_tag: ${{ needs.resolve.outputs.push_tag }}
@@ -93,7 +93,7 @@ jobs:
     name: Validate
     needs: [resolve, publish]
     if: always() && needs.publish.result == 'success'
-    uses: ROCm/common-infra-operator/.github/workflows/rocm-orchestrator.yml@71da675c5fba3328eb470e13a0fc9ad1401f5456
+    uses: ROCm/common-infra-operator/.github/workflows/rocm-orchestrator.yml@d322879bf9fcd790a8ab92aed150874c52a957ed
     with:
       component: gpu-operator
       scenario: nightly
@@ -103,7 +103,7 @@ jobs:
     name: Summary
     needs: [resolve, build-images, build-helm, publish, validate]
     if: always() && needs.resolve.outputs.build_needed == 'true'
-    uses: ROCm/common-infra-operator/.github/workflows/nightly-summary.yml@71da675c5fba3328eb470e13a0fc9ad1401f5456
+    uses: ROCm/common-infra-operator/.github/workflows/nightly-summary.yml@d322879bf9fcd790a8ab92aed150874c52a957ed
     with:
       component: gpu-operator
       push_tag: ${{ needs.resolve.outputs.push_tag }}
