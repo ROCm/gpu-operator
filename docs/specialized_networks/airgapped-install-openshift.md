@@ -5,7 +5,7 @@ This guide explains how to install the AMD GPU Operator in an air-gapped environ
 ## Prerequisites
 
 - OpenShift 4.16+
-- Users should have followed the [OpenShift Official Documentation](https://docs.redhat.com/en/documentation/openshift_container_platform/4.19/html/disconnected_environments/mirroring-in-disconnected-environments) to install the air-gapped cluster and set up a Mirror Registry.
+- Users should have followed the [OpenShift Official Documentation](https://docs.redhat.com/en/documentation/openshift_container_platform/latest/html/disconnected_environments/index) to install the air-gapped cluster and set up a Mirror Registry.
 
 ![Air-gapped Installation Diagram](../_static/ocp_airgapped.png)
 
@@ -21,7 +21,7 @@ Here is an example `ImageSetConfiguration` for mirroring the required catalogs a
 1. The following `ImageSetConfiguration` file is an incomplete example.
 2. Users must configure the `storageConfig` section for either directly pushing artifacts to the mirror container registry or saving to local file storage.
 3. Users may merge the `mirror` section of this example with their own `ImageSetConfiguration`.
-4. Detailed explanation of `ImageSetConfiguration` can be found in the [OpenShift official documentation](https://docs.redhat.com/en/documentation/openshift_container_platform/4.19/html/disconnected_environments/mirroring-in-disconnected-environments#using-oc-mirror_about-installing-oc-mirror-v2).
+4. Detailed explanation of `ImageSetConfiguration` can be found in the [OpenShift official documentation](https://docs.redhat.com/en/documentation/openshift_container_platform/latest/html/disconnected_environments/about-installing-oc-mirror-v2#oc-mirror-building-image-set-config-v2_about-installing-oc-mirror-v2).
 5. When mirroring the source image `docker.io/rocm/amdgpu-driver`, we strongly recommend making it accessible without requiring image pull secrets. If image pull secrets are required for pulling the source image, refer to the notes in [Driver Installation](../drivers/installation.md#install-out-of-tree-amd-gpu-drivers-with-operator) to configure the pull secret.
 ```
 
