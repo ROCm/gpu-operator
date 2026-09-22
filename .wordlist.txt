@@ -2,6 +2,8 @@ amd
 AFID
 AFIDs
 Affectioned
+acf
+ACF
 AGFHC
 Allocatable
 ACS
