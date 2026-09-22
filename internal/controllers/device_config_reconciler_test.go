@@ -55,6 +55,7 @@ import (
 	v1 "k8s.io/api/core/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -897,5 +898,63 @@ var _ = Describe("handleDeviceClass", func() {
 
 		err := dcrh.handleDeviceClass(ctx, draEnabledConfig)
 		Expect(err).To(HaveOccurred())
+	})
+
+	It("sets extendedResourceName on the single DeviceClass when AutoPartition is disabled", func() {
+		ctrl := gomock.NewController(GinkgoT())
+		kubeClient = mock_client.NewMockClient(ctrl)
+		dcrh = newDeviceConfigReconcilerHelper(kubeClient, nil, nil, nil, nil, nil, nil, nil, nil, nil, true, true)
+
+		var created *unstructured.Unstructured
+		kubeClient.EXPECT().Create(ctx, gomock.Any()).DoAndReturn(
+			func(_ context.Context, obj client.Object, _ ...client.CreateOption) error {
+				created = obj.(*unstructured.Unstructured)
+				return nil
+			},
+		)
+
+		err := dcrh.handleDeviceClass(ctx, draEnabledConfig)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(created.GetName()).To(Equal("gpu.amd.com"))
+		ern, found, _ := unstructured.NestedString(created.Object, "spec", "extendedResourceName")
+		Expect(found).To(BeTrue())
+		Expect(ern).To(Equal("amd.com/gpu"))
+	})
+
+	It("creates both DeviceClasses when AutoPartition is enabled, extendedResourceName only on the spx class", func() {
+		ctrl := gomock.NewController(GinkgoT())
+		kubeClient = mock_client.NewMockClient(ctrl)
+		dcrh = newDeviceConfigReconcilerHelper(kubeClient, nil, nil, nil, nil, nil, nil, nil, nil, nil, true, true)
+
+		autoPartitionConfig := &amdv1alpha1.DeviceConfig{
+			ObjectMeta: metav1.ObjectMeta{Name: devConfigName, Namespace: devConfigNamespace},
+			Spec: amdv1alpha1.DeviceConfigSpec{
+				DRADriver: amdv1alpha1.DRADriverSpec{
+					Enable:           &draEnabled,
+					CmdLineArguments: map[string]string{"feature-gates": "AutoPartition=true"},
+				},
+			},
+		}
+
+		var created []*unstructured.Unstructured
+		kubeClient.EXPECT().Create(ctx, gomock.Any()).Times(2).DoAndReturn(
+			func(_ context.Context, obj client.Object, _ ...client.CreateOption) error {
+				created = append(created, obj.(*unstructured.Unstructured))
+				return nil
+			},
+		)
+
+		err := dcrh.handleDeviceClass(ctx, autoPartitionConfig)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(created).To(HaveLen(2))
+
+		Expect(created[0].GetName()).To(Equal("gpu.amd.com"))
+		_, found, _ := unstructured.NestedString(created[0].Object, "spec", "extendedResourceName")
+		Expect(found).To(BeFalse())
+
+		Expect(created[1].GetName()).To(Equal("gpu.amd.com-spx"))
+		ern, found, _ := unstructured.NestedString(created[1].Object, "spec", "extendedResourceName")
+		Expect(found).To(BeTrue())
+		Expect(ern).To(Equal("amd.com/gpu"))
 	})
 })

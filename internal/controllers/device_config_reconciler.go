@@ -83,6 +83,10 @@ const (
 	deviceConfigFinalizer      = "amd.node.kubernetes.io/deviceconfig-finalizer"
 	testRunnerNodeLabelPrefix  = "testrunner.amd.com"
 	deviceClassName            = "gpu.amd.com"
+	// deviceClassExtendedResourceName maps classic amd.com/gpu (resources.limits)
+	// requests onto DRA devices. Mirrors the default of
+	// helm-charts-k8s' draDriver.deviceClass.extendedResourceName Helm value.
+	deviceClassExtendedResourceName = "amd.com/gpu"
 )
 
 var draAPIVersionPriority = []string{"v1", "v1beta2", "v1beta1"}
@@ -1271,40 +1275,69 @@ func (dcrh *deviceConfigReconcilerHelper) handleDeviceClass(ctx context.Context,
 		return nil
 	}
 
-	logger := log.FromContext(ctx)
-
 	apiVersion := discoverDRAAPIVersion()
-	logger.Info("Discovered DRA API version", "apiVersion", apiVersion)
+	log.FromContext(ctx).Info("Discovered DRA API version", "apiVersion", apiVersion)
 
+	if !utils.ShouldUseAutoPartition(devConfig) {
+		return dcrh.applyDeviceClass(ctx, apiVersion, deviceClassName,
+			"device.driver == '"+deviceClassName+"'", deviceClassExtendedResourceName)
+	}
+
+	// When AutoPartition is enabled, gpu.amd.com's device pool includes fractional
+	// partition devices (cpx/dpx/qpx) alongside whole GPUs (spx), all matched by
+	// the same selector. A classic amd.com/gpu request (no selector of its own --
+	// it's translated by the apiserver from resources.limits, not authored as a
+	// ResourceClaim) must not be able to resolve to a partition fraction left over
+	// from another claim, so extendedResourceName moves to a second,
+	// spx-constrained class instead of staying on the general one. Mirrors
+	// helm-charts-k8s/templates/dra-driver-deviceclass.yaml.
+	if err := dcrh.applyDeviceClass(ctx, apiVersion, deviceClassName,
+		"device.driver == '"+deviceClassName+"'", ""); err != nil {
+		return err
+	}
+	spxExpr := "device.driver == '" + deviceClassName + "' && " +
+		"(!has(device.attributes[\"" + deviceClassName + "\"].computePartition) || " +
+		"device.attributes[\"" + deviceClassName + "\"].computePartition == \"spx\")"
+	return dcrh.applyDeviceClass(ctx, apiVersion, deviceClassName+"-spx", spxExpr, deviceClassExtendedResourceName)
+}
+
+// applyDeviceClass creates a DeviceClass named name with the given CEL selector
+// expression, setting extendedResourceName when non-empty. A no-op if the
+// DeviceClass already exists -- this does not reconcile drift on an existing one.
+func (dcrh *deviceConfigReconcilerHelper) applyDeviceClass(ctx context.Context, apiVersion, name, selectorExpr, extendedResourceName string) error {
 	dc := &unstructured.Unstructured{}
 	dc.SetGroupVersionKind(schema.GroupVersionKind{
 		Group:   "resource.k8s.io",
 		Version: apiVersion,
 		Kind:    "DeviceClass",
 	})
-	dc.SetName(deviceClassName)
+	dc.SetName(name)
 	dc.SetLabels(map[string]string{
 		"app.kubernetes.io/component": "amd-gpu",
 		"app.kubernetes.io/part-of":   "amd-gpu",
 	})
-	dc.Object["spec"] = map[string]interface{}{
+	spec := map[string]interface{}{
 		"selectors": []interface{}{
 			map[string]interface{}{
 				"cel": map[string]interface{}{
-					"expression": "device.driver == '" + deviceClassName + "'",
+					"expression": selectorExpr,
 				},
 			},
 		},
 	}
+	if extendedResourceName != "" {
+		spec["extendedResourceName"] = extendedResourceName
+	}
+	dc.Object["spec"] = spec
 
 	if err := dcrh.client.Create(ctx, dc); err != nil {
 		if k8serrors.IsAlreadyExists(err) {
 			return nil
 		}
-		return fmt.Errorf("failed to create DeviceClass %s: %v", deviceClassName, err)
+		return fmt.Errorf("failed to create DeviceClass %s: %v", name, err)
 	}
 
-	logger.Info("Created DeviceClass", "name", deviceClassName, "apiVersion", apiVersion)
+	log.FromContext(ctx).Info("Created DeviceClass", "name", name, "apiVersion", apiVersion)
 	return nil
 }
 
