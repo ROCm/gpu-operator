@@ -176,3 +176,118 @@ var _ = Describe("SetDevicePluginAsDesired", func() {
 		Expect(err.Error()).To(ContainSubstring("daemon set is not initialized"))
 	})
 })
+
+var _ = Describe("SetDRADriverAsDesired", func() {
+	var dp *devicePlugin
+
+	BeforeEach(func() {
+		dp = &devicePlugin{
+			client:      nil,
+			scheme:      scheme,
+			isOpenShift: false,
+		}
+	})
+
+	newDevConfig := func(driverEnable bool, driverType string) *amdv1alpha1.DeviceConfig {
+		return &amdv1alpha1.DeviceConfig{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "test-config",
+				Namespace: "test-namespace",
+			},
+			Spec: amdv1alpha1.DeviceConfigSpec{
+				Driver: amdv1alpha1.DriverSpec{
+					Enable:     &driverEnable,
+					DriverType: driverType,
+				},
+				DRADriver: amdv1alpha1.DRADriverSpec{},
+			},
+		}
+	}
+
+	// Both auto-partition reload paths (non-KMM modprobe and KMM-managed) shell
+	// out to modprobe inside the container, which needs /lib/modules regardless
+	// of whether KMM manages the driver.
+	It("always mounts /lib/modules for the amdgpu module reload paths", func() {
+		ds := &appsv1.DaemonSet{
+			ObjectMeta: metav1.ObjectMeta{Name: "test-dra-driver", Namespace: "test-namespace"},
+		}
+		devConfig := newDevConfig(false, "")
+
+		err := dp.SetDRADriverAsDesired(ds, devConfig)
+		Expect(err).To(BeNil())
+
+		var foundVolumeMount bool
+		for _, vm := range ds.Spec.Template.Spec.Containers[0].VolumeMounts {
+			if vm.Name == "lib-modules" {
+				Expect(vm.MountPath).To(Equal("/lib/modules"))
+				Expect(vm.ReadOnly).To(BeTrue())
+				foundVolumeMount = true
+			}
+		}
+		Expect(foundVolumeMount).To(BeTrue(), "lib-modules volume mount not found")
+
+		var foundVolume bool
+		for _, vol := range ds.Spec.Template.Spec.Volumes {
+			if vol.Name == "lib-modules" {
+				Expect(vol.HostPath.Path).To(Equal("/lib/modules"))
+				foundVolume = true
+			}
+		}
+		Expect(foundVolume).To(BeTrue(), "lib-modules volume not found")
+	})
+
+	It("sets KMM_DRIVER_ENABLED when the driver is KMM-managed", func() {
+		ds := &appsv1.DaemonSet{
+			ObjectMeta: metav1.ObjectMeta{Name: "test-dra-driver", Namespace: "test-namespace"},
+		}
+		devConfig := newDevConfig(true, utils.DriverTypeContainer)
+
+		err := dp.SetDRADriverAsDesired(ds, devConfig)
+		Expect(err).To(BeNil())
+
+		var found bool
+		for _, e := range ds.Spec.Template.Spec.Containers[0].Env {
+			if e.Name == "KMM_DRIVER_ENABLED" {
+				Expect(e.Value).To(Equal("true"))
+				found = true
+			}
+		}
+		Expect(found).To(BeTrue(), "KMM_DRIVER_ENABLED env var not set")
+	})
+
+	It("does not set KMM_DRIVER_ENABLED when the driver is not KMM-managed", func() {
+		ds := &appsv1.DaemonSet{
+			ObjectMeta: metav1.ObjectMeta{Name: "test-dra-driver", Namespace: "test-namespace"},
+		}
+		devConfig := newDevConfig(false, "")
+
+		err := dp.SetDRADriverAsDesired(ds, devConfig)
+		Expect(err).To(BeNil())
+
+		for _, e := range ds.Spec.Template.Spec.Containers[0].Env {
+			Expect(e.Name).NotTo(Equal("KMM_DRIVER_ENABLED"))
+		}
+	})
+
+	It("does not set KMM_DRIVER_ENABLED for pf-passthrough driver type", func() {
+		ds := &appsv1.DaemonSet{
+			ObjectMeta: metav1.ObjectMeta{Name: "test-dra-driver", Namespace: "test-namespace"},
+		}
+		devConfig := newDevConfig(true, utils.DriverTypePFPassthrough)
+
+		err := dp.SetDRADriverAsDesired(ds, devConfig)
+		Expect(err).To(BeNil())
+
+		for _, e := range ds.Spec.Template.Spec.Containers[0].Env {
+			Expect(e.Name).NotTo(Equal("KMM_DRIVER_ENABLED"))
+		}
+	})
+
+	It("should return error when daemonset is nil", func() {
+		devConfig := newDevConfig(false, "")
+
+		err := dp.SetDRADriverAsDesired(nil, devConfig)
+		Expect(err).NotTo(BeNil())
+		Expect(err.Error()).To(ContainSubstring("daemon set is not initialized"))
+	})
+})

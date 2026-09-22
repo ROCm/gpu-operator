@@ -12,4 +12,36 @@ spec:
   selectors:
   - cel:
       expression: "device.driver == 'gpu.amd.com'"
+{{- if and .Values.draDriver.deviceClass.extendedResourceName (not .Values.draDriver.deviceClass.autoPartition) }}
+  extendedResourceName: {{ .Values.draDriver.deviceClass.extendedResourceName }}
+{{- end }}
+{{- if .Values.draDriver.deviceClass.autoPartition }}
+---
+# When AutoPartition is enabled on the DRA driver, gpu.amd.com's device pool
+# includes fractional partition devices (cpx/dpx/qpx) alongside whole GPUs (spx),
+# all matched by the same selector above. extendedResourceName moves to this
+# second, spx-constrained class instead of staying on the general one, so a
+# classic amd.com/gpu request (which carries no selector of its own -- it's
+# translated by the apiserver from resources.limits, not authored as a
+# ResourceClaim) can only ever resolve to a whole GPU, never a partition
+# fraction left over from another claim.
+apiVersion: {{ $draApi }}
+kind: DeviceClass
+metadata:
+  name: gpu.amd.com-spx
+  labels:
+    app.kubernetes.io/component: amd-gpu
+    app.kubernetes.io/part-of: amd-gpu
+  {{- include "helm-charts-k8s.labels" . | nindent 4 }}
+spec:
+  selectors:
+  - cel:
+      expression: >-
+        device.driver == 'gpu.amd.com' &&
+        (!has(device.attributes["gpu.amd.com"].computePartition) ||
+         device.attributes["gpu.amd.com"].computePartition == "spx")
+  {{- with .Values.draDriver.deviceClass.extendedResourceName }}
+  extendedResourceName: {{ . }}
+  {{- end }}
+{{- end }}
 {{- end }}
