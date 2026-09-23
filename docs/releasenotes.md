@@ -4,6 +4,15 @@
 
 The AMD GPU Operator v1.5.1 release extends hardware support to the **AMD Instinct™ MI350P** and **AMD Radeon™ AI PRO** GPU families, and updates the Device Metrics Exporter with configurable exporter arguments.
 
+### OpenShift Catalog Version Note
+
+For the v1.5.1 release, the OpenShift OLM bundle was originally intended to
+use v1.5.1, matching the general AMD GPU Operator release. Because the v1.5.1
+bundle contained an image SHA256 mismatch, a follow-up v1.5.2 bundle was
+published to the certified-operators catalog. Therefore, OpenShift users
+installing the v1.5.1 release through OperatorHub will see v1.5.2. This is
+expected; use v1.5.2 for the v1.5.1 OpenShift OLM installation.
+
 ### Release Highlights
 
 - **AMD Instinct™ MI350P Platform Support**
