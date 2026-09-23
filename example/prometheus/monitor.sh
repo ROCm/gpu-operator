@@ -12,6 +12,8 @@ done
 
 TARGETS=$(echo ${IPPORT} | tr ' ' ',')
 GRAFANA_IP=$(ip route get 1.2.3.4 | awk '{print $7}')
+GRAFANA_USER="${GRAFANA_USER:-admin}"
+GRAFANA_PASSWORD="${GRAFANA_PASSWORD:-admin}"
 echo "found targets $TARGETS"
 cat <<EOF >/tmp/prometheus.yml
 global:
@@ -38,7 +40,10 @@ EOF
 docker port prometheus >/dev/null 2>&1 && docker rm -f prometheus
 docker port grafana >/dev/null 2>&1 && docker rm -f grafana
 docker run --rm -d --name prometheus -p 9090:9090 -v /tmp/prometheus.yml:/etc/prometheus/prometheus.yml prom/prometheus
-docker run --rm -d --name grafana -p 3000:3000 grafana/grafana:latest
+docker run --rm -d --name grafana -p 3000:3000 \
+	-e "GF_SECURITY_ADMIN_USER=${GRAFANA_USER}" \
+	-e "GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD}" \
+	grafana/grafana:latest
 sleep 5
 cat <<EOF >/tmp/prom.json
 {
@@ -54,7 +59,7 @@ cat <<EOF >/tmp/prom.json
 }
 
 EOF
-curl -s -u "admin:admin" -XPOST -H "Content-Type:application/json" -H "Accept: application/json" -d@/tmp/prom.json http://${GRAFANA_IP}:3000/api/datasources >/dev/null
+curl -s -u "${GRAFANA_USER}:${GRAFANA_PASSWORD}" -XPOST -H "Content-Type:application/json" -H "Accept: application/json" -d@/tmp/prom.json http://${GRAFANA_IP}:3000/api/datasources >/dev/null
 
 echo "prometheus started http://${GRAFANA_IP}:9090"
 echo "grafana started http://${GRAFANA_IP}:3000"
