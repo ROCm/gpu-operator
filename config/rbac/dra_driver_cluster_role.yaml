@@ -35,3 +35,10 @@ rules:
   - nodes
   verbs:
   - get
+- apiGroups:
+  - kmm.sigs.x-k8s.io
+  resources:
+  - nodemodulesconfigs
+  verbs:
+  - get
+  - delete

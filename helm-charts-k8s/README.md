@@ -6,7 +6,7 @@ For the most detailed and up-to-date documentation please visit our Instinct Doc
 
 ## Introduction
 
-AMD GPU Operator simplifies the deployment and management of AMD Instinct GPU accelerators within Kubernetes clusters. This project enables seamless configuration and operation of GPU-accelerated workloads, including machine learning, Generative AI, and other GPU-intensive applications.
+AMD GPU Operator simplifies the deployment and management of AMD Instinct™ and AMD Radeon™ GPU accelerators within Kubernetes clusters. This project enables seamless configuration and operation of GPU-accelerated workloads, including machine learning, Generative AI, and other GPU-intensive applications.
 
 ## Components
 
@@ -280,7 +280,9 @@ Kubernetes: `>= 1.29.0-0`
 | deviceConfig.spec.testRunner.tolerations | list | `[]` | test runner tolerations |
 | deviceConfig.spec.testRunner.upgradePolicy.maxUnavailable | int | `1` | the maximum number of Pods that can be unavailable during the update process |
 | deviceConfig.spec.testRunner.upgradePolicy.upgradeStrategy | string | `"RollingUpdate"` | the type of daemonset upgrade, RollingUpdate or OnDelete |
+| draDriver.deviceClass.autoPartition | bool | `false` | Set to true when DeviceConfig.spec.draDriver.cmdLineArguments enables the DRA driver's AutoPartition feature gate on the matching nodes. Must be kept in sync with that feature-gates value; it only controls this chart's DeviceClass rendering and cannot detect the DeviceConfig's setting automatically. |
 | draDriver.deviceClass.create | bool | `true` | Create the gpu.amd.com DeviceClass resource. Set to false if managing the DRA driver independently. |
+| draDriver.deviceClass.extendedResourceName | string | `"amd.com/gpu"` | Maps classic extended-resource requests (e.g. amd.com/gpu) to a DeviceClass. Set "" to omit the field. When autoPartition is true, this is applied to a second class, gpu.amd.com-spx, constrained to whole-GPU (spx) devices only, so classic requests can't resolve to a leftover partition fraction. When autoPartition is false, it stays on the single gpu.amd.com class as before. |
 | installdefaultNFDRule | bool | `true` | Default NFD rule will detect amd gpu based on pci vendor ID |
 | kmm.enabled | bool | `true` | Set to true/false to enable/disable the installation of kernel module management (KMM) operator subchart |
 | kmm.watch | bool | `true` | Set to true/false to enable/disable GPU operator watching and using KMM resources |

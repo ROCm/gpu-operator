@@ -365,6 +365,17 @@ draDriver:
   deviceClass:
     # -- Create the gpu.amd.com DeviceClass resource. Set to false if managing the DRA driver independently.
     create: true
+    # -- Maps classic extended-resource requests (e.g. amd.com/gpu) to a DeviceClass.
+    # Set "" to omit the field. When autoPartition is true, this is applied to a
+    # second class, gpu.amd.com-spx, constrained to whole-GPU (spx) devices only, so
+    # classic requests can't resolve to a leftover partition fraction. When
+    # autoPartition is false, it stays on the single gpu.amd.com class as before.
+    extendedResourceName: amd.com/gpu
+    # -- Set to true when DeviceConfig.spec.draDriver.cmdLineArguments enables the
+    # DRA driver's AutoPartition feature gate on the matching nodes. Must be kept in
+    # sync with that feature-gates value; it only controls this chart's DeviceClass
+    # rendering and cannot detect the DeviceConfig's setting automatically.
+    autoPartition: false
 kmmModuleLoader:
   serviceAccount:
     annotations: {}

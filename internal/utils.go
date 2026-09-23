@@ -506,3 +506,23 @@ func ShouldUseKMM(devConfig *v1alpha1.DeviceConfig) bool {
 	}
 	return false
 }
+
+// ShouldUseAutoPartition reports whether the DRA driver's AutoPartition feature
+// gate is enabled via DeviceConfig.spec.draDriver.cmdLineArguments, e.g.
+// cmdLineArguments: {feature-gates: "AutoPartition=true"}. This is the only
+// place AutoPartition is configured today -- there is no dedicated DeviceConfig
+// field for it -- so this parses the same "key=value,key=value" string the DRA
+// driver's own --feature-gates flag accepts.
+func ShouldUseAutoPartition(devConfig *v1alpha1.DeviceConfig) bool {
+	if devConfig == nil {
+		return false
+	}
+	gates := devConfig.Spec.DRADriver.CmdLineArguments["feature-gates"]
+	for _, pair := range strings.Split(gates, ",") {
+		kv := strings.SplitN(strings.TrimSpace(pair), "=", 2)
+		if len(kv) == 2 && kv[0] == "AutoPartition" {
+			return kv[1] == "true"
+		}
+	}
+	return false
+}

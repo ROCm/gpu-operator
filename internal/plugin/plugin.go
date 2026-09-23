@@ -408,6 +408,14 @@ func (dp *devicePlugin) SetDRADriverAsDesired(ds *appsv1.DaemonSet, devConfig *a
 								Name:      "sys",
 								MountPath: "/sys",
 							},
+							// Required by the AutoPartition feature's driver-reload paths
+							// (both non-KMM modprobe and KMM-managed) so the amdgpu kernel
+							// module can be resolved/reloaded from inside the container.
+							{
+								Name:      "lib-modules",
+								MountPath: "/lib/modules",
+								ReadOnly:  true,
+							},
 						},
 					},
 				},
@@ -456,9 +464,24 @@ func (dp *devicePlugin) SetDRADriverAsDesired(ds *appsv1.DaemonSet, devConfig *a
 							},
 						},
 					},
+					{
+						Name: "lib-modules",
+						VolumeSource: v1.VolumeSource{
+							HostPath: &v1.HostPathVolumeSource{
+								Path: "/lib/modules",
+								Type: ptr.To(v1.HostPathDirectory),
+							},
+						},
+					},
 				},
 			},
 		},
+	}
+	if utils.ShouldUseKMM(devConfig) {
+		ds.Spec.Template.Spec.Containers[0].Env = append(ds.Spec.Template.Spec.Containers[0].Env, v1.EnvVar{
+			Name:  "KMM_DRIVER_ENABLED",
+			Value: "true",
+		})
 	}
 	if devConfig.Spec.DRADriver.UpgradePolicy != nil {
 		up := devConfig.Spec.DRADriver.UpgradePolicy
