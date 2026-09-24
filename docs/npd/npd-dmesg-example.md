@@ -135,17 +135,17 @@ data:
 
 ### Rule reference
 
-| `type` | Effect |
-|--------|--------|
-| `temporary` | Emits a one-shot Kubernetes `Event`. Does not flip a node condition. |
-| `permanent` | Sets the named `condition` to `True` and keeps it set. Use this for conditions the remediation controller watches. |
+| `type`       | Effect                                                                                                              |
+|--------------|---------------------------------------------------------------------------------------------------------------------|
+| `temporary`  | Emits a one-shot Kubernetes `Event`. Does not flip a node condition.                                                |
+| `permanent`  | Sets the named `condition` to `True` and keeps it set. Use this for conditions the remediation controller watches.  |
 
-| Pattern | What it matches in dmesg |
-|---------|--------------------------|
-| `amdgpu.*GPU fault detected` | GPU page fault logged by the `amdgpu` kernel driver |
-| `amdgpu.*GPU hang detected` | GPU hang or lockup |
-| `amdgpu.*GPU reset begin` | Driver-initiated GPU reset |
-| `amdgpu.*RAS ERROR` | Uncorrectable RAS error reported to the kernel |
+| Pattern                       | What it matches in dmesg                              |
+|-------------------------------|-------------------------------------------------------|
+| `amdgpu.*GPU fault detected`  | GPU page fault logged by the `amdgpu` kernel driver   |
+| `amdgpu.*GPU hang detected`   | GPU hang or lockup                                    |
+| `amdgpu.*GPU reset begin`     | Driver-initiated GPU reset                            |
+| `amdgpu.*RAS ERROR`           | Uncorrectable RAS error reported to the kernel        |
 
 `lookback: "5m"` replays the last 5 minutes of the ring buffer on startup, so crashes
 that occurred just before NPD launched are not missed.
