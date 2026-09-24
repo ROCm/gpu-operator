@@ -20,7 +20,7 @@ The GPU Operator's remediation controller watches node conditions and triggers a
 workflow when it sees a condition that matches a `nodeCondition` entry in the
 remediation ConfigMap.
 
-```
+```text
 /dev/kmsg (kernel ring buffer)
         │
         ▼
@@ -293,7 +293,7 @@ kubectl describe node <gpu-node> | sed -n '/Conditions:/,/Addresses:/p'
 
 When healthy, both conditions are `False`:
 
-```
+```text
 Conditions:
   Type                Status  Reason                  Message
   ----                ------  ------                  -------
