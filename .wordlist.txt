@@ -40,6 +40,7 @@ Allocatable
 Arb
 AutoAWQ
 AutoGPTQ
+AutoPartition
 AutoStartWorkflow
 Autobuild
 BDFs
@@ -610,12 +611,15 @@ allocator
 allocators
 allowPrivilegeEscalation
 amd
+amd64
 amdgpu
 amdgpuhealth
 api
 apiVersion
 apiserver
+argoproj
 args
+arm64
 atmi
 atomics
 attachMetadata
@@ -636,6 +640,7 @@ bearerTokenFile
 benchmarking
 bh
 bilinear
+binfmt
 bitsandbytes
 blit
 bool
@@ -858,6 +863,7 @@ kubernetes
 kubernetesClusterDomain
 labeller
 labeller's
+le
 libfabric
 libjpeg
 libs
@@ -953,6 +959,8 @@ pesm
 physicalActionNeeded
 plugin
 podman
+ppc
+ppc64le
 pragma
 pre
 prebuilt
@@ -995,6 +1003,7 @@ relatedImageSignPullSecret
 relatedImageWorker
 relatedImageWorkerPullSecret
 remediations
+repartitions
 repo
 repos
 representativeness
@@ -1101,6 +1110,7 @@ tokenized
 tokenizer
 tokenizes
 tolerations
+tonistiigi
 toolchain
 toolchains
 toolset
