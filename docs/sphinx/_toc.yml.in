@@ -75,6 +75,8 @@ subtrees:
   - caption: Node Problem Detector
     entries:
       - file: npd/node-problem-detector
+      - file: npd/npd-dmesg-example
+        title: dmesg Kernel-Crash Detection
   - caption: Auto Remediation
     entries:
       - file: autoremediation/auto-remediation
