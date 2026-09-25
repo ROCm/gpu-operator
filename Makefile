@@ -361,6 +361,9 @@ check-nfd-device-ids: ## Verify the AMD GPU PCI device-ID lists agree across the
 manager: $(shell find -name "*.go") go.mod go.sum  ## Build manager binary (honors GOOS/GOARCH from the environment).
 	go build -ldflags="-X main.Version=$(PROJECT_VERSION) -X main.GitCommit=$(GIT_COMMIT) -X main.BuildTag=$(HOURLY_TAG_LABEL)" -o $@ ./cmd
 
+prepareimage: $(shell find -name "*.go") go.mod go.sum  ## Build prepareimage binary (honors GOOS/GOARCH from the environment).
+	go build -ldflags="-X main.Version=$(PROJECT_VERSION) -X main.GitCommit=$(GIT_COMMIT) -X main.BuildTag=$(HOURLY_TAG_LABEL)" -o $@ ./cmd/prepareimage
+
 # Build platform, default amd64. Set to a list (linux/amd64,linux/arm64) for multi-arch.
 PLATFORM ?= linux/amd64
 
