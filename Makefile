@@ -1,6 +1,7 @@
 # Import development related environment variables from dev.env
-ifneq ("$(wildcard dev.env)","")
-    include dev.env
+DEV_ENV_FILE ?= dev.env
+ifneq ("$(wildcard $(DEV_ENV_FILE))","")
+    include $(DEV_ENV_FILE)
 endif
 
 # Default version for the project.
