@@ -483,7 +483,7 @@ func getKM(devConfig *amdv1alpha1.DeviceConfig, node v1.Node, inTreeModuleToRemo
 		if driversImage == "" {
 			driversImage = defaultOcDriversImageTemplate
 		}
-		driversImage = addNodeInfoSuffixToImageTag(driversImage, osName, driversVersion, devConfig)
+		driversImage = AddNodeInfoSuffixToImageTag(driversImage, osName, driversVersion, devConfig)
 		rhelVersion = parseRHELVersion(node.Labels, node.Status.NodeInfo.OSImage)
 		if devConfig.Spec.Driver.ImageBuild.SourceImageRepo != "" {
 			sourceImageRepo = devConfig.Spec.Driver.ImageBuild.SourceImageRepo
@@ -498,7 +498,7 @@ func getKM(devConfig *amdv1alpha1.DeviceConfig, node v1.Node, inTreeModuleToRemo
 		if driversImage == "" {
 			driversImage = defaultDriversImageTemplate
 		}
-		driversImage = addNodeInfoSuffixToImageTag(driversImage, osName, driversVersion, devConfig)
+		driversImage = AddNodeInfoSuffixToImageTag(driversImage, osName, driversVersion, devConfig)
 	}
 
 	repoURL := defaultInstallerRepoURL
@@ -630,7 +630,7 @@ func getKM(devConfig *amdv1alpha1.DeviceConfig, node v1.Node, inTreeModuleToRemo
 	}, driversVersion, nil
 }
 
-func addNodeInfoSuffixToImageTag(imgStr, osName, driversVersion string, devCfg *amdv1alpha1.DeviceConfig) string {
+func AddNodeInfoSuffixToImageTag(imgStr, osName, driversVersion string, devCfg *amdv1alpha1.DeviceConfig) string {
 	// if driver is vGPU host, different GPU model's driver image would be different
 	// need to add a suffix to distinguish them
 	driverTypeInfo := utils.GetDriverTypeTag(devCfg)

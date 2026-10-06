@@ -35,12 +35,17 @@ func createOutput(config *Config) (string, error) {
 		if config.imageName == "" {
 			return "", fmt.Errorf("image name is required for docker-script, buildah-script, and podman-script output formats")
 		}
-		imageName := deriveImageNameWithTag(config, osName)
+		imageName := deriveImageNameWithTag(osName, config, deviceConfig)
 		output = deriveScript(config.OutputFormat, imageName, dockerfile)
 	default:
 		return "", fmt.Errorf("unknown output format %q; valid values are: dockerfile, docker-script, buildah-script, podman-script", config.OutputFormat)
 	}
 	return output, nil
+}
+
+func deriveImageNameWithTag(osName string, config *Config, deviceConfig *gpuev1alpha1.DeviceConfig) string {
+	imageNameWithoutKernelVersion := kmmmodule.AddNodeInfoSuffixToImageTag(config.imageName, osName, config.buildArgs.driversVersion, deviceConfig)
+	return strings.Replace(imageNameWithoutKernelVersion, "${KERNEL_FULL_VERSION}", config.buildArgs.kernelFullVersion, 1)
 }
 
 func deriveDeviceConfig(config *Config) *gpuev1alpha1.DeviceConfig {
@@ -149,15 +154,6 @@ func deriveOSName(osPrettyName string, deviceConfig *gpuev1alpha1.DeviceConfig) 
 		},
 	}
 	return kmmmodule.GetOSName(node, deviceConfig)
-}
-
-func deriveImageTag(osName, kernelVersion, driversVersion string) string {
-	return fmt.Sprintf("%s-%s-%s", osName, kernelVersion, driversVersion)
-}
-
-func deriveImageNameWithTag(config *Config, osName string) string {
-	tag := deriveImageTag(osName, config.buildArgs.kernelFullVersion, config.buildArgs.driversVersion)
-	return fmt.Sprintf("%s:%s", config.imageName, tag)
 }
 
 func deriveScript(outputFormat OutputFormat, imageName string, dockerfile string) string {
