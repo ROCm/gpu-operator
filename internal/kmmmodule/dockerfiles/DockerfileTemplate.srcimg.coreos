@@ -1,6 +1,6 @@
 ARG DTK_AUTO
 ARG RHEL_VERSION
-ARG SOURCE_IMAGE_REPO=docker.io/rocm/amdgpu-source
+ARG SOURCE_IMAGE_REPO=docker.io/rocm/amdgpu-driver
 ARG DRIVERS_VERSION
 
 FROM ${SOURCE_IMAGE_REPO}:coreos-${RHEL_VERSION}-${DRIVERS_VERSION} as sources

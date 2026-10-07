@@ -2,11 +2,13 @@ package main
 
 import (
 	"fmt"
+	"regexp"
 	"strings"
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/utils/ptr"
 
 	gpuev1alpha1 "github.com/ROCm/gpu-operator/api/v1alpha1"
 	"github.com/ROCm/gpu-operator/internal/kmmmodule"
@@ -22,7 +24,17 @@ func createOutput(config *Config, scheme *runtime.Scheme) (string, error) {
 		return "", fmt.Errorf("failed to derive OS name from OS pretty name %q: %w", config.osPrettyName, err)
 	}
 
-	dockerfile, err := deriveDockerfile(osName, node, deviceConfig, scheme)
+	if isOpenShift(osName) && config.buildArgs.driverToolkitImage == "" {
+		return "", fmt.Errorf("driver toolkit image is required for OpenShift")
+	}
+
+	dockerfile, err := deriveDockerfile(
+		osName,
+		config.buildArgs.driverToolkitImage,
+		node,
+		deviceConfig,
+		scheme,
+	)
 	if err != nil {
 		return "", fmt.Errorf("failed to derive Dockerfile: %w", err)
 	}
@@ -59,9 +71,11 @@ func deriveDeviceConfig(config *Config) *gpuev1alpha1.DeviceConfig {
 				Version:                config.buildArgs.driversVersion,
 				AMDGPUInstallerRepoURL: config.buildArgs.repoURL,
 				ImageBuild: gpuev1alpha1.ImageBuildSpec{
-					PackageRepoURL: config.buildArgs.packageRepoURL,
-					GPGKeyURL:      config.buildArgs.gpgKeyURL,
+					PackageRepoURL:  config.buildArgs.packageRepoURL,
+					GPGKeyURL:       config.buildArgs.gpgKeyURL,
+					SourceImageRepo: config.buildArgs.sourceImageRepo,
 				},
+				UseSourceImage: ptr.To(config.useSourceImage),
 			},
 		},
 	}
@@ -86,13 +100,17 @@ func deriveBuildConfigMap(osName string, deviceConfig *gpuev1alpha1.DeviceConfig
 	}
 }
 
-func deriveDockerfile(osName string, node corev1.Node, deviceConfig *gpuev1alpha1.DeviceConfig, scheme *runtime.Scheme) (string, error) {
+func isOpenShift(osName string) bool {
+	return strings.Contains(osName, "rhel") || strings.Contains(osName, "coreos")
+}
+
+func deriveDockerfile(osName string, driverToolkitImage string, node corev1.Node, deviceConfig *gpuev1alpha1.DeviceConfig, scheme *runtime.Scheme) (string, error) {
 	buildCM := deriveBuildConfigMap(osName, deviceConfig)
 
 	kmmModule := kmmmodule.NewKMMModule(
-		nil,    // The client is not used by any of the kmmModule methods we call.
-		scheme, // A correctly initialized scheme is required by SetBuildConfigMapAsDesired.
-		false,  // Dockerfiles for all supported OSes can be derived without this input.
+		nil,                 // The client is not used by any of the kmmModule methods we call.
+		scheme,              // A correctly initialized scheme is required by SetBuildConfigMapAsDesired.
+		isOpenShift(osName), // OpenShift-specific logic is required to derive the Dockerfilefor RHEL and CoreOS.
 	)
 
 	err := kmmModule.SetBuildConfigMapAsDesired(buildCM, deviceConfig)
@@ -108,13 +126,18 @@ func deriveDockerfile(osName string, node corev1.Node, deviceConfig *gpuev1alpha
 	// The GetKM methods returns a drivers version because its caller uses the version to create a
 	// module loader container. We do not create a module loader container, so we ignore the drivers
 	// version.
-	km, _, err := kmmmodule.GetKM(deviceConfig, node, "", false)
+	km, _, err := kmmmodule.GetKM(
+		deviceConfig,
+		node,
+		"",
+		isOpenShift(osName),
+	)
 	if err != nil {
 		return "", fmt.Errorf("failed to get KernelMapping: %v", err)
 	}
 
-	// The BuildArgs do not include the kernel full version, so we need to add it.
 	km.Build.BuildArgs = append(
+		// The BuildArgs do not include the kernel full version, so we need to add it.
 		km.Build.BuildArgs,
 		v1beta1.BuildArg{
 			Name:  "KERNEL_FULL_VERSION",
@@ -126,24 +149,26 @@ func deriveDockerfile(osName string, node corev1.Node, deviceConfig *gpuev1alpha
 		},
 	)
 
+	// The DTK_AUTO build arg is only used for OpenShift.
+	if isOpenShift(osName) {
+		km.Build.BuildArgs = append(km.Build.BuildArgs, v1beta1.BuildArg{
+			Name:  "DTK_AUTO",
+			Value: driverToolkitImage,
+		})
+	}
+
 	return setBuildArgDefaults(km.Build.BuildArgs, dockerfile), nil
 }
 
 func setBuildArgDefaults(buildArgs []v1beta1.BuildArg, dockerfile string) string {
-	buildArgReplacements := []string{}
-
 	for _, arg := range buildArgs {
 		if arg.Value == "" {
 			continue
 		}
-		buildArgReplacements = append(
-			buildArgReplacements,
-			fmt.Sprintf("ARG %s", arg.Name),
-			fmt.Sprintf("ARG %s=%s", arg.Name, arg.Value),
-		)
+		argLine := regexp.MustCompile(`(?m)^ARG ` + regexp.QuoteMeta(arg.Name) + `(=.*)?$`)
+		dockerfile = argLine.ReplaceAllLiteralString(dockerfile, fmt.Sprintf("ARG %s=%s", arg.Name, arg.Value))
 	}
-
-	return strings.NewReplacer(buildArgReplacements...).Replace(dockerfile)
+	return dockerfile
 }
 
 func deriveScript(outputFormat OutputFormat, imageName string, dockerfile string) string {

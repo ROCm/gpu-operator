@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"strings"
 
 	workflowv1alpha1 "github.com/argoproj/argo-workflows/v4/pkg/apis/workflow/v1alpha1"
 	monitoringv1 "github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring/v1"
@@ -19,8 +20,9 @@ import (
 )
 
 const (
-	DefaultRepoURL      = "https://repo.radeon.com"
-	DefaultOutputFormat = OutputFormatDockerfile
+	DefaultRepoURL         = "https://repo.radeon.com"
+	DefaultSourceImageRepo = "docker.io/rocm/amdgpu-driver"
+	DefaultOutputFormat    = OutputFormatDockerfile
 )
 
 var (
@@ -41,19 +43,23 @@ func init() {
 }
 
 type Config struct {
-	OutputFormat OutputFormat
-	driverType   string
-	osPrettyName string
-	imageName    string
-	buildArgs    BuildArgs
+	OutputFormat   OutputFormat
+	driverType     string
+	osPrettyName   string
+	imageName      string
+	useSourceImage bool
+	buildArgs      BuildArgs
 }
 
 type BuildArgs struct {
-	kernelFullVersion string
-	driversVersion    string
-	repoURL           string
-	packageRepoURL    string
-	gpgKeyURL         string
+	kernelFullVersion  string
+	driversVersion     string
+	repoURL            string
+	packageRepoURL     string
+	gpgKeyURL          string
+	driverToolkitImage string
+	useSourceImage     bool
+	sourceImageRepo    string
 }
 
 type OutputFormat string
@@ -112,17 +118,57 @@ func main() {
 func deriveConfigFromFlags() *Config {
 	config := &Config{}
 
+	// Required flags.
+	flag.StringVar(&config.osPrettyName, "os-pretty-name", "", "The 'pretty name' of the OS. See the PRETTY_NAME variable defined in /etc/os-release. Example: 'Ubuntu 24.04.5 LTS'. Required.")
+
+	flag.StringVar(&config.buildArgs.kernelFullVersion, "kernel-full-version", "", "The full version of the kernel. See the output of the 'uname -r' command. Example: '6.8.0-139-generic'. Required.")
+
+	flag.StringVar(&config.buildArgs.driversVersion, "drivers-version", "", "The version of the drivers. For supported versions, see AMD documentation. Required.")
+
+	flag.StringVar(&config.imageName, "image-name", "", "The name of the image with the registry and repository path, but without the tag. Example: 'registry.example.com/project/amdgpu'. Required for docker-script, buildah-script, and podman-script output formats.")
+
+	// Optional flags.
 	config.OutputFormat = DefaultOutputFormat // Set the default value, because flag.Var() does not.
 	flag.Var(&config.OutputFormat, "format", "The format of the output to generate. Scripts embed the Dockerfile and execute the command to build the image using the correct name. Valid values are: dockerfile, docker-script, buildah-script, podman-script.")
+
 	flag.StringVar(&config.driverType, "driver-type", utils.DriverTypeContainer, "The type of the driver. Valid values are: container, vf-passthrough, pf-passthrough.")
-	flag.StringVar(&config.osPrettyName, "os-pretty-name", "", "The 'pretty name' of the OS. See the PRETTY_NAME variable defined in /etc/os-release. Example: 'Ubuntu 24.04.5 LTS'.")
-	flag.StringVar(&config.buildArgs.kernelFullVersion, "kernel-full-version", "", "The full version of the kernel. See the output of the 'uname -r' command. Example: '6.8.0-139-generic'.")
-	flag.StringVar(&config.buildArgs.driversVersion, "drivers-version", "", "The version of the drivers. For supported versions, see AMD documentation.")
+
 	flag.StringVar(&config.buildArgs.repoURL, "repo-url", DefaultRepoURL, "The URL for fetching the amdgpu installer.")
+
 	flag.StringVar(&config.buildArgs.packageRepoURL, "package-repo-url", "", "The full URL to the package repository for driver packages. When specified, this overrides the --repo-url flag. This is useful when using custom mirrors or when repo.radeon.com changes structure. Example: 'https://custom-mirror.example.com/amdgpu/30.20.1/ubuntu jammy main'.")
+
+	flag.StringVar(&config.buildArgs.gpgKeyURL, "gpg-key-url", "", "The full URL to the GPG key for package verification. When specified, this overrides the constructed GPG key URL. Example: 'https://custom-mirror.example.com/rocm/rocm.gpg.key'.")
+
+	// OpenShift-specific flags.
+	flag.StringVar(&config.buildArgs.driverToolkitImage, "driver-toolkit-image", "", "(OpenShift only) DriverToolkit image, get it from 'oc adm release info --image-for driver-toolkit'. Required.")
+
+	flag.BoolVar(&config.useSourceImage, "use-source-image", false, "(OpenShift only) Use the source image to build the driver image.")
+
+	flag.StringVar(&config.buildArgs.sourceImageRepo, "source-image-repo", DefaultSourceImageRepo, "(OpenShift only) Source image repository.")
+
 	flag.StringVar(&config.buildArgs.gpgKeyURL, "gpg-key-url", "", "The full URL to the GPG key for package verification. When specified, this overrides the constrult GPG key URL. Example: 'https://custom-mirror.example.com/rocm/rocm.gpg.key'.")
+
 	flag.StringVar(&config.imageName, "image-name", "", "The name of the image with the registry and repository path, but without the tag. Example: 'registry.example.com/project/amdgpu'. Required for docker-script, buildah-script, and podman-script output formats.")
+
+	flag.BoolVar(&config.useSourceImage, "use-source-image", false, "(OpenShift only) Use the source image to build the driver image.")
+
+	flag.StringVar(&config.buildArgs.sourceImageRepo, "source-image-repo", DefaultSourceImageRepo, "(OpenShift only) Source image repository.")
+
+	flag.StringVar(&config.buildArgs.driverToolkitImage, "driver-toolkit-image", "", "(OpenShift only) DriverToolkit image, get it from `oc adm release info --image-for driver-toolkit`.")
+
 	flag.Parse()
+
+	var missingFlags []string
+	for _, name := range []string{"os-pretty-name", "kernel-full-version", "drivers-version"} {
+		if flag.Lookup(name).Value.String() == "" {
+			missingFlags = append(missingFlags, "--"+name)
+		}
+	}
+	if len(missingFlags) > 0 {
+		fmt.Fprintf(os.Stderr, "missing required flags: %s\n", strings.Join(missingFlags, ", "))
+		flag.Usage()
+		os.Exit(2)
+	}
 
 	return config
 }
