@@ -10,19 +10,19 @@ import (
 
 	gpuev1alpha1 "github.com/ROCm/gpu-operator/api/v1alpha1"
 	"github.com/ROCm/gpu-operator/internal/kmmmodule"
+	"github.com/rh-ecosystem-edge/kernel-module-management/api/v1beta1"
 )
 
-func createOutput(config *Config) (string, error) {
+func createOutput(config *Config, scheme *runtime.Scheme) (string, error) {
 	deviceConfig := deriveDeviceConfig(config)
+	node := deriveNode(config.osPrettyName, config.buildArgs.kernelFullVersion)
 
-	osName, err := deriveOSName(config.osPrettyName, deviceConfig)
+	osName, err := kmmmodule.GetOSName(node, deviceConfig)
 	if err != nil {
 		return "", fmt.Errorf("failed to derive OS name from OS pretty name %q: %w", config.osPrettyName, err)
 	}
 
-	buildCM := deriveBuildConfigMap(osName, deviceConfig)
-
-	dockerfile, err := deriveDockerfile(config, buildCM, deviceConfig, scheme)
+	dockerfile, err := deriveDockerfile(osName, node, deviceConfig, scheme)
 	if err != nil {
 		return "", fmt.Errorf("failed to derive Dockerfile: %w", err)
 	}
@@ -67,6 +67,17 @@ func deriveDeviceConfig(config *Config) *gpuev1alpha1.DeviceConfig {
 	}
 }
 
+func deriveNode(osPrettyName, kernelFullVersion string) corev1.Node {
+	return corev1.Node{
+		Status: corev1.NodeStatus{
+			NodeInfo: corev1.NodeSystemInfo{
+				OSImage:       osPrettyName,
+				KernelVersion: kernelFullVersion,
+			},
+		},
+	}
+}
+
 func deriveBuildConfigMap(osName string, deviceConfig *gpuev1alpha1.DeviceConfig) *corev1.ConfigMap {
 	return &corev1.ConfigMap{
 		ObjectMeta: metav1.ObjectMeta{
@@ -75,7 +86,9 @@ func deriveBuildConfigMap(osName string, deviceConfig *gpuev1alpha1.DeviceConfig
 	}
 }
 
-func deriveDockerfile(config *Config, buildCM *corev1.ConfigMap, deviceConfig *gpuev1alpha1.DeviceConfig, scheme *runtime.Scheme) (string, error) {
+func deriveDockerfile(osName string, node corev1.Node, deviceConfig *gpuev1alpha1.DeviceConfig, scheme *runtime.Scheme) (string, error) {
+	buildCM := deriveBuildConfigMap(osName, deviceConfig)
+
 	kmmModule := kmmmodule.NewKMMModule(
 		nil,    // The client is not used by any of the kmmModule methods we call.
 		scheme, // A correctly initialized scheme is required by SetBuildConfigMapAsDesired.
@@ -92,68 +105,45 @@ func deriveDockerfile(config *Config, buildCM *corev1.ConfigMap, deviceConfig *g
 		return "", fmt.Errorf("failed to get Dockerfile from BuildConfigMap")
 	}
 
-	return setBuildArgDefaults(config, dockerfile), nil
+	// The GetKM methods returns a drivers version because its caller uses the version to create a
+	// module loader container. We do not create a module loader container, so we ignore the drivers
+	// version.
+	km, _, err := kmmmodule.GetKM(deviceConfig, node, "", false)
+	if err != nil {
+		return "", fmt.Errorf("failed to get KernelMapping: %v", err)
+	}
+
+	// The BuildArgs do not include the kernel full version, so we need to add it.
+	km.Build.BuildArgs = append(
+		km.Build.BuildArgs,
+		v1beta1.BuildArg{
+			Name:  "KERNEL_FULL_VERSION",
+			Value: km.Literal,
+		},
+		v1beta1.BuildArg{
+			Name:  "KERNEL_VERSION",
+			Value: km.Literal,
+		},
+	)
+
+	return setBuildArgDefaults(km.Build.BuildArgs, dockerfile), nil
 }
 
-func setBuildArgDefaults(config *Config, dockerfile string) string {
+func setBuildArgDefaults(buildArgs []v1beta1.BuildArg, dockerfile string) string {
 	buildArgReplacements := []string{}
 
-	if config.buildArgs.kernelFullVersion != "" {
+	for _, arg := range buildArgs {
+		if arg.Value == "" {
+			continue
+		}
 		buildArgReplacements = append(
 			buildArgReplacements,
-			"ARG KERNEL_FULL_VERSION",
-			fmt.Sprintf("ARG KERNEL_FULL_VERSION=%s", config.buildArgs.kernelFullVersion),
-		)
-
-		// OpenShift Dockerfile templates use KERNEL_VERSION instead of KERNEL_FULL_VERSION,
-		// but the accepted values should be identical.
-		buildArgReplacements = append(
-			buildArgReplacements,
-			"ARG KERNEL_VERSION",
-			fmt.Sprintf("ARG KERNEL_VERSION=%s", config.buildArgs.kernelFullVersion),
-		)
-	}
-	if config.buildArgs.driversVersion != "" {
-		buildArgReplacements = append(
-			buildArgReplacements,
-			"ARG DRIVERS_VERSION",
-			fmt.Sprintf("ARG DRIVERS_VERSION=%s", config.buildArgs.driversVersion),
-		)
-	}
-	if config.buildArgs.repoURL != "" {
-		buildArgReplacements = append(
-			buildArgReplacements,
-			"ARG REPO_URL",
-			fmt.Sprintf("ARG REPO_URL=%s", config.buildArgs.repoURL),
-		)
-	}
-	if config.buildArgs.packageRepoURL != "" {
-		buildArgReplacements = append(
-			buildArgReplacements,
-			"ARG PACKAGE_REPO_URL",
-			fmt.Sprintf("ARG PACKAGE_REPO_URL=%s", config.buildArgs.packageRepoURL),
-		)
-	}
-	if config.buildArgs.gpgKeyURL != "" {
-		buildArgReplacements = append(
-			buildArgReplacements,
-			"ARG GPG_KEY_URL",
-			fmt.Sprintf("ARG GPG_KEY_URL=%s", config.buildArgs.gpgKeyURL),
+			fmt.Sprintf("ARG %s", arg.Name),
+			fmt.Sprintf("ARG %s=%s", arg.Name, arg.Value),
 		)
 	}
 
 	return strings.NewReplacer(buildArgReplacements...).Replace(dockerfile)
-}
-
-func deriveOSName(osPrettyName string, deviceConfig *gpuev1alpha1.DeviceConfig) (string, error) {
-	node := corev1.Node{
-		Status: corev1.NodeStatus{
-			NodeInfo: corev1.NodeSystemInfo{
-				OSImage: osPrettyName,
-			},
-		},
-	}
-	return kmmmodule.GetOSName(node, deviceConfig)
 }
 
 func deriveScript(outputFormat OutputFormat, imageName string, dockerfile string) string {

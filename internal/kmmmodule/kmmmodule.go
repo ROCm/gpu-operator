@@ -445,7 +445,7 @@ func getKernelMappings(kmlog logr.Logger, devConfig *amdv1alpha1.DeviceConfig, i
 	kmSet := map[string]bool{}
 	var driversVersion string
 	for _, node := range nodes.Items {
-		km, ver, err := getKM(devConfig, node, inTreeModuleToRemove, isOpenshift)
+		km, ver, err := GetKM(devConfig, node, inTreeModuleToRemove, isOpenshift)
 		if err != nil {
 			kmlog.Error(err, fmt.Sprintf("error constructing a kernel mapping for node: %s", node.Name))
 			continue
@@ -463,7 +463,7 @@ func getKernelMappings(kmlog logr.Logger, devConfig *amdv1alpha1.DeviceConfig, i
 	return kernelMappings, driversVersion, nil
 }
 
-func getKM(devConfig *amdv1alpha1.DeviceConfig, node v1.Node, inTreeModuleToRemove string, isOpenShift bool) (kmmv1beta1.KernelMapping, string, error) {
+func GetKM(devConfig *amdv1alpha1.DeviceConfig, node v1.Node, inTreeModuleToRemove string, isOpenShift bool) (kmmv1beta1.KernelMapping, string, error) {
 	driversVersion := devConfig.Spec.Driver.Version
 	driversImage := devConfig.Spec.Driver.Image
 	var err error

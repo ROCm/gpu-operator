@@ -98,7 +98,7 @@ func (d *DriverType) Set(val string) error {
 func main() {
 	config := deriveConfigFromFlags()
 
-	output, err := createOutput(config)
+	output, err := createOutput(config, scheme)
 	if err != nil {
 		log.Fatalf("Failed to create output: %v", err)
 	}
