@@ -79,6 +79,22 @@ func (f *OutputFormat) Set(val string) error {
 	}
 }
 
+type DriverType string
+
+func (d *DriverType) String() string {
+	return string(*d)
+}
+
+func (d *DriverType) Set(val string) error {
+	switch DriverType(val) {
+	case utils.DriverTypeContainer, utils.DriverTypeVFPassthrough, utils.DriverTypePFPassthrough:
+		*d = DriverType(val)
+		return nil
+	default:
+		return fmt.Errorf("invalid driver type %q (must be container, vf-passthrough, or pf-passthrough)", val)
+	}
+}
+
 func main() {
 	config := deriveConfigFromFlags()
 
