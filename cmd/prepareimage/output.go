@@ -171,27 +171,20 @@ func setBuildArgDefaults(buildArgs []v1beta1.BuildArg, dockerfile string) string
 	return dockerfile
 }
 
+var buildCommands = map[OutputFormat]string{
+	OutputFormatDockerScript:  "docker buildx build",
+	OutputFormatBuildahScript: "buildah bud",
+	OutputFormatPodmanScript:  "podman buildx build",
+}
+
 func deriveScript(outputFormat OutputFormat, imageName string, dockerfile string) string {
-	switch outputFormat {
-	case OutputFormatDockerScript:
-		return fmt.Sprintf(`#!/bin/sh
-docker buildx build -t %s - <<'EOF'
-%s
-EOF
-`, imageName, dockerfile)
-	case OutputFormatBuildahScript:
-		return fmt.Sprintf(`#!/bin/sh
-buildah bud -t %s - <<'EOF'
-%s
-EOF
-`, imageName, dockerfile)
-	case OutputFormatPodmanScript:
-		return fmt.Sprintf(`#!/bin/sh
-podman buildx build -t %s - <<'EOF'
-%s
-EOF
-`, imageName, dockerfile)
-	default:
+	buildCommand, ok := buildCommands[outputFormat]
+	if !ok {
 		return ""
 	}
+	return fmt.Sprintf(`#!/bin/sh
+%s -t %s - <<'EOF'
+%s
+EOF
+`, buildCommand, imageName, dockerfile)
 }
