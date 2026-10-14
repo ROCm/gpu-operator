@@ -129,7 +129,7 @@ deviceConfig:
       devicePluginImagePullPolicy: IfNotPresent
       # -- device plugin tolerations
       devicePluginTolerations: []
-      # -- pass supported flags and their values while starting device plugin daemonset, e.g. {"resource_naming_strategy": "single"} or {"resource_naming_strategy": "mixed"}
+      # -- pass supported flags and their values while starting device plugin daemonset, e.g. {"resource_naming_strategy": "single"}, {"resource_naming_strategy": "mixed"} or {"resource_naming_strategy": "product"}
       devicePluginArguments: {}
       # -- enable / disable node labeller
       enableNodeLabeller: true

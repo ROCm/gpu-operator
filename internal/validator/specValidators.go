@@ -157,7 +157,7 @@ func ValidateDevicePluginSpec(ctx context.Context, client client.Client, devConf
 	}
 
 	supportedFlagValues := map[string][]string{
-		utils.ResourceNamingStrategyFlag: {utils.SingleStrategy, utils.MixedStrategy},
+		utils.ResourceNamingStrategyFlag: {utils.SingleStrategy, utils.MixedStrategy, utils.ProductStrategy},
 		utils.DriverTypeFlag:             {utils.DriverTypeContainer, utils.DriverTypeVFPassthrough, utils.DriverTypePFPassthrough},
 	}
 

@@ -474,7 +474,7 @@ type DevicePluginSpec struct {
 	DevicePluginTolerations []v1.Toleration `json:"devicePluginTolerations,omitempty"`
 
 	// device plugin arguments is used to pass supported flags and their values while starting device plugin daemonset
-	// supported flag values: {"resource_naming_strategy": {"single", "mixed"}}
+	// supported flag values: {"resource_naming_strategy": {"single", "mixed", "product"}}
 	//+operator-sdk:csv:customresourcedefinitions:type=spec,displayName="DevicePluginArguments",xDescriptors={"urn:alm:descriptor:com.amd.deviceconfigs:devicePluginArguments"}
 	// +optional
 	DevicePluginArguments map[string]string `json:"devicePluginArguments,omitempty"`
