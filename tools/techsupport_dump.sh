@@ -61,9 +61,20 @@ case "${AMD_TEST_RUNNER_LOG_DIR}" in
 	/*) ;;
 	*) die "AMD_TEST_RUNNER_LOG_DIR must be an absolute host path" ;;
 esac
-case "${AMD_TEST_RUNNER_LOG_DIR}" in
-	"/"|*"/../"*|*/..) die "AMD_TEST_RUNNER_LOG_DIR must name a directory below the host root" ;;
-esac
+# Normalize harmless separators and dot components, while rejecting parent
+# traversal and paths that resolve lexically to the host root (for example
+# /, //, /./, or /foo/..).
+RUNNER_LOG_DIR_NORMALIZED=""
+IFS='/' read -r -a RUNNER_LOG_DIR_PARTS <<< "${AMD_TEST_RUNNER_LOG_DIR}"
+for runner_log_dir_part in "${RUNNER_LOG_DIR_PARTS[@]}"; do
+	case "${runner_log_dir_part}" in
+		""|.) continue ;;
+		..) die "AMD_TEST_RUNNER_LOG_DIR must not contain parent traversal" ;;
+		*) RUNNER_LOG_DIR_NORMALIZED="${RUNNER_LOG_DIR_NORMALIZED}/${runner_log_dir_part}" ;;
+	esac
+done
+[ -n "${RUNNER_LOG_DIR_NORMALIZED}" ] || die "AMD_TEST_RUNNER_LOG_DIR must name a directory below the host root"
+AMD_TEST_RUNNER_LOG_DIR="${RUNNER_LOG_DIR_NORMALIZED}"
 
 pod_logs() {
 	NS=$1
@@ -540,7 +551,7 @@ REASON
 	if [ -n "$TEST_RUNNER_ROWS" ]; then
 		while read -r runner_ns runner_pod; do
 			[ -z "$runner_pod" ] && continue
-			if ! pod_logs "$runner_ns" "test-runner" "$node" "pod/${runner_pod}"; then
+			if ! ( pod_logs "$runner_ns" "test-runner" "$node" "pod/${runner_pod}" ); then
 				log "Failed to collect logs for test-runner pod ${runner_ns}/${runner_pod}"
 			fi
 		done <<< "$TEST_RUNNER_ROWS"
