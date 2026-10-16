@@ -171,5 +171,17 @@ Options:
 * `-w`: wide option
 * `-o yaml/json`: output format (default: json)
 * `-k kubeconfig`: path to kubeconfig (default: ~/.kube/config)
+* `AMD_TEST_RUNNER_LOG_DIR`: host directory containing test runner output
+  (default: `/var/log/amd-test-runner`). The script copies this directory from
+  each node it collects into the techsupport bundle, preserving generated gzip
+  files. Set this environment variable when the test runner uses a different
+  `hostPath`, for example:
+
+  ```bash
+  AMD_TEST_RUNNER_LOG_DIR=/mnt/test-runner-logs ./tools/techsupport_dump.sh all
+  ```
+
+  The path must be absolute and below the host root. Use the same path as the
+  test runner's configured log `hostPath`.
 
 Please file an issue with collected techsupport bundle on our [GitHub Issues](https://github.com/ROCm/gpu-operator/issues) page
