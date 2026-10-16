@@ -445,7 +445,7 @@ func getKernelMappings(kmlog logr.Logger, devConfig *amdv1alpha1.DeviceConfig, i
 	kmSet := map[string]bool{}
 	var driversVersion string
 	for _, node := range nodes.Items {
-		km, ver, err := getKM(devConfig, node, inTreeModuleToRemove, isOpenshift)
+		km, ver, err := GetKM(devConfig, node, inTreeModuleToRemove, isOpenshift)
 		if err != nil {
 			kmlog.Error(err, fmt.Sprintf("error constructing a kernel mapping for node: %s", node.Name))
 			continue
@@ -463,7 +463,7 @@ func getKernelMappings(kmlog logr.Logger, devConfig *amdv1alpha1.DeviceConfig, i
 	return kernelMappings, driversVersion, nil
 }
 
-func getKM(devConfig *amdv1alpha1.DeviceConfig, node v1.Node, inTreeModuleToRemove string, isOpenShift bool) (kmmv1beta1.KernelMapping, string, error) {
+func GetKM(devConfig *amdv1alpha1.DeviceConfig, node v1.Node, inTreeModuleToRemove string, isOpenShift bool) (kmmv1beta1.KernelMapping, string, error) {
 	driversVersion := devConfig.Spec.Driver.Version
 	driversImage := devConfig.Spec.Driver.Image
 	var err error
@@ -483,7 +483,7 @@ func getKM(devConfig *amdv1alpha1.DeviceConfig, node v1.Node, inTreeModuleToRemo
 		if driversImage == "" {
 			driversImage = defaultOcDriversImageTemplate
 		}
-		driversImage = addNodeInfoSuffixToImageTag(driversImage, osName, driversVersion, devConfig)
+		driversImage = AddNodeInfoSuffixToImageTag(driversImage, osName, driversVersion, devConfig)
 		rhelVersion = parseRHELVersion(node.Labels, node.Status.NodeInfo.OSImage)
 		if devConfig.Spec.Driver.ImageBuild.SourceImageRepo != "" {
 			sourceImageRepo = devConfig.Spec.Driver.ImageBuild.SourceImageRepo
@@ -498,7 +498,7 @@ func getKM(devConfig *amdv1alpha1.DeviceConfig, node v1.Node, inTreeModuleToRemo
 		if driversImage == "" {
 			driversImage = defaultDriversImageTemplate
 		}
-		driversImage = addNodeInfoSuffixToImageTag(driversImage, osName, driversVersion, devConfig)
+		driversImage = AddNodeInfoSuffixToImageTag(driversImage, osName, driversVersion, devConfig)
 	}
 
 	repoURL := defaultInstallerRepoURL
@@ -630,7 +630,7 @@ func getKM(devConfig *amdv1alpha1.DeviceConfig, node v1.Node, inTreeModuleToRemo
 	}, driversVersion, nil
 }
 
-func addNodeInfoSuffixToImageTag(imgStr, osName, driversVersion string, devCfg *amdv1alpha1.DeviceConfig) string {
+func AddNodeInfoSuffixToImageTag(imgStr, osName, driversVersion string, devCfg *amdv1alpha1.DeviceConfig) string {
 	// if driver is vGPU host, different GPU model's driver image would be different
 	// need to add a suffix to distinguish them
 	driverTypeInfo := utils.GetDriverTypeTag(devCfg)

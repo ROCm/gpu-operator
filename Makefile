@@ -295,7 +295,7 @@ mod: ## Run go mod tidy and go mod edit to set up the go mod packages.
 	@go mod tidy
 	@go mod vendor
 
-UNIT_TEST ?= ./internal ./internal/controllers ./internal/kmmmodule
+UNIT_TEST ?= ./internal ./internal/controllers ./internal/kmmmodule ./cmd/prepareimage
 
 .PHONY: unit-test
 unit-test: vet ## Run the unit tests.
@@ -359,8 +359,13 @@ check-nfd-device-ids: ## Verify the AMD GPU PCI device-ID lists agree across the
 
 ##@ Build
 
-manager: $(shell find -name "*.go") go.mod go.sum  ## Build manager binary (honors GOOS/GOARCH from the environment).
+.PHONY: manager
+manager: ## Build manager binary (honors GOOS/GOARCH from the environment).
 	go build -ldflags="-X main.Version=$(PROJECT_VERSION) -X main.GitCommit=$(GIT_COMMIT) -X main.BuildTag=$(HOURLY_TAG_LABEL)" -o $@ ./cmd
+
+.PHONY: prepareimage
+prepareimage: ## Build prepareimage binary (honors GOOS/GOARCH from the environment).
+	go build -ldflags="-X main.Version=$(PROJECT_VERSION) -X main.GitCommit=$(GIT_COMMIT) -X main.BuildTag=$(HOURLY_TAG_LABEL)" -o $@ ./cmd/prepareimage
 
 # Build platform, default amd64. Set to a list (linux/amd64,linux/arm64) for multi-arch.
 PLATFORM ?= linux/amd64
