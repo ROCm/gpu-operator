@@ -35,6 +35,7 @@ WORKFLOW_RESOURCES="workflows"
 
 OUTPUT_FORMAT="json"
 WIDE=""
+AMD_TEST_RUNNER_LOG_DIR="${AMD_TEST_RUNNER_LOG_DIR:-/var/log/amd-test-runner}"
 red='\033[0;31m'
 green='\033[0;32m'
 clr='\033[0m'
@@ -44,6 +45,7 @@ usage() {
 	echo -e "   [-w] wide option "
 	echo -e "   [-o yaml/json] output format, yaml/json(default)"
 	echo -e "   [-k kubeconfig] path to kubeconfig(default ~/.kube/config)"
+	echo -e "   [AMD_TEST_RUNNER_LOG_DIR=/path] runner host log directory (default /var/log/amd-test-runner)"
 	exit 0
 }
 
@@ -54,6 +56,25 @@ log() {
 die() {
 	echo -e "${red}$* ${clr}" && exit 1
 }
+
+case "${AMD_TEST_RUNNER_LOG_DIR}" in
+	/*) ;;
+	*) die "AMD_TEST_RUNNER_LOG_DIR must be an absolute host path" ;;
+esac
+# Normalize harmless separators and dot components, while rejecting parent
+# traversal and paths that resolve lexically to the host root (for example
+# /, //, /./, or /foo/..).
+RUNNER_LOG_DIR_NORMALIZED=""
+IFS='/' read -r -a RUNNER_LOG_DIR_PARTS <<< "${AMD_TEST_RUNNER_LOG_DIR}"
+for runner_log_dir_part in "${RUNNER_LOG_DIR_PARTS[@]}"; do
+	case "${runner_log_dir_part}" in
+		""|.) continue ;;
+		..) die "AMD_TEST_RUNNER_LOG_DIR must not contain parent traversal" ;;
+		*) RUNNER_LOG_DIR_NORMALIZED="${RUNNER_LOG_DIR_NORMALIZED}/${runner_log_dir_part}" ;;
+	esac
+done
+[ -n "${RUNNER_LOG_DIR_NORMALIZED}" ] || die "AMD_TEST_RUNNER_LOG_DIR must name a directory below the host root"
+AMD_TEST_RUNNER_LOG_DIR="${RUNNER_LOG_DIR_NORMALIZED}"
 
 pod_logs() {
 	NS=$1
@@ -69,8 +90,17 @@ pod_logs() {
 		log "   ${NS}/${pod}"
 		${KNS} logs "${pod}" --all-containers >${TECH_SUPPORT_FILE}/${NODE}/${FEATURE}/${NS}_${pod}.txt 2>&1 || true
 		${KNS} logs -p "${pod}" --all-containers --tail 1 >/dev/null 2>&1 && ${KNS} logs -p "${pod}" >${TECH_SUPPORT_FILE}/${NODE}/${FEATURE}/${NS}_${pod}_previous.txt 2>&1 || true
+		# Capture init-container output explicitly: --all-containers may fail
+		# while the regular workload container is waiting on init completion.
+		INIT_CONTAINERS=$(${KNS} get pod "${pod}" -o 'jsonpath={.spec.initContainers[*].name}' 2>/dev/null || true)
+		for init_container in ${INIT_CONTAINERS}; do
+			${KNS} logs "${pod}" -c "${init_container}" >${TECH_SUPPORT_FILE}/${NODE}/${FEATURE}/${NS}_${pod}_${init_container}.txt 2>&1 || true
+			if ${KNS} logs -p "${pod}" -c "${init_container}" --tail 1 >/dev/null 2>&1; then
+				${KNS} logs -p "${pod}" -c "${init_container}" >${TECH_SUPPORT_FILE}/${NODE}/${FEATURE}/${NS}_${pod}_${init_container}_previous.txt 2>&1 || true
+			fi
+		done
 	done
-	echo "${PODS}" >${TECH_SUPPORT_FILE}/${node}/${FEATURE}/pods.txt
+	echo "${PODS}" >>${TECH_SUPPORT_FILE}/${node}/${FEATURE}/pods.txt
 }
 
 while getopts who:k: opt; do
@@ -511,12 +541,20 @@ REASON
 		fi
 	fi
 
-	# test runner pod logs
-	TEST_RUNNER_PODS=$(${KNS} get pods -o name --field-selector spec.nodeName=${node} 2>/dev/null | grep -i test-runner- || true)
-	if [ -n "$TEST_RUNNER_PODS" ]; then
-		if ! pod_logs $GPUOPER_NS "test-runner" $node "$TEST_RUNNER_PODS"; then
-			log "Failed to collect logs for test-runner on node ${node}"
-		fi
+	# Test runner Jobs may run in any namespace and their generated pod names
+	# are recipe/job names (for example, gst-single-manual-...), not necessarily
+	# names containing "test-runner". Select pods by runner container/init
+	# container name instead.
+	TEST_RUNNER_ROWS=$(${KUBECTL} get pods -A --field-selector spec.nodeName=${node} \
+		-o 'custom-columns=NAMESPACE:.metadata.namespace,NAME:.metadata.name,CONTAINERS:.spec.containers[*].name,INIT_CONTAINERS:.spec.initContainers[*].name' \
+		--no-headers 2>/dev/null | awk '$0 ~ /test[-_]runner/ { print $1, $2 }' || true)
+	if [ -n "$TEST_RUNNER_ROWS" ]; then
+		while read -r runner_ns runner_pod; do
+			[ -z "$runner_pod" ] && continue
+			if ! ( pod_logs "$runner_ns" "test-runner" "$node" "pod/${runner_pod}" ); then
+				log "Failed to collect logs for test-runner pod ${runner_ns}/${runner_pod}"
+			fi
+		done <<< "$TEST_RUNNER_ROWS"
 	fi
 
 	# workflow controller pod logs
@@ -553,6 +591,33 @@ REASON
 	# wait for the debug pod
 	for dbgpod in ${dbgpods}; do
 		${KUBECTL} wait --for=condition=Ready=true ${dbgpod} >/dev/null
+
+		# Test runner writes compressed recipe logs to this hostPath. Copy the
+		# configured directory from each selected node so logs survive Job expiry.
+		# Set AMD_TEST_RUNNER_LOG_DIR to override the documented default.
+		RUNNER_BUNDLE_DIR="${TECH_SUPPORT_FILE}/${node}/test-runner"
+		RUNNER_HOST_LOG_DIR="/host${AMD_TEST_RUNNER_LOG_DIR}"
+		LOG_PATH_KEY=$(printf '%s' "${AMD_TEST_RUNNER_LOG_DIR}" | sed -e 's#^/##' -e 's#[^[:alnum:]_.-]#_#g')
+		RUNNER_HOST_LOG_OUT="${RUNNER_BUNDLE_DIR}/host-logs/${LOG_PATH_KEY}"
+		mkdir -p "${RUNNER_HOST_LOG_OUT}"
+		if ${KUBECTL} exec ${dbgpod} -- test -d "${RUNNER_HOST_LOG_DIR}" >/dev/null 2>&1; then
+			RUNNER_LOG_ARCHIVE="${RUNNER_HOST_LOG_OUT}.tar"
+			if ${KUBECTL} exec ${dbgpod} -- tar -C "${RUNNER_HOST_LOG_DIR}" -cf - . \
+				>"${RUNNER_LOG_ARCHIVE}" 2>"${RUNNER_BUNDLE_DIR}/collection-stderr.txt"; then
+				if tar -tf "${RUNNER_LOG_ARCHIVE}" >"${RUNNER_HOST_LOG_OUT}-files.txt" 2>/dev/null; then
+					tar -xf "${RUNNER_LOG_ARCHIVE}" -C "${RUNNER_HOST_LOG_OUT}"
+					rm -f "${RUNNER_LOG_ARCHIVE}"
+					log "   collected test-runner host logs from ${AMD_TEST_RUNNER_LOG_DIR}"
+				else
+					echo "Failed to read the test-runner host log archive." >"${RUNNER_HOST_LOG_OUT}-collection-status.txt"
+				fi
+			else
+				echo "Failed to archive ${AMD_TEST_RUNNER_LOG_DIR} from the host." >"${RUNNER_HOST_LOG_OUT}-collection-status.txt"
+			fi
+		else
+			echo "${AMD_TEST_RUNNER_LOG_DIR} does not exist on this node." >"${RUNNER_HOST_LOG_OUT}-collection-status.txt"
+		fi
+
 		log "   lsmod"
 		${KUBECTL} exec ${dbgpod} -- sh -c "lsmod || true" >${TECH_SUPPORT_FILE}/${node}/lsmod.txt
 		log "   dmesg"
