@@ -110,13 +110,13 @@ func (dp *devicePlugin) SetDevicePluginAsDesired(ds *appsv1.DaemonSet, devConfig
 	devicePluginArguments := devConfig.Spec.DevicePlugin.DevicePluginArguments
 
 	// Default resource_naming_strategy to "mixed" for PF and VF passthrough if not set
-	if _, exists := devicePluginArguments["resource_naming_strategy"]; !exists {
+	if _, exists := devicePluginArguments[utils.ResourceNamingStrategyFlag]; !exists {
 		if devConfig.Spec.Driver.DriverType == utils.DriverTypePFPassthrough ||
 			devConfig.Spec.Driver.DriverType == utils.DriverTypeVFPassthrough {
 			if devicePluginArguments == nil {
 				devicePluginArguments = make(map[string]string)
 			}
-			devicePluginArguments["resource_naming_strategy"] = "mixed"
+			devicePluginArguments[utils.ResourceNamingStrategyFlag] = utils.MixedStrategy
 		}
 	}
 

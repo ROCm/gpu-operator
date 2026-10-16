@@ -52,6 +52,7 @@ const (
 	ResourceNamingStrategyFlag = "resource_naming_strategy"
 	SingleStrategy             = "single"
 	MixedStrategy              = "mixed"
+	ProductStrategy            = "product"
 	// node labeller
 	experimentalAMDPrefix             = "beta.amd.com"
 	amdPrefix                         = "amd.com"

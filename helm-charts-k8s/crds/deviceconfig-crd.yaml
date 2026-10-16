@@ -234,7 +234,7 @@ spec:
                       type: string
                     description: |-
                       device plugin arguments is used to pass supported flags and their values while starting device plugin daemonset
-                      supported flag values: {"resource_naming_strategy": {"single", "mixed"}}
+                      supported flag values: {"resource_naming_strategy": {"single", "mixed", "product"}}
                     type: object
                   devicePluginImage:
                     description: device plugin image
