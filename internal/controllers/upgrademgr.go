@@ -65,26 +65,10 @@ const (
 	defaultSAName              = "amd-gpu-operator-utils-container"
 	driverUpgradeStateLabelKey = "operator.amd.com/gpu-driver-upgrade-state"
 	upgradeRequiredLabelValue  = "upgrade-required"
+	// The device plugin's resource name varies with its naming strategy, so a pod
+	// holding a GPU is identified by the domain rather than by an enumeration.
+	amdResourceDomain = "amd.com/"
 )
-
-var (
-	computePartitionTypes = []string{"spx", "cpx", "dpx", "qpx", "tpx"}
-	memoryPartitionTypes  = []string{"nps1", "nps4"}
-	validResources        = buildValidResources()
-)
-
-func buildValidResources() map[string]struct{} {
-	resources := map[string]struct{}{
-		"amd.com/gpu": {},
-	}
-	for _, compute := range computePartitionTypes {
-		for _, memory := range memoryPartitionTypes {
-			resourceName := fmt.Sprintf("amd.com/%s_%s", compute, memory)
-			resources[resourceName] = struct{}{}
-		}
-	}
-	return resources
-}
 
 type upgradeMgr struct {
 	helper upgradeMgrHelperAPI
@@ -836,7 +820,7 @@ func (h *upgradeMgrHelper) getPodsToDrainOrDelete(ctx context.Context, deviceCon
 	podLoop:
 		for _, container := range pod.Spec.Containers {
 			for resourceName := range container.Resources.Requests {
-				if _, ok := validResources[string(resourceName)]; ok {
+				if strings.HasPrefix(string(resourceName), amdResourceDomain) {
 					newPods = append(newPods, pod)
 					break podLoop
 				}
