@@ -68,7 +68,7 @@ func fnRunCommand(w http.ResponseWriter, r *http.Request) {
 	}
 	err := json.NewDecoder(r.Body).Decode(&req)
 	if err != nil {
-		if _, e := w.Write([]byte(fmt.Sprintf("command not found : %v", err))); e != nil {
+		if _, e := fmt.Fprintf(w, "command not found : %v", err); e != nil {
 			log.Errorf("response write error: %v\n", e)
 		}
 		return
@@ -87,7 +87,7 @@ func fnRunCommand(w http.ResponseWriter, r *http.Request) {
 		buffer.WriteString(scanner.Text())
 	}
 	if err := cmd.Wait(); err != nil {
-		if _, e := w.Write([]byte(fmt.Sprintf("Command %v did not complete with error: %v", string(reqBody), err))); e != nil {
+		if _, e := fmt.Fprintf(w, "Command %v did not complete with error: %v", string(reqBody), err); e != nil {
 			log.Errorf("response write error: %v\n", e)
 		}
 		return
@@ -110,7 +110,7 @@ func fnReboot(w http.ResponseWriter, r *http.Request) {
 
 	rebootCmd, err := exec.LookPath("reboot")
 	if err != nil {
-		_, err := w.Write([]byte(fmt.Sprintf("reboot find error: %v", err)))
+		_, err := fmt.Fprintf(w, "reboot find error: %v", err)
 		if err != nil {
 			log.Errorf("response write error: %v\n", err)
 		}
@@ -128,7 +128,7 @@ func fnReboot(w http.ResponseWriter, r *http.Request) {
 		time.Sleep(2 * time.Second)
 		err := cmd.Run()
 		if err != nil {
-			_, rerr := w.Write([]byte(fmt.Sprintf("reboot failed error: %v", err)))
+			_, rerr := fmt.Fprintf(w, "reboot failed error: %v", err)
 			if rerr != nil {
 				log.Errorf("response failed: %v\n", err)
 				log.Errorf("response write error: %v\n", rerr)

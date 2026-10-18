@@ -131,7 +131,8 @@ func (n *upgradeMgr) HandleUpgrade(ctx context.Context, deviceConfig *amdv1alpha
 
 	initInternalNodeStates := func(deviceConfig *amdv1alpha1.DeviceConfig) {
 		for nodeName, moduleStatus := range deviceConfig.Status.NodeModuleStatus {
-			if moduleStatus.Status == amdv1alpha1.UpgradeStateStarted {
+			switch moduleStatus.Status {
+			case amdv1alpha1.UpgradeStateStarted:
 				if deviceConfig.Spec.Driver.UpgradePolicy.RebootRequired != nil && *deviceConfig.Spec.Driver.UpgradePolicy.RebootRequired {
 					nodeObj, err := n.helper.getNode(ctx, nodeName)
 					if err == nil {
@@ -152,7 +153,7 @@ func (n *upgradeMgr) HandleUpgrade(ctx context.Context, deviceConfig *amdv1alpha
 					log.FromContext(ctx).Info(fmt.Sprintf("Node: %v: Resetting Upgrade State to UpgradeStateEmpty", nodeName))
 					n.helper.setNodeStatus(ctx, nodeName, amdv1alpha1.UpgradeStateEmpty)
 				}
-			} else if moduleStatus.Status == amdv1alpha1.UpgradeStateRebootInProgress {
+			case amdv1alpha1.UpgradeStateRebootInProgress:
 				// Operator restarted during upgrade operation. Schedule the reboot pod deletion
 				log.FromContext(ctx).Info(fmt.Sprintf("Node: %v: Reboot is in progress, scheduling reboot pod deletion", nodeName))
 				// If the pod is still present, schedule reboot pod deletion, else, move ahead to Upgrade-In-Progress
@@ -165,7 +166,7 @@ func (n *upgradeMgr) HandleUpgrade(ctx context.Context, deviceConfig *amdv1alpha
 					n.helper.setNodeStatus(ctx, nodeName, moduleStatus.Status)
 					go n.helper.deleteRebootPod(ctx, nodeName, *deviceConfig, false)
 				}
-			} else {
+			default:
 				n.helper.setNodeStatus(ctx, nodeName, moduleStatus.Status)
 			}
 		}
@@ -236,7 +237,7 @@ func (n *upgradeMgr) HandleUpgrade(ctx context.Context, deviceConfig *amdv1alpha
 		}
 
 		if !n.helper.isNodeReadyForUpgrade(ctx, &nodeList.Items[i]) {
-			res = ctrl.Result{Requeue: true, RequeueAfter: time.Second * 20}
+			res = ctrl.Result{RequeueAfter: time.Second * 20}
 			continue
 		}
 
@@ -245,7 +246,7 @@ func (n *upgradeMgr) HandleUpgrade(ctx context.Context, deviceConfig *amdv1alpha
 	}
 
 	if len(candidateNodes) == 0 && ((upgradeInProgress > 0) || (upgradeFailedState > 0) || (installInProgress > 0)) {
-		return ctrl.Result{Requeue: true, RequeueAfter: time.Second * 20}, nil
+		return ctrl.Result{RequeueAfter: time.Second * 20}, nil
 	}
 	// All nodes have correct drivers installed
 	if upgradeDone == len(nodeList.Items) || len(candidateNodes) == 0 {
@@ -256,7 +257,7 @@ func (n *upgradeMgr) HandleUpgrade(ctx context.Context, deviceConfig *amdv1alpha
 
 	if policyViolated {
 		// Re-try after 20 seconds as the policy does not allow more parallel nodes
-		return ctrl.Result{Requeue: true, RequeueAfter: time.Second * 20}, nil
+		return ctrl.Result{RequeueAfter: time.Second * 20}, nil
 	}
 
 	// Add nodes per policy
@@ -270,7 +271,7 @@ func (n *upgradeMgr) HandleUpgrade(ctx context.Context, deviceConfig *amdv1alpha
 
 	}
 
-	return ctrl.Result{Requeue: true, RequeueAfter: time.Second * 20}, nil
+	return ctrl.Result{RequeueAfter: time.Second * 20}, nil
 }
 
 // HandleDelete handles the delete operations during upgrade process

@@ -66,7 +66,7 @@ var (
 						Architecture:            "amd64",
 						ContainerRuntimeVersion: "containerd://1.7.19",
 						KernelVersion:           "6.8.0-40-generic",
-						KubeProxyVersion:        "v1.30.3",
+						KubeProxyVersion:        "v1.30.3", //nolint:staticcheck // SA1019: deprecated k8s field used only as inert test fixture data, no replacement needed
 						KubeletVersion:          "v1.30.3",
 						OperatingSystem:         "linux",
 						OSImage:                 "Ubuntu 22.04.3 LTS",
@@ -331,7 +331,7 @@ var testGetKernelMappingsTestCases = []struct {
 							Architecture:            "amd64",
 							ContainerRuntimeVersion: "containerd://1.7.19",
 							KernelVersion:           "5.15.0-40-generic",
-							KubeProxyVersion:        "v1.30.3",
+							KubeProxyVersion:        "v1.30.3", //nolint:staticcheck // SA1019: deprecated k8s field used only as inert test fixture data, no replacement needed
 							KubeletVersion:          "v1.30.3",
 							OperatingSystem:         "linux",
 							OSImage:                 "Ubuntu 22.04.3 LTS",
@@ -351,7 +351,7 @@ var testGetKernelMappingsTestCases = []struct {
 							Architecture:            "amd64",
 							ContainerRuntimeVersion: "containerd://1.7.19",
 							KernelVersion:           "5.15.0-40-generic",
-							KubeProxyVersion:        "v1.30.3",
+							KubeProxyVersion:        "v1.30.3", //nolint:staticcheck // SA1019: deprecated k8s field used only as inert test fixture data, no replacement needed
 							KubeletVersion:          "v1.30.3",
 							OperatingSystem:         "linux",
 							OSImage:                 "Ubuntu 22.04.3 LTS",
@@ -371,7 +371,7 @@ var testGetKernelMappingsTestCases = []struct {
 							Architecture:            "amd64",
 							ContainerRuntimeVersion: "containerd://1.7.19",
 							KernelVersion:           "5.15.0-40-generic",
-							KubeProxyVersion:        "v1.30.3",
+							KubeProxyVersion:        "v1.30.3", //nolint:staticcheck // SA1019: deprecated k8s field used only as inert test fixture data, no replacement needed
 							KubeletVersion:          "v1.30.3",
 							OperatingSystem:         "linux",
 							OSImage:                 "Ubuntu 22.04.3 LTS",
@@ -420,7 +420,7 @@ var testGetKernelMappingsTestCases = []struct {
 							Architecture:            "amd64",
 							ContainerRuntimeVersion: "containerd://1.7.19",
 							KernelVersion:           "5.15.0-40-generic",
-							KubeProxyVersion:        "v1.30.3",
+							KubeProxyVersion:        "v1.30.3", //nolint:staticcheck // SA1019: deprecated k8s field used only as inert test fixture data, no replacement needed
 							KubeletVersion:          "v1.30.3",
 							OperatingSystem:         "linux",
 							OSImage:                 "Ubuntu 22.04.3 LTS",
@@ -440,7 +440,7 @@ var testGetKernelMappingsTestCases = []struct {
 							Architecture:            "amd64",
 							ContainerRuntimeVersion: "containerd://1.7.19",
 							KernelVersion:           "6.8.0-40-generic",
-							KubeProxyVersion:        "v1.30.3",
+							KubeProxyVersion:        "v1.30.3", //nolint:staticcheck // SA1019: deprecated k8s field used only as inert test fixture data, no replacement needed
 							KubeletVersion:          "v1.30.3",
 							OperatingSystem:         "linux",
 							OSImage:                 "Ubuntu 24.04.3 LTS",
@@ -508,7 +508,7 @@ var testGetKernelMappingsTestCases = []struct {
 							Architecture:            "amd64",
 							ContainerRuntimeVersion: "containerd://1.7.19",
 							KernelVersion:           "5.15.0-40-generic",
-							KubeProxyVersion:        "v1.30.3",
+							KubeProxyVersion:        "v1.30.3", //nolint:staticcheck // SA1019: deprecated k8s field used only as inert test fixture data, no replacement needed
 							KubeletVersion:          "v1.30.3",
 							OperatingSystem:         "linux",
 							OSImage:                 "Ubuntu 22.04.3 LTS",
@@ -528,7 +528,7 @@ var testGetKernelMappingsTestCases = []struct {
 							Architecture:            "amd64",
 							ContainerRuntimeVersion: "containerd://1.7.19",
 							KernelVersion:           "6.8.0-40-generic",
-							KubeProxyVersion:        "v1.30.3",
+							KubeProxyVersion:        "v1.30.3", //nolint:staticcheck // SA1019: deprecated k8s field used only as inert test fixture data, no replacement needed
 							KubeletVersion:          "v1.30.3",
 							OperatingSystem:         "linux",
 							OSImage:                 "Ubuntu 24.04.3 LTS",
@@ -548,7 +548,7 @@ var testGetKernelMappingsTestCases = []struct {
 							Architecture:            "amd64",
 							ContainerRuntimeVersion: "containerd://1.7.19",
 							KernelVersion:           "6.8.0-40-generic",
-							KubeProxyVersion:        "v1.30.3",
+							KubeProxyVersion:        "v1.30.3", //nolint:staticcheck // SA1019: deprecated k8s field used only as inert test fixture data, no replacement needed
 							KubeletVersion:          "v1.30.3",
 							OperatingSystem:         "linux",
 							OSImage:                 "unsupported os platform",
@@ -616,7 +616,7 @@ var testGetKernelMappingsTestCases = []struct {
 							Architecture:            "amd64",
 							ContainerRuntimeVersion: "containerd://1.7.19",
 							KernelVersion:           "5.15.0-40-generic",
-							KubeProxyVersion:        "v1.30.3",
+							KubeProxyVersion:        "v1.30.3", //nolint:staticcheck // SA1019: deprecated k8s field used only as inert test fixture data, no replacement needed
 							KubeletVersion:          "v1.30.3",
 							OperatingSystem:         "linux",
 							OSImage:                 "unsupported linux distro",
@@ -636,7 +636,7 @@ var testGetKernelMappingsTestCases = []struct {
 							Architecture:            "amd64",
 							ContainerRuntimeVersion: "containerd://1.7.19",
 							KernelVersion:           "6.8.0-40-generic",
-							KubeProxyVersion:        "v1.30.3",
+							KubeProxyVersion:        "v1.30.3", //nolint:staticcheck // SA1019: deprecated k8s field used only as inert test fixture data, no replacement needed
 							KubeletVersion:          "v1.30.3",
 							OperatingSystem:         "linux",
 							OSImage:                 "unsupported os platform",

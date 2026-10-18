@@ -271,7 +271,7 @@ func parseRHELVersion(labels map[string]string, osImage string) string {
 }
 
 func resolveDockerfile(cmName string, devConfig *amdv1alpha1.DeviceConfig) (string, error) {
-	splits := strings.SplitN(cmName, "-", -1)
+	splits := strings.Split(cmName, "-")
 	osDistro := splits[0]
 	version := splits[1]
 	var dockerfileTemplate string
@@ -286,7 +286,7 @@ func resolveDockerfile(cmName string, devConfig *amdv1alpha1.DeviceConfig) (stri
 		if !present {
 			return "", fmt.Errorf("invalid ubuntu version, expected to be one of %v", maps.Keys(driverLabels))
 		}
-		dockerfileTemplate = strings.Replace(dockerfileTemplate, "$$DRIVER_LABEL", driverLabel, -1)
+		dockerfileTemplate = strings.ReplaceAll(dockerfileTemplate, "$$DRIVER_LABEL", driverLabel)
 
 		// trigger to pull the internal ROCM dev build
 		if internalArtifactoryURL, ok := os.LookupEnv("INTERNAL_ARTIFACTORY"); ok &&
@@ -297,9 +297,9 @@ func resolveDockerfile(cmName string, devConfig *amdv1alpha1.DeviceConfig) (stri
 				return "", fmt.Errorf("please provide internal build info, required 4 items: artifactory URL, installer deb file name, amdgpu build number and rocm build tag, got: %+v", devConfig.Spec.Driver.AMDGPUInstallerRepoURL)
 			}
 			devConfig.Spec.Driver.AMDGPUInstallerRepoURL = devBuildinfo[0]
-			dockerfileTemplate = strings.Replace(dockerfileTemplate, "$$DEV_DEB", devBuildinfo[1], -1)
-			dockerfileTemplate = strings.Replace(dockerfileTemplate, "$$AMDGPU_BUILD", devBuildinfo[2], -1)
-			dockerfileTemplate = strings.Replace(dockerfileTemplate, "$$ROCM_BUILD", devBuildinfo[3], -1)
+			dockerfileTemplate = strings.ReplaceAll(dockerfileTemplate, "$$DEV_DEB", devBuildinfo[1])
+			dockerfileTemplate = strings.ReplaceAll(dockerfileTemplate, "$$AMDGPU_BUILD", devBuildinfo[2])
+			dockerfileTemplate = strings.ReplaceAll(dockerfileTemplate, "$$ROCM_BUILD", devBuildinfo[3])
 		}
 
 		// use an environment variable to ask CI infra to pull image from internal repository
@@ -307,7 +307,7 @@ func resolveDockerfile(cmName string, devConfig *amdv1alpha1.DeviceConfig) (stri
 		_, isCIEnvSet := os.LookupEnv("CI_ENV")
 		internalUbuntuBaseImage, internalUbuntuBaseSet := os.LookupEnv("INTERNAL_UBUNTU_BASE")
 		if isCIEnvSet && internalUbuntuBaseSet {
-			dockerfileTemplate = strings.Replace(dockerfileTemplate, "$$BASEIMG_REGISTRY/ubuntu:$$VERSION", fmt.Sprintf("%v:$$VERSION", internalUbuntuBaseImage), -1)
+			dockerfileTemplate = strings.ReplaceAll(dockerfileTemplate, "$$BASEIMG_REGISTRY/ubuntu:$$VERSION", fmt.Sprintf("%v:$$VERSION", internalUbuntuBaseImage))
 		}
 	case "coreos":
 		switch devConfig.Spec.Driver.DriverType {
@@ -335,9 +335,9 @@ func resolveDockerfile(cmName string, devConfig *amdv1alpha1.DeviceConfig) (stri
 		// if OS == "sles", use default image registry as "registry.suse.com"
 		baseImageRegistry = "registry.suse.com"
 	}
-	dockerfileTemplate = strings.Replace(dockerfileTemplate, "$$BASEIMG_REGISTRY", baseImageRegistry, -1)
+	dockerfileTemplate = strings.ReplaceAll(dockerfileTemplate, "$$BASEIMG_REGISTRY", baseImageRegistry)
 	// render driver version
-	resolvedDockerfile := strings.Replace(dockerfileTemplate, "$$VERSION", version, -1)
+	resolvedDockerfile := strings.ReplaceAll(dockerfileTemplate, "$$VERSION", version)
 	return resolvedDockerfile, nil
 }
 
@@ -620,13 +620,18 @@ func GetKM(devConfig *amdv1alpha1.DeviceConfig, node v1.Node, inTreeModuleToRemo
 	// to make sure the kernel version in node info matches the kernel mapping in KMM
 	kernelLiteral := strings.TrimSuffix(node.Status.NodeInfo.KernelVersion, "+")
 
+	var inTreeModulesToRemove []string
+	if inTreeModuleToRemove != "" {
+		inTreeModulesToRemove = []string{inTreeModuleToRemove}
+	}
+
 	return kmmv1beta1.KernelMapping{
-		Literal:              kernelLiteral,
-		ContainerImage:       driversImage,
-		InTreeModuleToRemove: inTreeModuleToRemove,
-		Build:                kmmBuild,
-		Sign:                 kmmSign,
-		RegistryTLS:          registryTLS,
+		Literal:               kernelLiteral,
+		ContainerImage:        driversImage,
+		InTreeModulesToRemove: inTreeModulesToRemove,
+		Build:                 kmmBuild,
+		Sign:                  kmmSign,
+		RegistryTLS:           registryTLS,
 	}, driversVersion, nil
 }
 

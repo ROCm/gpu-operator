@@ -38,7 +38,7 @@ type DeviceConfigClient struct {
 
 func Client(c *rest.Config) (*DeviceConfigClient, error) {
 	config := *c
-	config.ContentConfig.GroupVersion = &v1alpha1.GroupVersion
+	config.GroupVersion = &v1alpha1.GroupVersion
 	config.APIPath = "/apis"
 	config.NegotiatedSerializer = scheme.Codecs.WithoutConversion()
 	config.UserAgent = rest.DefaultKubernetesUserAgent()
@@ -499,7 +499,7 @@ type RemediationWorkflowStatusClient struct {
 
 func NewWfStatusClient(c *rest.Config) (*RemediationWorkflowStatusClient, error) {
 	config := *c
-	config.ContentConfig.GroupVersion = &v1alpha1.GroupVersion
+	config.GroupVersion = &v1alpha1.GroupVersion
 	config.APIPath = "/apis"
 	config.NegotiatedSerializer = scheme.Codecs.WithoutConversion()
 	config.UserAgent = rest.DefaultKubernetesUserAgent()

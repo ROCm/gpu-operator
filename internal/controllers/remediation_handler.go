@@ -149,7 +149,7 @@ func newRemediationMgrHandler(client client.Client, apiReader client.Reader, k8s
 
 // HandleRemediation handles the remediation functionalities for device config
 func (n *remediationMgr) HandleRemediation(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig, nodes *v1.NodeList) (ctrl.Result, error) {
-	res := ctrl.Result{Requeue: true, RequeueAfter: time.Second * 20}
+	res := ctrl.Result{RequeueAfter: time.Second * 20}
 	logger := log.FromContext(ctx)
 
 	// Don't handle remediation if disabled
@@ -279,7 +279,7 @@ func (n *remediationMgr) HandleRemediation(ctx context.Context, devConfig *amdv1
 
 // HandleDelete handles the delete operations during remediation process
 func (n *remediationMgr) HandleDelete(ctx context.Context, deviceConfig *amdv1alpha1.DeviceConfig, nodeList *v1.NodeList) (res ctrl.Result, err error) {
-	res = ctrl.Result{Requeue: true, RequeueAfter: time.Second * 20}
+	res = ctrl.Result{RequeueAfter: time.Second * 20}
 
 	if deviceConfig.Spec.RemediationWorkflow.Config == nil || deviceConfig.Spec.RemediationWorkflow.Config.Name == "" {
 		cfgMapName := deviceConfig.Name + "-" + DefaultConfigMapSuffix
@@ -1433,7 +1433,7 @@ func (h *remediationMgrHelper) validateNodeConditions(ctx context.Context, devCo
 		break
 	}
 	if !conditionMet {
-		return mapping, fmt.Errorf("No matching condition found on node %s for condition %s", node.Name, mapping.NodeCondition)
+		return mapping, fmt.Errorf("no matching condition found on node %s for condition %s", node.Name, mapping.NodeCondition)
 	}
 
 	return mapping, nil
@@ -1480,13 +1480,14 @@ func (h *remediationMgrHelper) handleExistingWorkflowsOnNode(ctx context.Context
 		if !strings.HasPrefix(wf.Name, fmt.Sprintf("%s-", node.Name)) {
 			continue
 		}
-		if wf.Status.Phase == workflowv1alpha1.WorkflowSucceeded {
+		switch wf.Status.Phase {
+		case workflowv1alpha1.WorkflowSucceeded:
 			if err := h.deleteWorkflow(ctx, &wf); err != nil {
 				logger.Error(err, fmt.Sprintf("Failed to delete workflow %s on node %v", wf.Name, node.Name))
 				return false
 			}
 			logger.Info(fmt.Sprintf("Deleted completed workflow %s on node %v", wf.Name, node.Name))
-		} else if wf.Status.Phase == workflowv1alpha1.WorkflowRunning {
+		case workflowv1alpha1.WorkflowRunning:
 			return h.handleSuspendedWorkflowsOnNode(ctx, devConfig, node, mapping, &wf)
 		}
 	}
@@ -1525,7 +1526,7 @@ func (h *remediationMgrHelper) attemptAbortWorkflowOnNode(ctx context.Context, n
 		logger.Info(fmt.Sprintf("Found abort label on node %s. Attempting abort workflow %s", node.Name, wf.Name))
 		if err := h.abortWorkflow(ctx, wf); err != nil {
 			logger.Error(err, fmt.Sprintf("Failed to abort workflow %s on node %s", wf.Name, node.Name))
-			return true, fmt.Errorf("Failed to abort workflow %s on node %s", wf.Name, node.Name)
+			return true, fmt.Errorf("failed to abort workflow %s on node %s", wf.Name, node.Name)
 		}
 		if err := h.removeAbortWorkflowLabelFromNode(ctx, node); err != nil {
 			return true, err
@@ -2148,7 +2149,7 @@ func (h *remediationMgrHelper) createConfigMapFromImage(ctx context.Context, dev
 		if len(existingJob.Spec.Template.Spec.Containers) > 0 &&
 			existingJob.Spec.Template.Spec.Containers[0].Image == image {
 			logger.Info("ConfigMap image Job is still running, requeueing", "job", jobName)
-			return ctrl.Result{Requeue: true, RequeueAfter: time.Second * 10}, nil
+			return ctrl.Result{RequeueAfter: time.Second * 10}, nil
 		}
 		// Running Job is for a different image - delete it and create a new one.
 		propagation := metav1.DeletePropagationBackground
@@ -2156,7 +2157,7 @@ func (h *remediationMgrHelper) createConfigMapFromImage(ctx context.Context, dev
 			return ctrl.Result{}, fmt.Errorf("failed to delete old configMap image Job for image change: %w", err)
 		}
 		logger.Info("Deleted old ConfigMap image Job due to image change", "job", jobName, "newImage", image)
-		return ctrl.Result{Requeue: true, RequeueAfter: time.Second * 5}, nil
+		return ctrl.Result{RequeueAfter: time.Second * 5}, nil
 	}
 
 	imagePullSecrets := []v1.LocalObjectReference{}
@@ -2214,5 +2215,5 @@ func (h *remediationMgrHelper) createConfigMapFromImage(ctx context.Context, dev
 	}
 
 	logger.Info("Created ConfigMap image Job", "job", jobName, "image", image)
-	return ctrl.Result{Requeue: true, RequeueAfter: time.Second * 10}, nil
+	return ctrl.Result{RequeueAfter: time.Second * 10}, nil
 }

@@ -178,12 +178,12 @@ func (s *E2ESuite) verifyRemediationWorkflow(expect, actual *v1alpha1.DeviceConf
 }
 
 func (s *E2ESuite) writeYAMLToFile(yamlContent string) error {
-	os.Remove(tmpValuesYamlPath)
+	_ = os.Remove(tmpValuesYamlPath)
 	file, err := os.Create(tmpValuesYamlPath)
 	if err != nil {
 		return err
 	}
-	defer file.Close()
+	defer func() { _ = file.Close() }()
 
 	_, err = file.WriteString(yamlContent)
 	return err

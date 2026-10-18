@@ -233,7 +233,7 @@ func (r *DeviceConfigReconciler) Reconcile(ctx context.Context, req ctrl.Request
 	if err != nil {
 		if k8serrors.IsNotFound(err) || strings.Contains(err.Error(), "not found") {
 			logger.Info("DeviceConfig CR deleted")
-			r.helper.updateNodeAssignments(req.NamespacedName.String(), nil, true)
+			r.helper.updateNodeAssignments(req.String(), nil, true)
 			return ctrl.Result{}, nil
 		}
 		return res, fmt.Errorf("failed to get the requested %s CR: %v", req.NamespacedName, err)
@@ -261,13 +261,13 @@ func (r *DeviceConfigReconciler) Reconcile(ctx context.Context, req ctrl.Request
 	}
 
 	// Verify that the DeviceConfig does not select nodes covered by other DeviceConfigs
-	err = r.helper.validateNodeAssignments(req.NamespacedName.String(), nodes)
+	err = r.helper.validateNodeAssignments(req.String(), nodes)
 	if err != nil {
 		if errSet := r.helper.setCondition(ctx, conditions.ConditionTypeError, devConfig, metav1.ConditionTrue, conditions.ValidationError, fmt.Sprintf("Validation failed: %v", err)); errSet != nil {
-			logger.Error(fmt.Errorf("Failed to set error condition: %v", errSet), "")
+			logger.Error(fmt.Errorf("failed to set error condition: %v", errSet), "")
 		}
 		if errSet := r.helper.setCondition(ctx, conditions.ConditionTypeReady, devConfig, metav1.ConditionFalse, conditions.ReadyStatus, ""); errSet != nil {
-			logger.Error(fmt.Errorf("Failed to set ready condition: %v", errSet), "")
+			logger.Error(fmt.Errorf("failed to set ready condition: %v", errSet), "")
 		}
 		return res, err
 	}
@@ -277,10 +277,10 @@ func (r *DeviceConfigReconciler) Reconcile(ctx context.Context, req ctrl.Request
 	if len(result) != 0 {
 		// Update status Conditions here
 		if errSet := r.helper.setCondition(ctx, conditions.ConditionTypeError, devConfig, metav1.ConditionTrue, conditions.ValidationError, fmt.Sprintf("Validation failed: %v", result)); errSet != nil {
-			logger.Error(fmt.Errorf("Failed to set error condition: %v", errSet), "")
+			logger.Error(fmt.Errorf("failed to set error condition: %v", errSet), "")
 		}
 		if errSet := r.helper.setCondition(ctx, conditions.ConditionTypeReady, devConfig, metav1.ConditionFalse, conditions.ReadyStatus, ""); errSet != nil {
-			logger.Error(fmt.Errorf("Failed to set ready condition: %v", errSet), "")
+			logger.Error(fmt.Errorf("failed to set ready condition: %v", errSet), "")
 		}
 		return res, fmt.Errorf("validation failed for DeviceConfig %s: %v", req.NamespacedName, result)
 	}
@@ -288,10 +288,10 @@ func (r *DeviceConfigReconciler) Reconcile(ctx context.Context, req ctrl.Request
 	if len(nodes.Items) == 0 {
 		msg := fmt.Sprintf("no nodes found matching selector %s; verify node labels or check that NFD has labeled the GPU nodes", labels.Set(devConfig.Spec.Selector).String())
 		if errSet := r.helper.setCondition(ctx, conditions.ConditionTypeError, devConfig, metav1.ConditionTrue, conditions.NoMatchingNodes, msg); errSet != nil {
-			logger.Error(fmt.Errorf("Failed to set error condition: %v", errSet), "")
+			logger.Error(fmt.Errorf("failed to set error condition: %v", errSet), "")
 		}
 		if errSet := r.helper.setCondition(ctx, conditions.ConditionTypeReady, devConfig, metav1.ConditionFalse, conditions.NoMatchingNodes, msg); errSet != nil {
-			logger.Error(fmt.Errorf("Failed to set ready condition: %v", errSet), "")
+			logger.Error(fmt.Errorf("failed to set ready condition: %v", errSet), "")
 		}
 		return ctrl.Result{}, nil
 	}
@@ -310,7 +310,7 @@ func (r *DeviceConfigReconciler) Reconcile(ctx context.Context, req ctrl.Request
 	logger.Info("start module install/upgrade reconciliation")
 	res, err = r.helper.handleModuleUpgrade(ctx, devConfig, nodes, false)
 	if err != nil {
-		return res, fmt.Errorf("Failed to fetch nodes for DeviceConfig %s: %v", req.NamespacedName, err)
+		return res, fmt.Errorf("failed to fetch nodes for DeviceConfig %s: %v", req.NamespacedName, err)
 	}
 
 	logger.Info("start KMM reconciliation")
@@ -382,7 +382,7 @@ func (r *DeviceConfigReconciler) Reconcile(ctx context.Context, req ctrl.Request
 	}
 
 	// Update nodeAssignments after DeviceConfig status update
-	r.helper.updateNodeAssignments(req.NamespacedName.String(), nodes, false)
+	r.helper.updateNodeAssignments(req.String(), nodes, false)
 
 	return finalRes, nil
 }
@@ -1741,7 +1741,7 @@ func (dcrh *deviceConfigReconcilerHelper) setCondition(ctx context.Context, cond
 		dcrh.conditionUpdater.SetErrorCondition(devConfig, status, reason, message)
 		return dcrh.updateDeviceConfigStatus(ctx, devConfig)
 	}
-	return fmt.Errorf("Condition %s not supported", condition)
+	return fmt.Errorf("condition %s not supported", condition)
 }
 
 func (dcrh *deviceConfigReconcilerHelper) deleteCondition(ctx context.Context, condition string, devConfig *amdv1alpha1.DeviceConfig) error {
@@ -1753,7 +1753,7 @@ func (dcrh *deviceConfigReconcilerHelper) deleteCondition(ctx context.Context, c
 		dcrh.conditionUpdater.DeleteErrorCondition(devConfig)
 		return dcrh.updateDeviceConfigStatus(ctx, devConfig)
 	}
-	return fmt.Errorf("Condition %s not supported", condition)
+	return fmt.Errorf("condition %s not supported", condition)
 }
 
 func (dcrh *deviceConfigReconcilerHelper) validateDeviceConfig(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig) []string {

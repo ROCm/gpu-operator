@@ -165,7 +165,7 @@ func ValidateDevicePluginSpec(ctx context.Context, client client.Client, devConf
 	for key, val := range devicePluginArguments {
 		validValues, validKey := supportedFlagValues[key]
 		if !validKey {
-			return fmt.Errorf("Invalid flag: %s", key)
+			return fmt.Errorf("invalid flag: %s", key)
 		}
 		validKeyValue := false
 
@@ -177,7 +177,7 @@ func ValidateDevicePluginSpec(ctx context.Context, client client.Client, devConf
 		}
 
 		if !validKeyValue {
-			return fmt.Errorf("Invalid flag value: %s=%s. Supported values: %v", key, val, supportedFlagValues[key])
+			return fmt.Errorf("invalid flag value: %s=%s. Supported values: %v", key, val, supportedFlagValues[key])
 		}
 	}
 

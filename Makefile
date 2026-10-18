@@ -130,7 +130,7 @@ DOCKER_GID := $(shell stat -c '%g' $(HOST_DOCKER_SOCKET))
 USER_UID := $(shell id -u)
 USER_GID := $(shell id -g)
 # Sourced from dev.env (single source of truth); fallback here if dev.env absent.
-DOCKER_BUILDER_TAG ?= v1.8
+DOCKER_BUILDER_TAG ?= v1.9
 DOCKER_BUILDER_IMAGE := $(DOCKER_REGISTRY)/gpu-operator-build:$(DOCKER_BUILDER_TAG)
 CONTAINER_WORKDIR := /gpu-operator
 # In CI environments (e.g. GitHub Actions) there is no TTY, so omit -it flags.
@@ -138,7 +138,7 @@ DOCKER_IT_FLAGS := $(if $(CI),,-it)
 BUILD_BASE_IMG ?= ubuntu:22.04
 DOCKER_CACHE_FROM ?=
 DOCKER_CACHE_TO ?=
-GOLANG_BASE_IMG ?= golang:1.26.7
+GOLANG_BASE_IMG ?= golang:1.27.2
 OPERATOR_CONTROLLER_BASE_IMAGE ?= registry.access.redhat.com/ubi9/ubi-minimal:9.8
 # Helm binary installed into the build-shell image (Dockerfile.build). Pin the
 # version and its published sha256 together; bump both when upgrading.
@@ -513,11 +513,24 @@ controller-gen:
 	$(call go-get-tool,$(CONTROLLER_GEN),sigs.k8s.io/controller-tools/cmd/controller-gen@${CONTROLLER_GEN_VERSION})
 
 GOLANGCI_LINT = $(shell pwd)/bin/golangci-lint
-GOLANGCI_LINT_VERSION=v1.63.4
+# golangci-lint v2.x.x is required: v1.x (frozen at v1.64.8) cannot decode the
+# type-export data produced by Go >= 1.27 ("export data version 5 is greater
+# than maximum supported version 2"). `--version` prints "2.15.0" (no "v"
+# prefix), hence the bare version here and the explicit "v" below.
+GOLANGCI_LINT_VERSION=2.15.0
+# golangci-lint's own go.mod may pin an older toolchain than ours; a plain
+# `go install` would silently build it with that older toolchain and
+# reproduce the same export-data incompatibility. Force at least our go.mod
+# version so the installed binary can always read our own build's output.
+GO_MOD_VERSION := $(shell sed -n 's/^go //p' go.mod)
 .PHONY: golangci-lint
 golangci-lint:
 	$(call remove-wrong-version-tool,$(GOLANGCI_LINT),--version,${GOLANGCI_LINT_VERSION})
-	$(call go-get-tool,$(GOLANGCI_LINT),github.com/golangci/golangci-lint/cmd/golangci-lint@${GOLANGCI_LINT_VERSION})
+	@[ -f $(GOLANGCI_LINT) ] || { \
+	set -e; \
+	echo "Downloading github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v${GOLANGCI_LINT_VERSION}"; \
+	GOBIN=$(PROJECT_DIR)/bin GOTOOLCHAIN=go${GO_MOD_VERSION} go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v${GOLANGCI_LINT_VERSION}; \
+	}
 
 HELMDOCS = $(shell pwd)/bin/helm-docs
 .PHONY: helm-docs

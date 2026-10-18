@@ -36,7 +36,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/ROCm/gpu-operator/api/v1alpha1"
-	amdv1alpha1 "github.com/ROCm/gpu-operator/api/v1alpha1"
 	"github.com/ROCm/gpu-operator/internal/cmd"
 )
 
@@ -167,7 +166,7 @@ func RemoveOldNodeLabels(node *v1.Node) bool {
 	return updated
 }
 
-func GetDriverVersion(node v1.Node, deviceConfig amdv1alpha1.DeviceConfig) (string, error) {
+func GetDriverVersion(node v1.Node, deviceConfig v1alpha1.DeviceConfig) (string, error) {
 	var driverVersion string
 	var err error
 	if deviceConfig.Spec.Driver.Version != "" {
@@ -304,7 +303,7 @@ func ValidateSLESDriverVersion(ctx context.Context, osImage, driverVersion strin
 	if err != nil {
 		return fmt.Errorf("could not reach SUSE registry: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode != http.StatusOK {
 		return fmt.Errorf("SCC auth request failed with status %d", resp.StatusCode)
 	}
@@ -324,7 +323,7 @@ func ValidateSLESDriverVersion(ctx context.Context, osImage, driverVersion strin
 	if err != nil {
 		return fmt.Errorf("could not reach SUSE registry: %w", err)
 	}
-	defer resp2.Body.Close()
+	defer func() { _ = resp2.Body.Close() }()
 
 	var result error
 	switch resp2.StatusCode {
@@ -399,7 +398,7 @@ func IsOpenShift(logger logr.Logger) bool {
 }
 
 // IsPrometheusServiceMonitorEnable checks if the Prometheus ServiceMonitor is enabled in the DeviceConfig
-func IsPrometheusServiceMonitorEnable(devConfig *amdv1alpha1.DeviceConfig) bool {
+func IsPrometheusServiceMonitorEnable(devConfig *v1alpha1.DeviceConfig) bool {
 	if devConfig.Spec.MetricsExporter.Prometheus != nil &&
 		devConfig.Spec.MetricsExporter.Prometheus.ServiceMonitor != nil &&
 		devConfig.Spec.MetricsExporter.Prometheus.ServiceMonitor.Enable != nil &&
@@ -409,7 +408,7 @@ func IsPrometheusServiceMonitorEnable(devConfig *amdv1alpha1.DeviceConfig) bool 
 	return false
 }
 
-func GetDriverTypeTag(devCfg *amdv1alpha1.DeviceConfig) string {
+func GetDriverTypeTag(devCfg *v1alpha1.DeviceConfig) string {
 	driverTypeTag := ""
 	switch devCfg.Spec.Driver.DriverType {
 	case DriverTypeVFPassthrough,
@@ -426,7 +425,7 @@ func GetDriverTypeTag(devCfg *amdv1alpha1.DeviceConfig) string {
 
 func generateRegexPattern(template string) string {
 	// Escape dots
-	pattern := strings.Replace(template, ".", `\.`, -1)
+	pattern := strings.ReplaceAll(template, ".", `\.`)
 	// Replace %v with .+ to match any valid characters
 	pattern = strings.Replace(pattern, "%v", "([^.]+)", 1)
 	pattern = strings.Replace(pattern, "%v", "(.+)", 1)
