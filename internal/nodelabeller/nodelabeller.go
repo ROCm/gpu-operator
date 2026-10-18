@@ -167,9 +167,10 @@ func (nl *nodeLabeller) SetNodeLabellerAsDesired(ds *appsv1.DaemonSet, devConfig
 	}
 	matchLabels := map[string]string{"daemonset-name": devConfig.Name}
 	commandArgs := containerCommandArgs
-	if devConfig.Spec.Driver.DriverType == utils.DriverTypeVFPassthrough {
+	switch devConfig.Spec.Driver.DriverType {
+	case utils.DriverTypeVFPassthrough:
 		commandArgs = vfPassthroughCommandArgs
-	} else if devConfig.Spec.Driver.DriverType == utils.DriverTypePFPassthrough {
+	case utils.DriverTypePFPassthrough:
 		commandArgs = pfPassthroughCommandArgs
 	}
 
@@ -266,7 +267,7 @@ func (nl *nodeLabeller) getNodeLabellerImage(devConfig *amdv1alpha1.DeviceConfig
 func getDevicePluginVersion(devConfig *amdv1alpha1.DeviceConfig) string {
 	if strings.Contains(devConfig.Spec.DevicePlugin.DevicePluginImage, rocmDevicePluginRepo) {
 		imgInfo := strings.Split(devConfig.Spec.DevicePlugin.DevicePluginImage, rocmDevicePluginRepo)
-		return strings.Replace(imgInfo[len(imgInfo)-1], ":", "", -1)
+		return strings.ReplaceAll(imgInfo[len(imgInfo)-1], ":", "")
 	}
 	return ""
 }

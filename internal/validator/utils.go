@@ -67,14 +67,14 @@ func validateSLESDriverVersion(ctx context.Context, cli client.Client, devConfig
 
 func validateSecret(ctx context.Context, client client.Client, secretRef *v1.LocalObjectReference, namespace string) error {
 	if secretRef == nil || secretRef.Name == "" {
-		return fmt.Errorf("Secret reference is nil or empty")
+		return fmt.Errorf("secret reference is nil or empty")
 	}
 
 	secret := &v1.Secret{}
 	err := client.Get(ctx, types.NamespacedName{Namespace: namespace, Name: secretRef.Name}, secret)
 	if err != nil {
 		if k8serrors.IsNotFound(err) {
-			return fmt.Errorf("Secret %s not found in namespace %s", secretRef.Name, namespace)
+			return fmt.Errorf("secret %s not found in namespace %s", secretRef.Name, namespace)
 		}
 		return fmt.Errorf("failed to get Secret %s: %v", secretRef.Name, err)
 	}
@@ -84,7 +84,7 @@ func validateSecret(ctx context.Context, client client.Client, secretRef *v1.Loc
 
 func validateConfigMap(ctx context.Context, client client.Client, mapRef string, namespace string) error {
 	if mapRef == "" {
-		return fmt.Errorf("No ConfigMap name provided for validation")
+		return fmt.Errorf("no ConfigMap name provided for validation")
 	}
 
 	configMap := &v1.ConfigMap{}

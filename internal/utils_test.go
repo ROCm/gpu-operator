@@ -423,7 +423,7 @@ func TestSLESDefaultDriverVersionsMapper(t *testing.T) {
 
 func TestValidateSLESDriverVersion(t *testing.T) {
 	authServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		fmt.Fprintln(w, `{"token":"test-token"}`)
+		_, _ = fmt.Fprintln(w, `{"token":"test-token"}`)
 	}))
 	defer authServer.Close()
 

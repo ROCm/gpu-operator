@@ -376,7 +376,7 @@ func (s *DriverInstallSuite) TestWorkloadRequestedGPUs(c *C) {
 	if err != nil {
 		logger.Errorf("error: %v", err)
 	}
-	var minGPU int = 10000
+	minGPU := 10000
 	for _, v := range ret {
 		if v < minGPU {
 			minGPU = v
@@ -459,7 +459,7 @@ func (s *DriverInstallSuite) TestWorkloadRequestedGPUsHomogeneousSingle(c *C) {
 	if err != nil {
 		logger.Errorf("error: %v", err)
 	}
-	var minGPU int = 10000
+	minGPU := 10000
 	for _, v := range ret {
 		if v < minGPU {
 			minGPU = v
@@ -535,7 +535,7 @@ func (s *DriverInstallSuite) TestWorkloadRequestedGPUsHomogeneousMixed(c *C) {
 	if err != nil {
 		logger.Errorf("error: %v", err)
 	}
-	var minGPU int = 10000
+	minGPU := 10000
 	for _, v := range ret {
 		if v < minGPU {
 			minGPU = v
@@ -613,7 +613,7 @@ func (s *DriverInstallSuite) TestWorkloadRequestedGPUsHeterogeneousMixed(c *C) {
 	if err != nil {
 		logger.Errorf("error: %v", err)
 	}
-	var minGPU int = 10000
+	minGPU := 10000
 	for _, v := range ret {
 		if v < minGPU {
 			minGPU = v

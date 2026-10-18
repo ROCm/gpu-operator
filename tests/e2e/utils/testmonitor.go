@@ -291,7 +291,7 @@ func (tm *TestMonitor) runStern() {
 		log.Warnf("[TestMonitor] Failed to create log file %s: %v", logPath, err)
 		return
 	}
-	defer logFile.Close()
+	defer func() { _ = logFile.Close() }()
 
 	// Template without color — plain text suitable for file output.
 	// Matches the "default" output format structure but without ANSI codes.
@@ -382,26 +382,26 @@ func (tm *TestMonitor) takeSnapshot(label string) {
 		log.Warnf("[TestMonitor] Failed to create snapshot file %s: %v", snapFile, err)
 		return
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	fmt.Fprintf(f, "=== Resource Snapshot: %s at %s (ns: %s) ===\n\n",
+	_, _ = fmt.Fprintf(f, "=== Resource Snapshot: %s at %s (ns: %s) ===\n\n",
 		label, time.Now().Format(time.RFC3339), tm.namespace)
 
 	// Pods
-	fmt.Fprintf(f, ">> Pods:\n")
+	_, _ = fmt.Fprintf(f, ">> Pods:\n")
 	pods, err := tm.clientSet.CoreV1().Pods(tm.namespace).List(ctx, metav1.ListOptions{})
 	if err != nil {
-		fmt.Fprintf(f, "  Error listing pods: %v\n", err)
+		_, _ = fmt.Fprintf(f, "  Error listing pods: %v\n", err)
 	} else {
-		fmt.Fprintf(f, "  %-60s %-12s %-8s %-30s %s\n", "NAME", "STATUS", "READY", "NODE", "CONTAINERS")
+		_, _ = fmt.Fprintf(f, "  %-60s %-12s %-8s %-30s %s\n", "NAME", "STATUS", "READY", "NODE", "CONTAINERS")
 		for _, pod := range pods.Items {
 			ready := podReadyCount(&pod)
 			total := len(pod.Spec.Containers)
 			containers := containerStatusSummary(&pod)
-			fmt.Fprintf(f, "  %-60s %-12s %d/%-6d %-30s %s\n",
+			_, _ = fmt.Fprintf(f, "  %-60s %-12s %d/%-6d %-30s %s\n",
 				pod.Name, string(pod.Status.Phase), ready, total, pod.Spec.NodeName, containers)
 		}
 
@@ -410,10 +410,10 @@ func (tm *TestMonitor) takeSnapshot(label string) {
 				continue
 			}
 			if len(pod.Status.InitContainerStatuses) > 0 {
-				fmt.Fprintf(f, "\n  Init containers for %s:\n", pod.Name)
+				_, _ = fmt.Fprintf(f, "\n  Init containers for %s:\n", pod.Name)
 				for _, ics := range pod.Status.InitContainerStatuses {
 					state := containerStateString(ics.State)
-					fmt.Fprintf(f, "    %s: ready=%t restarts=%d state=%s\n",
+					_, _ = fmt.Fprintf(f, "    %s: ready=%t restarts=%d state=%s\n",
 						ics.Name, ics.Ready, ics.RestartCount, state)
 				}
 			}
@@ -421,42 +421,42 @@ func (tm *TestMonitor) takeSnapshot(label string) {
 	}
 
 	// DaemonSets
-	fmt.Fprintf(f, "\n>> DaemonSets:\n")
+	_, _ = fmt.Fprintf(f, "\n>> DaemonSets:\n")
 	dsList, err := tm.clientSet.AppsV1().DaemonSets(tm.namespace).List(ctx, metav1.ListOptions{})
 	if err != nil {
-		fmt.Fprintf(f, "  Error listing daemonsets: %v\n", err)
+		_, _ = fmt.Fprintf(f, "  Error listing daemonsets: %v\n", err)
 	} else {
-		fmt.Fprintf(f, "  %-50s %-10s %-10s %-10s %-10s %-10s\n",
+		_, _ = fmt.Fprintf(f, "  %-50s %-10s %-10s %-10s %-10s %-10s\n",
 			"NAME", "DESIRED", "CURRENT", "READY", "UP-TO-DATE", "AVAILABLE")
 		for _, ds := range dsList.Items {
-			fmt.Fprintf(f, "  %-50s %-10d %-10d %-10d %-10d %-10d\n",
+			_, _ = fmt.Fprintf(f, "  %-50s %-10d %-10d %-10d %-10d %-10d\n",
 				ds.Name, ds.Status.DesiredNumberScheduled, ds.Status.CurrentNumberScheduled,
 				ds.Status.NumberReady, ds.Status.UpdatedNumberScheduled, ds.Status.NumberAvailable)
 		}
 	}
 
 	// Deployments
-	fmt.Fprintf(f, "\n>> Deployments:\n")
+	_, _ = fmt.Fprintf(f, "\n>> Deployments:\n")
 	depList, err := tm.clientSet.AppsV1().Deployments(tm.namespace).List(ctx, metav1.ListOptions{})
 	if err != nil {
-		fmt.Fprintf(f, "  Error listing deployments: %v\n", err)
+		_, _ = fmt.Fprintf(f, "  Error listing deployments: %v\n", err)
 	} else {
-		fmt.Fprintf(f, "  %-50s %-10s %-10s %-10s\n", "NAME", "DESIRED", "READY", "AVAILABLE")
+		_, _ = fmt.Fprintf(f, "  %-50s %-10s %-10s %-10s\n", "NAME", "DESIRED", "READY", "AVAILABLE")
 		for _, dep := range depList.Items {
 			desired := int32(0)
 			if dep.Spec.Replicas != nil {
 				desired = *dep.Spec.Replicas
 			}
-			fmt.Fprintf(f, "  %-50s %-10d %-10d %-10d\n",
+			_, _ = fmt.Fprintf(f, "  %-50s %-10d %-10d %-10d\n",
 				dep.Name, desired, dep.Status.ReadyReplicas, dep.Status.AvailableReplicas)
 		}
 	}
 
 	// Events (only since test started)
-	fmt.Fprintf(f, "\n>> Events (since test start):\n")
+	_, _ = fmt.Fprintf(f, "\n>> Events (since test start):\n")
 	events, err := tm.clientSet.CoreV1().Events(tm.namespace).List(ctx, metav1.ListOptions{})
 	if err != nil {
-		fmt.Fprintf(f, "  Error listing events: %v\n", err)
+		_, _ = fmt.Fprintf(f, "  Error listing events: %v\n", err)
 	} else {
 		count := 0
 		for _, ev := range events.Items {
@@ -467,40 +467,40 @@ func (tm *TestMonitor) takeSnapshot(label string) {
 			if evTime.Before(tm.startTime.Time) {
 				continue
 			}
-			fmt.Fprintf(f, "  %s  %-8s %-40s %s\n",
+			_, _ = fmt.Fprintf(f, "  %s  %-8s %-40s %s\n",
 				evTime.Format(time.RFC3339), ev.Type,
 				fmt.Sprintf("%s/%s", ev.InvolvedObject.Kind, ev.InvolvedObject.Name),
 				ev.Message)
 			count++
 		}
 		if count == 0 {
-			fmt.Fprintf(f, "  (no events since test start)\n")
+			_, _ = fmt.Fprintf(f, "  (no events since test start)\n")
 		}
 	}
 
 	// DeviceConfig CRs
-	fmt.Fprintf(f, "\n>> DeviceConfigs:\n")
+	_, _ = fmt.Fprintf(f, "\n>> DeviceConfigs:\n")
 	if tm.dynamicClient != nil {
 		dcList, err := tm.dynamicClient.Resource(deviceConfigGVR).Namespace(tm.namespace).List(ctx, metav1.ListOptions{})
 		if err != nil {
-			fmt.Fprintf(f, "  Error listing deviceconfigs: %v\n", err)
+			_, _ = fmt.Fprintf(f, "  Error listing deviceconfigs: %v\n", err)
 		} else if len(dcList.Items) == 0 {
-			fmt.Fprintf(f, "  (none)\n")
+			_, _ = fmt.Fprintf(f, "  (none)\n")
 		} else {
 			for _, item := range dcList.Items {
 				yamlBytes, err := toYAML(item.Object)
 				if err != nil {
-					fmt.Fprintf(f, "  Error marshalling %s: %v\n", item.GetName(), err)
+					_, _ = fmt.Fprintf(f, "  Error marshalling %s: %v\n", item.GetName(), err)
 					continue
 				}
-				fmt.Fprintf(f, "---\n%s\n", string(yamlBytes))
+				_, _ = fmt.Fprintf(f, "---\n%s\n", string(yamlBytes))
 			}
 		}
 	} else {
-		fmt.Fprintf(f, "  (dynamic client not configured)\n")
+		_, _ = fmt.Fprintf(f, "  (dynamic client not configured)\n")
 	}
 
-	fmt.Fprintf(f, "\n")
+	_, _ = fmt.Fprintf(f, "\n")
 }
 
 // =========================================================================
@@ -615,7 +615,7 @@ func (tm *TestMonitor) collectFromNode(ctx context.Context, diagDir string, node
 		log.Warnf("[TestMonitor] Failed to get diag logs from node %s: %v", nodeName, err)
 		return
 	}
-	defer stream.Close()
+	defer func() { _ = stream.Close() }()
 
 	var buf bytes.Buffer
 	if _, err := io.Copy(&buf, stream); err != nil {
@@ -763,13 +763,13 @@ func CaptureRunnerBaseline(ctx context.Context, cs kubernetes.Interface, baseDir
 
 	var b strings.Builder
 	b.WriteString("=== runner baseline ===\n")
-	b.WriteString(fmt.Sprintf("captured: %s\n\n", time.Now().Format(time.RFC3339)))
+	_, _ = fmt.Fprintf(&b, "captured: %s\n\n", time.Now().Format(time.RFC3339))
 
 	for _, n := range nodes.Items {
-		b.WriteString(fmt.Sprintf("node: %s\n", n.Name))
-		b.WriteString(fmt.Sprintf("  kernel: %s\n", n.Status.NodeInfo.KernelVersion))
-		b.WriteString(fmt.Sprintf("  os: %s\n", n.Status.NodeInfo.OSImage))
-		b.WriteString(fmt.Sprintf("  runtime: %s\n", n.Status.NodeInfo.ContainerRuntimeVersion))
+		_, _ = fmt.Fprintf(&b, "node: %s\n", n.Name)
+		_, _ = fmt.Fprintf(&b, "  kernel: %s\n", n.Status.NodeInfo.KernelVersion)
+		_, _ = fmt.Fprintf(&b, "  os: %s\n", n.Status.NodeInfo.OSImage)
+		_, _ = fmt.Fprintf(&b, "  runtime: %s\n", n.Status.NodeInfo.ContainerRuntimeVersion)
 		b.WriteString("\n")
 	}
 
@@ -819,8 +819,8 @@ func (tm *TestMonitor) CaptureDriverState(testName string) error {
 	}
 
 	var b strings.Builder
-	b.WriteString(fmt.Sprintf("=== driver-state for %s ===\n", testName))
-	b.WriteString(fmt.Sprintf("captured: %s\n\n", time.Now().Format(time.RFC3339)))
+	_, _ = fmt.Fprintf(&b, "=== driver-state for %s ===\n", testName)
+	_, _ = fmt.Fprintf(&b, "captured: %s\n\n", time.Now().Format(time.RFC3339))
 
 	// kmm-worker pods in the operator namespace.
 	pods, err := tm.clientSet.CoreV1().Pods(tm.namespace).List(
@@ -828,15 +828,15 @@ func (tm *TestMonitor) CaptureDriverState(testName string) error {
 		metav1.ListOptions{LabelSelector: "app.kubernetes.io/name=kmm-worker"},
 	)
 	if err != nil {
-		b.WriteString(fmt.Sprintf("kmm-worker list (capture failed: %v)\n", err))
+		_, _ = fmt.Fprintf(&b, "kmm-worker list (capture failed: %v)\n", err)
 	} else {
-		b.WriteString(fmt.Sprintf("kmm-worker pods (%d):\n", len(pods.Items)))
+		_, _ = fmt.Fprintf(&b, "kmm-worker pods (%d):\n", len(pods.Items))
 		for _, p := range pods.Items {
-			b.WriteString(fmt.Sprintf("  - name: %s\n", p.Name))
-			b.WriteString(fmt.Sprintf("    node: %s\n", p.Spec.NodeName))
-			b.WriteString(fmt.Sprintf("    phase: %s\n", p.Status.Phase))
+			_, _ = fmt.Fprintf(&b, "  - name: %s\n", p.Name)
+			_, _ = fmt.Fprintf(&b, "    node: %s\n", p.Spec.NodeName)
+			_, _ = fmt.Fprintf(&b, "    phase: %s\n", p.Status.Phase)
 			for _, ctr := range p.Spec.Containers {
-				b.WriteString(fmt.Sprintf("    image: %s\n", ctr.Image))
+				_, _ = fmt.Fprintf(&b, "    image: %s\n", ctr.Image)
 			}
 		}
 	}
@@ -847,9 +847,9 @@ func (tm *TestMonitor) CaptureDriverState(testName string) error {
 		metav1.ListOptions{LabelSelector: "app.kubernetes.io/name=node-labeller"},
 	)
 	if err == nil && len(nl.Items) > 0 {
-		b.WriteString(fmt.Sprintf("\nnode-labeller pods (%d):\n", len(nl.Items)))
+		_, _ = fmt.Fprintf(&b, "\nnode-labeller pods (%d):\n", len(nl.Items))
 		for _, p := range nl.Items {
-			b.WriteString(fmt.Sprintf("  - name: %s  node: %s  phase: %s\n", p.Name, p.Spec.NodeName, p.Status.Phase))
+			_, _ = fmt.Fprintf(&b, "  - name: %s  node: %s  phase: %s\n", p.Name, p.Spec.NodeName, p.Status.Phase)
 		}
 	}
 

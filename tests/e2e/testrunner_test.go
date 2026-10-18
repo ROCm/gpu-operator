@@ -213,7 +213,7 @@ func (s *E2ESuite) scheduleWorkloadOnNodeWithMaxGPUs(pytorch bool, c *C) string 
 	if err != nil {
 		logger.Errorf("error: %v", err)
 	}
-	var maxPerNodeGPU int = 0
+	maxPerNodeGPU := 0
 	var nodeWithMaxGPU string
 	for nodeName, v := range ret {
 		if v > maxPerNodeGPU {
@@ -263,7 +263,7 @@ func (s *E2ESuite) verifyRestartIncompleteTest(node string, devCfg *v1alpha1.Dev
 					fmt.Printf("failed to get pod logs err %+v", err)
 					return false
 				}
-				defer podLogs.Close()
+				defer func() { _ = podLogs.Close() }()
 
 				// Print the logs
 				buf := new(bytes.Buffer)
@@ -300,7 +300,7 @@ func (s *E2ESuite) verifyFoundUnhealthyGPUWithWorkload(node string, devCfg *v1al
 					fmt.Printf("failed to get pod logs err %+v", err)
 					return false
 				}
-				defer podLogs.Close()
+				defer func() { _ = podLogs.Close() }()
 
 				// Print the logs
 				buf := new(bytes.Buffer)

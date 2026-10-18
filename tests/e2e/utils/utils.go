@@ -102,7 +102,7 @@ func CheckDeploymentWithStandardKMMNFD(cl *kubernetes.Clientset, create bool) er
 		s, err := cl.AppsV1().Deployments(d.ns).Get(context.TODO(), d.name, metav1.GetOptions{})
 		if !create {
 			if err == nil {
-				return fmt.Errorf("Pod %v in namespace %v is not deleted yet", d.ns, d.name)
+				return fmt.Errorf("pod %v in namespace %v is not deleted yet", d.ns, d.name)
 			}
 		} else {
 			if err != nil {
@@ -122,7 +122,7 @@ func CheckDeploymentWithStandardKMMNFD(cl *kubernetes.Clientset, create bool) er
 		s, err := cl.AppsV1().DaemonSets(d.ns).Get(context.TODO(), d.name, metav1.GetOptions{})
 		if !create {
 			if err == nil {
-				return fmt.Errorf("Replica %v in namespace %v is not deleted yet", d.ns, d.name)
+				return fmt.Errorf("replica %v in namespace %v is not deleted yet", d.ns, d.name)
 			}
 		} else {
 			if err != nil {
@@ -149,7 +149,7 @@ func CheckOCDeploymentWithStandardKMMNFD(cl *kubernetes.Clientset, create bool) 
 		s, err := cl.AppsV1().Deployments(d.ns).Get(context.TODO(), d.name, metav1.GetOptions{})
 		if !create {
 			if err == nil {
-				return fmt.Errorf("Pod %v in namespace %v is not deleted yet", d.ns, d.name)
+				return fmt.Errorf("pod %v in namespace %v is not deleted yet", d.ns, d.name)
 			}
 		} else {
 			if err != nil {
@@ -169,7 +169,7 @@ func CheckOCDeploymentWithStandardKMMNFD(cl *kubernetes.Clientset, create bool) 
 		s, err := cl.AppsV1().DaemonSets(d.ns).Get(context.TODO(), d.name, metav1.GetOptions{})
 		if !create {
 			if err == nil {
-				return fmt.Errorf("Replica %v in namespace %v is not deleted yet", d.ns, d.name)
+				return fmt.Errorf("replica %v in namespace %v is not deleted yet", d.ns, d.name)
 			}
 		} else {
 			if err != nil {
@@ -197,7 +197,7 @@ func CheckHelmOCDeployment(cl *kubernetes.Clientset, create bool) error {
 		s, err := cl.AppsV1().Deployments(d.ns).Get(context.TODO(), d.name, metav1.GetOptions{})
 		if !create {
 			if err == nil {
-				return fmt.Errorf("Pod %v in namespace %v is not deleted yet", d.ns, d.name)
+				return fmt.Errorf("pod %v in namespace %v is not deleted yet", d.ns, d.name)
 			}
 		} else {
 			if err != nil {
@@ -217,7 +217,7 @@ func CheckHelmOCDeployment(cl *kubernetes.Clientset, create bool) error {
 		s, err := cl.AppsV1().DaemonSets(d.ns).Get(context.TODO(), d.name, metav1.GetOptions{})
 		if !create {
 			if err == nil {
-				return fmt.Errorf("Replica %v in namespace %v is not deleted yet", d.ns, d.name)
+				return fmt.Errorf("replica %v in namespace %v is not deleted yet", d.ns, d.name)
 			}
 		} else {
 			if err != nil {
@@ -250,7 +250,7 @@ func CheckHelmDeployment(cl *kubernetes.Clientset, ns string, create bool) error
 				continue
 			}
 			if err == nil {
-				return fmt.Errorf("Pod %v in namespace %v is not deleted yet", d.ns, d.name)
+				return fmt.Errorf("pod %v in namespace %v is not deleted yet", d.ns, d.name)
 			}
 		} else {
 			if err != nil {
@@ -270,7 +270,7 @@ func CheckHelmDeployment(cl *kubernetes.Clientset, ns string, create bool) error
 		s, err := cl.AppsV1().DaemonSets(d.ns).Get(context.TODO(), d.name, metav1.GetOptions{})
 		if !create {
 			if err == nil {
-				return fmt.Errorf("Replica %v in namespace %v is not deleted yet", d.ns, d.name)
+				return fmt.Errorf("replica %v in namespace %v is not deleted yet", d.ns, d.name)
 			}
 		} else {
 			if err != nil {
@@ -695,7 +695,7 @@ func RunCommandOnNode(ctx context.Context, cl *kubernetes.Clientset, nodeName, c
 	if err != nil {
 		return "", err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	body, err := io.ReadAll(resp.Body)
 	log.Infof("resp status: %v error: %v", resp.Status, err)
@@ -1072,7 +1072,7 @@ func DeployResourcesFromFile(pathOrURL string, cl *kubernetes.Clientset, apiCl *
 		if err != nil || resp.StatusCode != http.StatusOK {
 			return fmt.Errorf("failed to get file from URL: %s", pathOrURL)
 		}
-		defer resp.Body.Close()
+		defer func() { _ = resp.Body.Close() }()
 		data, err = io.ReadAll(resp.Body)
 		if err != nil {
 			return fmt.Errorf("failed to read response body: %s", pathOrURL)
@@ -1189,7 +1189,7 @@ func GetNodeIP(ctx context.Context, cl *kubernetes.Clientset,
 	// Get the node object
 	node, err := cl.CoreV1().Nodes().Get(context.TODO(), nodeName, metav1.GetOptions{})
 	if err != nil {
-		return nodeip, fmt.Errorf("Error getting node: %v", err)
+		return nodeip, fmt.Errorf("error getting node: %v", err)
 	}
 
 	// Extract the IP address
@@ -1208,7 +1208,7 @@ func GetNodeIP(ctx context.Context, cl *kubernetes.Clientset,
 
 func GetJobLogs(clientset *kubernetes.Clientset, job *batchv1.Job) ([]string, error) {
 	if job == nil {
-		return nil, fmt.Errorf("Provide a valid job")
+		return nil, fmt.Errorf("provide a valid job")
 	}
 
 	jobLogs := []string{}
@@ -1225,7 +1225,7 @@ func GetJobLogs(clientset *kubernetes.Clientset, job *batchv1.Job) ([]string, er
 		if err != nil {
 			return nil, fmt.Errorf("failed to get logs for Pod %s: %v", podName, err)
 		}
-		defer logs.Close()
+		defer func() { _ = logs.Close() }()
 
 		_, err = io.Copy(&logsBuffer, logs)
 		if err != nil {

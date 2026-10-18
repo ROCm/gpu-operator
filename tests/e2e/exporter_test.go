@@ -76,7 +76,7 @@ func (s *E2ESuite) verifyNodePortMetrics(c *C, devCfg *v1alpha1.DeviceConfig, fi
 						logger.Warnf("failed to get metrics from %v:32500/metrics, %v", addr.Address, err)
 						return false
 					}
-					defer resp.Body.Close()
+					defer func() { _ = resp.Body.Close() }()
 					p := expfmt.TextParser{}
 					m, err := p.TextToMetricFamilies(resp.Body)
 					assert.NoError(c, err, "failed to parse metrics data")

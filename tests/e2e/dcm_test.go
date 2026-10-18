@@ -173,7 +173,7 @@ func (s *E2ESuite) GetLatestEvents(ns string) ([]corev1.Event, error) {
 	}
 	// Sort the events by time in case we have multiple events
 	sort.Slice(filteredEvents, func(i, j int) bool {
-		return filteredEvents[i].LastTimestamp.Time.After(filteredEvents[j].LastTimestamp.Time)
+		return filteredEvents[i].LastTimestamp.After(filteredEvents[j].LastTimestamp.Time)
 	})
 
 	return filteredEvents, nil
@@ -189,7 +189,7 @@ func (s *E2ESuite) getLogs() string {
 		logger.Infof("Error getting pod logs: %s\n", err.Error())
 		return ""
 	}
-	defer rs.Close()
+	defer func() { _ = rs.Close() }()
 	// Read the entire log stream at once
 	// Use a bufio.Reader to read the stream line by line
 	reader := bufio.NewReader(rs)

@@ -33,7 +33,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
-	"github.com/ROCm/gpu-operator/api/v1alpha1"
 	amdv1alpha1 "github.com/ROCm/gpu-operator/api/v1alpha1"
 	utils "github.com/ROCm/gpu-operator/internal"
 )
@@ -196,7 +195,7 @@ func (w *workerMgr) getPodName(devConfig *amdv1alpha1.DeviceConfig, nodeName str
 	return fmt.Sprintf("worker-%v-%v", devConfig.Name, nodeName)
 }
 
-func (w *workerMgr) getVFIOCommand(cmd string, devConfig *v1alpha1.DeviceConfig) string {
+func (w *workerMgr) getVFIOCommand(cmd string, devConfig *amdv1alpha1.DeviceConfig) string {
 	switch devConfig.Spec.Driver.DriverType {
 	case utils.DriverTypeVFPassthrough:
 		if len(devConfig.Spec.Driver.VFIOConfig.DeviceIDs) > 0 {

@@ -149,10 +149,7 @@ func (s *DriverInstallSuite) TestMaxParallelUpgradePolicyDefaults(c *C) {
 	logger.Infof("create %v", s.cfgName)
 	devCfg := s.getDeviceConfig(c)
 	enable := true
-	rebootRequired := false
-	if !s.simEnable {
-		rebootRequired = true
-	}
+	rebootRequired := !s.simEnable
 	upgradePolicy := v1alpha1.DriverUpgradePolicySpec{
 		Enable:              &enable,
 		RebootRequired:      &rebootRequired,
@@ -203,10 +200,7 @@ func (s *DriverInstallSuite) TestMaxParallelUpgradeTwoNodes(c *C) {
 	logger.Infof("create %v", s.cfgName)
 	devCfg := s.getDeviceConfig(c)
 	enable := true
-	rebootRequired := false
-	if !s.simEnable {
-		rebootRequired = true
-	}
+	rebootRequired := !s.simEnable
 	upgradePolicy := v1alpha1.DriverUpgradePolicySpec{
 		Enable:              &enable,
 		RebootRequired:      &rebootRequired,
@@ -260,10 +254,7 @@ func (s *DriverInstallSuite) TestMaxParallelUpgradeWithDrainPolicy(c *C) {
 	logger.Infof("create %v", s.cfgName)
 	devCfg := s.getDeviceConfig(c)
 	enable := true
-	rebootRequired := false
-	if !s.simEnable {
-		rebootRequired = true
-	}
+	rebootRequired := !s.simEnable
 	force := true
 	drainPolicy := v1alpha1.DrainSpec{
 		Force:          &force,
@@ -324,10 +315,7 @@ func (s *DriverInstallSuite) TestMaxParallelUpgradeWithPodDeletionPolicy(c *C) {
 	devCfg := s.getDeviceConfig(c)
 	enable := true
 	force := true
-	rebootRequired := false
-	if !s.simEnable {
-		rebootRequired = true
-	}
+	rebootRequired := !s.simEnable
 	podDeletionPolicy := v1alpha1.PodDeletionSpec{
 		Force:          &force,
 		TimeoutSeconds: 300,
@@ -386,10 +374,7 @@ func (s *DriverInstallSuite) TestMaxParallelUpgradeBackToDefaultVersion(c *C) {
 	logger.Infof("create %v", s.cfgName)
 	devCfg := s.getDeviceConfig(c)
 	enable := true
-	rebootRequired := false
-	if !s.simEnable {
-		rebootRequired = true
-	}
+	rebootRequired := !s.simEnable
 	upgradePolicy := v1alpha1.DriverUpgradePolicySpec{
 		Enable:              &enable,
 		RebootRequired:      &rebootRequired,
@@ -440,10 +425,7 @@ func (s *DriverInstallSuite) TestMaxParallelUpgradeFromDefaultVersion(c *C) {
 	logger.Infof("create %v", s.cfgName)
 	devCfg := s.getDeviceConfig(c)
 	enable := true
-	rebootRequired := false
-	if !s.simEnable {
-		rebootRequired = true
-	}
+	rebootRequired := !s.simEnable
 	upgradePolicy := v1alpha1.DriverUpgradePolicySpec{
 		Enable:              &enable,
 		RebootRequired:      &rebootRequired,
@@ -497,10 +479,7 @@ func (s *DriverInstallSuite) TestMaxParallelChangeDuringUpgrade(c *C) {
 	logger.Infof("create %v", s.cfgName)
 	devCfg := s.getDeviceConfig(c)
 	enable := true
-	rebootRequired := false
-	if !s.simEnable {
-		rebootRequired = true
-	}
+	rebootRequired := !s.simEnable
 	upgradePolicy := v1alpha1.DriverUpgradePolicySpec{
 		Enable:              &enable,
 		RebootRequired:      &rebootRequired,
@@ -557,10 +536,7 @@ func (s *DriverInstallSuite) TestMaxUnavailableChangeDuringUpgrade(c *C) {
 	logger.Infof("create %v", s.cfgName)
 	devCfg := s.getDeviceConfig(c)
 	enable := true
-	rebootRequired := false
-	if !s.simEnable {
-		rebootRequired = true
-	}
+	rebootRequired := !s.simEnable
 	upgradePolicy := v1alpha1.DriverUpgradePolicySpec{
 		Enable:              &enable,
 		RebootRequired:      &rebootRequired,
@@ -783,10 +759,7 @@ func (s *DriverInstallSuite) TestPreUpgradeHookFailure(c *C) {
 	logger.Infof("create %v", s.cfgName)
 	devCfg := s.getDeviceConfig(c)
 	enable := true
-	rebootRequired := false
-	if !s.simEnable {
-		rebootRequired = true
-	}
+	rebootRequired := !s.simEnable
 	upgradePolicy := v1alpha1.DriverUpgradePolicySpec{
 		Enable:              &enable,
 		RebootRequired:      &rebootRequired,
