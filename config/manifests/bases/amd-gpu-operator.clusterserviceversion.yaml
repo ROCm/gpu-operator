@@ -157,7 +157,7 @@ spec:
         - urn:alm:descriptor:com.amd.deviceconfigs:devicePlugin
       - description: 'device plugin arguments is used to pass supported flags and
           their values while starting device plugin daemonset supported flag values:
-          {"resource_naming_strategy": {"single", "mixed"}}'
+          {"resource_naming_strategy": {"single", "mixed", "product"}}'
         displayName: DevicePluginArguments
         path: devicePlugin.devicePluginArguments
         x-descriptors:
