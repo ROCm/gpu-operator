@@ -60,7 +60,9 @@ var _ = Describe("ValidateDevicePluginSpec", func() {
 	It("rejects a strategy the device plugin would exit on", func() {
 		err := validate(map[string]string{utils.ResourceNamingStrategyFlag: "partition"})
 		Expect(err).To(HaveOccurred())
-		Expect(err.Error()).To(ContainSubstring("Invalid flag value"))
+		// Match the rejected flag and value rather than the message's prose,
+		// whose capitalisation has already changed once upstream.
+		Expect(err.Error()).To(ContainSubstring("resource_naming_strategy=partition"))
 	})
 
 	It("rejects an unknown flag", func() {
