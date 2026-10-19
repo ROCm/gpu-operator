@@ -73,7 +73,7 @@ test-deviceconfig-node-labeller-bxk7x                             1/1     Runnin
 1. Both the `ImagePullPolicy` fields default to `Always` if `:latest` tag is specified on the respective Image, or defaults to `IfNotPresent` otherwise. This is default k8s behaviour for `ImagePullPolicy`
 
 2. `DevicePluginArguments` is of type `map[string]string`. Currently supported key value pairs to set under `DevicePluginArguments` are:
-   -> "resource_naming_strategy": {"single", "mixed"}
+   -> "resource_naming_strategy": {"single", "mixed", "product"}
 
 3. `NodeLabellerArguments` is of type `[]string`. Currently supported flags to set under `NodeLabellerArguments` are:
    - {"compute-memory-partition", "compute-partitioning-supported", "memory-partitioning-supported"}
@@ -84,7 +84,7 @@ test-deviceconfig-node-labeller-bxk7x                             1/1     Runnin
 
 ## How to choose Resource Naming Strategy
 
-To customize the way device plugin reports gpu resources to kubernetes as allocatable k8s resources, use the `single` or `mixed` resource naming strategy in **DeviceConfig** CR
+To customize the way device plugin reports gpu resources to kubernetes as allocatable k8s resources, use the `single`, `mixed` or `product` resource naming strategy in **DeviceConfig** CR
 Before understanding each strategy, please note the definition of homogeneous and heterogeneous nodes
 
 Homogeneous node: A node whose gpu's follow the same compute-memory partition style
@@ -128,8 +128,41 @@ amd.com/spx_nps1: 5
 amd.com/cpx_nps1: 24
 ```
 
+### Product
+
+In `product` mode, the device plugin reports all gpu's under a name which matches their GPU product, and the partition style where the GPU is partitioned.
+This mode is supported for both homogeneous nodes and heterogeneous nodes
+
+It is for clusters whose nodes hold more than one GPU product. `amd.com/gpu` cannot express which product a workload received, and `mixed` names by partition style rather than by product, so neither lets you set per-product quota or scheduling.
+
+A node which has 4 MI300X and 4 MI210 GPUs, none of them partitioned, will report its resources as:
+
+```bash
+amd.com/gpu-mi300x-spx-nps1: 4
+amd.com/gpu-mi210: 4
+```
+
+A node which has 8 MI300X GPUs all partitioned using CPX-NPS4 style will report its resources as:
+
+```bash
+amd.com/gpu-mi300x-cpx-nps4: 32
+```
+
+The partition style is part of the name because a CPX partition and a whole GPU are not interchangeable: without it, one `amd.com/gpu-mi300x` would mean both, and a quota of 8 would be ambiguous. GPUs which cannot partition, such as MI210, carry no style.
+
+Product names come from `amdgpu.ids`, the device-id/revision-id to product-name table the device plugin ships at `/usr/share/libdrm/amdgpu.ids`. `AMD Instinct MI300X` becomes `gpu-mi300x`: the name is lowercased, the brand and category words `amd`, `ati`, `instinct`, `radeon`, `graphics` and `series` are dropped, and characters Kubernetes does not permit in a resource name are replaced with `-`. A GPU with no entry in the table is reported as `amd.com/gpu`.
+
 #### **Notes**
 
 - If `resource_naming_strategy` is not passed using `DevicePluginArguments` field in CR, then device plugin will internally default to `single` resource naming strategy. This maintains backwards compatibility with earlier release of device plugin with reported resource name of `amd.com/gpu`
-- If a node has GPUs which do not support partitioning, such as MI210, then the GPUs are reported under resource name `amd.com/gpu` regardless of the resource naming strategy
+- If a node has GPUs which do not support partitioning, such as MI210, then the GPUs are reported under resource name `amd.com/gpu` under the `single` and `mixed` strategies. Under `product` they are reported under their product name with no partition style appended
 - These different naming styles of resources, for example, `amd.com/cpx_nps1` should be followed when requesting for resources in a pod spec
+
+#### **Device plugin image compatibility**
+
+`product` requires a device plugin image that implements it. Older images do not, and a device plugin given a `resource_naming_strategy` it does not recognise **exits at startup**, leaving the DaemonSet pod in a crash loop until the flag or the image changes.
+
+- `DevicePluginImage` defaults to `rocm/k8s-device-plugin:latest`, which carries `product`. Operators on the default need no action.
+- If you pin `DevicePluginImage` to a tag older than the release that added `product`, set `single` or `mixed`, or move the pin forward before setting `product`.
+
+`single` and `mixed` are unaffected, and no existing `DeviceConfig` changes behaviour by upgrading the operator alone.

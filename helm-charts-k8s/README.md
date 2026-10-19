@@ -180,7 +180,7 @@ Kubernetes: `>= 1.29.0-0`
 | deviceConfig.spec.configManager.selector | object | `{}` | node selector for config manager, if not specified it will reuse spec.selector |
 | deviceConfig.spec.configManager.upgradePolicy.maxUnavailable | int | `1` | the maximum number of Pods that can be unavailable during the update process |
 | deviceConfig.spec.configManager.upgradePolicy.upgradeStrategy | string | `"RollingUpdate"` | the type of daemonset upgrade, RollingUpdate or OnDelete |
-| deviceConfig.spec.devicePlugin.devicePluginArguments | object | `{}` | pass supported flags and their values while starting device plugin daemonset, e.g. {"resource_naming_strategy": "single"} or {"resource_naming_strategy": "mixed"} |
+| deviceConfig.spec.devicePlugin.devicePluginArguments | object | `{}` | pass supported flags and their values while starting device plugin daemonset, e.g. {"resource_naming_strategy": "single"}, {"resource_naming_strategy": "mixed"} or {"resource_naming_strategy": "product"} |
 | deviceConfig.spec.devicePlugin.devicePluginImage | string | `"rocm/k8s-device-plugin:latest"` | device plugin image |
 | deviceConfig.spec.devicePlugin.devicePluginImagePullPolicy | string | `"IfNotPresent"` | device plugin image pull policy |
 | deviceConfig.spec.devicePlugin.devicePluginTolerations | list | `[]` | device plugin tolerations |
