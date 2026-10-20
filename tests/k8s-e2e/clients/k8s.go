@@ -25,6 +25,7 @@ import (
 	"time"
 
 	"github.com/prometheus/common/expfmt"
+	"github.com/prometheus/common/model"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -391,7 +392,7 @@ func (k *K8sClient) GetMetricsCmdFromPod(ctx context.Context, rc *restclient.Con
 		return nil, nil, fmt.Errorf("%w failed executing command %s on %v/%v", err, cmd, pod.Namespace, pod.Name)
 	}
 	//log.Printf("\nbuf : %v\n", buf.String())
-	p := expfmt.TextParser{}
+	p := expfmt.NewTextParser(model.LegacyValidation)
 	m, err := p.TextToMetricFamilies(buf)
 	if err != nil {
 		return nil, nil, fmt.Errorf("%w failed parsing to metrics", err)
