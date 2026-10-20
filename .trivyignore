@@ -61,6 +61,19 @@ AVD-KSV-0053
 # security contexts and already pass this check.
 AVD-KSV-0118
 
+# --- Vulnerabilities ---
+
+# jupyter-core uncontrolled search path (docs/sphinx/requirements.txt, a
+# pip-compile lockfile; jupyter-core is a transitive Sphinx/MyST docs dep).
+# The vulnerability is Windows-only -- "Jupyter Core on Windows Has
+# Uncontrolled Search Path Element" -- and these docs build exclusively on
+# Linux CI, so it is not exploitable here. A VEX-style not-affected suppression
+# per trivy's own guidance; revisit when the docs lockfile is next regenerated
+# (fixed in jupyter-core 5.8.1).
+CVE-2025-30167
+
+# --- Misconfigurations (continued) ---
+
 # Image runs as root. Every Dockerfile here is a build, test-runner, bundle, or
 # utility image that needs root to compile, install packages, or assemble the
 # operator bundle -- none is a long-running service. (The shipped operator
