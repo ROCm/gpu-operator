@@ -19,7 +19,7 @@
 #     -check.f 'TestOp010|TestOp020|TestOp030|TestOp040|TestOp050|TestOp060|TestOp065|TestOp070' \
 #     -test.timeout 30m
 
-FROM golang:1.25-bookworm
+FROM golang:1.26-bookworm
 
 # Install kubectl
 RUN curl -fsSL "https://dl.k8s.io/release/$(curl -Ls https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl" \
