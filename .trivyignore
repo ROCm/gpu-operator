@@ -4,68 +4,33 @@
 # Trivy misconfiguration suppressions.
 # Reference: https://trivy.dev/latest/docs/configuration/filtering/
 #
-# The shared scan workflow discovers this file at the repository root and
-# passes it to trivy as --ignorefile. A config-file `ignorefile:` key in
+# The shared scan workflow discovers this file at the repository root and passes
+# it to trivy as --ignorefile. A config-file `ignorefile:` key in
 # .github/scan_tools_configs/trivy.yml would NOT work: trivy resolves that
 # against its own working directory, which is the directory above the scanned
 # checkout.
 #
-# This is trivy's plain-text format, which takes bare check IDs and so disables
-# a check everywhere. Only checks that no manifest in this repository could
-# reasonably satisfy belong here. Anything that is wrong for one file but worth
-# catching in another stays out, and is handled per file by `scan.skip-files`
-# in .github/scan_tools_configs/trivy.yml instead.
+# This is trivy's plain-text format: a bare check ID disables that check
+# EVERYWHERE, with no path scoping or expiry. So it is reserved for a check that
+# no file in this repository could reasonably satisfy. Everything that is wrong
+# for one file but worth catching in another is handled per file by
+# scan.skip-files in .github/scan_tools_configs/trivy.yml instead.
+#
+# (Path-scoped, expiring suppressions would need trivy's `.trivyignore.yaml`
+# format, which the shared workflow does not yet discover -- it only looks for
+# the plain-text `.trivyignore`. Tracked upstream in rocm-security-gh; when it
+# lands, the entry below should become a path-scoped KSV-0014 with an expiry.)
 
-# Root filesystem is not read-only. Every GPU workload this repository ships or
-# demonstrates needs a writable root: ROCm framework containers write JIT and
-# kernel caches (MIOpen, Triton, Keras), the KMM driver build/worker writes
-# module artifacts, and the device/config-manager daemonsets write runtime
-# state. Enabling it would need a writable emptyDir per cache path -- a set that
-# differs per framework and image tag, and that no CI here can validate on GPU
-# hardware.
+# Root filesystem is not read-only (readOnlyRootFilesystem). On a clean checkout
+# KSV-0014 fires on 24 files; all but three are demonstration manifests,
+# kustomize patch fragments, e2e fixtures, or the single vendored test pod, and
+# are handled per file by scan.skip-files. The three that remain are the
+# operator's own Go control-plane Deployments:
+#     config/manager-base/manager.yaml
+#     hack/kmmConfig/manager-base/manager.yaml
+#     hack/kmmConfig/webhook-server/deployment.yaml
+# These are controller-runtime managers; the proper fix is to set
+# readOnlyRootFilesystem: true on them and drop this entry, pending validation
+# on a cluster that none of them write to the container root. Until then this
+# keeps the gate green without masking KSV-0014 on any other file.
 AVD-KSV-0014
-
-# Privileged containers. GPU device access (/dev/kfd, /dev/dri) and the sysfs
-# reads the config-manager daemonset, node-problem-detector, and test-runner
-# jobs perform have no non-privileged equivalent on this hardware.
-AVD-KSV-0017
-
-# Disallowed (hostPath) volumes. The same GPU workloads mount host paths to
-# reach the devices, the ROCm/driver install tree, and node sysfs; the NFD
-# worker mounts the host to discover features.
-AVD-KSV-0121
-
-# The four checks below fire on resources rendered from vendored third-party
-# Helm subcharts (node-feature-discovery, kmm) and the node-remediation
-# controller. trivy reports them against the subchart template path, but its
-# skip-files mechanism cannot exclude a resource rendered from a Helm *subchart*
-# (it only matches the parent chart's own templates), so a per-file suppression
-# in trivy.yml is impossible and the check must be disabled repository-wide.
-
-# Manage secrets (RBAC). The operator reconciles image-pull and webhook TLS
-# secrets; the KMM subchart and the node-remediation controller read per-node
-# credentials. Required grants, generated from upstream / kubebuilder markers.
-AVD-KSV-0041
-
-# Privilege escalation from node proxy. Configured by the upstream
-# node-feature-discovery subchart's RBAC, not by this repository.
-AVD-KSV-0047
-
-# Exec into pods. The node-remediation controller execs into GPU workloads to
-# drain and recover them -- its core function.
-AVD-KSV-0053
-
-# Default security context. The remaining occurrences are in the vendored
-# upstream node-feature-discovery subchart (master / worker / gc), which sets
-# its own securityContext. The operator's own shipped manifests set explicit
-# security contexts and already pass this check.
-AVD-KSV-0118
-
-# Image runs as root. Every Dockerfile here is a build, test-runner, bundle, or
-# utility image that needs root to compile, install packages, or assemble the
-# operator bundle -- none is a long-running service. (The shipped operator
-# runtime image already sets a non-root USER and is not affected.) The
-# Dockerfile scanner only honours an inline #trivy:ignore when a USER line
-# exists to anchor it; these images set no USER at all, so the finding is
-# file-level and can only be suppressed repository-wide.
-AVD-DS-0002

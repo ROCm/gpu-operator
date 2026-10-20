@@ -9,31 +9,30 @@
 # This file defines the complete scanner policy; keep repository-specific
 # suppressions and tuning here.
 #
-# Suppressions live in three places, because no single one of them can say
-# "this check, on this file":
+# Suppressions live in two places:
 #
 #   .trivyignore          per check, repository-wide. The shared scan workflow
 #                         discovers it at the repo root and passes it to trivy
-#                         as --ignorefile. Setting `ignorefile:` here instead
-#                         does NOT work: trivy resolves that against its own
-#                         working directory, which is the directory above the
-#                         scanned checkout.
-#   inline comments       per check, per line, Dockerfiles only. The Dockerfile
-#                         scanner sets `WithSupportsInlineIgnore`; the
-#                         Kubernetes scanner does not.
-#   skip-files, below     per file, every check.
+#                         as --ignorefile. Reserved for a check that no file in
+#                         this repository could reasonably satisfy; see that
+#                         file for why only one check qualifies today.
+#   skip-files, below     per file, every check on that file. Used for
+#                         generated manifests, demonstration YAML, test
+#                         fixtures, and root-by-design Dockerfiles -- cases
+#                         where the finding is intrinsic to that one file but
+#                         the check is still worth catching elsewhere.
 #
-# So a finding that is intrinsic everywhere goes in .trivyignore; one that is
-# intrinsic to a particular manifest, or lives in a generated / third-party /
-# test-only file, takes skip-files and loses every other check on that file.
-# Scoping a single check to a single path (keeping the file's other checks
-# live) needs trivy's `.trivyignore.yaml` format, which the shared workflow
-# does not yet discover.
+# A clean CI checkout does NOT contain `make helm` build outputs: the
+# node-feature-discovery subchart (a remote dependency in helm-charts-k8s/
+# Chart.yaml) and the packaged helm-charts-k8s/*.tgz are gitignored and never
+# present when the scan runs, so nothing here targets them. The committed copies
+# under tests/e2e/yamls/ ARE scanned, and are covered by skip-files below.
 scan:
-  # Environment and generated-output exclusions support local scans; these
-  # paths are absent from clean CI checkouts. `vendor` is the exception: it is
-  # committed, and it is third-party Go whose embedded test manifests are not
-  # this repository's to fix.
+  # Environment and generated-output exclusions; these paths are absent from a
+  # clean CI checkout. `vendor` is deliberately NOT skipped here: skip-dirs
+  # applies to every scanner, and skipping it would also drop license scanning
+  # of the vendored Go modules. The single vendored misconfig file is handled
+  # in skip-files instead.
   skip-dirs:
     - .git
     - .venv*
@@ -42,44 +41,47 @@ scan:
     - dist
     - node_modules
     - __pycache__
-    - vendor
 
   skip-files:
-    # Packaged Helm chart archives. These .tgz are build outputs (regenerated
-    # by `make helm`); their contents duplicate the chart sources scanned under
-    # helm-charts-k8s/, and they bundle the upstream node-feature-discovery
-    # subchart whose leader-election RBAC is the source of the CRITICAL
-    # KSV-0045 / KSV-0050 / KSV-0112 findings.
-    - helm-charts-openshift/**/*.tgz
+    # The one vendored file trivy's misconfig scanner flags (a test pod spec).
+    # Listed here rather than via a vendor skip-dir so license scanning of the
+    # vendored modules stays active.
+    - vendor/k8s.io/apimachinery/pkg/util/managedfields/pod.yaml
 
-    # e2e test input fixtures: copies of the operator Helm charts plus NPD
-    # manifests used only to drive the e2e suite. Not shipped artifacts; the
-    # chart sources they copy are scanned under helm-charts-k8s/.
-    - tests/e2e/yamls/**
-
-    # Generated operator RBAC. These ClusterRoles are produced from
-    # +kubebuilder:rbac markers (`make manifests`) and are not hand-edited.
-    # KSV-0056 (manage networking) is required for the operator to function;
-    # KSV-0041 (manage secrets) is handled repository-wide in .trivyignore.
-    # (The KMM and NFD subchart RBAC these render are suppressed in
-    # .trivyignore, since trivy's skip-files cannot target Helm subcharts.)
+    # Generated operator RBAC (produced from +kubebuilder:rbac markers by
+    # `make manifests`, not hand-edited). The verbs that trip KSV-0041 (manage
+    # secrets -- image-pull and webhook TLS secrets) and KSV-0056 (manage
+    # networking) are required for the operator to function.
     - config/rbac/role.yaml
     - hack/kmmConfig/rbac/role.yaml
     - hack/kmmConfig/rbac-hub/role.yaml
-    - helm-charts-k8s/templates/manager-rbac.yaml
 
-    # Kustomize patch fragments, not deployable manifests. Trivy scans each as
-    # a standalone pod spec and reports KSV-0118 (default security context) on
-    # the partial container they define; the rendered Deployment that kustomize
-    # produces carries a complete securityContext and is scanned via the Helm
-    # chart templates, which pass.
+    # Kustomize patch fragments, not deployable manifests. Trivy scans each as a
+    # standalone pod spec and reports KSV-0014 / KSV-0118 on the partial
+    # container they define; the Deployment kustomize renders from them carries
+    # a complete securityContext.
     - config/manager-base/manager_config_patch.yaml
     - hack/kmmConfig/manager-base/manager_config_patch.yaml
     - hack/kmmConfig/manager/manager_worker_image_patch.yaml
-    - hack/kmmConfig/webhook-server/deployment.yaml
 
-    # Example workloads. Demonstration manifests for running GPU jobs; they are
-    # privileged GPU workloads by nature (KSV-0014 / KSV-0017 / KSV-0121 are
-    # handled repository-wide in .trivyignore) and the remaining KSV-0053 /
-    # KSV-0109 / KSV-0118 findings are intrinsic to the example they teach.
+    # Demonstration manifests for running GPU jobs. Privileged GPU workloads by
+    # nature (KSV-0014/0017/0121), with explicit-but-partial security contexts
+    # (KSV-0118/0053/0109) and root build images (DS-0002/DS-0029) intrinsic to
+    # the example being taught.
     - example/**
+
+    # e2e test input fixtures: committed copies of the rendered operator Helm
+    # charts (including the node-feature-discovery and kmm subcharts) plus NPD
+    # manifests, used only to drive the e2e suite. Not shipped artifacts.
+    - tests/e2e/yamls/**
+
+    # Root-by-design images: build, bundle, test-runner, and utility Dockerfiles
+    # that need root to compile, install packages, or assemble the operator
+    # bundle. Listed per file (rather than ignoring DS-0002 repo-wide) so the
+    # shipped operator runtime image -- the one Dockerfile that sets a non-root
+    # USER (Dockerfile: `USER 201:201`) -- stays gated by DS-0002.
+    - Dockerfile.build
+    - bundle.Dockerfile
+    - internal/utils_container/Dockerfile
+    - tests/e2e/nodeapp/Dockerfile
+    - tests/k8s-e2e/Dockerfile.e2e
