@@ -18,8 +18,9 @@
 #
 # (Path-scoped, expiring suppressions would need trivy's `.trivyignore.yaml`
 # format, which the shared workflow does not yet discover -- it only looks for
-# the plain-text `.trivyignore`. Tracked upstream in rocm-security-gh; when it
-# lands, the entry below should become a path-scoped KSV-0014 with an expiry.)
+# the plain-text `.trivyignore`. Tracked upstream as ROCm/rocm-security-gh#37;
+# when it lands, the entry below should become a path-scoped KSV-0014 with an
+# expiry.)
 
 # Root filesystem is not read-only (readOnlyRootFilesystem). On a clean checkout
 # KSV-0014 fires on 24 files; all but three are demonstration manifests,
