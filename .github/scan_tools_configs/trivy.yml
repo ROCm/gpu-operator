@@ -6,28 +6,33 @@
 # Local scan: trivy fs --config .github/scan_tools_configs/trivy.yml .
 #
 # Trivy configuration for this repository's security scans.
+# This file defines the complete scanner policy; keep repository-specific
+# suppressions and tuning here.
 #
-# This file defines the complete scanner policy;
-# Keep repository-specific suppressions and tuning here.
+# Suppressions live in two places:
 #
-# Ways to suppress a finding, narrowest first:
+#   .trivyignore          per check, repository-wide. The shared scan workflow
+#                         discovers it at the repo root and passes it to trivy
+#                         as --ignorefile. Reserved for a check that no file in
+#                         this repository could reasonably satisfy; see that
+#                         file for why only one check qualifies today.
+#   skip-files, below     per file, every check on that file. Used for
+#                         generated manifests, demonstration YAML, test
+#                         fixtures, and root-by-design Dockerfiles -- cases
+#                         where the finding is intrinsic to that one file but
+#                         the check is still worth catching elsewhere.
 #
-#   1. `.trivyignore` -- one vulnerability, misconfiguration or secret rule
-#      ID per line. Add `exp:YYYY-MM-DD` for a temporary suppression:
-#          CVE-2019-14697 exp:2027-01-01
-#      Reference: https://trivy.dev/latest/docs/configuration/filtering/#trivyignore
-#      Keep it beside this file (`.github/scan_tools_configs/.trivyignore`)
-#      or at the repository root. The file beside this config takes
-#      precedence; the two are never merged. The `.trivyignore` here is
-#      a commented placeholder.
-#
-#   2. `scan.skip-dirs` / `scan.skip-files` below -- paths trivy never
-#      reads, for vendored trees and generated output. Anything found only
-#      there is not scanned at all, so keep entries narrow.
-
-# Environment and generated-output exclusions support local scans; these
-# paths are absent from clean CI checkouts.
+# A clean CI checkout does NOT contain `make helm` build outputs: the
+# node-feature-discovery subchart (a remote dependency in helm-charts-k8s/
+# Chart.yaml) and the packaged helm-charts-k8s/*.tgz are gitignored and never
+# present when the scan runs, so nothing here targets them. The committed copies
+# under tests/e2e/yamls/ ARE scanned, and are covered by skip-files below.
 scan:
+  # Environment and generated-output exclusions; these paths are absent from a
+  # clean CI checkout. `vendor` is deliberately NOT skipped here: skip-dirs
+  # applies to every scanner, and skipping it would also drop license scanning
+  # of the vendored Go modules. The single vendored misconfig file is handled
+  # in skip-files instead.
   skip-dirs:
     - .git
     - .venv*
@@ -36,3 +41,47 @@ scan:
     - dist
     - node_modules
     - __pycache__
+
+  skip-files:
+    # The one vendored file trivy's misconfig scanner flags (a test pod spec).
+    # Listed here rather than via a vendor skip-dir so license scanning of the
+    # vendored modules stays active.
+    - vendor/k8s.io/apimachinery/pkg/util/managedfields/pod.yaml
+
+    # Generated operator RBAC (produced from +kubebuilder:rbac markers by
+    # `make manifests`, not hand-edited). The verbs that trip KSV-0041 (manage
+    # secrets -- image-pull and webhook TLS secrets) and KSV-0056 (manage
+    # networking) are required for the operator to function.
+    - config/rbac/role.yaml
+    - hack/kmmConfig/rbac/role.yaml
+    - hack/kmmConfig/rbac-hub/role.yaml
+
+    # Kustomize patch fragments, not deployable manifests. Trivy scans each as a
+    # standalone pod spec and reports KSV-0014 / KSV-0118 on the partial
+    # container they define; the Deployment kustomize renders from them carries
+    # a complete securityContext.
+    - config/manager-base/manager_config_patch.yaml
+    - hack/kmmConfig/manager-base/manager_config_patch.yaml
+    - hack/kmmConfig/manager/manager_worker_image_patch.yaml
+
+    # Demonstration manifests for running GPU jobs. Privileged GPU workloads by
+    # nature (KSV-0014/0017/0121), with explicit-but-partial security contexts
+    # (KSV-0118/0053/0109) and root build images (DS-0002/DS-0029) intrinsic to
+    # the example being taught.
+    - example/**
+
+    # e2e test input fixtures: committed copies of the rendered operator Helm
+    # charts (including the node-feature-discovery and kmm subcharts) plus NPD
+    # manifests, used only to drive the e2e suite. Not shipped artifacts.
+    - tests/e2e/yamls/**
+
+    # Root-by-design images: build, bundle, test-runner, and utility Dockerfiles
+    # that need root to compile, install packages, or assemble the operator
+    # bundle. Listed per file (rather than ignoring DS-0002 repo-wide) so the
+    # shipped operator runtime image -- the one Dockerfile that sets a non-root
+    # USER (Dockerfile: `USER 201:201`) -- stays gated by DS-0002.
+    - Dockerfile.build
+    - bundle.Dockerfile
+    - internal/utils_container/Dockerfile
+    - tests/e2e/nodeapp/Dockerfile
+    - tests/k8s-e2e/Dockerfile.e2e

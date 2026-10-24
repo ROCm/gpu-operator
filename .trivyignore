@@ -1,0 +1,37 @@
+# Copyright Advanced Micro Devices, Inc.
+# SPDX-License-Identifier: MIT
+#
+# Trivy misconfiguration suppressions.
+# Reference: https://trivy.dev/latest/docs/configuration/filtering/
+#
+# The shared scan workflow discovers this file at the repository root and passes
+# it to trivy as --ignorefile. A config-file `ignorefile:` key in
+# .github/scan_tools_configs/trivy.yml would NOT work: trivy resolves that
+# against its own working directory, which is the directory above the scanned
+# checkout.
+#
+# This is trivy's plain-text format: a bare check ID disables that check
+# EVERYWHERE, with no path scoping or expiry. So it is reserved for a check that
+# no file in this repository could reasonably satisfy. Everything that is wrong
+# for one file but worth catching in another is handled per file by
+# scan.skip-files in .github/scan_tools_configs/trivy.yml instead.
+#
+# (Path-scoped, expiring suppressions would need trivy's `.trivyignore.yaml`
+# format, which the shared workflow does not yet discover -- it only looks for
+# the plain-text `.trivyignore`. Tracked upstream as ROCm/rocm-security-gh#37;
+# when it lands, the entry below should become a path-scoped KSV-0014 with an
+# expiry.)
+
+# Root filesystem is not read-only (readOnlyRootFilesystem). On a clean checkout
+# KSV-0014 fires on 24 files; all but three are demonstration manifests,
+# kustomize patch fragments, e2e fixtures, or the single vendored test pod, and
+# are handled per file by scan.skip-files. The three that remain are the
+# operator's own Go control-plane Deployments:
+#     config/manager-base/manager.yaml
+#     hack/kmmConfig/manager-base/manager.yaml
+#     hack/kmmConfig/webhook-server/deployment.yaml
+# These are controller-runtime managers; the proper fix is to set
+# readOnlyRootFilesystem: true on them and drop this entry, pending validation
+# on a cluster that none of them write to the container root. Until then this
+# keeps the gate green without masking KSV-0014 on any other file.
+AVD-KSV-0014
