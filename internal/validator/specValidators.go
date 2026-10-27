@@ -49,7 +49,11 @@ func ValidateDriverSpec(ctx context.Context, client client.Client, devConfig *am
 	if driverEnabled && dSpec.DriverType == utils.DriverTypeVFPassthrough && dSpec.Version == "" {
 		return fmt.Errorf("spec.driver.version is required for enabled %s", dSpec.DriverType)
 	}
-
+	if driverEnabled && (dSpec.DriverType == utils.DriverTypeVFPassthrough || dSpec.DriverType == utils.DriverTypePFPassthrough) {
+		if len(devConfig.Spec.Selector) == 0 {
+			return fmt.Errorf("spec.selector is required for enabled %s", dSpec.DriverType)
+		}
+	}
 	// if KMM is not triggered, no need to verify the rest of the config
 	if !utils.ShouldUseKMM(devConfig) {
 		return nil

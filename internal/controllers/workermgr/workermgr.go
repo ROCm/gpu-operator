@@ -196,22 +196,38 @@ func (w *workerMgr) getPodName(devConfig *amdv1alpha1.DeviceConfig, nodeName str
 }
 
 func (w *workerMgr) getVFIOCommand(cmd string, devConfig *amdv1alpha1.DeviceConfig) string {
-	switch devConfig.Spec.Driver.DriverType {
-	case utils.DriverTypeVFPassthrough:
-		if len(devConfig.Spec.Driver.VFIOConfig.DeviceIDs) > 0 {
-			return strings.ReplaceAll(cmd, pciDeviceIDTemplate, strings.Join(devConfig.Spec.Driver.VFIOConfig.DeviceIDs, " "))
-		}
-		return strings.ReplaceAll(cmd, pciDeviceIDTemplate, strings.Join(utils.DefaultVFDeviceIDs, " "))
-	case utils.DriverTypePFPassthrough:
-		if len(devConfig.Spec.Driver.VFIOConfig.DeviceIDs) > 0 {
-			return strings.ReplaceAll(cmd, pciDeviceIDTemplate, strings.Join(devConfig.Spec.Driver.VFIOConfig.DeviceIDs, " "))
-		}
-		return strings.ReplaceAll(cmd, pciDeviceIDTemplate, strings.Join(utils.DefaultPFDeviceIDs, " "))
-	default:
+	deviceIDs := getVFIODeviceIDs(devConfig)
+	if len(deviceIDs) == 0 {
 		// unlikely happen
 		// previously Work() and Cleanup() function has verified that driver type is vf-passthrough or pf-passthrough
 		// if somehow happened, do nothing for unknown driver type
 		return "true"
+	}
+	quotedDeviceIDs := make([]string, 0, len(deviceIDs))
+	for _, deviceID := range deviceIDs {
+		quotedDeviceIDs = append(quotedDeviceIDs, quoteShellArg(deviceID))
+	}
+	return strings.ReplaceAll(cmd, pciDeviceIDTemplate, strings.Join(quotedDeviceIDs, " "))
+}
+
+func quoteShellArg(value string) string {
+	return "'" + strings.ReplaceAll(value, "'", "'\"'\"'") + "'"
+}
+
+func getVFIODeviceIDs(devConfig *amdv1alpha1.DeviceConfig) []string {
+	switch devConfig.Spec.Driver.DriverType {
+	case utils.DriverTypeVFPassthrough:
+		if len(devConfig.Spec.Driver.VFIOConfig.DeviceIDs) > 0 {
+			return devConfig.Spec.Driver.VFIOConfig.DeviceIDs
+		}
+		return utils.DefaultVFDeviceIDs
+	case utils.DriverTypePFPassthrough:
+		if len(devConfig.Spec.Driver.VFIOConfig.DeviceIDs) > 0 {
+			return devConfig.Spec.Driver.VFIOConfig.DeviceIDs
+		}
+		return utils.DefaultPFDeviceIDs
+	default:
+		return nil
 	}
 }
 
@@ -291,8 +307,8 @@ func (w *workerMgr) getPodDef(devConfig *amdv1alpha1.DeviceConfig, nodeName, act
 			// otherwise there could be fake completion, the pod completed without binding anything
 			getDetectVFCommand := func() string {
 				grepArgs := []string{}
-				for _, deviceID := range utils.DefaultVFDeviceIDs {
-					grepArgs = append(grepArgs, "-e "+deviceID)
+				for _, deviceID := range getVFIODeviceIDs(devConfig) {
+					grepArgs = append(grepArgs, "-e "+quoteShellArg(deviceID))
 				}
 				return fmt.Sprintf("while ! lspci -nn | grep -q %v; do echo \"PCI device not found\"; sleep 2; done", strings.Join(grepArgs, " "))
 			}
