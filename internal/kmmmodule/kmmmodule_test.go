@@ -41,6 +41,7 @@ import (
 	"os"
 
 	amdv1alpha1 "github.com/ROCm/gpu-operator/api/v1alpha1"
+	utils "github.com/ROCm/gpu-operator/internal"
 	"github.com/go-logr/logr"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -789,5 +790,108 @@ var _ = Describe("resolveDockerfile", func() {
 		_, err := resolveDockerfile("unsupported-os", input)
 		Expect(err).NotTo(BeNil())
 		Expect(err.Error()).To(ContainSubstring("not supported OS"))
+	})
+})
+
+var _ = Describe("GIM artifact resolution", func() {
+	It("uses the current 9.3.0.K release layout for Ubuntu and CoreOS", func() {
+		input := &amdv1alpha1.DeviceConfig{
+			Spec: amdv1alpha1.DeviceConfigSpec{
+				Driver: amdv1alpha1.DriverSpec{
+					DriverType: utils.DriverTypeVFPassthrough,
+					Version:    "9.3.0.K",
+				},
+			},
+		}
+
+		ubuntu, err := resolveDockerfile("ubuntu-22.04", input)
+		Expect(err).To(BeNil())
+		Expect(ubuntu).To(ContainSubstring("ARG GIM_RELEASE_TAG"))
+		Expect(ubuntu).To(ContainSubstring("ARG GIM_DEB_PACKAGE"))
+		Expect(ubuntu).To(ContainSubstring("releases/download/${GIM_RELEASE_TAG}/${GIM_DEB_PACKAGE}"))
+
+		coreos, err := resolveDockerfile("coreos-4.16", input)
+		Expect(err).To(BeNil())
+		Expect(coreos).To(ContainSubstring("ARG GIM_RELEASE_TAG"))
+		Expect(coreos).To(ContainSubstring("ARG GIM_RPM_PACKAGE"))
+		Expect(coreos).To(ContainSubstring("releases/download/${GIM_RELEASE_TAG}/${GIM_RPM_PACKAGE}"))
+
+		mapping, _, err := GetKM(input, testNodeList.Items[0], "", false)
+		Expect(err).To(BeNil())
+		Expect(mapping.Build.BuildArgs).To(ContainElement(kmmv1beta1.BuildArg{
+			Name:  "GIM_RELEASE_TAG",
+			Value: "9.3.0.K",
+		}))
+		Expect(mapping.Build.BuildArgs).To(ContainElement(kmmv1beta1.BuildArg{
+			Name:  "GIM_DEB_PACKAGE",
+			Value: "gim-dkms_9.3.0.K_all.deb",
+		}))
+		Expect(mapping.Build.BuildArgs).To(ContainElement(kmmv1beta1.BuildArg{
+			Name:  "GIM_RPM_PACKAGE",
+			Value: "gim-dkms-9.3.0.K.noarch.rpm",
+		}))
+	})
+
+	It("preserves the legacy 8.1.0.K release layout", func() {
+		input := &amdv1alpha1.DeviceConfig{
+			Spec: amdv1alpha1.DeviceConfigSpec{
+				Driver: amdv1alpha1.DriverSpec{
+					DriverType: utils.DriverTypeVFPassthrough,
+					Version:    "8.1.0.K",
+				},
+			},
+		}
+
+		mapping, _, err := GetKM(input, testNodeList.Items[0], "", false)
+		Expect(err).To(BeNil())
+		Expect(mapping.Build.BuildArgs).To(ContainElement(kmmv1beta1.BuildArg{
+			Name:  "GIM_RELEASE_TAG",
+			Value: "mainline%2F8.1.0.K",
+		}))
+		Expect(mapping.Build.BuildArgs).To(ContainElement(kmmv1beta1.BuildArg{
+			Name:  "GIM_RPM_PACKAGE",
+			Value: "gim-dkms-8.1.0.K-0.noarch.rpm",
+		}))
+	})
+
+	It("uses direct release tags for newer legacy-compatible GIM versions", func() {
+		testCases := []struct {
+			version    string
+			releaseTag string
+			rpmPackage string
+		}{
+			{
+				version:    "8.4.1.K",
+				releaseTag: "8.4.1.K",
+				rpmPackage: "gim-dkms-8.4.1.K-0.noarch.rpm",
+			},
+			{
+				version:    "9.2.0.K",
+				releaseTag: "9.2.0.K",
+				rpmPackage: "gim-dkms-9.2.0.K-0.noarch.rpm",
+			},
+		}
+
+		for _, tc := range testCases {
+			input := &amdv1alpha1.DeviceConfig{
+				Spec: amdv1alpha1.DeviceConfigSpec{
+					Driver: amdv1alpha1.DriverSpec{
+						DriverType: utils.DriverTypeVFPassthrough,
+						Version:    tc.version,
+					},
+				},
+			}
+
+			mapping, _, err := GetKM(input, testNodeList.Items[0], "", false)
+			Expect(err).To(BeNil())
+			Expect(mapping.Build.BuildArgs).To(ContainElement(kmmv1beta1.BuildArg{
+				Name:  "GIM_RELEASE_TAG",
+				Value: tc.releaseTag,
+			}))
+			Expect(mapping.Build.BuildArgs).To(ContainElement(kmmv1beta1.BuildArg{
+				Name:  "GIM_RPM_PACKAGE",
+				Value: tc.rpmPackage,
+			}))
+		}
 	})
 })
