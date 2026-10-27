@@ -76,9 +76,52 @@ const (
 	defaultBaseImageRegistry    = "docker.io"
 	defaultSourceImageRepo      = "docker.io/rocm/amdgpu-driver"
 	nfdOSReleaseLabelKey        = "feature.node.kubernetes.io/system-os_release.VERSION_ID"
+	gimReleaseTagBuildArg       = "GIM_RELEASE_TAG"
+	gimDebPackageBuildArg       = "GIM_DEB_PACKAGE"
+	gimRpmPackageBuildArg       = "GIM_RPM_PACKAGE"
 	// Required for OpenShift versions <= v4.18 to get the RHEL CoreOs 9.x version
 	nfdOSReleaseCoreOSLabelKey = "feature.node.kubernetes.io/system-os_release.RHEL_VERSION"
 )
+
+type gimArtifacts struct {
+	releaseTag string
+	debPackage string
+	rpmPackage string
+}
+
+// GIM releases from 8.4.1.K onward use the version as the release tag.
+var directGIMReleaseTags = map[string]struct{}{
+	"8.4.1.K": {},
+	"8.5.0.K": {},
+	"8.6.0.K": {},
+	"8.7.0.K": {},
+	"8.7.1.K": {},
+	"9.0.0.K": {},
+	"9.1.0.K": {},
+	"9.2.0.K": {},
+	"9.3.0.K": {},
+}
+
+func getGIMArtifacts(version string) (gimArtifacts, error) {
+	if version == "" {
+		return gimArtifacts{}, fmt.Errorf("GIM driver version must not be empty")
+	}
+
+	releaseTag := "mainline%2F" + version
+	if _, ok := directGIMReleaseTags[version]; ok {
+		releaseTag = version
+	}
+	rpmPackage := "gim-dkms-" + version + "-0.noarch.rpm"
+	if version == "9.3.0.K" {
+		rpmPackage = "gim-dkms-9.3.0.K.noarch.rpm"
+	}
+
+	return gimArtifacts{
+		releaseTag: releaseTag,
+		debPackage: "gim-dkms_" + version + "_all.deb",
+		rpmPackage: rpmPackage,
+	}, nil
+}
 
 var (
 	//go:embed dockerfiles/DockerfileTemplate.ubuntu
@@ -545,6 +588,17 @@ func GetKM(devConfig *amdv1alpha1.DeviceConfig, node v1.Node, inTreeModuleToRemo
 				Value: repoURL,
 			},
 		},
+	}
+	if devConfig.Spec.Driver.DriverType == utils.DriverTypeVFPassthrough {
+		gimArtifacts, err := getGIMArtifacts(driversVersion)
+		if err != nil {
+			return kmmv1beta1.KernelMapping{}, "", err
+		}
+		kmmBuild.BuildArgs = append(kmmBuild.BuildArgs,
+			kmmv1beta1.BuildArg{Name: gimReleaseTagBuildArg, Value: gimArtifacts.releaseTag},
+			kmmv1beta1.BuildArg{Name: gimDebPackageBuildArg, Value: gimArtifacts.debPackage},
+			kmmv1beta1.BuildArg{Name: gimRpmPackageBuildArg, Value: gimArtifacts.rpmPackage},
+		)
 	}
 
 	// Add optional build args for custom package repo and GPG key URLs

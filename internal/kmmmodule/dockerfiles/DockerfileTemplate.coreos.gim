@@ -4,6 +4,8 @@ FROM ${DTK_AUTO} as builder
 ARG KERNEL_VERSION
 ARG DRIVERS_VERSION
 ARG REPO_URL
+ARG GIM_RELEASE_TAG
+ARG GIM_RPM_PACKAGE
 RUN dnf install https://dl.fedoraproject.org/pub/epel/epel-release-latest-9.noarch.rpm -y && \
     crb enable && \
     sed -i "s/\$releasever/9/g" /etc/yum.repos.d/epel*.repo && \
@@ -17,10 +19,10 @@ RUN dnf install -y 'dnf-command(config-manager)' && \
     dnf clean all
 
 RUN dnf install automake bc -y && \
-    wget https://github.com/amd/MxGPU-Virtualization/releases/download/mainline%2F${DRIVERS_VERSION}/gim-dkms-${DRIVERS_VERSION}-0.noarch.rpm && \
-    dnf install ./gim-dkms-${DRIVERS_VERSION}-0.noarch.rpm -y && \
+    wget https://github.com/amd/MxGPU-Virtualization/releases/download/${GIM_RELEASE_TAG}/${GIM_RPM_PACKAGE} && \
+    dnf install ./${GIM_RPM_PACKAGE} -y && \
     dnf clean all && \
-    rm ./gim-dkms-${DRIVERS_VERSION}-0.noarch.rpm && \
+    rm ./${GIM_RPM_PACKAGE} && \
     depmod ${KERNEL_VERSION} && \
     find /lib/modules/${KERNEL_VERSION} -name "*.ko.xz" -exec xz -d {} \; && \
     depmod ${KERNEL_VERSION}

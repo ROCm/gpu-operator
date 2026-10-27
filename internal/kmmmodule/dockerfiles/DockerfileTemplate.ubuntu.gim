@@ -6,6 +6,10 @@ ARG DRIVERS_VERSION
 
 ARG REPO_URL
 
+ARG GIM_RELEASE_TAG
+
+ARG GIM_DEB_PACKAGE
+
 RUN apt-get update && \
     apt-get install -y build-essential \
     dkms \
@@ -17,9 +21,9 @@ RUN apt-get update && \
     linux-modules-extra-${KERNEL_FULL_VERSION} && \
     apt-get clean
 
-RUN wget https://github.com/amd/MxGPU-Virtualization/releases/download/mainline%2F${DRIVERS_VERSION}/gim-dkms_${DRIVERS_VERSION}_all.deb && \
-    apt-get install --fix-broken -y ./gim-dkms_${DRIVERS_VERSION}_all.deb && \
-    rm gim-dkms_${DRIVERS_VERSION}_all.deb
+RUN wget https://github.com/amd/MxGPU-Virtualization/releases/download/${GIM_RELEASE_TAG}/${GIM_DEB_PACKAGE} && \
+    apt-get install --fix-broken -y ./${GIM_DEB_PACKAGE} && \
+    rm ${GIM_DEB_PACKAGE}
 
 RUN depmod ${KERNEL_FULL_VERSION}
 

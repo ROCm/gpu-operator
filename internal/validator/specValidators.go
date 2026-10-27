@@ -44,6 +44,12 @@ func ValidateDriverSpec(ctx context.Context, client client.Client, devConfig *am
 		return fmt.Errorf("invalid driver type %v", dSpec.DriverType)
 	}
 
+	// The CRD defaults driver.enable to true when the field is omitted.
+	driverEnabled := dSpec.Enable == nil || *dSpec.Enable
+	if driverEnabled && dSpec.DriverType == utils.DriverTypeVFPassthrough && dSpec.Version == "" {
+		return fmt.Errorf("spec.driver.version is required for enabled %s", dSpec.DriverType)
+	}
+
 	// if KMM is not triggered, no need to verify the rest of the config
 	if !utils.ShouldUseKMM(devConfig) {
 		return nil

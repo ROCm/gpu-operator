@@ -69,3 +69,40 @@ var _ = Describe("ValidateDevicePluginSpec", func() {
 		Expect(validate(map[string]string{"resource_naming": utils.SingleStrategy})).ToNot(Succeed())
 	})
 })
+
+var _ = Describe("ValidateDriverSpec passthrough requirements", func() {
+	enabled := true
+
+	validate := func(driverType, version string, selector map[string]string) error {
+		return ValidateDriverSpec(context.Background(), nil, &amdv1alpha1.DeviceConfig{
+			ObjectMeta: metav1.ObjectMeta{Name: "test-config", Namespace: "test-namespace"},
+			Spec: amdv1alpha1.DeviceConfigSpec{
+				Selector: selector,
+				Driver: amdv1alpha1.DriverSpec{
+					Enable:     &enabled,
+					DriverType: driverType,
+					Version:    version,
+					ImageBuild: amdv1alpha1.ImageBuildSpec{BaseImageRegistry: "test-registry"},
+				},
+			},
+		})
+	}
+
+	It("requires an explicit GIM version for enabled VF passthrough", func() {
+		err := validate(utils.DriverTypeVFPassthrough, "", map[string]string{
+			utils.NodeFeatureLabelAmdGpu: "true",
+		})
+		Expect(err).To(HaveOccurred())
+		Expect(err.Error()).To(ContainSubstring("spec.driver.version"))
+	})
+
+	It("accepts enabled VF passthrough with selector and version", func() {
+		Expect(validate(utils.DriverTypeVFPassthrough, "9.3.0.K", map[string]string{
+			utils.NodeFeatureLabelAmdGpu: "true",
+		})).To(Succeed())
+	})
+
+	It("does not add passthrough requirements to the container driver", func() {
+		Expect(validate(utils.DriverTypeContainer, "", nil)).To(Succeed())
+	})
+})
