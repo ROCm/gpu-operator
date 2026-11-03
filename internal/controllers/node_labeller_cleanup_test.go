@@ -174,7 +174,11 @@ func TestNodeLabellerCleanup(t *testing.T) {
 					g.Expect(err).NotTo(HaveOccurred())
 					var changes map[string]interface{}
 					g.Expect(json.Unmarshal(data, &changes)).To(Succeed())
-					g.Expect(changes["metadata"]).To(HaveKeyWithValue("resourceVersion", storedNode.ResourceVersion))
+					if tc.labellerDisabled {
+						g.Expect(changes["metadata"]).NotTo(HaveKey("resourceVersion"))
+					} else {
+						g.Expect(changes["metadata"]).To(HaveKeyWithValue("resourceVersion", storedNode.ResourceVersion))
+					}
 					if tc.patchError {
 						return fmt.Errorf("patch unavailable")
 					}
@@ -240,6 +244,76 @@ func TestNodeLabellerCleanup(t *testing.T) {
 				for key, value := range tc.selector {
 					g.Expect(ds.Spec.Template.Spec.NodeSelector).To(HaveKeyWithValue(key, value))
 				}
+			}
+		})
+	}
+}
+
+// Skipping or failing one node must not stop cleanup of later nodes. In
+// particular, return nil inside RetryOnConflict exits only that node's callback.
+func TestNodeLabellerCleanupContinuesAfterSkippedOrFailedNode(t *testing.T) {
+	for _, firstOutcome := range []string{"protected", "eligibility error", "patch error", "conflict then protected"} {
+		t.Run(firstOutcome, func(t *testing.T) {
+			g := NewWithT(t)
+			ctx := context.Background()
+			nodes := &v1.NodeList{}
+			stored := map[string]*v1.Node{}
+			for _, name := range []string{"first", "second"} {
+				node := v1.Node{ObjectMeta: metav1.ObjectMeta{Name: name, ResourceVersion: "1", Labels: map[string]string{"amd.com/gpu.device-id": "75a3", "amd.com/gpu.probe": "keep"}}}
+				nodes.Items = append(nodes.Items, node)
+				stored[name] = node.DeepCopy()
+			}
+			cli := mock_client.NewMockClient(gomock.NewController(t))
+			cli.EXPECT().Get(ctx, gomock.Any(), gomock.Any()).DoAndReturn(func(_ context.Context, key client.ObjectKey, obj client.Object, _ ...client.GetOption) error {
+				stored[key.Name].DeepCopyInto(obj.(*v1.Node))
+				return nil
+			}).AnyTimes()
+			patched := []string{}
+			cli.EXPECT().Patch(ctx, gomock.Any(), gomock.Any()).DoAndReturn(func(_ context.Context, obj client.Object, patch client.Patch, _ ...client.PatchOption) error {
+				if obj.GetName() == "first" {
+					if firstOutcome == "conflict then protected" {
+						stored["first"].Labels[utils.NodeFeatureLabelAmdGpu] = "true"
+						stored["first"].ResourceVersion = "2"
+						return apierrors.NewConflict(schema.GroupResource{Resource: "nodes"}, "first", fmt.Errorf("discovery updated"))
+					}
+					g.Expect(firstOutcome).To(Equal("patch error"))
+					return fmt.Errorf("patch unavailable")
+				}
+				stored[obj.GetName()] = obj.(*v1.Node).DeepCopy()
+				patched = append(patched, obj.GetName())
+				return nil
+			}).AnyTimes()
+			checked := []string{}
+			helper := &deviceConfigReconcilerHelper{client: cli}
+			err := helper.updateNodeLabelsIf(ctx, &amdv1alpha1.DeviceConfig{}, nodes, false, func(node *v1.Node) (bool, error) {
+				checked = append(checked, node.Name)
+				if node.Name == "first" {
+					switch firstOutcome {
+					case "protected":
+						return false, nil
+					case "eligibility error":
+						return false, fmt.Errorf("ownership unavailable")
+					case "conflict then protected":
+						return node.Labels[utils.NodeFeatureLabelAmdGpu] != "true", nil
+					}
+				}
+				return true, nil
+			})
+			if firstOutcome == "eligibility error" || firstOutcome == "patch error" {
+				g.Expect(err).To(MatchError(ContainSubstring("unavailable")))
+			} else {
+				g.Expect(err).NotTo(HaveOccurred())
+			}
+			wantChecked := []string{"first", "second"}
+			if firstOutcome == "conflict then protected" {
+				wantChecked = []string{"first", "first", "second"}
+			}
+			g.Expect(checked).To(Equal(wantChecked))
+			g.Expect(patched).To(Equal([]string{"second"}))
+			g.Expect(stored["first"].Labels).To(HaveKeyWithValue("amd.com/gpu.device-id", "75a3"))
+			g.Expect(stored["second"].Labels).NotTo(HaveKey("amd.com/gpu.device-id"))
+			for _, node := range stored {
+				g.Expect(node.Labels).To(HaveKeyWithValue("amd.com/gpu.probe", "keep"))
 			}
 		})
 	}

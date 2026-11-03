@@ -18,6 +18,7 @@ package controllers
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"testing"
 
@@ -78,8 +79,11 @@ func TestNodeLabellerFinalizationWithoutKMM(t *testing.T) {
 					if failPatch {
 						return fmt.Errorf("node patch unavailable")
 					}
-					_, err := patch.Data(obj)
+					data, err := patch.Data(obj)
 					g.Expect(err).NotTo(HaveOccurred())
+					var changes map[string]interface{}
+					g.Expect(json.Unmarshal(data, &changes)).To(Succeed())
+					g.Expect(changes["metadata"]).NotTo(HaveKey("resourceVersion"))
 					node = actual.DeepCopy()
 					return nil
 				}
@@ -121,7 +125,8 @@ func TestDeviceConfigCleanupWatch(t *testing.T) {
 	g.Expect(pred.Delete(event.DeleteEvent{Object: before})).To(BeTrue())
 	g.Expect(pred.Generic(event.GenericEvent{Object: before})).To(BeFalse())
 	cli := mock_client.NewMockClient(gomock.NewController(t))
-	cli.EXPECT().List(gomock.Any(), gomock.Any()).DoAndReturn(func(_ context.Context, list client.ObjectList, _ ...client.ListOption) error {
+	cli.EXPECT().List(gomock.Any(), gomock.Any()).DoAndReturn(func(_ context.Context, list client.ObjectList, opts ...client.ListOption) error {
+		g.Expect((&client.ListOptions{}).ApplyOptions(opts).Namespace).To(BeEmpty())
 		configs := list.(*amdv1alpha1.DeviceConfigList)
 		configs.Items = []amdv1alpha1.DeviceConfig{*before,
 			{ObjectMeta: metav1.ObjectMeta{Name: "gpu", Namespace: "test"}, Spec: amdv1alpha1.DeviceConfigSpec{Selector: map[string]string{utils.NodeFeatureLabelAmdGpu: "true"}, DevicePlugin: amdv1alpha1.DevicePluginSpec{EnableNodeLabeller: ptr.To(true)}}},

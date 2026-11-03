@@ -177,6 +177,10 @@ func (r *DeviceConfigReconciler) SetupWithManager(mgr ctrl.Manager) error {
 
 // A config's selector determines which nodes other configs must preserve. When
 // it changes or disappears, enqueue NFD configs even if no Node event occurs.
+// Nodes are cluster-scoped: an NFD config's stale-node query can reach nodes
+// selected by a config in any namespace. Namespace filtering here would miss
+// cleanup when such a config releases a node. Enqueueing does not grant ownership;
+// handleNodeLabeller still checks the node against every other config's selector.
 func (r *DeviceConfigReconciler) findDeviceConfigsForLabelCleanup(ctx context.Context, obj client.Object) []reconcile.Request {
 	configs := &amdv1alpha1.DeviceConfigList{}
 	if err := r.List(ctx, configs); err != nil {
@@ -1698,6 +1702,7 @@ func (dcrh *deviceConfigReconcilerHelper) updateNodeLabelsIf(ctx context.Context
 					return err
 				}
 				if !allowed {
+					// End this node's retry attempt; the outer loop continues.
 					return nil
 				}
 			}
@@ -1721,7 +1726,15 @@ func (dcrh *deviceConfigReconcilerHelper) updateNodeLabelsIf(ctx context.Context
 			// to minimize the resource usage, compared to update the whole Node resource
 			if updated {
 				logger.Info(fmt.Sprintf("updating node-labeller labels in %v", nodeObj.Name))
-				return dcrh.client.Patch(ctx, nodeObj, client.MergeFromWithOptions(nodeObjCopy, client.MergeFromWithOptimisticLock{}))
+				patch := client.MergeFrom(nodeObjCopy)
+				if shouldClean != nil {
+					// Automatic cleanup depends on selectors checked above. A
+					// concurrent Node update must trigger another eligibility check.
+					patch = client.MergeFromWithOptions(nodeObjCopy, client.MergeFromWithOptimisticLock{})
+				}
+				// Explicit disable/delete cleanup retains its unconditional merge
+				// patch, avoiding conflicts on unrelated Node status updates.
+				return dcrh.client.Patch(ctx, nodeObj, patch)
 			}
 
 			return nil

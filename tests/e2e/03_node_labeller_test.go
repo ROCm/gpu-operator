@@ -39,6 +39,8 @@ import (
 // kubelet, GPU hardware, and the labeller binary. The test supplies the labels a
 // labeller would write; it does not claim to test GPU discovery in that binary.
 // This file is automatically included in the operator-e2e-sim CI chunk catalog.
+// Run after driver-install chunks but before slower feature suites, so their
+// timeouts do not prevent these cleanup regressions from being exercised.
 func (s *E2ESuite) TestNodeLabellerCustomSelectorPreservesLabels(c *C) {
 	s.verifyNodeLabellerCleanup(c, "", false)
 }
