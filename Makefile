@@ -138,7 +138,7 @@ DOCKER_IT_FLAGS := $(if $(CI),,-it)
 BUILD_BASE_IMG ?= ubuntu:22.04
 DOCKER_CACHE_FROM ?=
 DOCKER_CACHE_TO ?=
-GOLANG_BASE_IMG ?= golang:1.27.2
+GOLANG_BASE_IMG ?= golang:1.27.3
 OPERATOR_CONTROLLER_BASE_IMAGE ?= registry.access.redhat.com/ubi9/ubi-minimal:9.8
 # Helm binary installed into the build-shell image (Dockerfile.build). Pin the
 # version and its published sha256 together; bump both when upgrading.
