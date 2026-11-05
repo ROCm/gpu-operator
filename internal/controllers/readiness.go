@@ -27,8 +27,8 @@ import (
 	"github.com/ROCm/gpu-operator/internal/conditions"
 )
 
-func deviceConfigReadiness(devConfig *amdv1alpha1.DeviceConfig, nodes *v1.NodeList, module *kmmv1beta1.Module) (bool, string, string) {
-	if devConfig.Spec.Driver.DriverType == utils.DriverTypeVFPassthrough {
+func deviceConfigReadiness(devConfig *amdv1alpha1.DeviceConfig, nodes *v1.NodeList, module *kmmv1beta1.Module, kmmManaged bool) (bool, string, string) {
+	if devConfig.Spec.Driver.DriverType == utils.DriverTypeVFPassthrough && kmmManaged {
 		if module == nil || module.Status.ModuleLoader.AvailableNumber != int32(len(nodes.Items)) {
 			return false, conditions.KMMModulePending, fmt.Sprintf("KMM module is not available on all %d selected nodes", len(nodes.Items))
 		}
