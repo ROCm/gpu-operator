@@ -138,7 +138,10 @@ func (r *DeviceConfigReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Named(DeviceConfigReconcilerName).
 		// just reconcile the spec change or deletion
 		For(&amdv1alpha1.DeviceConfig{}, builder.WithPredicates(watchers.SpecChangedOrDeletionPredicate{})).
-		Owns(&v1.Service{}, builder.WithPredicates(watchers.SpecChangedOrDeletionPredicate{}))
+		Owns(&v1.Service{}, builder.WithPredicates(watchers.SpecChangedOrDeletionPredicate{})).
+		Watches(&amdv1alpha1.DeviceConfig{},
+			handler.EnqueueRequestsFromMapFunc(r.findDeviceConfigsForLabelCleanup),
+			builder.WithPredicates(watchers.DeviceConfigSelectorChangedPredicate{}))
 
 	// Conditionally add KMM watches only if KMM watch is enabled
 	if r.kmmWatchEnabled {
@@ -170,6 +173,32 @@ func (r *DeviceConfigReconciler) SetupWithManager(mgr ctrl.Manager) error {
 			r.podEventHandler,
 			builder.WithPredicates(watchers.PodLabelPredicate{}),
 		).Complete(r)
+}
+
+// A config's selector determines which nodes other configs must preserve. When
+// it changes or disappears, enqueue NFD configs even if no Node event occurs.
+// Nodes are cluster-scoped: an NFD config's stale-node query can reach nodes
+// selected by a config in any namespace. Namespace filtering here would miss
+// cleanup when such a config releases a node. Enqueueing does not grant ownership;
+// handleNodeLabeller still checks the node against every other config's selector.
+func (r *DeviceConfigReconciler) findDeviceConfigsForLabelCleanup(ctx context.Context, obj client.Object) []reconcile.Request {
+	configs := &amdv1alpha1.DeviceConfigList{}
+	if err := r.List(ctx, configs); err != nil {
+		log.FromContext(ctx).Error(err, "failed to list DeviceConfigs for label cleanup")
+		return nil
+	}
+	requests := []reconcile.Request{}
+	for _, config := range configs.Items {
+		if config.Namespace == obj.GetNamespace() && config.Name == obj.GetName() {
+			continue
+		}
+		_, gpu := config.Spec.Selector[utils.NodeFeatureLabelAmdGpu]
+		_, vgpu := config.Spec.Selector[utils.NodeFeatureLabelAmdVGpu]
+		if (gpu || vgpu) && config.Spec.DevicePlugin.EnableNodeLabeller != nil && *config.Spec.DevicePlugin.EnableNodeLabeller {
+			requests = append(requests, reconcile.Request{NamespacedName: types.NamespacedName{Namespace: config.Namespace, Name: config.Name}})
+		}
+	}
+	return requests
 }
 
 func (r *DeviceConfigReconciler) init(ctx context.Context) {
@@ -990,7 +1019,11 @@ func (dcrh *deviceConfigReconcilerHelper) finalizeDeviceConfig(ctx context.Conte
 	}
 
 	if !dcrh.kmmWatchEnabled {
-		// When KMM watch is disabled, skip KMM Module deletion and leave any existing KMM resources orphaned
+		// Skip KMM resources, but still remove this config's node-labeller labels.
+		if err := dcrh.updateNodeLabels(ctx, devConfig, nodes, true); err != nil {
+			return err
+		}
+		// When KMM watch is disabled, leave any existing KMM resources orphaned.
 		devConfigCopy := devConfig.DeepCopy()
 		controllerutil.RemoveFinalizer(devConfig, deviceConfigFinalizer)
 		return dcrh.client.Patch(ctx, devConfig, client.MergeFrom(devConfigCopy))
@@ -1394,7 +1427,7 @@ func (dcrh *deviceConfigReconcilerHelper) handleNodeLabeller(ctx context.Context
 		// clean up node labeller's label when node labeller is disabled
 		// if no label need to be removed, updateNodeLabels won't send request
 		if err := dcrh.updateNodeLabels(ctx, devConfig, nodes, false); err != nil {
-			logger.Error(err, "failed to remove node labeller's labels when node labeller is disabled")
+			return fmt.Errorf("remove disabled node labeller labels: %w", err)
 		}
 		logger.Info("skip handling node labeller as it is disabled", "namespace", devConfig.Namespace, "name", devConfig.Name)
 		return nil
@@ -1412,6 +1445,15 @@ func (dcrh *deviceConfigReconcilerHelper) handleNodeLabeller(ctx context.Context
 	}
 
 	logger.Info("Reconciled node labeller", "namespace", ds.Namespace, "name", ds.Name, "result", opRes)
+
+	// Missing discovery labels only identify stale nodes when this DeviceConfig
+	// uses AMD NFD discovery for selection. With a custom selector, a healthy GPU
+	// node may never have these labels. Explicit disablement still cleans up above.
+	_, selectsGPU := devConfig.Spec.Selector[utils.NodeFeatureLabelAmdGpu]
+	_, selectsVGPU := devConfig.Spec.Selector[utils.NodeFeatureLabelAmdVGpu]
+	if !selectsGPU && !selectsVGPU {
+		return nil
+	}
 
 	// todo: temp. cleanup labels set by node-labeller
 	// not required once label cleanup is added in node-labeller
@@ -1453,10 +1495,31 @@ func (dcrh *deviceConfigReconcilerHelper) handleNodeLabeller(ctx context.Context
 	}
 	logger.Info(fmt.Sprintf("select (%v) found %v nodes", labelSelector, len(its.Items)))
 
-	if err := dcrh.updateNodeLabels(ctx, devConfig, its, false); err != nil {
-		logger.Error(err, "failed to update node labels")
+	if len(its.Items) == 0 {
+		return nil
 	}
-	return nil
+
+	// Recheck both hardware-discovery and ownership selectors against the node
+	// fetched inside each update attempt. Config selectors must also be refreshed
+	// on retries, rather than captured before a concurrent config change.
+	return dcrh.updateNodeLabelsIf(ctx, devConfig, its, false, func(node *v1.Node) (bool, error) {
+		if !labelSelector.Matches(labels.Set(node.Labels)) {
+			return false, nil
+		}
+		configs, err := dcrh.listDeviceConfigs(ctx)
+		if err != nil {
+			return false, err
+		}
+		for _, config := range configs.Items {
+			if config.Namespace == devConfig.Namespace && config.Name == devConfig.Name {
+				continue
+			}
+			if labels.SelectorFromSet(config.Spec.Selector).Matches(labels.Set(node.Labels)) {
+				return false, nil
+			}
+		}
+		return true, nil
+	})
 }
 
 func (dcrh *deviceConfigReconcilerHelper) handleModuleUpgrade(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig, nodes *v1.NodeList, delete bool) (ctrl.Result, error) {
@@ -1616,9 +1679,14 @@ func (dcrh *deviceConfigReconcilerHelper) handleConfigManager(ctx context.Contex
 }
 
 func (dcrh *deviceConfigReconcilerHelper) updateNodeLabels(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig, nodes *v1.NodeList, isFinalizer bool) error {
+	return dcrh.updateNodeLabelsIf(ctx, devConfig, nodes, isFinalizer, nil)
+}
+
+func (dcrh *deviceConfigReconcilerHelper) updateNodeLabelsIf(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig, nodes *v1.NodeList, isFinalizer bool, shouldClean func(*v1.Node) (bool, error)) error {
 	logger := log.FromContext(ctx)
 	labelKey, _ := kmmmodule.GetVersionLabelKV(devConfig)
 
+	var cleanupErrors []error
 	for _, node := range nodes.Items {
 		// add retry logic here
 		// in case Node resource is being updated by multiple clients concurrently
@@ -1627,6 +1695,16 @@ func (dcrh *deviceConfigReconcilerHelper) updateNodeLabels(ctx context.Context, 
 			nodeObj := &v1.Node{}
 			if err := dcrh.client.Get(ctx, client.ObjectKey{Name: node.Name}, nodeObj); err != nil {
 				return err
+			}
+			if shouldClean != nil {
+				allowed, err := shouldClean(nodeObj)
+				if err != nil {
+					return err
+				}
+				if !allowed {
+					// End this node's retry attempt; the outer loop continues.
+					return nil
+				}
 			}
 			nodeObjCopy := nodeObj.DeepCopy()
 
@@ -1648,15 +1726,24 @@ func (dcrh *deviceConfigReconcilerHelper) updateNodeLabels(ctx context.Context, 
 			// to minimize the resource usage, compared to update the whole Node resource
 			if updated {
 				logger.Info(fmt.Sprintf("updating node-labeller labels in %v", nodeObj.Name))
-				return dcrh.client.Patch(ctx, nodeObj, client.MergeFrom(nodeObjCopy))
+				patch := client.MergeFrom(nodeObjCopy)
+				if shouldClean != nil {
+					// Automatic cleanup depends on selectors checked above. A
+					// concurrent Node update must trigger another eligibility check.
+					patch = client.MergeFromWithOptions(nodeObjCopy, client.MergeFromWithOptimisticLock{})
+				}
+				// Explicit disable/delete cleanup retains its unconditional merge
+				// patch, avoiding conflicts on unrelated Node status updates.
+				return dcrh.client.Patch(ctx, nodeObj, patch)
 			}
 
 			return nil
 		}); retryErr != nil {
 			logger.Error(retryErr, fmt.Sprintf("failed to remove labels from node %+v", node.Name))
+			cleanupErrors = append(cleanupErrors, fmt.Errorf("clean up node %s: %w", node.Name, retryErr))
 		}
 	}
-	return nil
+	return errors.Join(cleanupErrors...)
 }
 
 func (dcrh *deviceConfigReconcilerHelper) validateNodeAssignments(namespacedName string, nodes *v1.NodeList) error {
