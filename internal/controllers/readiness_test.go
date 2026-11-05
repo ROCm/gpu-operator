@@ -48,6 +48,16 @@ func TestDeviceConfigReadiness(t *testing.T) {
 		}
 	})
 
+	t.Run("disabled passthrough does not wait for VFIO", func(t *testing.T) {
+		disabled := false
+		devConfig := newDeviceConfig(utils.DriverTypeVFPassthrough)
+		devConfig.Spec.Driver.Enable = &disabled
+		ready, reason, _ := deviceConfigReadiness(devConfig, newNodes(), nil, true)
+		if !ready || reason != "OperatorReady" {
+			t.Fatalf("got ready=%v reason=%q, want ready with OperatorReady", ready, reason)
+		}
+	})
+
 	t.Run("vf passthrough waits for KMM", func(t *testing.T) {
 		ready, reason, _ := deviceConfigReadiness(newDeviceConfig(utils.DriverTypeVFPassthrough), newNodes(), nil, true)
 		if ready || reason != "KMMModulePending" {
