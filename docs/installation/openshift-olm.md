@@ -433,6 +433,16 @@ After adding `amdgpu` kernel module to blacklist by using `MachineConfig` custom
 VF and PF passthrough also require IOMMU to be enabled in the node firmware and kernel. Add the platform-specific IOMMU arguments to the same `MachineConfig` (use `amd_iommu=on` on AMD hosts or `intel_iommu=on` on Intel hosts; `iommu=pt` is recommended):
 ```
 
+For AMD hosts, use `amd_iommu=on` instead of `intel_iommu=on`:
+
+```yaml
+kernelArguments:
+  - iommu=pt
+  - amd_iommu=on
+  - rd.driver.blacklist=amdgpu
+  - modprobe.blacklist=amdgpu
+```
+
 ```yaml
 apiVersion: machineconfiguration.openshift.io/v1
 kind: MachineConfig
