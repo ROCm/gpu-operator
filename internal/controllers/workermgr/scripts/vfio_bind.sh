@@ -27,7 +27,7 @@ for PRODUCT_CODE in "${PRODUCT_CODES[@]}"; do
                 bash -c "echo 1 > /sys/module/vfio_iommu_type1/parameters/allow_unsafe_interrupts"
             fi
             # Unbind from other driver
-            if [-e "/sys/bus/pci/devices/$VFIO_DEVICE/driver/unbind"]; then 
+            if [ -e "/sys/bus/pci/devices/$VFIO_DEVICE/driver/unbind" ]; then
                 echo $VFIO_DEVICE > /sys/bus/pci/devices/$VFIO_DEVICE/driver/unbind
             fi
             # Bind specific device 
