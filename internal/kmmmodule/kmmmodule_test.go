@@ -815,6 +815,12 @@ var _ = Describe("GIM artifact resolution", func() {
 		Expect(coreos).To(ContainSubstring("ARG GIM_RELEASE_TAG"))
 		Expect(coreos).To(ContainSubstring("ARG GIM_RPM_PACKAGE"))
 		Expect(coreos).To(ContainSubstring("releases/download/${GIM_RELEASE_TAG}/${GIM_RPM_PACKAGE}"))
+		Expect(coreos).To(ContainSubstring("rpm -Uvh /tmp/epel-release.rpm"))
+		Expect(coreos).To(ContainSubstring("[centos-stream-baseos]"))
+		Expect(coreos).To(ContainSubstring("rpm -Uvh ./${GIM_RPM_PACKAGE}"))
+		Expect(coreos).To(ContainSubstring("automake bc cmake dkms"))
+		Expect(coreos).NotTo(ContainSubstring("dnf config-manager"))
+		Expect(coreos).NotTo(ContainSubstring("dnf install https://dl.fedoraproject.org"))
 
 		mapping, _, err := GetKM(input, testNodeList.Items[0], "", false)
 		Expect(err).To(BeNil())
