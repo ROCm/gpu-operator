@@ -28,44 +28,51 @@ import (
 )
 
 func TestDeviceConfigReadiness(t *testing.T) {
-	devConfig := &amdv1alpha1.DeviceConfig{ObjectMeta: metav1.ObjectMeta{Name: "dc", Namespace: "ns"}}
-	nodes := &v1.NodeList{Items: []v1.Node{
-		{ObjectMeta: metav1.ObjectMeta{Name: "node-a"}},
-		{ObjectMeta: metav1.ObjectMeta{Name: "node-b"}},
-	}}
+	newNodes := func() *v1.NodeList {
+		return &v1.NodeList{Items: []v1.Node{
+			{ObjectMeta: metav1.ObjectMeta{Name: "node-a"}},
+			{ObjectMeta: metav1.ObjectMeta{Name: "node-b"}},
+		}}
+	}
+	newDeviceConfig := func(driverType string) *amdv1alpha1.DeviceConfig {
+		return &amdv1alpha1.DeviceConfig{
+			ObjectMeta: metav1.ObjectMeta{Name: "dc", Namespace: "ns"},
+			Spec:       amdv1alpha1.DeviceConfigSpec{Driver: amdv1alpha1.DriverSpec{DriverType: driverType}},
+		}
+	}
 
 	t.Run("container mode is ready", func(t *testing.T) {
-		devConfig.Spec.Driver.DriverType = utils.DriverTypeContainer
-		ready, _, _ := deviceConfigReadiness(devConfig, nodes, nil)
+		ready, _, _ := deviceConfigReadiness(newDeviceConfig(utils.DriverTypeContainer), newNodes(), nil, true)
 		if !ready {
 			t.Fatal("container mode should not wait for KMM or VFIO")
 		}
 	})
 
 	t.Run("vf passthrough waits for KMM", func(t *testing.T) {
-		devConfig.Spec.Driver.DriverType = utils.DriverTypeVFPassthrough
-		ready, reason, _ := deviceConfigReadiness(devConfig, nodes, nil)
+		ready, reason, _ := deviceConfigReadiness(newDeviceConfig(utils.DriverTypeVFPassthrough), newNodes(), nil, true)
 		if ready || reason != "KMMModulePending" {
 			t.Fatalf("got ready=%v reason=%q, want not ready with KMMModulePending", ready, reason)
 		}
 	})
 
 	t.Run("vf passthrough waits for every node", func(t *testing.T) {
-		devConfig.Spec.Driver.DriverType = utils.DriverTypeVFPassthrough
+		devConfig := newDeviceConfig(utils.DriverTypeVFPassthrough)
+		nodes := newNodes()
 		module := &kmmv1beta1.Module{Status: kmmv1beta1.ModuleStatus{
 			ModuleLoader: kmmv1beta1.DaemonSetStatus{AvailableNumber: 2},
 		}}
 		for i := range nodes.Items {
 			nodes.Items[i].Labels = map[string]string{"kmm.node.kubernetes.io/ns.dc.ready": ""}
 		}
-		ready, reason, _ := deviceConfigReadiness(devConfig, nodes, module)
+		ready, reason, _ := deviceConfigReadiness(devConfig, nodes, module, true)
 		if ready || reason != "VFIOBindingPending" {
 			t.Fatalf("got ready=%v reason=%q, want not ready with VFIOBindingPending", ready, reason)
 		}
 	})
 
 	t.Run("vf passthrough is ready only after KMM and VFIO labels", func(t *testing.T) {
-		devConfig.Spec.Driver.DriverType = utils.DriverTypeVFPassthrough
+		devConfig := newDeviceConfig(utils.DriverTypeVFPassthrough)
+		nodes := newNodes()
 		module := &kmmv1beta1.Module{Status: kmmv1beta1.ModuleStatus{
 			ModuleLoader: kmmv1beta1.DaemonSetStatus{AvailableNumber: 2},
 		}}
@@ -75,17 +82,37 @@ func TestDeviceConfigReadiness(t *testing.T) {
 				"gpu.operator.amd.com/ns.dc.vfio.ready": "",
 			}
 		}
-		ready, reason, _ := deviceConfigReadiness(devConfig, nodes, module)
+		ready, reason, _ := deviceConfigReadiness(devConfig, nodes, module, true)
 		if !ready || reason != "OperatorReady" {
 			t.Fatalf("got ready=%v reason=%q, want ready with OperatorReady", ready, reason)
 		}
 	})
 
 	t.Run("pf passthrough requires VFIO labels", func(t *testing.T) {
-		devConfig.Spec.Driver.DriverType = utils.DriverTypePFPassthrough
-		ready, reason, _ := deviceConfigReadiness(devConfig, nodes, nil)
+		devConfig := newDeviceConfig(utils.DriverTypePFPassthrough)
+		nodes := newNodes()
+		ready, reason, _ := deviceConfigReadiness(devConfig, nodes, nil, false)
+		if ready || reason != "VFIOBindingPending" {
+			t.Fatalf("got ready=%v reason=%q, want not ready without VFIO labels", ready, reason)
+		}
+		for i := range nodes.Items {
+			nodes.Items[i].Labels = map[string]string{"gpu.operator.amd.com/ns.dc.vfio.ready": ""}
+		}
+		ready, reason, _ = deviceConfigReadiness(devConfig, nodes, nil, false)
 		if !ready || reason != "OperatorReady" {
-			t.Fatalf("got ready=%v reason=%q, want ready with existing VFIO labels", ready, reason)
+			t.Fatalf("got ready=%v reason=%q, want ready with VFIO labels", ready, reason)
+		}
+	})
+
+	t.Run("vf passthrough can use an externally managed driver", func(t *testing.T) {
+		devConfig := newDeviceConfig(utils.DriverTypeVFPassthrough)
+		nodes := newNodes()
+		for i := range nodes.Items {
+			nodes.Items[i].Labels = map[string]string{"gpu.operator.amd.com/ns.dc.vfio.ready": ""}
+		}
+		ready, reason, _ := deviceConfigReadiness(devConfig, nodes, nil, false)
+		if !ready || reason != "OperatorReady" {
+			t.Fatalf("got ready=%v reason=%q, want ready with externally managed driver", ready, reason)
 		}
 	})
 }

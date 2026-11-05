@@ -649,7 +649,7 @@ func (dcrh *deviceConfigReconcilerHelper) buildDeviceConfigStatus(ctx context.Co
 		return nil
 	}
 
-	ready, reason, message := deviceConfigReadiness(devConfig, nodes, kmmModuleObj)
+	ready, reason, message := deviceConfigReadiness(devConfig, nodes, kmmModuleObj, dcrh.shouldUseKMMOperatorLevel(devConfig))
 	dcrh.conditionUpdater.DeleteErrorCondition(devConfig)
 	if ready {
 		dcrh.conditionUpdater.SetReadyCondition(devConfig, metav1.ConditionTrue, conditions.ReadyStatus, message)
