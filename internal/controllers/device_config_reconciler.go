@@ -1255,8 +1255,9 @@ func (dcrh *deviceConfigReconcilerHelper) handleBuildConfigMap(ctx context.Conte
 func (dcrh *deviceConfigReconcilerHelper) handleKMMModule(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig, nodes *v1.NodeList) error {
 	logger := log.FromContext(ctx)
 
-	// add driver type node label if it is necessary
-	if err := utils.UpdateDriverTypeNodeLabel(ctx, dcrh.client, devConfig, nodes, false); err != nil {
+	// add or remove the driver type node label as driver management changes
+	cleanupDriverLabel := devConfig.Spec.Driver.Enable != nil && !*devConfig.Spec.Driver.Enable
+	if err := utils.UpdateDriverTypeNodeLabel(ctx, dcrh.client, devConfig, nodes, cleanupDriverLabel); err != nil {
 		return err
 	}
 
