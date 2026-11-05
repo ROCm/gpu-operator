@@ -110,24 +110,22 @@ func (h *PodEventHandler) Delete(
 		return
 	}
 	action, ok := pod.Labels[utils.WorkerActionLabelKey]
-	if !ok {
+	if !ok || action != utils.LoadVFIOAction && action != utils.UnloadVFIOAction {
 		return
 	}
-	var nsn types.NamespacedName
-	for _, owner := range pod.OwnerReferences {
-		if owner.Kind == utils.KindDeviceConfig {
-			nsn = types.NamespacedName{Namespace: pod.Namespace, Name: owner.Name}
-			break
-		}
-	}
-	if nsn.Name == "" {
+	owner := metav1.GetControllerOf(pod)
+	if owner == nil || owner.Kind != utils.KindDeviceConfig || pod.Name != fmt.Sprintf("worker-%v-%v", owner.Name, pod.Spec.NodeName) {
 		return
 	}
+	nsn := types.NamespacedName{Namespace: pod.Namespace, Name: owner.Name}
 	devConfig := &amdv1alpha1.DeviceConfig{}
 	if err := h.client.Get(ctx, nsn, devConfig); err != nil {
 		if !k8serrors.IsNotFound(err) {
 			log.FromContext(ctx).Error(err, "failed to get DeviceConfig for deleted worker pod", "pod", pod.Name)
 		}
+		return
+	}
+	if owner.UID != devConfig.UID || !devConfig.DeletionTimestamp.IsZero() {
 		return
 	}
 	node := &v1.Node{}

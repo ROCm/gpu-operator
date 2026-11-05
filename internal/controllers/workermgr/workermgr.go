@@ -41,6 +41,7 @@ const (
 	workerContainerName = "worker"
 	initContainerName   = "pci-device-detector"
 	pciDeviceIDTemplate = "$$PCI_DEVICE_ID_LIST"
+	utilsContainerSA    = "amd-gpu-operator-utils-container"
 )
 
 var (
@@ -345,8 +346,9 @@ func (w *workerMgr) getPodDef(devConfig *amdv1alpha1.DeviceConfig, nodeName, act
 			},
 		},
 		Spec: v1.PodSpec{
-			NodeName:       nodeName,
-			InitContainers: initContainers,
+			NodeName:           nodeName,
+			ServiceAccountName: utilsContainerSA,
+			InitContainers:     initContainers,
 			Containers: []v1.Container{
 				{
 					Name:    workerContainerName,
