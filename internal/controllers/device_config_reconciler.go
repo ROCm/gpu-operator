@@ -689,6 +689,9 @@ func (dcrh *deviceConfigReconcilerHelper) getFailedWorkerNode(ctx context.Contex
 }
 
 func (dcrh *deviceConfigReconcilerHelper) ensureVFIOWorkers(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig, nodes *v1.NodeList) error {
+	if devConfig.Spec.Driver.Enable != nil && !*devConfig.Spec.Driver.Enable {
+		return nil
+	}
 	if devConfig.Spec.Driver.DriverType != utils.DriverTypeVFPassthrough && devConfig.Spec.Driver.DriverType != utils.DriverTypePFPassthrough {
 		return nil
 	}
