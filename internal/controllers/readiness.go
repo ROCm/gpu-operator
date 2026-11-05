@@ -18,8 +18,10 @@ package controllers
 
 import (
 	"fmt"
+	"strings"
 
 	kmmv1beta1 "github.com/rh-ecosystem-edge/kernel-module-management/api/v1beta1"
+	appsv1 "k8s.io/api/apps/v1"
 	v1 "k8s.io/api/core/v1"
 
 	amdv1alpha1 "github.com/ROCm/gpu-operator/api/v1alpha1"
@@ -27,7 +29,7 @@ import (
 	"github.com/ROCm/gpu-operator/internal/conditions"
 )
 
-func deviceConfigReadiness(devConfig *amdv1alpha1.DeviceConfig, nodes *v1.NodeList, module *kmmv1beta1.Module, kmmManaged bool) (bool, string, string) {
+func deviceConfigReadiness(devConfig *amdv1alpha1.DeviceConfig, nodes *v1.NodeList, module *kmmv1beta1.Module, kmmManaged bool, devicePlugin *appsv1.DaemonSet) (bool, string, string) {
 	if devConfig.Spec.Driver.Enable != nil && !*devConfig.Spec.Driver.Enable {
 		return true, conditions.ReadyStatus, ""
 	}
@@ -53,5 +55,25 @@ func deviceConfigReadiness(devConfig *amdv1alpha1.DeviceConfig, nodes *v1.NodeLi
 			return false, conditions.VFIOBindingPending, fmt.Sprintf("VFIO binding is not ready on node %s", node.Name)
 		}
 	}
+
+	if devConfig.Spec.Driver.DriverType == utils.DriverTypeVFPassthrough && devConfig.Spec.DevicePlugin.IsEnabled() {
+		if devicePlugin == nil || devicePlugin.Status.NumberAvailable < int32(len(nodes.Items)) {
+			return false, conditions.DevicePluginPending, fmt.Sprintf("device plugin is not available on all %d selected nodes", len(nodes.Items))
+		}
+		for _, node := range nodes.Items {
+			if !hasAMDAllocatableResource(node) {
+				return false, conditions.DevicePluginPending, fmt.Sprintf("device plugin has not advertised an AMD resource on node %s; check the device-plugin image and logs", node.Name)
+			}
+		}
+	}
 	return true, conditions.ReadyStatus, ""
+}
+
+func hasAMDAllocatableResource(node v1.Node) bool {
+	for resourceName, quantity := range node.Status.Allocatable {
+		if strings.HasPrefix(string(resourceName), "amd.com/") && quantity.Sign() > 0 {
+			return true
+		}
+	}
+	return false
 }
