@@ -123,6 +123,9 @@ func (h *PodEventHandler) Delete(
 	if action == utils.LoadVFIOAction && !devConfig.DeletionTimestamp.IsZero() {
 		return
 	}
+	if action == utils.UnloadVFIOAction && !devConfig.DeletionTimestamp.IsZero() && devConfig.Spec.Driver.DriverType != utils.DriverTypePFPassthrough {
+		return
+	}
 	node := &v1.Node{}
 	if err := h.client.Get(ctx, types.NamespacedName{Name: pod.Spec.NodeName}, node); err != nil {
 		if !k8serrors.IsNotFound(err) {
@@ -209,7 +212,10 @@ func (h *PodEventHandler) Update(
 
 func (h *PodEventHandler) handleWorkerMgrPodEvt(ctx context.Context, logger logr.Logger, pod *v1.Pod, action string, q workqueue.TypedRateLimitingInterface[reconcile.Request]) {
 	devConfig, nsn, ok := h.getWorkerDeviceConfig(ctx, pod, action)
-	if !ok || !devConfig.DeletionTimestamp.IsZero() {
+	if !ok {
+		return
+	}
+	if !devConfig.DeletionTimestamp.IsZero() && !(action == utils.UnloadVFIOAction && pod.Status.Phase == v1.PodSucceeded) {
 		return
 	}
 	switch pod.Status.Phase {
