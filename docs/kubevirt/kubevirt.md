@@ -82,7 +82,7 @@ cat /proc/cmdline
 When you run the command above, you should see a line that includes:
 
 ```bash
-modprobe.blacklist=amdgpu iommu=on amd_iommu=on  
+rd.driver.blacklist=amdgpu modprobe.blacklist=amdgpu iommu=pt amd_iommu=on
 ```
 
 This indicates that your changes have been applied correctly.
