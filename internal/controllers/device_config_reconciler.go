@@ -614,10 +614,12 @@ func (dcrh *deviceConfigReconcilerHelper) hasSecretReference(secretName string, 
 }
 
 func (dcrh *deviceConfigReconcilerHelper) buildDeviceConfigStatus(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig, nodes *v1.NodeList) error {
+	var kmmModuleObj *kmmv1beta1.Module
 	// fetch DeviceConfig-owned custom resource
 	// then retrieve its status and put it to DeviceConfig's status fields
 	if dcrh.shouldUseKMMOperatorLevel(devConfig) {
-		kmmModuleObj, err := dcrh.getDeviceConfigOwnedKMMModule(ctx, devConfig)
+		var err error
+		kmmModuleObj, err = dcrh.getDeviceConfigOwnedKMMModule(ctx, devConfig)
 		if err != nil {
 			return fmt.Errorf("failed to fetch owned kmm module for DeviceConfig %+v: %+v",
 				types.NamespacedName{Namespace: devConfig.Namespace, Name: devConfig.Name}, err)
@@ -638,10 +640,43 @@ func (dcrh *deviceConfigReconcilerHelper) buildDeviceConfigStatus(ctx context.Co
 
 	// Successfully processed the config
 	devConfig.Status.ObservedGeneration = devConfig.Generation
+	if failedNode, err := dcrh.getFailedWorkerNode(ctx, devConfig, nodes); err != nil {
+		return err
+	} else if failedNode != "" {
+		message := fmt.Sprintf("VFIO worker failed on node %s", failedNode)
+		dcrh.conditionUpdater.SetErrorCondition(devConfig, metav1.ConditionTrue, conditions.VFIOWorkerFailed, message)
+		dcrh.conditionUpdater.SetReadyCondition(devConfig, metav1.ConditionFalse, conditions.VFIOWorkerFailed, message)
+		return nil
+	}
+
+	ready, reason, message := deviceConfigReadiness(devConfig, nodes, kmmModuleObj)
 	dcrh.conditionUpdater.DeleteErrorCondition(devConfig)
-	dcrh.conditionUpdater.SetReadyCondition(devConfig, metav1.ConditionTrue, conditions.ReadyStatus, "")
+	if ready {
+		dcrh.conditionUpdater.SetReadyCondition(devConfig, metav1.ConditionTrue, conditions.ReadyStatus, message)
+	} else {
+		dcrh.conditionUpdater.SetReadyCondition(devConfig, metav1.ConditionFalse, reason, message)
+	}
 
 	return nil
+}
+
+func (dcrh *deviceConfigReconcilerHelper) getFailedWorkerNode(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig, nodes *v1.NodeList) (string, error) {
+	if devConfig.Spec.Driver.DriverType != utils.DriverTypeVFPassthrough && devConfig.Spec.Driver.DriverType != utils.DriverTypePFPassthrough {
+		return "", nil
+	}
+	for _, node := range nodes.Items {
+		pod, err := dcrh.kmmPostProcessor.GetWorkerPod(ctx, devConfig, &node)
+		if k8serrors.IsNotFound(err) {
+			continue
+		}
+		if err != nil {
+			return "", fmt.Errorf("failed to fetch VFIO worker pod on node %s: %w", node.Name, err)
+		}
+		if pod.Status.Phase == v1.PodFailed || pod.Status.Phase == v1.PodUnknown {
+			return node.Name, nil
+		}
+	}
+	return "", nil
 }
 
 func (dcrh *deviceConfigReconcilerHelper) updateDeviceConfigStatus(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig) error {

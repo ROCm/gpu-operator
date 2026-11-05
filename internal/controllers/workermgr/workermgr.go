@@ -306,11 +306,11 @@ func (w *workerMgr) getPodDef(devConfig *amdv1alpha1.DeviceConfig, nodeName, act
 			// then start binding VF
 			// otherwise there could be fake completion, the pod completed without binding anything
 			getDetectVFCommand := func() string {
-				grepArgs := []string{}
+				deviceIDs := []string{}
 				for _, deviceID := range getVFIODeviceIDs(devConfig) {
-					grepArgs = append(grepArgs, "-e "+quoteShellArg(deviceID))
+					deviceIDs = append(deviceIDs, quoteShellArg(deviceID))
 				}
-				return fmt.Sprintf("while ! lspci -nn | grep -q %v; do echo \"PCI device not found\"; sleep 2; done", strings.Join(grepArgs, " "))
+				return fmt.Sprintf("timeout 10m bash -c 'previous=\"\"; stable=0; while :; do current=$(for product in \"$@\"; do lspci -nn -d \"1002:$product\"; done); if [ -n \"$current\" ] && [ \"$current\" = \"$previous\" ]; then stable=$((stable + 1)); else stable=0; fi; [ $stable -ge 2 ] && break; previous=\"$current\"; echo \"PCI device inventory not stable\"; sleep 2; done' -- %s", strings.Join(deviceIDs, " "))
 			}
 			initContainers = []v1.Container{
 				{
@@ -359,7 +359,7 @@ func (w *workerMgr) getPodDef(devConfig *amdv1alpha1.DeviceConfig, nodeName, act
 					VolumeMounts: volumeMounts,
 				},
 			},
-			RestartPolicy: v1.RestartPolicyOnFailure,
+			RestartPolicy: v1.RestartPolicyNever,
 			Volumes:       volumes,
 		},
 	}

@@ -168,11 +168,11 @@ func (h *PodEventHandler) Update(
 
 	// if the pod is workerMgr pod, do proper handling based on pod state
 	if action, ok := pod.Labels[utils.WorkerActionLabelKey]; ok {
-		h.handleWorkerMgrPodEvt(ctx, logger, pod, action)
+		h.handleWorkerMgrPodEvt(ctx, logger, pod, action, q)
 	}
 }
 
-func (h *PodEventHandler) handleWorkerMgrPodEvt(ctx context.Context, logger logr.Logger, pod *v1.Pod, action string) {
+func (h *PodEventHandler) handleWorkerMgrPodEvt(ctx context.Context, logger logr.Logger, pod *v1.Pod, action string, q workqueue.TypedRateLimitingInterface[reconcile.Request]) {
 	foundDeviceConfigOwner := false
 	var nsn types.NamespacedName
 	for _, owner := range pod.OwnerReferences {
@@ -206,12 +206,8 @@ func (h *PodEventHandler) handleWorkerMgrPodEvt(ctx context.Context, logger logr
 			return
 		}
 	case v1.PodFailed, v1.PodUnknown:
-		logger.Info(fmt.Sprintf("remove worker pod %v due to its %v status", pod.Name, pod.Status.Phase))
-		err := h.client.Delete(ctx, pod)
-		if err != nil && !k8serrors.IsNotFound(err) {
-			logger.Error(err, fmt.Sprintf("failed to delete stale worker pod %v", pod.Name))
-			return
-		}
+		logger.Info(fmt.Sprintf("retain worker pod %v due to its %v status", pod.Name, pod.Status.Phase))
+		q.Add(reconcile.Request{NamespacedName: nsn})
 	}
 }
 
