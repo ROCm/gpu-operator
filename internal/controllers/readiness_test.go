@@ -216,6 +216,27 @@ func TestDeviceConfigReadiness(t *testing.T) {
 		}
 	})
 
+	t.Run("vf passthrough permits a ready OnDelete daemonset", func(t *testing.T) {
+		devConfig := newDeviceConfig(utils.DriverTypeVFPassthrough)
+		devConfig.Spec.DevicePlugin.EnableDevicePlugin = ptr.To(true)
+		nodes := newNodes()
+		module := readyVFModule(devConfig, nodes)
+		labelVFIO(nodes, devConfig)
+		for i := range nodes.Items {
+			nodes.Items[i].Status.Allocatable = v1.ResourceList{
+				v1.ResourceName("amd.com/gpu"): resource.MustParse("1"),
+			}
+		}
+		devicePlugin := &appsv1.DaemonSet{
+			Spec:   appsv1.DaemonSetSpec{UpdateStrategy: appsv1.DaemonSetUpdateStrategy{Type: appsv1.OnDeleteDaemonSetStrategyType}},
+			Status: appsv1.DaemonSetStatus{NumberAvailable: 2},
+		}
+		ready, reason, _ := deviceConfigReadiness(devConfig, nodes, module, true, devicePlugin)
+		if !ready || reason != "OperatorReady" {
+			t.Fatalf("got ready=%v reason=%q, want OperatorReady", ready, reason)
+		}
+	})
+
 	t.Run("vf passthrough waits for a terminating daemonset", func(t *testing.T) {
 		devConfig := newDeviceConfig(utils.DriverTypeVFPassthrough)
 		devConfig.Spec.DevicePlugin.EnableDevicePlugin = ptr.To(true)
