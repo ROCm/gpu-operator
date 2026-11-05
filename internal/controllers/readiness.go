@@ -57,11 +57,24 @@ func deviceConfigReadiness(devConfig *amdv1alpha1.DeviceConfig, nodes *v1.NodeLi
 	}
 
 	if devConfig.Spec.Driver.DriverType == utils.DriverTypeVFPassthrough && devConfig.Spec.DevicePlugin.IsEnabled() {
-		if devicePlugin == nil || devicePlugin.Status.NumberAvailable < int32(len(nodes.Items)) {
+		if devicePlugin == nil {
+			return false, conditions.DevicePluginPending, fmt.Sprintf("device plugin is not available on all %d selected nodes", len(nodes.Items))
+		}
+		if devicePlugin.DeletionTimestamp != nil {
+			return false, conditions.DevicePluginPending, "device plugin daemonset is terminating"
+		}
+		if devicePlugin.Status.ObservedGeneration < devicePlugin.Generation {
+			return false, conditions.DevicePluginPending, "device plugin daemonset status has not observed its current generation"
+		}
+		if devicePlugin.Spec.UpdateStrategy.Type != appsv1.OnDeleteDaemonSetStrategyType &&
+			devicePlugin.Status.UpdatedNumberScheduled < int32(len(nodes.Items)) {
+			return false, conditions.DevicePluginPending, "device plugin daemonset is still updating on selected nodes"
+		}
+		if devicePlugin.Status.NumberAvailable < int32(len(nodes.Items)) {
 			return false, conditions.DevicePluginPending, fmt.Sprintf("device plugin is not available on all %d selected nodes", len(nodes.Items))
 		}
 		for _, node := range nodes.Items {
-			if !hasAMDAllocatableResource(node) {
+			if !hasAMDAllocatableResource(devConfig, node) {
 				return false, conditions.DevicePluginPending, fmt.Sprintf("device plugin has not advertised an AMD resource on node %s; check the device-plugin image and logs", node.Name)
 			}
 		}
@@ -69,7 +82,11 @@ func deviceConfigReadiness(devConfig *amdv1alpha1.DeviceConfig, nodes *v1.NodeLi
 	return true, conditions.ReadyStatus, ""
 }
 
-func hasAMDAllocatableResource(node v1.Node) bool {
+func hasAMDAllocatableResource(devConfig *amdv1alpha1.DeviceConfig, node v1.Node) bool {
+	if strategy, ok := devConfig.Spec.DevicePlugin.DevicePluginArguments[utils.ResourceNamingStrategyFlag]; ok && strategy == utils.SingleStrategy {
+		quantity, ok := node.Status.Allocatable[v1.ResourceName("amd.com/gpu")]
+		return ok && quantity.Sign() > 0
+	}
 	for resourceName, quantity := range node.Status.Allocatable {
 		if strings.HasPrefix(string(resourceName), "amd.com/") && quantity.Sign() > 0 {
 			return true
