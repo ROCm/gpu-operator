@@ -317,6 +317,11 @@ func (r *DeviceConfigReconciler) Reconcile(ctx context.Context, req ctrl.Request
 	if err = r.helper.handleKMMModule(ctx, devConfig, nodes); err != nil {
 		return res, fmt.Errorf("failed to handle KMM module for DeviceConfig %s: %v", req.NamespacedName, err)
 	}
+	if vfioHelper, ok := r.helper.(vfioWorkerReconciler); ok {
+		if err = vfioHelper.ensureVFIOWorkers(ctx, devConfig, nodes); err != nil {
+			return res, fmt.Errorf("failed to handle VFIO workers for DeviceConfig %s: %v", req.NamespacedName, err)
+		}
+	}
 
 	logger.Info("start device-plugin reconciliation")
 	if err = r.helper.handleDevicePlugin(ctx, devConfig, nodes); err != nil {
@@ -417,6 +422,10 @@ type deviceConfigReconcilerHelperAPI interface {
 	validateDeviceConfig(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig) []string
 	handleModuleUpgrade(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig, nodes *v1.NodeList, delete bool) (ctrl.Result, error)
 	shouldReconcile(ctx context.Context, ugpgradeRes, remediationRes ctrl.Result) ctrl.Result
+}
+
+type vfioWorkerReconciler interface {
+	ensureVFIOWorkers(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig, nodes *v1.NodeList) error
 }
 
 type deviceConfigReconcilerHelper struct {
@@ -677,6 +686,27 @@ func (dcrh *deviceConfigReconcilerHelper) getFailedWorkerNode(ctx context.Contex
 		}
 	}
 	return "", nil
+}
+
+func (dcrh *deviceConfigReconcilerHelper) ensureVFIOWorkers(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig, nodes *v1.NodeList) error {
+	if devConfig.Spec.Driver.DriverType != utils.DriverTypeVFPassthrough && devConfig.Spec.Driver.DriverType != utils.DriverTypePFPassthrough {
+		return nil
+	}
+	vfioLabel := dcrh.kmmPostProcessor.GetWorkReadyLabel(types.NamespacedName{Namespace: devConfig.Namespace, Name: devConfig.Name})
+	for _, node := range nodes.Items {
+		if _, ok := node.Labels[vfioLabel]; ok {
+			continue
+		}
+		if _, err := dcrh.kmmPostProcessor.GetWorkerPod(ctx, devConfig, &node); err == nil {
+			continue
+		} else if !k8serrors.IsNotFound(err) {
+			return fmt.Errorf("failed to fetch VFIO worker pod on node %s: %w", node.Name, err)
+		}
+		if err := dcrh.kmmPostProcessor.Work(ctx, devConfig, &node); err != nil {
+			return fmt.Errorf("failed to create VFIO worker pod on node %s: %w", node.Name, err)
+		}
+	}
+	return nil
 }
 
 func (dcrh *deviceConfigReconcilerHelper) updateDeviceConfigStatus(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig) error {
