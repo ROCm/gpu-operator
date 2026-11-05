@@ -58,6 +58,11 @@ type NodePredicate struct {
 	predicate.Funcs
 }
 
+func nodeResourcesChanged(oldNode, newNode *v1.Node) bool {
+	return !reflect.DeepEqual(oldNode.Status.Allocatable, newNode.Status.Allocatable) ||
+		!reflect.DeepEqual(oldNode.Status.Capacity, newNode.Status.Capacity)
+}
+
 func (NodePredicate) Create(e event.CreateEvent) bool {
 	return true
 }
@@ -77,8 +82,7 @@ func nodeNeedsReconcile(oldNode, newNode *v1.Node) bool {
 		oldNode.Generation != newNode.Generation ||
 		oldNode.Status.NodeInfo.BootID != newNode.Status.NodeInfo.BootID ||
 		!reflect.DeepEqual(oldNode.Labels, newNode.Labels) ||
-		!reflect.DeepEqual(oldNode.Status.Allocatable, newNode.Status.Allocatable) ||
-		!reflect.DeepEqual(oldNode.Status.Capacity, newNode.Status.Capacity) ||
+		nodeResourcesChanged(oldNode, newNode) ||
 		nodeReadyStatus(oldNode) != nodeReadyStatus(newNode)
 }
 

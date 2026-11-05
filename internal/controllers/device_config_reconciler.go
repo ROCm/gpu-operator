@@ -753,6 +753,7 @@ func (dcrh *deviceConfigReconcilerHelper) hasSecretReference(secretName string, 
 
 func (dcrh *deviceConfigReconcilerHelper) buildDeviceConfigStatus(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig, nodes *v1.NodeList) error {
 	var kmmModuleObj *kmmv1beta1.Module
+	var devicePluginObj *appsv1.DaemonSet
 	// fetch DeviceConfig-owned custom resource
 	// then retrieve its status and put it to DeviceConfig's status fields
 	if dcrh.shouldUseKMMOperatorLevel(devConfig) {
@@ -768,6 +769,20 @@ func (dcrh *deviceConfigReconcilerHelper) buildDeviceConfigStatus(ctx context.Co
 				DesiredNumber:               kmmModuleObj.Status.ModuleLoader.DesiredNumber,
 				AvailableNumber:             kmmModuleObj.Status.ModuleLoader.AvailableNumber,
 			}
+		}
+	}
+	if devConfig.Spec.Driver.DriverType == utils.DriverTypeVFPassthrough && devConfig.Spec.DevicePlugin.IsEnabled() {
+		devicePlugin := &appsv1.DaemonSet{}
+		err := dcrh.client.Get(ctx, types.NamespacedName{
+			Namespace: devConfig.Namespace,
+			Name:      devConfig.Name + utils.DevicePluginNameSuffix,
+		}, devicePlugin)
+		if err != nil && !k8serrors.IsNotFound(err) {
+			return fmt.Errorf("failed to fetch owned device-plugin daemonset for DeviceConfig %+v: %+v",
+				types.NamespacedName{Namespace: devConfig.Namespace, Name: devConfig.Name}, err)
+		}
+		if err == nil {
+			devicePluginObj = devicePlugin
 		}
 	}
 
@@ -842,7 +857,7 @@ func (dcrh *deviceConfigReconcilerHelper) buildDeviceConfigStatus(ctx context.Co
 		return nil
 	}
 
-	ready, reason, message := deviceConfigReadiness(devConfig, nodes, kmmModuleObj, dcrh.shouldUseKMMOperatorLevel(devConfig))
+	ready, reason, message := deviceConfigReadiness(devConfig, nodes, kmmModuleObj, dcrh.shouldUseKMMOperatorLevel(devConfig), devicePluginObj)
 	dcrh.conditionUpdater.DeleteErrorCondition(devConfig)
 	if ready {
 		dcrh.conditionUpdater.SetReadyCondition(devConfig, metav1.ConditionTrue, conditions.ReadyStatus, message)

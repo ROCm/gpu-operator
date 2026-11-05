@@ -45,6 +45,8 @@ const (
 	VFIOCleanupPending = "VFIOCleanupPending"
 	// VFIOWorkerFailed indicates that the VFIO post-processing pod failed.
 	VFIOWorkerFailed = "VFIOWorkerFailed"
+	// DevicePluginPending indicates that the device plugin is not available or has not advertised an AMD resource.
+	DevicePluginPending = "DevicePluginPending"
 )
 
 type ConditionManager struct{}
