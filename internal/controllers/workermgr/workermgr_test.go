@@ -112,6 +112,9 @@ func TestVFIOWorkerDetectsConfiguredIDsUsingLspciSelectors(t *testing.T) {
 			if pod.Spec.RestartPolicy != v1.RestartPolicyNever {
 				t.Fatalf("worker pod restart policy is %q, want Never", pod.Spec.RestartPolicy)
 			}
+			if pod.Spec.ServiceAccountName != utilsContainerSA {
+				t.Fatalf("worker pod service account is %q, want %s", pod.Spec.ServiceAccountName, utilsContainerSA)
+			}
 
 			got := runVFDetection(t, detectCommand, tt.match)
 			if !reflect.DeepEqual(got, tt.want) {
@@ -156,6 +159,12 @@ func TestVFIOWorkerUsesConfiguredIDsInBindAndUnbindCommands(t *testing.T) {
 
 	bindPod := (&workerMgr{}).getPodDef(devConfig, "test-node", utils.LoadVFIOAction)
 	unbindPod := (&workerMgr{}).getPodDef(devConfig, "test-node", utils.UnloadVFIOAction)
+	if !strings.Contains(bindPod.Spec.Containers[0].Command[2], "failed to bind GPU VF device") {
+		t.Fatal("bind command does not fail when vfio-pci binding is not effective")
+	}
+	if !strings.Contains(unbindPod.Spec.Containers[0].Command[2], "failed to unbind GPU device") || !strings.Contains(unbindPod.Spec.Containers[0].Command[2], "remains bound") {
+		t.Fatal("unbind command does not fail when vfio-pci unbinding is not effective")
+	}
 	for name, command := range map[string]string{
 		"bind":   bindPod.Spec.Containers[0].Command[2],
 		"unbind": unbindPod.Spec.Containers[0].Command[2],
