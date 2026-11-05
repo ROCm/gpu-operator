@@ -433,7 +433,6 @@ helm-k8s: helmify manifests kustomize clean-helm gen-kmm-charts gen-remediation-
 	cp $(shell pwd)/hack/k8s-patch/template-patch/* $(shell pwd)/helm-charts-k8s/templates/
 	# Removing OpenShift related rbac from vanilla k8s helm charts
 	rm $(shell pwd)/helm-charts-k8s/templates/kmm-device-plugin-rbac.yaml
-	rm $(shell pwd)/helm-charts-k8s/templates/kmm-module-loader-rbac.yaml
 	rm $(shell pwd)/helm-charts-k8s/templates/prometheus-k8s-rbac.yaml
 	# Patching k8s helm chart kmm subchart
 	cp $(shell pwd)/hack/k8s-patch/k8s-kmm-patch/metadata-patch/*.yaml $(shell pwd)/helm-charts-k8s/charts/kmm/

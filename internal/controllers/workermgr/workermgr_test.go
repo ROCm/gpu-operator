@@ -28,6 +28,7 @@ import (
 
 	amdv1alpha1 "github.com/ROCm/gpu-operator/api/v1alpha1"
 	utils "github.com/ROCm/gpu-operator/internal"
+	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -49,7 +50,7 @@ func TestVFIOWorkerQuotesConfiguredDeviceIDsForBindingAndDetection(t *testing.T)
 	if !strings.Contains(bindCommand, "'75b3; echo injected'") {
 		t.Fatalf("bind command does not contain configured VF ID: %s", bindCommand)
 	}
-	if !strings.Contains(detectCommand, "lspci -nn -d '1002:75b3; echo injected' | grep -q .") {
+	if !strings.Contains(detectCommand, "-- '75b3; echo injected'") {
 		t.Fatalf("detect command does not contain configured VF ID: %s", detectCommand)
 	}
 }
@@ -105,6 +106,12 @@ func TestVFIOWorkerDetectsConfiguredIDsUsingLspciSelectors(t *testing.T) {
 			}
 			pod := (&workerMgr{}).getPodDef(devConfig, "test-node", utils.LoadVFIOAction)
 			detectCommand := pod.Spec.InitContainers[0].Command[2]
+			if !strings.Contains(detectCommand, "timeout 10m") || !strings.Contains(detectCommand, "lspci -nn -d \"1002:$product\"") {
+				t.Fatalf("detect command is not bounded to AMD devices: %s", detectCommand)
+			}
+			if pod.Spec.RestartPolicy != v1.RestartPolicyNever {
+				t.Fatalf("worker pod restart policy is %q, want Never", pod.Spec.RestartPolicy)
+			}
 
 			got := runVFDetection(t, detectCommand, tt.match)
 			if !reflect.DeepEqual(got, tt.want) {
