@@ -148,7 +148,7 @@ func TestDeviceConfigReadiness(t *testing.T) {
 		nodes := newNodes()
 		module := readyVFModule(devConfig, nodes)
 		labelVFIO(nodes, devConfig)
-		devicePlugin := &appsv1.DaemonSet{Status: appsv1.DaemonSetStatus{NumberAvailable: 2}}
+		devicePlugin := &appsv1.DaemonSet{Status: appsv1.DaemonSetStatus{NumberAvailable: 2, UpdatedNumberScheduled: 2}}
 		ready, reason, _ := deviceConfigReadiness(devConfig, nodes, module, true, devicePlugin)
 		if ready || reason != "DevicePluginPending" {
 			t.Fatalf("got ready=%v reason=%q, want DevicePluginPending", ready, reason)
@@ -166,7 +166,7 @@ func TestDeviceConfigReadiness(t *testing.T) {
 				v1.ResourceName("amd.com/gpu"): resource.MustParse("1"),
 			}
 		}
-		devicePlugin := &appsv1.DaemonSet{Status: appsv1.DaemonSetStatus{NumberAvailable: 2}}
+		devicePlugin := &appsv1.DaemonSet{Status: appsv1.DaemonSetStatus{NumberAvailable: 2, UpdatedNumberScheduled: 2}}
 		ready, reason, _ := deviceConfigReadiness(devConfig, nodes, module, true, devicePlugin)
 		if !ready || reason != "OperatorReady" {
 			t.Fatalf("got ready=%v reason=%q, want OperatorReady", ready, reason)
@@ -184,10 +184,82 @@ func TestDeviceConfigReadiness(t *testing.T) {
 				v1.ResourceName("amd.com/cpx_nps4"): resource.MustParse("1"),
 			}
 		}
-		devicePlugin := &appsv1.DaemonSet{Status: appsv1.DaemonSetStatus{NumberAvailable: 2}}
+		devicePlugin := &appsv1.DaemonSet{Status: appsv1.DaemonSetStatus{NumberAvailable: 2, UpdatedNumberScheduled: 2}}
 		ready, reason, _ := deviceConfigReadiness(devConfig, nodes, module, true, devicePlugin)
 		if !ready || reason != "OperatorReady" {
 			t.Fatalf("got ready=%v reason=%q, want OperatorReady", ready, reason)
+		}
+	})
+
+	t.Run("vf passthrough waits for current rolling daemonset generation", func(t *testing.T) {
+		devConfig := newDeviceConfig(utils.DriverTypeVFPassthrough)
+		devConfig.Spec.DevicePlugin.EnableDevicePlugin = ptr.To(true)
+		nodes := newNodes()
+		module := readyVFModule(devConfig, nodes)
+		labelVFIO(nodes, devConfig)
+		for i := range nodes.Items {
+			nodes.Items[i].Status.Allocatable = v1.ResourceList{
+				v1.ResourceName("amd.com/gpu"): resource.MustParse("1"),
+			}
+		}
+		devicePlugin := &appsv1.DaemonSet{
+			ObjectMeta: metav1.ObjectMeta{Generation: 2},
+			Status: appsv1.DaemonSetStatus{
+				ObservedGeneration:     1,
+				NumberAvailable:        2,
+				UpdatedNumberScheduled: 1,
+			},
+		}
+		ready, reason, _ := deviceConfigReadiness(devConfig, nodes, module, true, devicePlugin)
+		if ready || reason != "DevicePluginPending" {
+			t.Fatalf("got ready=%v reason=%q, want DevicePluginPending", ready, reason)
+		}
+	})
+
+	t.Run("vf passthrough waits for a terminating daemonset", func(t *testing.T) {
+		devConfig := newDeviceConfig(utils.DriverTypeVFPassthrough)
+		devConfig.Spec.DevicePlugin.EnableDevicePlugin = ptr.To(true)
+		nodes := newNodes()
+		module := readyVFModule(devConfig, nodes)
+		labelVFIO(nodes, devConfig)
+		for i := range nodes.Items {
+			nodes.Items[i].Status.Allocatable = v1.ResourceList{
+				v1.ResourceName("amd.com/gpu"): resource.MustParse("1"),
+			}
+		}
+		deletionTimestamp := metav1.Now()
+		devicePlugin := &appsv1.DaemonSet{
+			ObjectMeta: metav1.ObjectMeta{Generation: 1, DeletionTimestamp: &deletionTimestamp},
+			Status: appsv1.DaemonSetStatus{
+				ObservedGeneration:     1,
+				NumberAvailable:        2,
+				UpdatedNumberScheduled: 2,
+			},
+		}
+		ready, reason, _ := deviceConfigReadiness(devConfig, nodes, module, true, devicePlugin)
+		if ready || reason != "DevicePluginPending" {
+			t.Fatalf("got ready=%v reason=%q, want DevicePluginPending", ready, reason)
+		}
+	})
+
+	t.Run("single strategy requires amd.com/gpu", func(t *testing.T) {
+		devConfig := newDeviceConfig(utils.DriverTypeVFPassthrough)
+		devConfig.Spec.DevicePlugin.EnableDevicePlugin = ptr.To(true)
+		devConfig.Spec.DevicePlugin.DevicePluginArguments = map[string]string{
+			utils.ResourceNamingStrategyFlag: utils.SingleStrategy,
+		}
+		nodes := newNodes()
+		module := readyVFModule(devConfig, nodes)
+		labelVFIO(nodes, devConfig)
+		for i := range nodes.Items {
+			nodes.Items[i].Status.Allocatable = v1.ResourceList{
+				v1.ResourceName("amd.com/cpx_nps4"): resource.MustParse("1"),
+			}
+		}
+		devicePlugin := &appsv1.DaemonSet{Status: appsv1.DaemonSetStatus{NumberAvailable: 2}}
+		ready, reason, _ := deviceConfigReadiness(devConfig, nodes, module, true, devicePlugin)
+		if ready || reason != "DevicePluginPending" {
+			t.Fatalf("got ready=%v reason=%q, want DevicePluginPending", ready, reason)
 		}
 	})
 }
