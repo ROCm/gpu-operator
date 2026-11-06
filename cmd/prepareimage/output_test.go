@@ -110,9 +110,13 @@ func TestCreateOutput(t *testing.T) {
 				"ARG KERNEL_FULL_VERSION=" + ubuntuKernel,
 				"ARG DRIVERS_VERSION=8.1.0.K",
 				"ARG REPO_URL=https://repo.radeon.com",
+				"ARG PACKAGE_REPO_URL",
+				"ARG GIM_RELEASE_TAG=mainline%2F8.1.0.K",
+				"ARG GIM_DEB_PACKAGE=gim-dkms_8.1.0.K_all.deb",
 			},
 			wantSubstrings: []string{
-				"gim-dkms_${DRIVERS_VERSION}_all.deb",
+				"GIM_RELEASE_BASE=\"${PACKAGE_REPO_URL:-https://github.com/amd/MxGPU-Virtualization/releases/download}\"",
+				"${GIM_RELEASE_BASE%/}/${GIM_RELEASE_TAG}/${GIM_DEB_PACKAGE}",
 			},
 			unwantSubstrings: []string{
 				"$$",
@@ -170,9 +174,13 @@ func TestCreateOutput(t *testing.T) {
 				"ARG KERNEL_VERSION=" + coreOSKernel,
 				"ARG DRIVERS_VERSION=8.1.0.K",
 				"ARG REPO_URL=https://repo.radeon.com",
+				"ARG PACKAGE_REPO_URL",
+				"ARG GIM_RELEASE_TAG=mainline%2F8.1.0.K",
+				"ARG GIM_RPM_PACKAGE=gim-dkms-8.1.0.K-0.noarch.rpm",
 			},
 			wantSubstrings: []string{
-				"gim-dkms-${DRIVERS_VERSION}-0.noarch.rpm",
+				"GIM_RELEASE_BASE=\"${PACKAGE_REPO_URL:-https://github.com/amd/MxGPU-Virtualization/releases/download}\"",
+				"${GIM_RELEASE_BASE%/}/${GIM_RELEASE_TAG}/${GIM_RPM_PACKAGE}",
 			},
 			unwantSubstrings: []string{
 				"$$",

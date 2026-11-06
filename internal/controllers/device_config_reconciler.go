@@ -317,6 +317,11 @@ func (r *DeviceConfigReconciler) Reconcile(ctx context.Context, req ctrl.Request
 	if err = r.helper.handleKMMModule(ctx, devConfig, nodes); err != nil {
 		return res, fmt.Errorf("failed to handle KMM module for DeviceConfig %s: %v", req.NamespacedName, err)
 	}
+	if vfioHelper, ok := r.helper.(vfioWorkerReconciler); ok {
+		if err = vfioHelper.ensureVFIOWorkers(ctx, devConfig, nodes); err != nil {
+			return res, fmt.Errorf("failed to handle VFIO workers for DeviceConfig %s: %v", req.NamespacedName, err)
+		}
+	}
 
 	logger.Info("start device-plugin reconciliation")
 	if err = r.helper.handleDevicePlugin(ctx, devConfig, nodes); err != nil {
@@ -417,6 +422,10 @@ type deviceConfigReconcilerHelperAPI interface {
 	validateDeviceConfig(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig) []string
 	handleModuleUpgrade(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig, nodes *v1.NodeList, delete bool) (ctrl.Result, error)
 	shouldReconcile(ctx context.Context, ugpgradeRes, remediationRes ctrl.Result) ctrl.Result
+}
+
+type vfioWorkerReconciler interface {
+	ensureVFIOWorkers(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig, nodes *v1.NodeList) error
 }
 
 type deviceConfigReconcilerHelper struct {
@@ -614,10 +623,12 @@ func (dcrh *deviceConfigReconcilerHelper) hasSecretReference(secretName string, 
 }
 
 func (dcrh *deviceConfigReconcilerHelper) buildDeviceConfigStatus(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig, nodes *v1.NodeList) error {
+	var kmmModuleObj *kmmv1beta1.Module
 	// fetch DeviceConfig-owned custom resource
 	// then retrieve its status and put it to DeviceConfig's status fields
 	if dcrh.shouldUseKMMOperatorLevel(devConfig) {
-		kmmModuleObj, err := dcrh.getDeviceConfigOwnedKMMModule(ctx, devConfig)
+		var err error
+		kmmModuleObj, err = dcrh.getDeviceConfigOwnedKMMModule(ctx, devConfig)
 		if err != nil {
 			return fmt.Errorf("failed to fetch owned kmm module for DeviceConfig %+v: %+v",
 				types.NamespacedName{Namespace: devConfig.Namespace, Name: devConfig.Name}, err)
@@ -638,9 +649,66 @@ func (dcrh *deviceConfigReconcilerHelper) buildDeviceConfigStatus(ctx context.Co
 
 	// Successfully processed the config
 	devConfig.Status.ObservedGeneration = devConfig.Generation
-	dcrh.conditionUpdater.DeleteErrorCondition(devConfig)
-	dcrh.conditionUpdater.SetReadyCondition(devConfig, metav1.ConditionTrue, conditions.ReadyStatus, "")
+	if failedNode, err := dcrh.getFailedWorkerNode(ctx, devConfig, nodes); err != nil {
+		return err
+	} else if failedNode != "" {
+		message := fmt.Sprintf("VFIO worker failed on node %s", failedNode)
+		dcrh.conditionUpdater.SetErrorCondition(devConfig, metav1.ConditionTrue, conditions.VFIOWorkerFailed, message)
+		dcrh.conditionUpdater.SetReadyCondition(devConfig, metav1.ConditionFalse, conditions.VFIOWorkerFailed, message)
+		return nil
+	}
 
+	ready, reason, message := deviceConfigReadiness(devConfig, nodes, kmmModuleObj, dcrh.shouldUseKMMOperatorLevel(devConfig))
+	dcrh.conditionUpdater.DeleteErrorCondition(devConfig)
+	if ready {
+		dcrh.conditionUpdater.SetReadyCondition(devConfig, metav1.ConditionTrue, conditions.ReadyStatus, message)
+	} else {
+		dcrh.conditionUpdater.SetReadyCondition(devConfig, metav1.ConditionFalse, reason, message)
+	}
+
+	return nil
+}
+
+func (dcrh *deviceConfigReconcilerHelper) getFailedWorkerNode(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig, nodes *v1.NodeList) (string, error) {
+	if devConfig.Spec.Driver.DriverType != utils.DriverTypeVFPassthrough && devConfig.Spec.Driver.DriverType != utils.DriverTypePFPassthrough {
+		return "", nil
+	}
+	for _, node := range nodes.Items {
+		pod, err := dcrh.kmmPostProcessor.GetWorkerPod(ctx, devConfig, &node)
+		if k8serrors.IsNotFound(err) {
+			continue
+		}
+		if err != nil {
+			return "", fmt.Errorf("failed to fetch VFIO worker pod on node %s: %w", node.Name, err)
+		}
+		if pod.Status.Phase == v1.PodFailed || pod.Status.Phase == v1.PodUnknown {
+			return node.Name, nil
+		}
+	}
+	return "", nil
+}
+
+func (dcrh *deviceConfigReconcilerHelper) ensureVFIOWorkers(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig, nodes *v1.NodeList) error {
+	if devConfig.Spec.Driver.Enable != nil && !*devConfig.Spec.Driver.Enable {
+		return nil
+	}
+	if devConfig.Spec.Driver.DriverType != utils.DriverTypeVFPassthrough && devConfig.Spec.Driver.DriverType != utils.DriverTypePFPassthrough {
+		return nil
+	}
+	vfioLabel := dcrh.kmmPostProcessor.GetWorkReadyLabel(types.NamespacedName{Namespace: devConfig.Namespace, Name: devConfig.Name})
+	for _, node := range nodes.Items {
+		if _, ok := node.Labels[vfioLabel]; ok {
+			continue
+		}
+		if _, err := dcrh.kmmPostProcessor.GetWorkerPod(ctx, devConfig, &node); err == nil {
+			continue
+		} else if !k8serrors.IsNotFound(err) {
+			return fmt.Errorf("failed to fetch VFIO worker pod on node %s: %w", node.Name, err)
+		}
+		if err := dcrh.kmmPostProcessor.Work(ctx, devConfig, &node); err != nil {
+			return fmt.Errorf("failed to create VFIO worker pod on node %s: %w", node.Name, err)
+		}
+	}
 	return nil
 }
 
@@ -1187,8 +1255,9 @@ func (dcrh *deviceConfigReconcilerHelper) handleBuildConfigMap(ctx context.Conte
 func (dcrh *deviceConfigReconcilerHelper) handleKMMModule(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig, nodes *v1.NodeList) error {
 	logger := log.FromContext(ctx)
 
-	// add driver type node label if it is necessary
-	if err := utils.UpdateDriverTypeNodeLabel(ctx, dcrh.client, devConfig, nodes, false); err != nil {
+	// add or remove the driver type node label as driver management changes
+	cleanupDriverLabel := devConfig.Spec.Driver.Enable != nil && !*devConfig.Spec.Driver.Enable
+	if err := utils.UpdateDriverTypeNodeLabel(ctx, dcrh.client, devConfig, nodes, cleanupDriverLabel); err != nil {
 		return err
 	}
 

@@ -224,6 +224,14 @@ func (h *NodeEventHandler) handlePostProcess(ctx context.Context, logger logr.Lo
 			}
 			return
 		}
+		if devConfig.Spec.Driver.Enable != nil && !*devConfig.Spec.Driver.Enable {
+			if hasVFIOReadyLabel {
+				if err := h.workerMgr.Cleanup(ctx, devConfig, node); err != nil {
+					logger.Error(err, "failed to create cleanup worker pod for disabled driver")
+				}
+			}
+			return
+		}
 		// only trigger post installation process for specific driver types
 		switch devConfig.Spec.Driver.DriverType {
 		case utils.DriverTypeVFPassthrough,

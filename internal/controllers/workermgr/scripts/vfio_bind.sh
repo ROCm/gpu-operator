@@ -6,7 +6,7 @@ for PRODUCT_CODE in "${PRODUCT_CODES[@]}"; do
     COUNTER=0
 
     # Load VFIO PCI driver on GPU VF devices, if not done already
-    LSPCI_OUTPUT=$(lspci -nn -d 1002:${PRODUCT_CODE})
+    LSPCI_OUTPUT=$(lspci -nn -d "1002:${PRODUCT_CODE}")
 
     # Check if LSPCI_OUTPUT is empty
     if [ -z "$LSPCI_OUTPUT" ]; then
@@ -35,6 +35,10 @@ for PRODUCT_CODE in "${PRODUCT_CODES[@]}"; do
             echo "vfio-pci" > /sys/bus/pci/devices/$VFIO_DEVICE/driver_override
             echo $VFIO_DEVICE > /sys/bus/pci/drivers/vfio-pci/bind
             echo "" > /sys/bus/pci/devices/$VFIO_DEVICE/driver_override
+        fi
+        if ! lspci -k -s "$PCI_ADDRESS" | grep -q "Kernel driver in use: vfio-pci"; then
+            echo "Error: failed to bind GPU VF device to vfio-pci: $VFIO_DEVICE"
+            exit 1
         fi
         # Check if IOMMU entry found for each GPU (VFIO device)
         IOMMU_GROUP=$(readlink -f /sys/bus/pci/devices/${VFIO_DEVICE}/iommu_group | awk -F '/' '{print $NF}')

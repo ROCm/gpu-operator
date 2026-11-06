@@ -429,6 +429,18 @@ Create a Machine Config Operator custom resource to add `amdgpu` kernel module i
 
 ```{warning}
 After adding `amdgpu` kernel module to blacklist by using `MachineConfig` custom resource, **the Machine Config Operator will automatically reboot selected nodes.**
+
+VF and PF passthrough also require IOMMU to be enabled in the node firmware and kernel. Add the platform-specific IOMMU arguments to the same `MachineConfig` (use `amd_iommu=on` on AMD hosts or `intel_iommu=on` on Intel hosts; `iommu=pt` is recommended):
+```
+
+For AMD hosts, use `amd_iommu=on` instead of `intel_iommu=on`:
+
+```yaml
+kernelArguments:
+  - iommu=pt
+  - amd_iommu=on
+  - rd.driver.blacklist=amdgpu
+  - modprobe.blacklist=amdgpu
 ```
 
 ```yaml
@@ -439,6 +451,11 @@ metadata:
     machineconfiguration.openshift.io/role: worker
   name: amdgpu-module-blacklist
 spec:
+  kernelArguments:
+    - iommu=pt
+    - intel_iommu=on
+    - rd.driver.blacklist=amdgpu
+    - modprobe.blacklist=amdgpu
   config:
     ignition:
       version: 3.2.0

@@ -37,6 +37,12 @@ const (
 	ReadyStatus = "OperatorReady"
 	// NoMatchingNodes indicates no cluster nodes match the DeviceConfig selector
 	NoMatchingNodes = "NoMatchingNodes"
+	// KMMModulePending indicates that KMM has not made the driver available on all selected nodes.
+	KMMModulePending = "KMMModulePending"
+	// VFIOBindingPending indicates that the VFIO post-processing label is not present on every selected node.
+	VFIOBindingPending = "VFIOBindingPending"
+	// VFIOWorkerFailed indicates that the VFIO post-processing pod failed.
+	VFIOWorkerFailed = "VFIOWorkerFailed"
 )
 
 type ConditionManager struct{}

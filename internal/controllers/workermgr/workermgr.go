@@ -41,6 +41,7 @@ const (
 	workerContainerName = "worker"
 	initContainerName   = "pci-device-detector"
 	pciDeviceIDTemplate = "$$PCI_DEVICE_ID_LIST"
+	utilsContainerSA    = "amd-gpu-operator-utils-container"
 )
 
 var (
@@ -196,22 +197,38 @@ func (w *workerMgr) getPodName(devConfig *amdv1alpha1.DeviceConfig, nodeName str
 }
 
 func (w *workerMgr) getVFIOCommand(cmd string, devConfig *amdv1alpha1.DeviceConfig) string {
-	switch devConfig.Spec.Driver.DriverType {
-	case utils.DriverTypeVFPassthrough:
-		if len(devConfig.Spec.Driver.VFIOConfig.DeviceIDs) > 0 {
-			return strings.ReplaceAll(cmd, pciDeviceIDTemplate, strings.Join(devConfig.Spec.Driver.VFIOConfig.DeviceIDs, " "))
-		}
-		return strings.ReplaceAll(cmd, pciDeviceIDTemplate, strings.Join(utils.DefaultVFDeviceIDs, " "))
-	case utils.DriverTypePFPassthrough:
-		if len(devConfig.Spec.Driver.VFIOConfig.DeviceIDs) > 0 {
-			return strings.ReplaceAll(cmd, pciDeviceIDTemplate, strings.Join(devConfig.Spec.Driver.VFIOConfig.DeviceIDs, " "))
-		}
-		return strings.ReplaceAll(cmd, pciDeviceIDTemplate, strings.Join(utils.DefaultPFDeviceIDs, " "))
-	default:
+	deviceIDs := getVFIODeviceIDs(devConfig)
+	if len(deviceIDs) == 0 {
 		// unlikely happen
 		// previously Work() and Cleanup() function has verified that driver type is vf-passthrough or pf-passthrough
 		// if somehow happened, do nothing for unknown driver type
 		return "true"
+	}
+	quotedDeviceIDs := make([]string, 0, len(deviceIDs))
+	for _, deviceID := range deviceIDs {
+		quotedDeviceIDs = append(quotedDeviceIDs, quoteShellArg(deviceID))
+	}
+	return strings.ReplaceAll(cmd, pciDeviceIDTemplate, strings.Join(quotedDeviceIDs, " "))
+}
+
+func quoteShellArg(value string) string {
+	return "'" + strings.ReplaceAll(value, "'", "'\"'\"'") + "'"
+}
+
+func getVFIODeviceIDs(devConfig *amdv1alpha1.DeviceConfig) []string {
+	switch devConfig.Spec.Driver.DriverType {
+	case utils.DriverTypeVFPassthrough:
+		if len(devConfig.Spec.Driver.VFIOConfig.DeviceIDs) > 0 {
+			return devConfig.Spec.Driver.VFIOConfig.DeviceIDs
+		}
+		return utils.DefaultVFDeviceIDs
+	case utils.DriverTypePFPassthrough:
+		if len(devConfig.Spec.Driver.VFIOConfig.DeviceIDs) > 0 {
+			return devConfig.Spec.Driver.VFIOConfig.DeviceIDs
+		}
+		return utils.DefaultPFDeviceIDs
+	default:
+		return nil
 	}
 }
 
@@ -290,11 +307,11 @@ func (w *workerMgr) getPodDef(devConfig *amdv1alpha1.DeviceConfig, nodeName, act
 			// then start binding VF
 			// otherwise there could be fake completion, the pod completed without binding anything
 			getDetectVFCommand := func() string {
-				grepArgs := []string{}
-				for _, deviceID := range utils.DefaultVFDeviceIDs {
-					grepArgs = append(grepArgs, "-e "+deviceID)
+				deviceIDs := make([]string, 0, len(getVFIODeviceIDs(devConfig)))
+				for _, deviceID := range getVFIODeviceIDs(devConfig) {
+					deviceIDs = append(deviceIDs, quoteShellArg(deviceID))
 				}
-				return fmt.Sprintf("while ! lspci -nn | grep -q %v; do echo \"PCI device not found\"; sleep 2; done", strings.Join(grepArgs, " "))
+				return fmt.Sprintf("timeout 10m bash -c 'previous=\"\"; stable=0; while :; do current=$(for product in \"$@\"; do lspci -nn -d \"1002:$product\"; done); if [ -n \"$current\" ] && [ \"$current\" = \"$previous\" ]; then stable=$((stable + 1)); else stable=0; fi; [ $stable -ge 2 ] && break; previous=\"$current\"; echo \"PCI device inventory not stable\"; sleep 2; done' -- %s", strings.Join(deviceIDs, " "))
 			}
 			initContainers = []v1.Container{
 				{
@@ -329,8 +346,9 @@ func (w *workerMgr) getPodDef(devConfig *amdv1alpha1.DeviceConfig, nodeName, act
 			},
 		},
 		Spec: v1.PodSpec{
-			NodeName:       nodeName,
-			InitContainers: initContainers,
+			NodeName:           nodeName,
+			ServiceAccountName: utilsContainerSA,
+			InitContainers:     initContainers,
 			Containers: []v1.Container{
 				{
 					Name:    workerContainerName,
@@ -343,7 +361,7 @@ func (w *workerMgr) getPodDef(devConfig *amdv1alpha1.DeviceConfig, nodeName, act
 					VolumeMounts: volumeMounts,
 				},
 			},
-			RestartPolicy: v1.RestartPolicyOnFailure,
+			RestartPolicy: v1.RestartPolicyNever,
 			Volumes:       volumes,
 		},
 	}

@@ -36,6 +36,7 @@ import (
 	"context"
 	"fmt"
 
+	amdv1alpha1 "github.com/ROCm/gpu-operator/api/v1alpha1"
 	utils "github.com/ROCm/gpu-operator/internal"
 	"github.com/ROCm/gpu-operator/internal/controllers/workermgr"
 	"github.com/go-logr/logr"
@@ -104,7 +105,44 @@ func (h *PodEventHandler) Delete(
 	evt event.TypedDeleteEvent[client.Object],
 	q workqueue.TypedRateLimitingInterface[reconcile.Request],
 ) {
-	// Handle delete event if needed
+	pod, ok := evt.Object.(*v1.Pod)
+	if !ok || pod.Status.Phase != v1.PodFailed && pod.Status.Phase != v1.PodUnknown {
+		return
+	}
+	action, ok := pod.Labels[utils.WorkerActionLabelKey]
+	if !ok || action != utils.LoadVFIOAction && action != utils.UnloadVFIOAction {
+		return
+	}
+	devConfig, nsn, ok := h.getWorkerDeviceConfig(ctx, pod, action)
+	if !ok {
+		return
+	}
+	if action == utils.LoadVFIOAction && devConfig.Spec.Driver.Enable != nil && !*devConfig.Spec.Driver.Enable {
+		return
+	}
+	if action == utils.LoadVFIOAction && !devConfig.DeletionTimestamp.IsZero() {
+		return
+	}
+	if action == utils.UnloadVFIOAction && !devConfig.DeletionTimestamp.IsZero() && devConfig.Spec.Driver.DriverType != utils.DriverTypePFPassthrough {
+		return
+	}
+	node := &v1.Node{}
+	if err := h.client.Get(ctx, types.NamespacedName{Name: pod.Spec.NodeName}, node); err != nil {
+		if !k8serrors.IsNotFound(err) {
+			log.FromContext(ctx).Error(err, "failed to get node for deleted worker pod", "pod", pod.Name)
+		}
+		return
+	}
+	var err error
+	if action == utils.UnloadVFIOAction {
+		err = h.workerMgr.Cleanup(ctx, devConfig, node)
+	} else {
+		err = h.workerMgr.Work(ctx, devConfig, node)
+	}
+	if err != nil {
+		log.FromContext(ctx).Error(err, "failed to retry deleted worker pod", "pod", pod.Name)
+	}
+	q.Add(reconcile.Request{NamespacedName: nsn})
 }
 
 // Create handle pod generic event
@@ -168,24 +206,17 @@ func (h *PodEventHandler) Update(
 
 	// if the pod is workerMgr pod, do proper handling based on pod state
 	if action, ok := pod.Labels[utils.WorkerActionLabelKey]; ok {
-		h.handleWorkerMgrPodEvt(ctx, logger, pod, action)
+		h.handleWorkerMgrPodEvt(ctx, logger, pod, action, q)
 	}
 }
 
-func (h *PodEventHandler) handleWorkerMgrPodEvt(ctx context.Context, logger logr.Logger, pod *v1.Pod, action string) {
-	foundDeviceConfigOwner := false
-	var nsn types.NamespacedName
-	for _, owner := range pod.OwnerReferences {
-		if owner.Kind == utils.KindDeviceConfig {
-			nsn = types.NamespacedName{
-				Namespace: pod.Namespace,
-				Name:      owner.Name,
-			}
-			foundDeviceConfigOwner = true
-		}
+func (h *PodEventHandler) handleWorkerMgrPodEvt(ctx context.Context, logger logr.Logger, pod *v1.Pod, action string, q workqueue.TypedRateLimitingInterface[reconcile.Request]) {
+	devConfig, nsn, ok := h.getWorkerDeviceConfig(ctx, pod, action)
+	if !ok {
+		return
 	}
-	if !foundDeviceConfigOwner {
-		logger.Info(fmt.Sprintf("cannot find DeviceConfig owner for worker pod %+v", pod.GetObjectMeta()))
+	if !devConfig.DeletionTimestamp.IsZero() &&
+		(action != utils.UnloadVFIOAction || pod.Status.Phase != v1.PodSucceeded) {
 		return
 	}
 	switch pod.Status.Phase {
@@ -206,13 +237,31 @@ func (h *PodEventHandler) handleWorkerMgrPodEvt(ctx context.Context, logger logr
 			return
 		}
 	case v1.PodFailed, v1.PodUnknown:
-		logger.Info(fmt.Sprintf("remove worker pod %v due to its %v status", pod.Name, pod.Status.Phase))
-		err := h.client.Delete(ctx, pod)
-		if err != nil && !k8serrors.IsNotFound(err) {
-			logger.Error(err, fmt.Sprintf("failed to delete stale worker pod %v", pod.Name))
-			return
-		}
+		logger.Info(fmt.Sprintf("retain worker pod %v due to its %v status", pod.Name, pod.Status.Phase))
+		q.Add(reconcile.Request{NamespacedName: nsn})
 	}
+}
+
+func (h *PodEventHandler) getWorkerDeviceConfig(ctx context.Context, pod *v1.Pod, action string) (*amdv1alpha1.DeviceConfig, types.NamespacedName, bool) {
+	if action != utils.LoadVFIOAction && action != utils.UnloadVFIOAction {
+		return nil, types.NamespacedName{}, false
+	}
+	owner := metav1.GetControllerOf(pod)
+	if owner == nil || owner.Kind != utils.KindDeviceConfig || pod.Name != fmt.Sprintf("worker-%v-%v", owner.Name, pod.Spec.NodeName) {
+		return nil, types.NamespacedName{}, false
+	}
+	nsn := types.NamespacedName{Namespace: pod.Namespace, Name: owner.Name}
+	devConfig := &amdv1alpha1.DeviceConfig{}
+	if err := h.client.Get(ctx, nsn, devConfig); err != nil {
+		if !k8serrors.IsNotFound(err) {
+			log.FromContext(ctx).Error(err, "failed to get DeviceConfig for worker pod", "pod", pod.Name)
+		}
+		return nil, types.NamespacedName{}, false
+	}
+	if owner.UID != devConfig.UID {
+		return nil, types.NamespacedName{}, false
+	}
+	return devConfig, nsn, true
 }
 
 type PodLabelPredicate struct {
