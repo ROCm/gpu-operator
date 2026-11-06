@@ -25,8 +25,8 @@ RUN apt-get update && \
 
 RUN GIM_RELEASE_BASE="${PACKAGE_REPO_URL:-https://github.com/amd/MxGPU-Virtualization/releases/download}" && \
     wget "${GIM_RELEASE_BASE%/}/${GIM_RELEASE_TAG}/${GIM_DEB_PACKAGE}" && \
-    apt-get install --fix-broken -y ./${GIM_DEB_PACKAGE} && \
-    rm ${GIM_DEB_PACKAGE}
+    apt-get install --fix-broken -y "./${GIM_DEB_PACKAGE}" && \
+    rm "${GIM_DEB_PACKAGE}"
 
 RUN depmod ${KERNEL_FULL_VERSION}
 

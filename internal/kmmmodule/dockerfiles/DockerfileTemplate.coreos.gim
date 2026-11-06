@@ -38,9 +38,9 @@ RUN printf '%s\n' \
 RUN dnf install automake bc cmake dkms -y && \
     GIM_RELEASE_BASE="${PACKAGE_REPO_URL:-https://github.com/amd/MxGPU-Virtualization/releases/download}" && \
     wget "${GIM_RELEASE_BASE%/}/${GIM_RELEASE_TAG}/${GIM_RPM_PACKAGE}" && \
-    rpm -Uvh ./${GIM_RPM_PACKAGE} && \
+    rpm -Uvh "./${GIM_RPM_PACKAGE}" && \
     dnf clean all && \
-    rm ./${GIM_RPM_PACKAGE} && \
+    rm "./${GIM_RPM_PACKAGE}" && \
     depmod ${KERNEL_VERSION} && \
     find /lib/modules/${KERNEL_VERSION} -name "*.ko.xz" -exec xz -d {} \; && \
     depmod ${KERNEL_VERSION}
