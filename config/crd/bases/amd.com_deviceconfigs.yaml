@@ -595,6 +595,10 @@ spec:
                             - For CoreOS/RHEL: "https://custom-mirror.example.com/repos/amdgpu/6.2.2/el/9.4/main/x86_64"
                               This will be used as: "baseurl=${PACKAGE_REPO_URL}"
                           When empty (default), the URL is constructed as: ${amdgpuInstallerRepoURL}/amdgpu/${DRIVERS_VERSION}/${os}/${distro}
+                          For GIM VF passthrough builds, this value is instead the release directory base,
+                          not a complete artifact URL. The operator appends /<GIM_RELEASE_TAG>/<GIM_DEB_PACKAGE>
+                          or /<GIM_RELEASE_TAG>/<GIM_RPM_PACKAGE>; when empty, it uses the GitHub release directory
+                          https://github.com/amd/MxGPU-Virtualization/releases/download.
                           Security note: this URL is a trusted driver-build input that selects the package
                           source for a ring-0 kernel module installed on every node. Treat write access to
                           DeviceConfig as equivalent to choosing the driver's package source; only grant it

@@ -4,6 +4,7 @@ FROM ${DTK_AUTO} as builder
 ARG KERNEL_VERSION
 ARG DRIVERS_VERSION
 ARG REPO_URL
+ARG PACKAGE_REPO_URL
 ARG GIM_RELEASE_TAG
 ARG GIM_RPM_PACKAGE
 RUN wget -q https://dl.fedoraproject.org/pub/epel/epel-release-latest-9.noarch.rpm \
@@ -35,7 +36,8 @@ RUN printf '%s\n' \
     dnf clean all
 
 RUN dnf install automake bc cmake dkms -y && \
-    wget https://github.com/amd/MxGPU-Virtualization/releases/download/${GIM_RELEASE_TAG}/${GIM_RPM_PACKAGE} && \
+    GIM_RELEASE_BASE="${PACKAGE_REPO_URL:-https://github.com/amd/MxGPU-Virtualization/releases/download}" && \
+    wget "${GIM_RELEASE_BASE%/}/${GIM_RELEASE_TAG}/${GIM_RPM_PACKAGE}" && \
     rpm -Uvh ./${GIM_RPM_PACKAGE} && \
     dnf clean all && \
     rm ./${GIM_RPM_PACKAGE} && \
