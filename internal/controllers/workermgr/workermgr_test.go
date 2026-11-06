@@ -227,10 +227,13 @@ func runVFDetection(t *testing.T, detectCommand, match string) []string {
 		return nil
 	}
 	var unique []string
+	seen := map[string]struct{}{}
 	for _, value := range strings.Split(strings.TrimSpace(string(data)), "\n") {
-		if len(unique) == 0 || unique[len(unique)-1] != value {
-			unique = append(unique, value)
+		if _, ok := seen[value]; ok {
+			continue
 		}
+		seen[value] = struct{}{}
+		unique = append(unique, value)
 	}
 	return unique
 }
