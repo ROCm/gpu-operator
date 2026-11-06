@@ -19,6 +19,7 @@ package validator
 import (
 	"context"
 	"fmt"
+	"regexp"
 	"strings"
 
 	amdv1alpha1 "github.com/ROCm/gpu-operator/api/v1alpha1"
@@ -27,6 +28,9 @@ import (
 	"k8s.io/apimachinery/pkg/util/validation"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
+
+// vfioDeviceIDRe matches a PCI device ID as accepted by lspci -d (optional 0x prefix).
+var vfioDeviceIDRe = regexp.MustCompile(`^(0[xX])?[0-9a-fA-F]{1,4}$`)
 
 // DriverSpec validation
 func ValidateDriverSpec(ctx context.Context, client client.Client, devConfig *amdv1alpha1.DeviceConfig) error {
@@ -51,6 +55,14 @@ func ValidateDriverSpec(ctx context.Context, client client.Client, devConfig *am
 			return fmt.Errorf("spec.selector is required for enabled %s", dSpec.DriverType)
 		}
 	}
+	if dSpec.DriverType == utils.DriverTypeVFPassthrough || dSpec.DriverType == utils.DriverTypePFPassthrough {
+		for _, id := range dSpec.VFIOConfig.DeviceIDs {
+			if !vfioDeviceIDRe.MatchString(id) {
+				return fmt.Errorf("invalid spec.driver.vfioConfig.deviceIDs entry %q: must be 1-4 hex digits, optionally prefixed with 0x", id)
+			}
+		}
+	}
+
 	// if KMM is not triggered, no need to verify the rest of the config
 	if !utils.ShouldUseKMM(devConfig) {
 		return nil
