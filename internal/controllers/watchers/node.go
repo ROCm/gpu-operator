@@ -59,6 +59,11 @@ type NodePredicate struct {
 	predicate.Funcs
 }
 
+func nodeResourcesChanged(oldNode, newNode *v1.Node) bool {
+	return !reflect.DeepEqual(oldNode.Status.Allocatable, newNode.Status.Allocatable) ||
+		!reflect.DeepEqual(oldNode.Status.Capacity, newNode.Status.Capacity)
+}
+
 func (NodePredicate) Create(e event.CreateEvent) bool {
 	return true
 }
@@ -78,7 +83,8 @@ func (NodePredicate) Update(e event.UpdateEvent) bool {
 	if oldNode.Status.NodeInfo.KernelVersion != newNode.Status.NodeInfo.KernelVersion ||
 		oldNode.Generation != newNode.Generation ||
 		oldNode.Status.NodeInfo.BootID != newNode.Status.NodeInfo.BootID ||
-		!reflect.DeepEqual(oldNode.Labels, newNode.Labels) {
+		!reflect.DeepEqual(oldNode.Labels, newNode.Labels) ||
+		nodeResourcesChanged(oldNode, newNode) {
 		return true
 	}
 
@@ -150,7 +156,8 @@ func (h *NodeEventHandler) Update(ctx context.Context, evt event.UpdateEvent, q 
 	if oldNode.Status.NodeInfo.KernelVersion != newNode.Status.NodeInfo.KernelVersion ||
 		oldNode.Generation != newNode.Generation ||
 		oldNode.Status.NodeInfo.BootID != newNode.Status.NodeInfo.BootID ||
-		!reflect.DeepEqual(oldNode.Labels, newNode.Labels) {
+		!reflect.DeepEqual(oldNode.Labels, newNode.Labels) ||
+		nodeResourcesChanged(oldNode, newNode) {
 		h.reconcileAllDeviceConfigs(ctx, q)
 	}
 	h.handlePostProcess(ctx, logger, oldNode, newNode)
@@ -221,6 +228,14 @@ func (h *NodeEventHandler) handlePostProcess(ctx context.Context, logger logr.Lo
 		if err != nil {
 			if !k8serrors.IsNotFound(err) {
 				logger.Error(err, "failed to get DeviceConfig")
+			}
+			return
+		}
+		if devConfig.Spec.Driver.Enable != nil && !*devConfig.Spec.Driver.Enable {
+			if hasVFIOReadyLabel {
+				if err := h.workerMgr.Cleanup(ctx, devConfig, node); err != nil {
+					logger.Error(err, "failed to create cleanup worker pod for disabled driver")
+				}
 			}
 			return
 		}

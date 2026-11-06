@@ -69,3 +69,75 @@ var _ = Describe("ValidateDevicePluginSpec", func() {
 		Expect(validate(map[string]string{"resource_naming": utils.SingleStrategy})).ToNot(Succeed())
 	})
 })
+
+var _ = Describe("ValidateDriverSpec passthrough requirements", func() {
+	enabled := true
+
+	validate := func(driverType, version string, selector map[string]string) error {
+		return ValidateDriverSpec(context.Background(), nil, &amdv1alpha1.DeviceConfig{
+			ObjectMeta: metav1.ObjectMeta{Name: "test-config", Namespace: "test-namespace"},
+			Spec: amdv1alpha1.DeviceConfigSpec{
+				Selector: selector,
+				Driver: amdv1alpha1.DriverSpec{
+					Enable:     &enabled,
+					DriverType: driverType,
+					Version:    version,
+					ImageBuild: amdv1alpha1.ImageBuildSpec{BaseImageRegistry: "test-registry"},
+				},
+			},
+		})
+	}
+
+	It("requires an explicit GIM version for enabled VF passthrough", func() {
+		err := validate(utils.DriverTypeVFPassthrough, "", map[string]string{
+			utils.NodeFeatureLabelAmdGpu: "true",
+		})
+		Expect(err).To(HaveOccurred())
+		Expect(err.Error()).To(ContainSubstring("spec.driver.version"))
+	})
+
+	It("requires a selector for enabled VF passthrough", func() {
+		err := validate(utils.DriverTypeVFPassthrough, "9.3.0.K", nil)
+		Expect(err).To(HaveOccurred())
+		Expect(err.Error()).To(ContainSubstring("spec.selector"))
+	})
+
+	It("requires a selector for enabled PF passthrough", func() {
+		err := validate(utils.DriverTypePFPassthrough, "", nil)
+		Expect(err).To(HaveOccurred())
+		Expect(err.Error()).To(ContainSubstring("spec.selector"))
+	})
+
+	It("accepts enabled VF passthrough with a selector and version", func() {
+		Expect(validate(utils.DriverTypeVFPassthrough, "9.3.0.K", map[string]string{
+			utils.NodeFeatureLabelAmdGpu: "true",
+		})).To(Succeed())
+	})
+
+	It("validates VFIO device IDs", func() {
+		sel := map[string]string{utils.NodeFeatureLabelAmdGpu: "true"}
+		check := func(ids ...string) error {
+			return ValidateDriverSpec(context.Background(), nil, &amdv1alpha1.DeviceConfig{
+				ObjectMeta: metav1.ObjectMeta{Name: "test-config", Namespace: "test-namespace"},
+				Spec: amdv1alpha1.DeviceConfigSpec{
+					Selector: sel,
+					Driver: amdv1alpha1.DriverSpec{
+						Enable:     &enabled,
+						DriverType: utils.DriverTypeVFPassthrough,
+						Version:    "9.3.0.K",
+						VFIOConfig: amdv1alpha1.VFIOConfigSpec{DeviceIDs: ids},
+						ImageBuild: amdv1alpha1.ImageBuildSpec{BaseImageRegistry: "test-registry"},
+					},
+				},
+			})
+		}
+		Expect(check("74b5", "74B5", "0x74b5")).To(Succeed())
+		for _, bad := range []string{"", "0x", "xyz1", "74b5x", "12345", "75b3; echo injected"} {
+			Expect(check(bad)).To(HaveOccurred(), bad)
+		}
+	})
+
+	It("does not add passthrough requirements to the container driver", func() {
+		Expect(validate(utils.DriverTypeContainer, "", nil)).To(Succeed())
+	})
+})

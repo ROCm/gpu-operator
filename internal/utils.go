@@ -92,7 +92,13 @@ var (
 	DefaultVFDeviceIDs = []string{
 		"7410", // MI210 VF
 		"74b5", // MI300X VF
+		"74bd", // MI300X HF VF
+		"74b6", // MI308X VF
+		"74bc", // MI308X HF VF
 		"74b9", // MI325X VF
+		"75b8", // MI350P VF
+		"75b0", // MI350X VF
+		"75b3", // MI355X VF
 		"7461", // Radeon Pro V710 MxGPU
 		"73ae", // Radeon Pro V620 MxGPU
 	}
@@ -459,35 +465,35 @@ func UpdateDriverTypeNodeLabel(ctx context.Context, cli client.Client, devConfig
 	if nodes == nil {
 		return fmt.Errorf("received nil node list")
 	}
-	if devConfig.Spec.Driver.Enable != nil && *devConfig.Spec.Driver.Enable {
-		var err error
-		for _, node := range nodes.Items {
-			var nodeCopy *v1.Node
-			if cleanup {
-				if _, ok := node.Labels[GetDriverTypeNodeLabel(devConfig)]; !ok {
-					// no need to clean up driver type node label if it is non-existing
-					continue
-				}
-				nodeCopy = node.DeepCopy()
-				delete(node.Labels, GetDriverTypeNodeLabel(devConfig))
-			} else {
-				if val, ok := node.Labels[GetDriverTypeNodeLabel(devConfig)]; ok && val == devConfig.Spec.Driver.DriverType {
-					// no need to patch the driver type node label if it is existing
-					continue
-				}
-				nodeCopy = node.DeepCopy()
-				if node.Labels == nil {
-					node.Labels = map[string]string{}
-				}
-				node.Labels[GetDriverTypeNodeLabel(devConfig)] = devConfig.Spec.Driver.DriverType
+	var err error
+	for _, node := range nodes.Items {
+		var nodeCopy *v1.Node
+		if cleanup {
+			if _, ok := node.Labels[GetDriverTypeNodeLabel(devConfig)]; !ok {
+				// no need to clean up driver type node label if it is non-existing
+				continue
 			}
-			if patchErr := cli.Patch(ctx, &node, client.MergeFrom(nodeCopy)); patchErr != nil {
-				err = errors.Join(err, patchErr)
+			nodeCopy = node.DeepCopy()
+			delete(node.Labels, GetDriverTypeNodeLabel(devConfig))
+		} else {
+			if devConfig.Spec.Driver.Enable == nil || !*devConfig.Spec.Driver.Enable {
+				return nil
 			}
+			if val, ok := node.Labels[GetDriverTypeNodeLabel(devConfig)]; ok && val == devConfig.Spec.Driver.DriverType {
+				// no need to patch the driver type node label if it is existing
+				continue
+			}
+			nodeCopy = node.DeepCopy()
+			if node.Labels == nil {
+				node.Labels = map[string]string{}
+			}
+			node.Labels[GetDriverTypeNodeLabel(devConfig)] = devConfig.Spec.Driver.DriverType
 		}
-		return err
+		if patchErr := cli.Patch(ctx, &node, client.MergeFrom(nodeCopy)); patchErr != nil {
+			err = errors.Join(err, patchErr)
+		}
 	}
-	return nil
+	return err
 }
 
 // ShouldUseKMM return true if KMM needs to be triggered otherwise return false

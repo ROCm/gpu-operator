@@ -50,7 +50,7 @@ If `amdgpu` remains loaded after reboot, and worker nodes keep using inbox / pre
 
 #### Method 3 - (Openshift) Use Machine Config Operator
 
-Please refer to [OpenShift installation Guide](../installation/openshift-olm) to see the example `MachineConfig` custom resource to add blacklist via Machine Config Operator.
+Please refer to the [OpenShift installation Guide](../installation/openshift-olm.md#create-blacklist-for-installing-out-of-tree-kernel-module) for the `MachineConfig` example. OpenShift's Machine Config Operator owns the node kernel arguments, blacklist, and reboot; `spec.driver.blacklist` does not modify OpenShift host files.
 
 ### 2. Create DeviceConfig Resource
 
@@ -143,6 +143,8 @@ spec:
       # (Optional) packageRepoURL: specify the full URL to override the default package repository
       # Useful for custom mirrors or when repo.radeon.com structure changes
       # packageRepoURL: "https://custom-mirror.example.com/amdgpu/30.20.1/ubuntu jammy main"
+      # For VF passthrough/GIM builds, this is a release directory base; the operator appends
+      # /<release-tag>/<package-filename>, e.g. https://custom-mirror.example.com/MxGPU-Virtualization/releases/download
       # (Optional) gpgKeyURL: specify the full URL to override the default GPG key
       # gpgKeyURL: "https://custom-mirror.example.com/rocm/rocm.gpg.key"
       baseImageRegistryTLS:
@@ -280,7 +282,7 @@ To check the full spec of `DeviceConfig` definition run `kubectl get crds device
 | Parameter                                               | Description                                                                                                                                                                                                                                         | Default                                                                                                                                                   |
 |---------------------------------------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------|
 | `enable`                                                | Set to true for installing out-of-tree driver.<br>Set to false to skip driver install and use inbox/pre-installed driver.                                                                                                                           | `true`                                                                                                                                                    |
-| `blacklist`                                             | Set to true to have the operator init the node labeller DaemonSet and add `amdgpu` to the selected worker nodes' modprobe blacklist.<br>Set to false to remove `amdgpu` from the selected nodes' modprobe blacklist.                                | `false`                                                                                                                                                   |
+| `blacklist`                                             | On vanilla Kubernetes, controls the operator-managed `amdgpu` modprobe entry. On OpenShift, host blacklisting is owned by the Machine Config Operator and this field does not modify host files.                                | `false`                                                                                                                                                   |
 | `version`                                               | amdgpu driver version (e.g., "6.2.2").<br>See amdgpu Versions: https://instinct.docs.amd.com/projects/amdgpu-docs/en/latest/release/versions.html                                                                                                   | Ubuntu: `6.1.3`<br>CoreOS: `6.2.2`                                                                                                                        |
 | `image`                                                 | Registry URL and repository (without tag).<br>Note: Operator manages tags automatically.                                                                                                                                                            | Vanilla k8s: `image-registry:5000/$MOD_NAMESPACE/amdgpu_kmod`<br>OpenShift: `image-registry.openshift-image-registry.svc:5000/$MOD_NAMESPACE/amdgpu_kmod` |
 | `imageRegistrySecret.name`                              | Name of registry credentials secret to pull/push driver image.                                                                                                                                                                                      |                                                                                                                                                           |

@@ -12,9 +12,8 @@ To start the Device Plugin along with the GPU Operator configure fields under th
     # Cannot be enabled at the same time as the DRA driver
     enableDevicePlugin: true
 
-    # Specify the device plugin image
-    # default value is rocm/k8s-device-plugin:latest
-    devicePluginImage: rocm/k8s-device-plugin:latest
+    # Specify the device plugin image. Pin a tested version for VF passthrough.
+    devicePluginImage: rocm/k8s-device-plugin:<tested-tag>
 
     # The device plugin arguments is used to pass supported flags and their values while starting device plugin daemonset
     devicePluginArguments:
@@ -166,3 +165,7 @@ Product names come from `amdgpu.ids`, the device-id/revision-id to product-name 
 - If you pin `DevicePluginImage` to a tag older than the release that added `product`, set `single` or `mixed`, or move the pin forward before setting `product`.
 
 `single` and `mixed` are unaffected, and no existing `DeviceConfig` changes behaviour by upgrading the operator alone.
+
+#### **VF passthrough and KubeVirt**
+
+For VF passthrough, use a pinned device-plugin image that discovers VFs bound to `vfio-pci` and exposes their PCI device IDs through the Kubernetes device-plugin interface required by KubeVirt's `externalResourceProvider`. Set `resource_naming_strategy: single` when the KubeVirt host-device resource is `amd.com/gpu`. The operator does not implement VF discovery, provide a fallback PCI plugin, or synthesize the optional `driver_type` argument.
