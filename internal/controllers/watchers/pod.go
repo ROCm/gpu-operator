@@ -215,7 +215,8 @@ func (h *PodEventHandler) handleWorkerMgrPodEvt(ctx context.Context, logger logr
 	if !ok {
 		return
 	}
-	if !devConfig.DeletionTimestamp.IsZero() && !(action == utils.UnloadVFIOAction && pod.Status.Phase == v1.PodSucceeded) {
+	if !devConfig.DeletionTimestamp.IsZero() &&
+		(action != utils.UnloadVFIOAction || pod.Status.Phase != v1.PodSucceeded) {
 		return
 	}
 	switch pod.Status.Phase {
