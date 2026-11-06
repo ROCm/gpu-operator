@@ -4,7 +4,7 @@ PRODUCT_CODES=($$PCI_DEVICE_ID_LIST)
 
 for PRODUCT_CODE in "${PRODUCT_CODES[@]}"; do
     # Load VFIO PCI driver on GPU VF devices, if not done already
-    LSPCI_OUTPUT=$(lspci -nn -d 1002:${PRODUCT_CODE})
+    LSPCI_OUTPUT=$(lspci -nn -d "1002:${PRODUCT_CODE}")
 
     # Check if LSPCI_OUTPUT is empty
     if [ -z "$LSPCI_OUTPUT" ]; then
