@@ -359,6 +359,8 @@ The `packageRepoURL` should point to the complete package repository URL:
 - **Ubuntu**: `https://your-mirror.com/amdgpu/30.20.1/ubuntu jammy main` (will be used as: `deb [arch=amd64 ...] ${PACKAGE_REPO_URL}`)
 - **RHEL/CoreOS**: `https://your-mirror.com/amdgpu/30.20.1/el/9.4/main/x86_64` (will be used as: `baseurl=${PACKAGE_REPO_URL}`)
 
+For VF passthrough/GIM builds, `packageRepoURL` is a release directory base rather than a complete artifact URL. The operator appends the release tag and OS-specific package filename, for example `https://your-mirror.com/MxGPU-Virtualization/releases/download/<release-tag>/<package-filename>`. When unset, GIM uses the default GitHub release directory.
+
 The `gpgKeyURL` should point to the GPG key file (e.g., `https://your-mirror.com/rocm/rocm.gpg.key`)
 
 Both fields are optional. If not specified, the operator constructs URLs using the default `repo.radeon.com` scheme.

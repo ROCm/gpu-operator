@@ -93,6 +93,8 @@ Below is an example of a full DeviceConfig CR that can be used to install the AM
           # Examples:
           #   Ubuntu: "https://custom-mirror.example.com/amdgpu/30.20.1/ubuntu jammy main"
           #   CoreOS/RHEL: "https://custom-mirror.example.com/amdgpu/30.20.1/el/9.4/main/x86_64"
+          # For VF passthrough/GIM builds, use the release directory base; the operator appends
+          # /<release-tag>/<package-filename>, e.g. "https://custom-mirror.example.com/MxGPU-Virtualization/releases/download"
           # packageRepoURL: ""
           # (Optional) gpgKeyURL: specify the full URL to the GPG key for package verification
           # When specified, this overrides the default GPG key URL

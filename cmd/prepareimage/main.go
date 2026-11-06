@@ -135,7 +135,7 @@ func deriveConfigFromFlags() *Config {
 
 	flag.StringVar(&config.buildArgs.repoURL, "repo-url", DefaultRepoURL, "The URL for fetching the amdgpu installer.")
 
-	flag.StringVar(&config.buildArgs.packageRepoURL, "package-repo-url", "", "The full URL to the package repository for driver packages. When specified, this overrides the --repo-url flag. This is useful when using custom mirrors or when repo.radeon.com changes structure. Example: 'https://custom-mirror.example.com/amdgpu/30.20.1/ubuntu jammy main'.")
+	flag.StringVar(&config.buildArgs.packageRepoURL, "package-repo-url", "", "The package repository URL for driver packages. For vf-passthrough, use the GIM release directory base; the release tag and package filename are appended. When specified, this overrides the --repo-url flag. Example: 'https://custom-mirror.example.com/amdgpu/30.20.1/ubuntu jammy main' or 'https://custom-mirror.example.com/MxGPU-Virtualization/releases/download'.")
 
 	flag.StringVar(&config.buildArgs.gpgKeyURL, "gpg-key-url", "", "The full URL to the GPG key for package verification. When specified, this overrides the constructed GPG key URL. Example: 'https://custom-mirror.example.com/rocm/rocm.gpg.key'.")
 
