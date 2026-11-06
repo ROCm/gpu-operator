@@ -226,5 +226,11 @@ func runVFDetection(t *testing.T, detectCommand, match string) []string {
 	if len(strings.TrimSpace(string(data))) == 0 {
 		return nil
 	}
-	return strings.Split(strings.TrimSpace(string(data)), "\n")
+	var unique []string
+	for _, value := range strings.Split(strings.TrimSpace(string(data)), "\n") {
+		if len(unique) == 0 || unique[len(unique)-1] != value {
+			unique = append(unique, value)
+		}
+	}
+	return unique
 }
