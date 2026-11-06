@@ -143,6 +143,8 @@ spec:
       # (Optional) packageRepoURL: specify the full URL to override the default package repository
       # Useful for custom mirrors or when repo.radeon.com structure changes
       # packageRepoURL: "https://custom-mirror.example.com/amdgpu/30.20.1/ubuntu jammy main"
+      # For VF passthrough/GIM builds, this is a release directory base; the operator appends
+      # /<release-tag>/<package-filename>, e.g. https://custom-mirror.example.com/MxGPU-Virtualization/releases/download
       # (Optional) gpgKeyURL: specify the full URL to override the default GPG key
       # gpgKeyURL: "https://custom-mirror.example.com/rocm/rocm.gpg.key"
       baseImageRegistryTLS:

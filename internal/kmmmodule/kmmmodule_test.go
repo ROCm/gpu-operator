@@ -806,15 +806,19 @@ var _ = Describe("GIM artifact resolution", func() {
 
 		ubuntu, err := resolveDockerfile("ubuntu-22.04", input)
 		Expect(err).To(BeNil())
+		Expect(ubuntu).To(ContainSubstring("ARG PACKAGE_REPO_URL"))
 		Expect(ubuntu).To(ContainSubstring("ARG GIM_RELEASE_TAG"))
 		Expect(ubuntu).To(ContainSubstring("ARG GIM_DEB_PACKAGE"))
-		Expect(ubuntu).To(ContainSubstring("releases/download/${GIM_RELEASE_TAG}/${GIM_DEB_PACKAGE}"))
+		Expect(ubuntu).To(ContainSubstring("GIM_RELEASE_BASE=\"${PACKAGE_REPO_URL:-https://github.com/amd/MxGPU-Virtualization/releases/download}\""))
+		Expect(ubuntu).To(ContainSubstring("${GIM_RELEASE_BASE%/}/${GIM_RELEASE_TAG}/${GIM_DEB_PACKAGE}"))
 
 		coreos, err := resolveDockerfile("coreos-4.16", input)
 		Expect(err).To(BeNil())
+		Expect(coreos).To(ContainSubstring("ARG PACKAGE_REPO_URL"))
 		Expect(coreos).To(ContainSubstring("ARG GIM_RELEASE_TAG"))
 		Expect(coreos).To(ContainSubstring("ARG GIM_RPM_PACKAGE"))
-		Expect(coreos).To(ContainSubstring("releases/download/${GIM_RELEASE_TAG}/${GIM_RPM_PACKAGE}"))
+		Expect(coreos).To(ContainSubstring("GIM_RELEASE_BASE=\"${PACKAGE_REPO_URL:-https://github.com/amd/MxGPU-Virtualization/releases/download}\""))
+		Expect(coreos).To(ContainSubstring("${GIM_RELEASE_BASE%/}/${GIM_RELEASE_TAG}/${GIM_RPM_PACKAGE}"))
 		Expect(coreos).To(ContainSubstring("rpm -Uvh /tmp/epel-release.rpm"))
 		Expect(coreos).To(ContainSubstring("[centos-stream-baseos]"))
 		Expect(coreos).To(ContainSubstring("rpm -Uvh ./${GIM_RPM_PACKAGE}"))
@@ -835,6 +839,37 @@ var _ = Describe("GIM artifact resolution", func() {
 		Expect(mapping.Build.BuildArgs).To(ContainElement(kmmv1beta1.BuildArg{
 			Name:  "GIM_RPM_PACKAGE",
 			Value: "gim-dkms-9.3.0.K.noarch.rpm",
+		}))
+	})
+
+	It("passes a custom GIM release base to both OS templates", func() {
+		input := &amdv1alpha1.DeviceConfig{
+			Spec: amdv1alpha1.DeviceConfigSpec{
+				Driver: amdv1alpha1.DriverSpec{
+					DriverType: utils.DriverTypeVFPassthrough,
+					Version:    "9.3.0.K",
+					ImageBuild: amdv1alpha1.ImageBuildSpec{
+						PackageRepoURL: "https://mirror.example.com/MxGPU-Virtualization/releases/download/",
+					},
+				},
+			},
+		}
+
+		ubuntu, err := resolveDockerfile("ubuntu-22.04", input)
+		Expect(err).To(BeNil())
+		Expect(ubuntu).To(ContainSubstring("ARG PACKAGE_REPO_URL"))
+		Expect(ubuntu).To(ContainSubstring("${GIM_RELEASE_BASE%/}/${GIM_RELEASE_TAG}/${GIM_DEB_PACKAGE}"))
+
+		coreos, err := resolveDockerfile("coreos-4.16", input)
+		Expect(err).To(BeNil())
+		Expect(coreos).To(ContainSubstring("ARG PACKAGE_REPO_URL"))
+		Expect(coreos).To(ContainSubstring("${GIM_RELEASE_BASE%/}/${GIM_RELEASE_TAG}/${GIM_RPM_PACKAGE}"))
+
+		mapping, _, err := GetKM(input, testNodeList.Items[0], "", false)
+		Expect(err).To(BeNil())
+		Expect(mapping.Build.BuildArgs).To(ContainElement(kmmv1beta1.BuildArg{
+			Name:  "PACKAGE_REPO_URL",
+			Value: "https://mirror.example.com/MxGPU-Virtualization/releases/download/",
 		}))
 	})
 
