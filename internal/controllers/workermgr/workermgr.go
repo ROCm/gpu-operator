@@ -306,11 +306,12 @@ func (w *workerMgr) getPodDef(devConfig *amdv1alpha1.DeviceConfig, nodeName, act
 			// then start binding VF
 			// otherwise there could be fake completion, the pod completed without binding anything
 			getDetectVFCommand := func() string {
-				grepArgs := []string{}
+				detectCommands := make([]string, 0, len(getVFIODeviceIDs(devConfig)))
 				for _, deviceID := range getVFIODeviceIDs(devConfig) {
-					grepArgs = append(grepArgs, "-e "+quoteShellArg(deviceID))
+					selector := quoteShellArg("1002:" + deviceID)
+					detectCommands = append(detectCommands, fmt.Sprintf("lspci -nn -d %s | grep -q .", selector))
 				}
-				return fmt.Sprintf("while ! lspci -nn | grep -q %v; do echo \"PCI device not found\"; sleep 2; done", strings.Join(grepArgs, " "))
+				return fmt.Sprintf("while ! { %s; }; do echo \"PCI device not found\"; sleep 2; done", strings.Join(detectCommands, " || "))
 			}
 			initContainers = []v1.Container{
 				{
