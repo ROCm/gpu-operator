@@ -190,6 +190,7 @@ func runVFDetection(t *testing.T, detectCommand, match string) []string {
 
 	tempDir := t.TempDir()
 	lspciPath := filepath.Join(tempDir, "lspci")
+	sleepPath := filepath.Join(tempDir, "sleep")
 	argsPath := filepath.Join(tempDir, "lspci.args")
 	lspciScript := "#!/bin/sh\n" +
 		"set -eu\n" +
@@ -202,6 +203,9 @@ func runVFDetection(t *testing.T, detectCommand, match string) []string {
 		"fi\n" +
 		"exit 1\n"
 	if err := os.WriteFile(lspciPath, []byte(lspciScript), 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(sleepPath, []byte("#!/bin/sh\nexit 0\n"), 0755); err != nil {
 		t.Fatal(err)
 	}
 
