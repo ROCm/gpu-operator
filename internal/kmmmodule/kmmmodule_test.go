@@ -821,7 +821,7 @@ var _ = Describe("GIM artifact resolution", func() {
 		Expect(coreos).To(ContainSubstring("${GIM_RELEASE_BASE%/}/${GIM_RELEASE_TAG}/${GIM_RPM_PACKAGE}"))
 		Expect(coreos).To(ContainSubstring("rpm -Uvh /tmp/epel-release.rpm"))
 		Expect(coreos).To(ContainSubstring("[centos-stream-baseos]"))
-		Expect(coreos).To(ContainSubstring("rpm -Uvh ./${GIM_RPM_PACKAGE}"))
+		Expect(coreos).To(ContainSubstring("rpm -Uvh \"./${GIM_RPM_PACKAGE}\""))
 		Expect(coreos).To(ContainSubstring("automake bc cmake dkms"))
 		Expect(coreos).NotTo(ContainSubstring("dnf config-manager"))
 		Expect(coreos).NotTo(ContainSubstring("dnf install https://dl.fedoraproject.org"))
@@ -933,6 +933,13 @@ var _ = Describe("GIM artifact resolution", func() {
 				Name:  "GIM_RPM_PACKAGE",
 				Value: tc.rpmPackage,
 			}))
+		}
+	})
+
+	It("rejects GIM versions that are unsafe in URLs or shell", func() {
+		for _, v := range []string{"", "../x", "1.0;rm -rf /", "a b"} {
+			_, err := getGIMArtifacts(v)
+			Expect(err).To(HaveOccurred(), v)
 		}
 	})
 })

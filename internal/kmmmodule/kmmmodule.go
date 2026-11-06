@@ -102,9 +102,16 @@ var directGIMReleaseTags = map[string]struct{}{
 	"9.3.0.K": {},
 }
 
+var gimVersionRe = regexp.MustCompile(`^[0-9A-Za-z][0-9A-Za-z._-]*$`)
+
 func getGIMArtifacts(version string) (gimArtifacts, error) {
 	if version == "" {
 		return gimArtifacts{}, fmt.Errorf("GIM driver version must not be empty")
+	}
+
+	// version is interpolated into a URL path and shell commands in the Dockerfile.
+	if !gimVersionRe.MatchString(version) {
+		return gimArtifacts{}, fmt.Errorf("invalid GIM driver version %q", version)
 	}
 
 	releaseTag := "mainline%2F" + version
