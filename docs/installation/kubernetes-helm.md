@@ -103,18 +103,15 @@ cert-manager-webhook-6d5cb854fc-h6vbk     1/1     Running   0          2m
 
 ## Installing Operator
 
-### Ubuntu 26.04 driver management
+### Ubuntu 26.04 Driver Management
 
-Use an operator image and chart containing the Ubuntu 26.04 support changes.
-Ubuntu 26.04 selects driver `31.50` when `spec.driver.version` is omitted or
-empty. An explicit version takes precedence over this default. Use separate
-DeviceConfigs for OS releases with different default driver versions; each
-KMM Module has one driver-version label.
+Ubuntu 26.04 defaults to driver `31.50` when `spec.driver.version` is empty or
+omitted. The Helm chart supplies `30.20.1`, so override it with an empty string
+to use the default, or specify a supported driver version explicitly.
 
-The chart's general values specify driver `30.20.1`, so override that value
-when installing on Ubuntu 26.04. Save the following as a Helm values file,
-replace the driver image repository with one your cluster can push to and pull
-from, and pass the file with `helm install ... -f <values-file>`:
+For an operator build containing Ubuntu 26.04 support, use the following Helm
+values with `-f <values-file>`. Replace the container image repository with one
+your cluster can push to and pull from:
 
 ```yaml
 deviceConfig:
@@ -130,33 +127,10 @@ deviceConfig:
       image: registry.example.com/team/amdgpu-kmod
 ```
 
-For a guest VM exposing an AMD virtual GPU, replace the selector in that file
-with the following. The `null` removes the chart's physical-GPU selector during
-Helm values merging:
-
-```yaml
-    selector:
-      feature.node.kubernetes.io/amd-gpu: null
-      feature.node.kubernetes.io/amd-vgpu: "true"
-      feature.node.kubernetes.io/system-os_release.ID: ubuntu
-      feature.node.kubernetes.io/system-os_release.VERSION_ID: "26.04"
-```
-
-Configure registry credentials when required, and follow the
-[driver installation prerequisites](../drivers/installation.md), including
-rebuilding the initramfs and rebooting after blacklisting the inbox driver.
-To pin a tested driver instead of using automatic selection, set `version` to
-`"31.40.1"`, `"31.50"`, or `"31.60"`.
-
-Validation covered Ubuntu 26.04.1, kernel `7.0.0-43-generic`, Kubernetes 1.36.6,
-and MI300X VF and MI350X VF guest GPUs. All three driver versions passed GPU
-computation and health checks before and after reboot. Driver 31.60 emitted
-`RAS early init service failure! ret:-95` on MI300X; those checks still passed.
-MI300X also passed a kernel change to `7.0.0-42-generic` and back, and automatic
-driver upgrades from the 31.50 default to 31.60 and back. The automatic upgrade
-tests checked GPU workload eviction, node reboot, and workload recovery.
-Secure Boot and host virtualization driver installation were not covered by
-these guest-VM tests.
+For virtual GPUs, set the inherited `feature.node.kubernetes.io/amd-gpu`
+selector to `null` and add `feature.node.kubernetes.io/amd-vgpu: "true"`.
+Use separate DeviceConfigs for OS releases with different default drivers,
+and follow the [driver installation prerequisites](../drivers/installation.md).
 
 ### 1. Add the AMD Helm Repository
 

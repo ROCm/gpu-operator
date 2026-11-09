@@ -296,6 +296,72 @@ var _ = Describe("setKMMDevicePlugin", func() {
 	})
 })
 
+var _ = Describe("Ubuntu driver support", func() {
+	DescribeTable("selects the kernel package and repository", func(version, suite, modulesPackage string) {
+		for _, driverType := range []string{"container", "vf-passthrough"} {
+			config := testGetKernelMappingsDeviceConfig.DeepCopy()
+			config.Spec.Driver.DriverType = driverType
+			dockerfile, err := resolveDockerfile("ubuntu-"+version+"-test", config)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(dockerfile).To(ContainSubstring(modulesPackage + "-${KERNEL_FULL_VERSION}"))
+			Expect(dockerfile).NotTo(ContainSubstring("$$"))
+			if version == "26.04" {
+				Expect(dockerfile).NotTo(ContainSubstring("linux-modules-extra-"))
+			}
+			if driverType == "container" {
+				Expect(dockerfile).To(ContainSubstring("/ubuntu " + suite + " main"))
+			}
+		}
+	},
+		Entry("Ubuntu 20.04", "20.04", "focal", "linux-modules-extra"),
+		Entry("Ubuntu 22.04", "22.04", "jammy", "linux-modules-extra"),
+		Entry("Ubuntu 24.04", "24.04", "noble", "linux-modules-extra"),
+		Entry("Ubuntu 26.04", "26.04", "resolute", "linux-modules"),
+	)
+
+	DescribeTable("resolves the Ubuntu 26.04 driver version", func(requested, expected string) {
+		config := testGetKernelMappingsDeviceConfig.DeepCopy()
+		config.Spec.Driver.Version = requested
+		node := testNodeList.Items[0].DeepCopy()
+		node.Status.NodeInfo.OSImage = "Ubuntu 26.04.1 LTS"
+		node.Status.NodeInfo.KernelVersion = "7.0.0-43-generic"
+		mapping, version, err := GetKM(config, *node, "", false)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(version).To(Equal(expected))
+		Expect(mapping.ContainerImage).To(Equal(config.Spec.Driver.Image + ":ubuntu-26.04-${KERNEL_FULL_VERSION}-" + expected))
+		Expect(mapping.Build.BuildArgs).To(ContainElement(kmmv1beta1.BuildArg{Name: "DRIVERS_VERSION", Value: expected}))
+	},
+		Entry("default", "", "31.50"),
+		Entry("explicit override", "31.60", "31.60"),
+	)
+
+	DescribeTable("selects the modules to sign", func(osImage, driverType, version string, modules []string) {
+		config := testGetKernelMappingsDeviceConfig.DeepCopy()
+		config.Spec.Driver.DriverType = driverType
+		config.Spec.Driver.Version = version
+		config.Spec.Driver.ImageSign.KeySecret = &v1.LocalObjectReference{Name: "signing-key"}
+		config.Spec.Driver.ImageSign.CertSecret = &v1.LocalObjectReference{Name: "signing-cert"}
+		node := testNodeList.Items[0].DeepCopy()
+		node.Status.NodeInfo.OSImage = osImage
+		mapping, _, err := GetKM(config, *node, "", false)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(mapping.Sign).NotTo(BeNil())
+		var paths []string
+		for _, module := range modules {
+			paths = append(paths, "/opt/lib/modules/"+node.Status.NodeInfo.KernelVersion+"/updates/dkms/"+module+".ko")
+		}
+		Expect(mapping.Sign.FilesToSign).To(ConsistOf(paths))
+	},
+		Entry("Ubuntu 26.04", "Ubuntu 26.04.1 LTS", "container", "31.50", []string{
+			"amdkcl", "amdttm", "amdgpu", "amdxcp", "amd-sched", "amddrm_buddy", "amddrm_ttm_helper", "amddrm_exec", "amddrm_suballoc_helper",
+		}),
+		Entry("older Ubuntu", "Ubuntu 24.04.1 LTS", "container", "6.3.3", []string{
+			"amdkcl", "amdttm", "amdgpu", "amdxcp", "amd-sched", "amddrm_buddy", "amddrm_ttm_helper",
+		}),
+		Entry("GIM", "Ubuntu 26.04.1 LTS", "vf-passthrough", "8.1.0.K", []string{"gim"}),
+	)
+})
+
 var testGetKernelMappingsDeviceConfig = amdv1alpha1.DeviceConfig{
 	ObjectMeta: metav1.ObjectMeta{
 		Name: "test",

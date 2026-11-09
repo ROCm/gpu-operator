@@ -8,23 +8,9 @@ Secure Boot is a security feature that helps protect a system against malicious 
 
 ## Prerequisites
 
-Ubuntu 26.04 driver images built by the operator unpack compressed DKMS modules
-before signing. The signing configuration includes all nine AMD modules shipped
-by the tested 31.40.1, 31.50 and 31.60 driver releases. Previously built images
-containing `.ko.zst` files need to be rebuilt for this signing path.
-
-KMM signing preflight and independent cryptographic verification passed for all
-nine modules with driver 31.50 and kernel `7.0.0-42-generic`. Altering module
-contents caused signature verification to fail. This checks image preparation
-and signing; Secure Boot enforcement on an Ubuntu 26.04 GPU node remains
-unverified.
-
-Building and signing an image does not establish Secure Boot compatibility by
-itself. Ubuntu 26.04 validation must also include loading the signed modules on
-a GPU node with Secure Boot enabled and the signing certificate enrolled, then
-running a GPU workload. The guest-VM compute tests described in the
-[Ubuntu 26.04 installation guide](../installation/kubernetes-helm.md#ubuntu-2604-driver-management)
-were performed without Secure Boot.
+To use operator-managed signing on Ubuntu 26.04, rebuild existing driver images
+that contain `.ko.zst` files. The signing step expects uncompressed `.ko` files,
+which the updated build templates produce.
 
 Before proceeding, ensure you have:
 
