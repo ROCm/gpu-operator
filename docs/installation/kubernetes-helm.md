@@ -105,32 +105,11 @@ cert-manager-webhook-6d5cb854fc-h6vbk     1/1     Running   0          2m
 
 ### Ubuntu 26.04 Driver Management
 
-Ubuntu 26.04 defaults to driver `31.50` when `spec.driver.version` is empty or
-omitted. The Helm chart supplies `30.20.1`, so override it with an empty string
-to use the default, or specify a supported driver version explicitly.
-
-For an operator build containing Ubuntu 26.04 support, use the following Helm
-values with `-f <values-file>`. Replace the container image repository with one
-your cluster can push to and pull from:
-
-```yaml
-deviceConfig:
-  spec:
-    selector:
-      feature.node.kubernetes.io/amd-gpu: "true"
-      feature.node.kubernetes.io/system-os_release.ID: ubuntu
-      feature.node.kubernetes.io/system-os_release.VERSION_ID: "26.04"
-    driver:
-      enable: true
-      blacklist: true
-      version: ""
-      image: registry.example.com/team/amdgpu-kmod
-```
-
-For virtual GPUs, set the inherited `feature.node.kubernetes.io/amd-gpu`
-selector to `null` and add `feature.node.kubernetes.io/amd-vgpu: "true"`.
-Use separate DeviceConfigs for OS releases with different default drivers,
-and follow the [driver installation prerequisites](../drivers/installation.md).
+When enabling driver installation on Ubuntu 26.04, set the Helm value
+`deviceConfig.spec.driver.version` to `"31.50"`, or to `""` to let the operator
+choose its default. This overrides the chart's pinned `30.20.1` version.
+See the [Driver Installation Guide](../drivers/installation.md) for the
+remaining configuration.
 
 ### 1. Add the AMD Helm Repository
 

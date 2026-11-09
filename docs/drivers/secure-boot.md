@@ -8,10 +8,6 @@ Secure Boot is a security feature that helps protect a system against malicious 
 
 ## Prerequisites
 
-To use operator-managed signing on Ubuntu 26.04, rebuild existing driver images
-that contain `.ko.zst` files. The signing step expects uncompressed `.ko` files,
-which the updated build templates produce.
-
 Before proceeding, ensure you have:
 
 - A Kubernetes/OpenShift cluster with worker nodes that have Secure Boot enabled
