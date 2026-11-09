@@ -20,7 +20,7 @@ RUN apt-get update && apt-get install -y bc \
     make \
     gcc \
     linux-headers-${KERNEL_FULL_VERSION} \
-    linux-modules-extra-${KERNEL_FULL_VERSION}
+    $$KERNEL_MODULES_PACKAGE-${KERNEL_FULL_VERSION}
 
 RUN mkdir --parents --mode=0755 /etc/apt/keyrings
 
@@ -39,7 +39,9 @@ RUN if [ -n "${PACKAGE_REPO_URL}" ]; then \
     fi
 RUN apt-get update && apt-get install -y amdgpu-dkms
 
-RUN depmod ${KERNEL_FULL_VERSION}
+# KMM signs uncompressed module files.
+RUN find /lib/modules/${KERNEL_FULL_VERSION}/updates/dkms -name '*.ko.zst' -exec unzstd --rm {} + && \
+    depmod ${KERNEL_FULL_VERSION}
 
 FROM $$BASEIMG_REGISTRY/ubuntu:$$VERSION
 

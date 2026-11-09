@@ -339,6 +339,16 @@ func TestUbuntuDefaultDriverVersionsMapper(t *testing.T) {
 			expectedErr:  false,
 		},
 		{
+			name:         "Ubuntu 26.04",
+			fullImageStr: "Ubuntu 26.04 LTS",
+			expectedVer:  "31.50",
+		},
+		{
+			name:         "Ubuntu 26.04.1",
+			fullImageStr: "Ubuntu 26.04.1 LTS",
+			expectedVer:  "31.50",
+		},
+		{
 			name:          "Unsupported Ubuntu 18.04",
 			fullImageStr:  "Ubuntu 18.04 LTS",
 			expectedVer:   "",

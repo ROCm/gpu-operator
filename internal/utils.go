@@ -235,7 +235,10 @@ func UbuntuDefaultDriverVersionsMapper(fullImageStr string) (string, error) {
 	if strings.Contains(fullImageStr, "24.04") {
 		return "6.3.3", nil // due to a known ROCM issue, 6.2 unload + load back may cause system reboot, let's use 6.3.3 as default
 	}
-	return "", fmt.Errorf("unsupported Ubuntu version: %s. Supported versions include 20.04, 22.04 and 24.04", fullImageStr)
+	if strings.Contains(fullImageStr, "26.04") {
+		return "31.50", nil
+	}
+	return "", fmt.Errorf("unsupported Ubuntu version: %s. Supported versions include 20.04, 22.04, 24.04 and 26.04", fullImageStr)
 }
 
 var slesSPRegexp = regexp.MustCompile(`(\d+)\s*-?\s*sp(\d+)`)

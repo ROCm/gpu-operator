@@ -78,6 +78,9 @@ Below is a matrix of supported Operating systems and the corresponding Kubernete
 
 Please refer to the [ROCM documentation](https://rocm.docs.amd.com/en/latest/compatibility/compatibility-matrix.html) for the compatibility matrix for the AMD GPU DKMS driver.
 
+Ubuntu 26.04 driver-management validation and installation settings are described
+in the [Ubuntu 26.04 Helm instructions](installation/kubernetes-helm.md#ubuntu-2604-driver-management).
+
 ## Prerequisites
 
 - Helm v3.2.0+

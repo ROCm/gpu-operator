@@ -1,12 +1,16 @@
 package main
 
 import (
+	"flag"
+	"os"
 	"strings"
 	"testing"
 
 	"github.com/rh-ecosystem-edge/kernel-module-management/api/v1beta1"
 
 	utils "github.com/ROCm/gpu-operator/internal"
+	"github.com/ROCm/gpu-operator/internal/kmmmodule"
+	v1 "k8s.io/api/core/v1"
 )
 
 const (
@@ -21,6 +25,142 @@ const (
 	driversVersion     = "31.40.1"
 	imageName          = "registry.example.com/project/amdgpu"
 )
+
+func TestDeriveConfigFromFlags(t *testing.T) {
+	originalFlags, originalArgs := flag.CommandLine, os.Args
+	t.Cleanup(func() {
+		flag.CommandLine, os.Args = originalFlags, originalArgs
+	})
+	flag.CommandLine = flag.NewFlagSet("prepareimage", flag.ContinueOnError)
+	os.Args = []string{"prepareimage",
+		"--os-pretty-name", "Ubuntu 26.04.1 LTS",
+		"--kernel-full-version", "7.0.0-43-generic",
+		"--drivers-version", "31.60",
+	}
+	config := deriveConfigFromFlags()
+	if config.osPrettyName != "Ubuntu 26.04.1 LTS" ||
+		config.buildArgs.kernelFullVersion != "7.0.0-43-generic" ||
+		config.buildArgs.driversVersion != "31.60" || config.OutputFormat != OutputFormatDockerfile {
+		t.Fatalf("unexpected flag configuration: %+v", config)
+	}
+}
+
+func TestUbuntuKernelPackages(t *testing.T) {
+	for _, tc := range []struct {
+		osName, version, suite, modulesPackage string
+	}{
+		{"Ubuntu 20.04.6 LTS", "20.04", "focal", "linux-modules-extra"},
+		{"Ubuntu 22.04.5 LTS", "22.04", "jammy", "linux-modules-extra"},
+		{"Ubuntu 24.04.5 LTS", "24.04", "noble", "linux-modules-extra"},
+		{"Ubuntu 26.04 LTS", "26.04", "resolute", "linux-modules"},
+		{"Ubuntu 26.04.1 LTS", "26.04", "resolute", "linux-modules"},
+	} {
+		for _, driverType := range []string{utils.DriverTypeContainer, utils.DriverTypeVFPassthrough} {
+			t.Run(tc.osName+"/"+driverType, func(t *testing.T) {
+				config := &Config{
+					OutputFormat: OutputFormatDockerScript,
+					driverType:   driverType,
+					osPrettyName: tc.osName,
+					imageName:    imageName,
+					buildArgs:    BuildArgs{kernelFullVersion: "7.0.0-43-generic", driversVersion: "31.60"},
+				}
+				if driverType == utils.DriverTypeVFPassthrough {
+					config.buildArgs.driversVersion = "8.1.0.K"
+				}
+				output, err := createOutput(config, scheme)
+				if err != nil {
+					t.Fatal(err)
+				}
+				want := []string{
+					"FROM docker.io/ubuntu:" + tc.version,
+					"ARG KERNEL_FULL_VERSION=7.0.0-43-generic",
+					"ARG DRIVERS_VERSION=" + config.buildArgs.driversVersion,
+					"linux-headers-${KERNEL_FULL_VERSION}",
+					tc.modulesPackage + "-${KERNEL_FULL_VERSION}",
+					"-name '*.ko.zst' -exec unzstd --rm {} +",
+					imageName + ":ubuntu-" + tc.version + "-7.0.0-43-generic",
+				}
+				if driverType == utils.DriverTypeContainer {
+					want = append(want, "/ubuntu "+tc.suite+" main")
+				}
+				unwant := []string{"$$"}
+				if tc.version == "26.04" {
+					unwant = append(unwant, "linux-modules-extra-")
+				}
+				assertOutput(t, output, nil, want, unwant)
+			})
+		}
+	}
+}
+
+func TestResoluteDriverVersion(t *testing.T) {
+	for _, requested := range []string{"", "31.40.1", "31.50", "31.60"} {
+		t.Run("version="+requested, func(t *testing.T) {
+			want := requested
+			if want == "" {
+				want = "31.50"
+			}
+			config := &Config{
+				OutputFormat: OutputFormatDockerfile,
+				driverType:   utils.DriverTypeContainer,
+				osPrettyName: "Ubuntu 26.04.1 LTS",
+				buildArgs:    BuildArgs{kernelFullVersion: "7.0.0-43-generic", driversVersion: requested},
+			}
+			output, err := createOutput(config, scheme)
+			if err != nil {
+				t.Fatal(err)
+			}
+			assertOutput(t, output, nil, []string{"ARG DRIVERS_VERSION=" + want}, nil)
+			deviceConfig := deriveDeviceConfig(config)
+			node := deriveNode(config.osPrettyName, config.buildArgs.kernelFullVersion)
+			node.Status.NodeInfo.Architecture = "amd64"
+			km, version, err := kmmmodule.GetKM(deviceConfig, node, "", false)
+			if err != nil || version != want || km.Literal != "7.0.0-43-generic" || !strings.HasSuffix(km.ContainerImage, "-"+want) {
+				t.Fatalf("unexpected driver mapping: %+v, %q, %v", km, version, err)
+			}
+		})
+	}
+}
+
+func TestUbuntuSigningFiles(t *testing.T) {
+	for _, tc := range []struct {
+		osName, driverType string
+		count              int
+	}{
+		{"Ubuntu 26.04 LTS", utils.DriverTypeContainer, 9},
+		{"Ubuntu 26.04.1 LTS", utils.DriverTypeContainer, 9},
+		{"Ubuntu 24.04.1 LTS", utils.DriverTypeContainer, 7},
+		{"Ubuntu 26.04.1 LTS", utils.DriverTypeVFPassthrough, 1},
+	} {
+		t.Run(tc.osName+"/"+tc.driverType, func(t *testing.T) {
+			config := &Config{osPrettyName: tc.osName, driverType: tc.driverType,
+				buildArgs: BuildArgs{kernelFullVersion: "7.0.0-43-generic", driversVersion: "31.50"}}
+			dc := deriveDeviceConfig(config)
+			dc.Spec.Driver.ImageSign.KeySecret = &v1.LocalObjectReference{Name: "signing-key"}
+			dc.Spec.Driver.ImageSign.CertSecret = &v1.LocalObjectReference{Name: "signing-cert"}
+			node := deriveNode(config.osPrettyName, config.buildArgs.kernelFullVersion)
+			km, _, err := kmmmodule.GetKM(dc, node, "", false)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if km.Sign == nil || len(km.Sign.FilesToSign) != tc.count {
+				t.Fatalf("unexpected signing configuration: %+v", km.Sign)
+			}
+			for _, file := range km.Sign.FilesToSign {
+				if !strings.HasPrefix(file, "/opt/lib/modules/7.0.0-43-generic/updates/dkms/") || !strings.HasSuffix(file, ".ko") {
+					t.Errorf("unexpected signing path: %s", file)
+				}
+			}
+			if tc.count == 9 {
+				for _, name := range []string{"amddrm_exec.ko", "amddrm_suballoc_helper.ko"} {
+					if !strings.Contains(strings.Join(km.Sign.FilesToSign, "\n"), "/"+name) {
+						t.Errorf("missing required module %s", name)
+					}
+				}
+			}
+		})
+	}
+}
 
 func TestCreateOutput(t *testing.T) {
 	tests := []struct {
