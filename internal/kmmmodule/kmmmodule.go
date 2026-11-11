@@ -89,19 +89,6 @@ type gimArtifacts struct {
 	rpmPackage string
 }
 
-// GIM releases from 8.4.1.K onward use the version as the release tag.
-var directGIMReleaseTags = map[string]struct{}{
-	"8.4.1.K": {},
-	"8.5.0.K": {},
-	"8.6.0.K": {},
-	"8.7.0.K": {},
-	"8.7.1.K": {},
-	"9.0.0.K": {},
-	"9.1.0.K": {},
-	"9.2.0.K": {},
-	"9.3.0.K": {},
-}
-
 var gimVersionRe = regexp.MustCompile(`^[0-9A-Za-z][0-9A-Za-z._-]*$`)
 
 func getGIMArtifacts(version string) (gimArtifacts, error) {
@@ -114,9 +101,11 @@ func getGIMArtifacts(version string) (gimArtifacts, error) {
 		return gimArtifacts{}, fmt.Errorf("invalid GIM driver version %q", version)
 	}
 
-	releaseTag := "mainline%2F" + version
-	if _, ok := directGIMReleaseTags[version]; ok {
-		releaseTag = version
+	// Use direct tags by default and retain the published mainline exceptions.
+	releaseTag := version
+	switch version {
+	case "8.0.0.K", "8.1.0.K", "8.2.0.K", "8.3.0.K", "8.4.0.K":
+		releaseTag = "mainline%2F" + version
 	}
 	rpmPackage := "gim-dkms-" + version + "-0.noarch.rpm"
 	if version == "9.3.0.K" {

@@ -936,6 +936,25 @@ var _ = Describe("GIM artifact resolution", func() {
 		}
 	})
 
+	It("preserves legacy tags and defaults unlisted versions to direct tags", func() {
+		testCases := []struct {
+			version    string
+			releaseTag string
+		}{
+			{"8.0.0.K", "mainline%2F8.0.0.K"},
+			{"8.2.0.K", "mainline%2F8.2.0.K"},
+			{"8.3.0.K", "mainline%2F8.3.0.K"},
+			{"8.4.0.K", "mainline%2F8.4.0.K"},
+			{"9.4.0.K", "9.4.0.K"},
+			{"custom-9.4.0.K", "custom-9.4.0.K"},
+		}
+		for _, tc := range testCases {
+			artifacts, err := getGIMArtifacts(tc.version)
+			Expect(err).NotTo(HaveOccurred(), tc.version)
+			Expect(artifacts.releaseTag).To(Equal(tc.releaseTag), tc.version)
+		}
+	})
+
 	It("rejects GIM versions that are unsafe in URLs or shell", func() {
 		for _, v := range []string{"", "../x", "1.0;rm -rf /", "a b"} {
 			_, err := getGIMArtifacts(v)
