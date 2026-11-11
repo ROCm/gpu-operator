@@ -92,7 +92,13 @@ var (
 	DefaultVFDeviceIDs = []string{
 		"7410", // MI210 VF
 		"74b5", // MI300X VF
+		"74bd", // MI300X HF VF
+		"74b6", // MI308X VF
+		"74bc", // MI308X HF VF
 		"74b9", // MI325X VF
+		"75b8", // MI350P VF
+		"75b0", // MI350X VF
+		"75b3", // MI355X VF
 		"7461", // Radeon Pro V710 MxGPU
 		"73ae", // Radeon Pro V620 MxGPU
 	}

@@ -4,23 +4,43 @@ FROM ${DTK_AUTO} as builder
 ARG KERNEL_VERSION
 ARG DRIVERS_VERSION
 ARG REPO_URL
-RUN dnf install https://dl.fedoraproject.org/pub/epel/epel-release-latest-9.noarch.rpm -y && \
+ARG PACKAGE_REPO_URL
+ARG GIM_RELEASE_TAG
+ARG GIM_RPM_PACKAGE
+RUN wget -q https://dl.fedoraproject.org/pub/epel/epel-release-latest-9.noarch.rpm \
+      -O /tmp/epel-release.rpm && \
+    rpm -Uvh /tmp/epel-release.rpm && \
+    rm -f /tmp/epel-release.rpm && \
     crb enable && \
     sed -i "s/\$releasever/9/g" /etc/yum.repos.d/epel*.repo && \
     dnf install dnf-plugin-config-manager -y && \
     dnf clean all
 
-RUN dnf install -y 'dnf-command(config-manager)' && \
-    dnf config-manager --add-repo=https://mirror.stream.centos.org/9-stream/BaseOS/x86_64/os/ && \
-    dnf config-manager --add-repo=https://mirror.stream.centos.org/9-stream/AppStream/x86_64/os/ && \
+RUN printf '%s\n' \
+      '[centos-stream-baseos]' \
+      'name=CentOS Stream 9 - BaseOS' \
+      'baseurl=https://mirror.stream.centos.org/9-stream/BaseOS/x86_64/os/' \
+      'enabled=1' \
+      'gpgcheck=1' \
+      'gpgkey=https://www.centos.org/keys/RPM-GPG-KEY-CentOS-Official' \
+      > /etc/yum.repos.d/centos-stream.repo && \
+    printf '%s\n' \
+      '[centos-stream-appstream]' \
+      'name=CentOS Stream 9 - AppStream' \
+      'baseurl=https://mirror.stream.centos.org/9-stream/AppStream/x86_64/os/' \
+      'enabled=1' \
+      'gpgcheck=1' \
+      'gpgkey=https://www.centos.org/keys/RPM-GPG-KEY-CentOS-Official' \
+      >> /etc/yum.repos.d/centos-stream.repo && \
     rpm --import https://www.centos.org/keys/RPM-GPG-KEY-CentOS-Official && \
     dnf clean all
 
-RUN dnf install automake bc -y && \
-    wget https://github.com/amd/MxGPU-Virtualization/releases/download/mainline%2F${DRIVERS_VERSION}/gim-dkms-${DRIVERS_VERSION}-0.noarch.rpm && \
-    dnf install ./gim-dkms-${DRIVERS_VERSION}-0.noarch.rpm -y && \
+RUN dnf install automake bc cmake dkms -y && \
+    GIM_RELEASE_BASE="${PACKAGE_REPO_URL:-https://github.com/amd/MxGPU-Virtualization/releases/download}" && \
+    wget "${GIM_RELEASE_BASE%/}/${GIM_RELEASE_TAG}/${GIM_RPM_PACKAGE}" && \
+    rpm -Uvh "./${GIM_RPM_PACKAGE}" && \
     dnf clean all && \
-    rm ./gim-dkms-${DRIVERS_VERSION}-0.noarch.rpm && \
+    rm "./${GIM_RPM_PACKAGE}" && \
     depmod ${KERNEL_VERSION} && \
     find /lib/modules/${KERNEL_VERSION} -name "*.ko.xz" -exec xz -d {} \; && \
     depmod ${KERNEL_VERSION}

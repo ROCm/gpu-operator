@@ -88,6 +88,14 @@ var _ = Describe("ValidateDriverSpec passthrough requirements", func() {
 		})
 	}
 
+	It("requires an explicit GIM version for enabled VF passthrough", func() {
+		err := validate(utils.DriverTypeVFPassthrough, "", map[string]string{
+			utils.NodeFeatureLabelAmdGpu: "true",
+		})
+		Expect(err).To(HaveOccurred())
+		Expect(err.Error()).To(ContainSubstring("spec.driver.version"))
+	})
+
 	It("requires a selector for enabled VF passthrough", func() {
 		err := validate(utils.DriverTypeVFPassthrough, "9.3.0.K", nil)
 		Expect(err).To(HaveOccurred())
@@ -100,8 +108,8 @@ var _ = Describe("ValidateDriverSpec passthrough requirements", func() {
 		Expect(err.Error()).To(ContainSubstring("spec.selector"))
 	})
 
-	It("accepts enabled VF passthrough with a selector", func() {
-		Expect(validate(utils.DriverTypeVFPassthrough, "", map[string]string{
+	It("accepts enabled VF passthrough with selector and version", func() {
+		Expect(validate(utils.DriverTypeVFPassthrough, "9.3.0.K", map[string]string{
 			utils.NodeFeatureLabelAmdGpu: "true",
 		})).To(Succeed())
 	})

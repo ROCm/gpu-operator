@@ -50,6 +50,9 @@ func ValidateDriverSpec(ctx context.Context, client client.Client, devConfig *am
 
 	// The CRD defaults driver.enable to true when the field is omitted.
 	driverEnabled := dSpec.Enable == nil || *dSpec.Enable
+	if driverEnabled && dSpec.DriverType == utils.DriverTypeVFPassthrough && dSpec.Version == "" {
+		return fmt.Errorf("spec.driver.version is required for enabled %s", dSpec.DriverType)
+	}
 	if driverEnabled && (dSpec.DriverType == utils.DriverTypeVFPassthrough || dSpec.DriverType == utils.DriverTypePFPassthrough) {
 		if len(devConfig.Spec.Selector) == 0 {
 			return fmt.Errorf("spec.selector is required for enabled %s", dSpec.DriverType)
