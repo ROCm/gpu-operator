@@ -106,7 +106,7 @@ func (h *PodEventHandler) Delete(
 	q workqueue.TypedRateLimitingInterface[reconcile.Request],
 ) {
 	pod, ok := evt.Object.(*v1.Pod)
-	if !ok || pod.Status.Phase != v1.PodFailed && pod.Status.Phase != v1.PodUnknown {
+	if !ok {
 		return
 	}
 	action, ok := pod.Labels[utils.WorkerActionLabelKey]
@@ -117,30 +117,16 @@ func (h *PodEventHandler) Delete(
 	if !ok {
 		return
 	}
-	if action == utils.LoadVFIOAction && devConfig.Spec.Driver.Enable != nil && !*devConfig.Spec.Driver.Enable {
-		return
-	}
-	if action == utils.LoadVFIOAction && !devConfig.DeletionTimestamp.IsZero() {
-		return
-	}
-	if action == utils.UnloadVFIOAction && !devConfig.DeletionTimestamp.IsZero() && devConfig.Spec.Driver.DriverType != utils.DriverTypePFPassthrough {
-		return
-	}
-	node := &v1.Node{}
-	if err := h.client.Get(ctx, types.NamespacedName{Name: pod.Spec.NodeName}, node); err != nil {
-		if !k8serrors.IsNotFound(err) {
+	if action == utils.UnloadVFIOAction && devConfig.Spec.Driver.DriverType == utils.DriverTypeVFPassthrough &&
+		pod.Status.Phase != v1.PodSucceeded && devConfig.DeletionTimestamp.IsZero() {
+		node := &v1.Node{}
+		if err := h.client.Get(ctx, types.NamespacedName{Name: pod.Spec.NodeName}, node); err == nil {
+			if err := h.workerMgr.Cleanup(ctx, devConfig, node); err != nil {
+				log.FromContext(ctx).Error(err, "failed to retry deleted VF cleanup pod", "pod", pod.Name)
+			}
+		} else if !k8serrors.IsNotFound(err) {
 			log.FromContext(ctx).Error(err, "failed to get node for deleted worker pod", "pod", pod.Name)
 		}
-		return
-	}
-	var err error
-	if action == utils.UnloadVFIOAction {
-		err = h.workerMgr.Cleanup(ctx, devConfig, node)
-	} else {
-		err = h.workerMgr.Work(ctx, devConfig, node)
-	}
-	if err != nil {
-		log.FromContext(ctx).Error(err, "failed to retry deleted worker pod", "pod", pod.Name)
 	}
 	q.Add(reconcile.Request{NamespacedName: nsn})
 }
@@ -215,8 +201,14 @@ func (h *PodEventHandler) handleWorkerMgrPodEvt(ctx context.Context, logger logr
 	if !ok {
 		return
 	}
+	if action == utils.LoadVFIOAction &&
+		((devConfig.Spec.Driver.Enable != nil && !*devConfig.Spec.Driver.Enable) || !devConfig.DeletionTimestamp.IsZero()) {
+		q.Add(reconcile.Request{NamespacedName: nsn})
+		return
+	}
 	if !devConfig.DeletionTimestamp.IsZero() &&
 		(action != utils.UnloadVFIOAction || pod.Status.Phase != v1.PodSucceeded) {
+		q.Add(reconcile.Request{NamespacedName: nsn})
 		return
 	}
 	switch pod.Status.Phase {
@@ -227,6 +219,11 @@ func (h *PodEventHandler) handleWorkerMgrPodEvt(ctx context.Context, logger logr
 		case utils.LoadVFIOAction:
 			h.workerMgr.AddWorkReadyLabel(ctx, logger, nsn, pod.Spec.NodeName)
 		case utils.UnloadVFIOAction:
+			if devConfig.Spec.Driver.DriverType == utils.DriverTypePFPassthrough &&
+				((devConfig.Spec.Driver.Enable != nil && !*devConfig.Spec.Driver.Enable) || !devConfig.DeletionTimestamp.IsZero()) {
+				q.Add(reconcile.Request{NamespacedName: nsn})
+				return
+			}
 			h.workerMgr.RemoveWorkReadyLabel(ctx, logger, nsn, pod.Spec.NodeName)
 		}
 		// remove the completed pod
@@ -236,6 +233,7 @@ func (h *PodEventHandler) handleWorkerMgrPodEvt(ctx context.Context, logger logr
 			logger.Error(err, fmt.Sprintf("failed to delete completed worker pod %v", pod.Name))
 			return
 		}
+		q.Add(reconcile.Request{NamespacedName: nsn})
 	case v1.PodFailed, v1.PodUnknown:
 		logger.Info(fmt.Sprintf("retain worker pod %v due to its %v status", pod.Name, pod.Status.Phase))
 		q.Add(reconcile.Request{NamespacedName: nsn})

@@ -14,7 +14,10 @@ import (
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/client-go/util/workqueue"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/event"
+	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 )
 
 func TestGetWorkerDeviceConfigRejectsStaleOwner(t *testing.T) {
@@ -85,5 +88,47 @@ func TestWorkerUnloadCompletesDuringDeviceConfigDeletion(t *testing.T) {
 		Status: v1.PodStatus{Phase: v1.PodSucceeded},
 	}
 
-	h.handleWorkerMgrPodEvt(context.Background(), logr.Discard(), pod, utils.UnloadVFIOAction, nil)
+	q := workqueue.NewTypedRateLimitingQueue(workqueue.DefaultTypedControllerRateLimiter[reconcile.Request]())
+	defer q.ShutDown()
+	h.handleWorkerMgrPodEvt(context.Background(), logr.Discard(), pod, utils.UnloadVFIOAction, q)
+}
+
+func TestPFCleanupMarkerIsRetainedAndDeletionQueuesReconcile(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	kubeClient := mock_client.NewMockClient(ctrl)
+	workerMgr := workermgr.NewMockWorkerMgrAPI(ctrl)
+	disabled := false
+	dc := &amdv1alpha1.DeviceConfig{
+		ObjectMeta: metav1.ObjectMeta{Namespace: "test", Name: "dc", UID: types.UID("current")},
+		Spec: amdv1alpha1.DeviceConfigSpec{Driver: amdv1alpha1.DriverSpec{
+			Enable: &disabled, DriverType: utils.DriverTypePFPassthrough,
+		}},
+	}
+	kubeClient.EXPECT().Get(gomock.Any(), types.NamespacedName{Namespace: "test", Name: "dc"}, gomock.Any()).DoAndReturn(
+		func(_ context.Context, _ types.NamespacedName, obj client.Object, _ ...client.GetOption) error {
+			*obj.(*amdv1alpha1.DeviceConfig) = *dc.DeepCopy()
+			return nil
+		},
+	).Times(2)
+	controller := true
+	pod := &v1.Pod{
+		ObjectMeta: metav1.ObjectMeta{Namespace: "test", Name: "worker-dc-node",
+			Labels:          map[string]string{utils.WorkerActionLabelKey: utils.UnloadVFIOAction},
+			OwnerReferences: []metav1.OwnerReference{{Kind: utils.KindDeviceConfig, Name: dc.Name, UID: dc.UID, Controller: &controller}}},
+		Spec:   v1.PodSpec{NodeName: "node"},
+		Status: v1.PodStatus{Phase: v1.PodSucceeded},
+	}
+	h := &PodEventHandler{client: kubeClient, workerMgr: workerMgr}
+	qUpdate := workqueue.NewTypedRateLimitingQueue(workqueue.DefaultTypedControllerRateLimiter[reconcile.Request]())
+	defer qUpdate.ShutDown()
+	h.handleWorkerMgrPodEvt(context.Background(), logr.Discard(), pod, utils.UnloadVFIOAction, qUpdate)
+	if qUpdate.Len() != 1 {
+		t.Fatalf("successful marker update queued %d reconciles, want 1", qUpdate.Len())
+	}
+	qDelete := workqueue.NewTypedRateLimitingQueue(workqueue.DefaultTypedControllerRateLimiter[reconcile.Request]())
+	defer qDelete.ShutDown()
+	h.Delete(context.Background(), event.DeleteEvent{Object: pod}, qDelete)
+	if qDelete.Len() != 1 {
+		t.Fatalf("successful marker deletion queued %d reconciles, want 1", qDelete.Len())
+	}
 }

@@ -38,10 +38,11 @@ import (
 )
 
 const (
-	workerContainerName = "worker"
-	initContainerName   = "pci-device-detector"
-	pciDeviceIDTemplate = "$$PCI_DEVICE_ID_LIST"
-	utilsContainerSA    = "amd-gpu-operator-utils-container"
+	workerContainerName   = "worker"
+	initContainerName     = "pci-device-detector"
+	pciDeviceIDTemplate   = "$$PCI_DEVICE_ID_LIST"
+	utilsContainerSA      = "amd-gpu-operator-utils-container"
+	VFDetectorRetryMarker = "gpu.operator.amd.com/vfio-detector-retry-handled"
 )
 
 var (
@@ -364,6 +365,9 @@ func (w *workerMgr) getPodDef(devConfig *amdv1alpha1.DeviceConfig, nodeName, act
 			RestartPolicy: v1.RestartPolicyNever,
 			Volumes:       volumes,
 		},
+	}
+	if action == utils.LoadVFIOAction && devConfig.Spec.Driver.DriverType == utils.DriverTypeVFPassthrough {
+		worker.Annotations = map[string]string{VFDetectorRetryMarker: "true"}
 	}
 
 	// add image pull policy if specified

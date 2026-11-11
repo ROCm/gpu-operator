@@ -285,6 +285,20 @@ func (r *DeviceConfigReconciler) Reconcile(ctx context.Context, req ctrl.Request
 		return res, fmt.Errorf("validation failed for DeviceConfig %s: %v", req.NamespacedName, result)
 	}
 
+	if len(nodes.Items) == 0 && isDisabledPF(devConfig) {
+		if err := r.helper.setFinalizer(ctx, devConfig); err != nil {
+			return res, err
+		}
+		if vfioHelper, ok := r.helper.(vfioWorkerReconciler); ok {
+			if err := vfioHelper.ensureVFIOWorkers(ctx, devConfig, nodes); err != nil {
+				return res, err
+			}
+		}
+		if err := r.helper.buildDeviceConfigStatus(ctx, devConfig, nodes); err != nil {
+			return res, err
+		}
+		return res, r.helper.updateDeviceConfigStatus(ctx, devConfig)
+	}
 	if len(nodes.Items) == 0 {
 		msg := fmt.Sprintf("no nodes found matching selector %s; verify node labels or check that NFD has labeled the GPU nodes", labels.Set(devConfig.Spec.Selector).String())
 		if errSet := r.helper.setCondition(ctx, conditions.ConditionTypeError, devConfig, metav1.ConditionTrue, conditions.NoMatchingNodes, msg); errSet != nil {
@@ -649,12 +663,33 @@ func (dcrh *deviceConfigReconcilerHelper) buildDeviceConfigStatus(ctx context.Co
 
 	// Successfully processed the config
 	devConfig.Status.ObservedGeneration = devConfig.Generation
-	if failedNode, err := dcrh.getFailedWorkerNode(ctx, devConfig, nodes); err != nil {
+	statusNodes := nodes
+	if isDisabledPF(devConfig) {
+		var err error
+		statusNodes, err = dcrh.pfCleanupNodes(ctx, devConfig, nodes)
+		if err != nil {
+			return err
+		}
+	}
+	if failedNode, err := dcrh.getFailedWorkerNode(ctx, devConfig, statusNodes); err != nil {
 		return err
 	} else if failedNode != "" {
 		message := fmt.Sprintf("VFIO worker failed on node %s", failedNode)
 		dcrh.conditionUpdater.SetErrorCondition(devConfig, metav1.ConditionTrue, conditions.VFIOWorkerFailed, message)
 		dcrh.conditionUpdater.SetReadyCondition(devConfig, metav1.ConditionFalse, conditions.VFIOWorkerFailed, message)
+		return nil
+	}
+	if isDisabledPF(devConfig) {
+		complete, err := dcrh.pfCleanupComplete(ctx, devConfig, statusNodes)
+		if err != nil {
+			return err
+		}
+		dcrh.conditionUpdater.DeleteErrorCondition(devConfig)
+		if !complete {
+			dcrh.conditionUpdater.SetReadyCondition(devConfig, metav1.ConditionFalse, conditions.VFIOCleanupPending, "PF VFIO cleanup is still in progress")
+		} else {
+			dcrh.conditionUpdater.SetReadyCondition(devConfig, metav1.ConditionTrue, conditions.ReadyStatus, "")
+		}
 		return nil
 	}
 
@@ -686,30 +721,6 @@ func (dcrh *deviceConfigReconcilerHelper) getFailedWorkerNode(ctx context.Contex
 		}
 	}
 	return "", nil
-}
-
-func (dcrh *deviceConfigReconcilerHelper) ensureVFIOWorkers(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig, nodes *v1.NodeList) error {
-	if devConfig.Spec.Driver.Enable != nil && !*devConfig.Spec.Driver.Enable {
-		return nil
-	}
-	if devConfig.Spec.Driver.DriverType != utils.DriverTypeVFPassthrough && devConfig.Spec.Driver.DriverType != utils.DriverTypePFPassthrough {
-		return nil
-	}
-	vfioLabel := dcrh.kmmPostProcessor.GetWorkReadyLabel(types.NamespacedName{Namespace: devConfig.Namespace, Name: devConfig.Name})
-	for _, node := range nodes.Items {
-		if _, ok := node.Labels[vfioLabel]; ok {
-			continue
-		}
-		if _, err := dcrh.kmmPostProcessor.GetWorkerPod(ctx, devConfig, &node); err == nil {
-			continue
-		} else if !k8serrors.IsNotFound(err) {
-			return fmt.Errorf("failed to fetch VFIO worker pod on node %s: %w", node.Name, err)
-		}
-		if err := dcrh.kmmPostProcessor.Work(ctx, devConfig, &node); err != nil {
-			return fmt.Errorf("failed to create VFIO worker pod on node %s: %w", node.Name, err)
-		}
-	}
-	return nil
 }
 
 func (dcrh *deviceConfigReconcilerHelper) updateDeviceConfigStatus(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig) error {
@@ -1053,12 +1064,34 @@ func (dcrh *deviceConfigReconcilerHelper) finalizeDeviceConfig(ctx context.Conte
 	}
 
 	// finalize KMM CR of managing out-of-tree kernel module
+	if devConfig.Spec.Driver.DriverType == utils.DriverTypePFPassthrough {
+		var err error
+		nodes, err = dcrh.pfCleanupNodes(ctx, devConfig, nodes)
+		if err != nil {
+			return err
+		}
+		if err := dcrh.ensurePFCleanup(ctx, devConfig, nodes); err != nil {
+			return err
+		}
+		complete, err := dcrh.pfCleanupComplete(ctx, devConfig, nodes)
+		if err != nil {
+			return err
+		}
+		if !complete {
+			return errors.New("waiting for PF VFIO cleanup")
+		}
+	}
 	if err := utils.UpdateDriverTypeNodeLabel(ctx, dcrh.client, devConfig, nodes, true); err != nil {
 		return fmt.Errorf("failed to remove driver type node label: %+v", err)
 	}
 
 	if !dcrh.kmmWatchEnabled {
 		// When KMM watch is disabled, skip KMM Module deletion and leave any existing KMM resources orphaned
+		if devConfig.Spec.Driver.DriverType == utils.DriverTypePFPassthrough {
+			if err := dcrh.deletePFCleanupMarkers(ctx, devConfig, nodes); err != nil {
+				return err
+			}
+		}
 		devConfigCopy := devConfig.DeepCopy()
 		controllerutil.RemoveFinalizer(devConfig, deviceConfigFinalizer)
 		return dcrh.client.Patch(ctx, devConfig, client.MergeFrom(devConfigCopy))
@@ -1083,13 +1116,9 @@ func (dcrh *deviceConfigReconcilerHelper) finalizeDeviceConfig(ctx context.Conte
 				default:
 					logger.Info("module already deleted, removing finalizer", "module", namespacedName)
 				}
-			} else if devConfig.Spec.Driver.Enable != nil &&
-				*devConfig.Spec.Driver.Enable &&
-				devConfig.Spec.Driver.DriverType == utils.DriverTypePFPassthrough {
-				// for pf-passthrough, unbind devices from vfio
-				// so that they can be used by other driver
-				if !dcrh.checkPostProcessFinalizeCondition(ctx, devConfig, nodes, false) {
-					return errors.New("waiting for post-process finalize condition")
+			} else if devConfig.Spec.Driver.DriverType == utils.DriverTypePFPassthrough {
+				if err := dcrh.deletePFCleanupMarkers(ctx, devConfig, nodes); err != nil {
+					return err
 				}
 			} else {
 				// driver disabled mode won't have KMM CR created
@@ -1256,7 +1285,7 @@ func (dcrh *deviceConfigReconcilerHelper) handleKMMModule(ctx context.Context, d
 	logger := log.FromContext(ctx)
 
 	// add or remove the driver type node label as driver management changes
-	cleanupDriverLabel := devConfig.Spec.Driver.Enable != nil && !*devConfig.Spec.Driver.Enable
+	cleanupDriverLabel := devConfig.Spec.Driver.Enable != nil && !*devConfig.Spec.Driver.Enable && !isDisabledPF(devConfig)
 	if err := utils.UpdateDriverTypeNodeLabel(ctx, dcrh.client, devConfig, nodes, cleanupDriverLabel); err != nil {
 		return err
 	}
