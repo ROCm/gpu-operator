@@ -78,6 +78,9 @@ func deviceConfigReadiness(devConfig *amdv1alpha1.DeviceConfig, nodes *v1.NodeLi
 				return false, conditions.DevicePluginPending, fmt.Sprintf("device plugin has not advertised an AMD resource on node %s; check the device-plugin image and logs", node.Name)
 			}
 		}
+		if devicePlugin.Spec.UpdateStrategy.Type == appsv1.OnDeleteDaemonSetStrategyType {
+			return true, conditions.ReadyStatus, "device plugin is available on selected nodes; OnDelete Ready does not verify the desired image"
+		}
 	}
 	return true, conditions.ReadyStatus, ""
 }

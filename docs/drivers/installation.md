@@ -279,6 +279,8 @@ To check the full spec of `DeviceConfig` definition run `kubectl get crds device
 
 #### `spec.driver` Parameters
 
+When upgrading an OpenShift cluster that used an older operator-managed blacklist, follow the [legacy blacklist migration procedure](../installation/openshift-olm.md#migrate-a-blacklist-left-by-an-older-operator).
+
 | Parameter                                               | Description                                                                                                                                                                                                                                         | Default                                                                                                                                                   |
 |---------------------------------------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------|
 | `enable`                                                | Set to true for installing out-of-tree driver.<br>Set to false to skip driver install and use inbox/pre-installed driver.                                                                                                                           | `true`                                                                                                                                                    |

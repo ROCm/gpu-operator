@@ -27,36 +27,37 @@ func TestOpenShiftNodeLabellerDoesNotManageBlacklist(t *testing.T) {
 		Spec: amdv1alpha1.DeviceConfigSpec{
 			Driver: amdv1alpha1.DriverSpec{
 				Enable:     ptr.To(true),
-				Blacklist:  ptr.To(true),
 				DriverType: utils.DriverTypeVFPassthrough,
 			},
 		},
 	}
-	ds := &appsv1.DaemonSet{ObjectMeta: metav1.ObjectMeta{Name: "node-labeller", Namespace: "ns"}}
-
-	if err := NewNodeLabeller(scheme, true).SetNodeLabellerAsDesired(ds, devConfig); err != nil {
-		t.Fatal(err)
-	}
-
-	init := ds.Spec.Template.Spec.InitContainers[0]
-	command := strings.Join(init.Command, " ")
-	if strings.Contains(command, "/host-etc/modprobe.d") || strings.Contains(command, "blacklist amdgpu") {
-		t.Fatalf("OpenShift node-labeller mutates the host blacklist: %q", command)
-	}
-	if !strings.Contains(command, "/host-sys/module/gim/drivers/") {
-		t.Fatalf("OpenShift node-labeller no longer waits for GIM: %q", command)
-	}
-	for _, volume := range ds.Spec.Template.Spec.Volumes {
-		if volume.Name == "etc-volume" {
-			t.Fatal("OpenShift node-labeller should not mount host /etc")
+	for _, blacklist := range []bool{false, true} {
+		devConfig.Spec.Driver.Blacklist = ptr.To(blacklist)
+		ds := &appsv1.DaemonSet{ObjectMeta: metav1.ObjectMeta{Name: "node-labeller", Namespace: "ns"}}
+		if err := NewNodeLabeller(scheme, true).SetNodeLabellerAsDesired(ds, devConfig); err != nil {
+			t.Fatal(err)
 		}
-	}
-	for _, mount := range init.VolumeMounts {
-		if mount.Name == "etc-volume" || mount.MountPath == "/host-etc" {
-			t.Fatal("OpenShift node-labeller should not mount host /etc")
+
+		init := ds.Spec.Template.Spec.InitContainers[0]
+		command := strings.Join(init.Command, " ")
+		if strings.Contains(command, "/host-etc/modprobe.d") || strings.Contains(command, "blacklist amdgpu") {
+			t.Fatalf("blacklist=%t: OpenShift node-labeller mutates the host blacklist: %q", blacklist, command)
 		}
-	}
-	if got := ds.Spec.Template.Spec.ServiceAccountName; got != "amd-gpu-operator-node-labeller" {
-		t.Fatalf("service account = %q, want amd-gpu-operator-node-labeller", got)
+		if !strings.Contains(command, "/host-sys/module/gim/drivers/") {
+			t.Fatalf("blacklist=%t: OpenShift node-labeller no longer waits for GIM: %q", blacklist, command)
+		}
+		for _, volume := range ds.Spec.Template.Spec.Volumes {
+			if volume.Name == "etc-volume" {
+				t.Fatalf("blacklist=%t: OpenShift node-labeller should not mount host /etc", blacklist)
+			}
+		}
+		for _, mount := range init.VolumeMounts {
+			if mount.Name == "etc-volume" || mount.MountPath == "/host-etc" {
+				t.Fatalf("blacklist=%t: OpenShift node-labeller should not mount host /etc", blacklist)
+			}
+		}
+		if got := ds.Spec.Template.Spec.ServiceAccountName; got != "amd-gpu-operator-node-labeller" {
+			t.Fatalf("blacklist=%t: service account = %q, want amd-gpu-operator-node-labeller", blacklist, got)
+		}
 	}
 }

@@ -468,6 +468,62 @@ spec:
             source: "data:text/plain;base64,YmxhY2tsaXN0IGFtZGdwdQo="
 ```
 
+#### Migrate a blacklist left by an older operator
+
+Older GPU Operator versions could write `/etc/modprobe.d/blacklist-amdgpu-by-operator.conf` on OpenShift. The current node labeller leaves host modprobe files to MCO, so setting `spec.driver.blacklist: false` no longer removes that legacy file. Migrate it before relying on the inbox or preinstalled `amdgpu` driver:
+
+1. Upgrade the GPU Operator first. For every DeviceConfig that ran a node labeller on the target pool, wait for its pods to use the new DaemonSet template, which has no host `/etc` mount. If a DaemonSet uses `OnDelete`, delete its old pods to replace them. Repeat these checks for each DaemonSet: `status.observedGeneration` must equal `metadata.generation` before comparing the remaining counts; then `desiredNumberScheduled`, `updatedNumberScheduled`, and `numberAvailable` must match, `/host-etc` must be absent from the mount paths, and no old node-labeller pods may remain. If a node labeller is disabled, confirm no old pods remain instead:
+
+   ```bash
+   oc get ds <deviceconfig>-node-labeller -n <namespace> -o jsonpath='{.metadata.generation} {.status.observedGeneration} {.status.desiredNumberScheduled} {.status.updatedNumberScheduled} {.status.numberAvailable}{"\n"}'
+   oc get ds <deviceconfig>-node-labeller -n <namespace> -o jsonpath='{.spec.template.spec.initContainers[*].volumeMounts[*].mountPath}{"\n"}'
+   oc get pods -n <namespace> -l daemonset-name=<deviceconfig> -o wide
+   ```
+
+2. Inspect the legacy file on every node in the target pool and check whether a MachineConfig already owns that exact path:
+
+   ```bash
+   oc debug node/<node> -- chroot /host cat /etc/modprobe.d/blacklist-amdgpu-by-operator.conf
+   oc get mc -o yaml | grep -F /etc/modprobe.d/blacklist-amdgpu-by-operator.conf
+   ```
+
+   If the file is absent everywhere, no migration is needed. Only neutralize a file containing the old `# added by gpu operator` marker and `blacklist amdgpu`; investigate any other content before overwriting it. If a MachineConfig already owns the path, change that file entry in its non-rendered source MachineConfig instead of adding a second owner.
+
+3. If no MachineConfig owns the path, apply the following example to the affected pool. Use `master` in both the name and role label for Single Node OpenShift. The empty file removes the legacy blacklist directive while keeping the path under MCO ownership:
+
+   ```yaml
+   apiVersion: machineconfiguration.openshift.io/v1
+   kind: MachineConfig
+   metadata:
+     name: 99-worker-amdgpu-legacy-blacklist-neutralize
+     labels:
+       machineconfiguration.openshift.io/role: worker
+   spec:
+     config:
+       ignition:
+         version: 3.2.0
+       storage:
+         files:
+           - path: /etc/modprobe.d/blacklist-amdgpu-by-operator.conf
+             mode: 420
+             overwrite: true
+             contents:
+               source: "data:,"
+   ```
+
+   Keep the existing MCO-managed `amdgpu` blacklist when continuing with an out-of-tree driver or GIM. To return to the inbox driver, also remove the `amdgpu` blacklist file and `rd.driver.blacklist=amdgpu` and `modprobe.blacklist=amdgpu` arguments from the MachineConfig that supplies them; preserve unrelated settings such as IOMMU arguments. Neutralizing the legacy file alone does not undo those other blacklists.
+
+4. Wait for the affected MachineConfigPool to report `UPDATED=True` and `DEGRADED=False` after its nodes reboot. Check that the legacy file is empty on each affected node. When returning to the inbox driver, also verify that `/proc/cmdline` and `modprobe --showconfig` contain no remaining `amdgpu` blacklist from another source:
+
+   ```bash
+   oc get mcp <worker-or-master>
+   oc debug node/<node> -- chroot /host sh -c 'test -f /etc/modprobe.d/blacklist-amdgpu-by-operator.conf && test ! -s /etc/modprobe.d/blacklist-amdgpu-by-operator.conf'
+   oc debug node/<node> -- chroot /host cat /proc/cmdline
+   oc debug node/<node> -- chroot /host modprobe --showconfig | grep -E '^[[:space:]]*blacklist[[:space:]]+amdgpu'
+   ```
+
+   Keep the neutralizing MachineConfig in place. Before rolling back to an operator version that writes the legacy file, remove MCO ownership of that path and wait for the pool to become updated and non-degraded; only then start the older node-labeller pods.
+
 ### 3. Create DeviceConfig
 
 Create a DeviceConfig CR to trigger the GPU driver installation:

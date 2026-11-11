@@ -216,7 +216,7 @@ func TestDeviceConfigReadiness(t *testing.T) {
 		}
 	})
 
-	t.Run("vf passthrough permits a ready OnDelete daemonset", func(t *testing.T) {
+	t.Run("vf passthrough OnDelete Ready means available service after an image update", func(t *testing.T) {
 		devConfig := newDeviceConfig(utils.DriverTypeVFPassthrough)
 		devConfig.Spec.DevicePlugin.EnableDevicePlugin = ptr.To(true)
 		nodes := newNodes()
@@ -228,12 +228,21 @@ func TestDeviceConfigReadiness(t *testing.T) {
 			}
 		}
 		devicePlugin := &appsv1.DaemonSet{
-			Spec:   appsv1.DaemonSetSpec{UpdateStrategy: appsv1.DaemonSetUpdateStrategy{Type: appsv1.OnDeleteDaemonSetStrategyType}},
-			Status: appsv1.DaemonSetStatus{NumberAvailable: 2},
+			ObjectMeta: metav1.ObjectMeta{Generation: 2},
+			Spec: appsv1.DaemonSetSpec{
+				UpdateStrategy: appsv1.DaemonSetUpdateStrategy{Type: appsv1.OnDeleteDaemonSetStrategyType},
+				Template:       v1.PodTemplateSpec{Spec: v1.PodSpec{Containers: []v1.Container{{Image: "example.com/plugin:v2"}}}},
+			},
+			Status: appsv1.DaemonSetStatus{ObservedGeneration: 2, NumberAvailable: 2, UpdatedNumberScheduled: 0},
 		}
-		ready, reason, _ := deviceConfigReadiness(devConfig, nodes, module, true, devicePlugin)
-		if !ready || reason != "OperatorReady" {
-			t.Fatalf("got ready=%v reason=%q, want OperatorReady", ready, reason)
+		ready, reason, message := deviceConfigReadiness(devConfig, nodes, module, true, devicePlugin)
+		if !ready || reason != "OperatorReady" || message != "device plugin is available on selected nodes; OnDelete Ready does not verify the desired image" {
+			t.Fatalf("got ready=%v reason=%q message=%q, want available-service Ready", ready, reason, message)
+		}
+		delete(nodes.Items[1].Status.Allocatable, v1.ResourceName("amd.com/gpu"))
+		ready, reason, _ = deviceConfigReadiness(devConfig, nodes, module, true, devicePlugin)
+		if ready || reason != "DevicePluginPending" {
+			t.Fatalf("got ready=%v reason=%q after resource loss, want DevicePluginPending", ready, reason)
 		}
 	})
 
