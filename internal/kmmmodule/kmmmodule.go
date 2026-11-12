@@ -202,9 +202,8 @@ func (km *kmmModule) SetNodeVersionLabelAsDesired(ctx context.Context, devConfig
 	// for each selected node
 	// put the KMM version label given by CR's driver version
 	// KMM operator will watch on the version label and manage the kmod upgrade
-	labelKey, labelVal := GetVersionLabelKV(devConfig)
-	logger := log.FromContext(ctx)
 	for _, node := range nodes.Items {
+		labelKey, labelVal := GetVersionLabelKV(devConfig)
 		if _, ok := node.Labels[labelKey]; ok {
 			// version label was already put on the node object
 			// our operator should only upload the version label for 0->1 installation
@@ -215,7 +214,7 @@ func (km *kmmModule) SetNodeVersionLabelAsDesired(ctx context.Context, devConfig
 		if labelVal == "" {
 			defaultVersion, err := utils.GetDefaultDriversVersion(node)
 			if err != nil {
-				logger.Error(err, fmt.Sprintf("failed to get default version for node %+v err %+v", node.GetName(), err))
+				return fmt.Errorf("failed to get default driver version for node %s: %w", node.GetName(), err)
 			}
 			labelVal = defaultVersion
 		}
@@ -268,6 +267,7 @@ var driverLabels = map[string]string{
 	"20.04": "focal",
 	"22.04": "jammy",
 	"24.04": "noble",
+	"26.04": "resolute",
 }
 
 func parseRHELHelper(regExp *regexp.Regexp, osImage string) string {
@@ -348,6 +348,11 @@ func resolveDockerfile(cmName string, devConfig *amdv1alpha1.DeviceConfig) (stri
 		if isCIEnvSet && internalUbuntuBaseSet {
 			dockerfileTemplate = strings.ReplaceAll(dockerfileTemplate, "$$BASEIMG_REGISTRY/ubuntu:$$VERSION", fmt.Sprintf("%v:$$VERSION", internalUbuntuBaseImage))
 		}
+		modulesPackage := "linux-modules-extra"
+		if version == "26.04" {
+			modulesPackage = "linux-modules"
+		}
+		dockerfileTemplate = strings.ReplaceAll(dockerfileTemplate, "$$KERNEL_MODULES_PACKAGE", modulesPackage)
 	case "coreos":
 		switch devConfig.Spec.Driver.DriverType {
 		case utils.DriverTypeVFPassthrough:
@@ -563,7 +568,7 @@ func GetKM(devConfig *amdv1alpha1.DeviceConfig, node v1.Node, inTreeModuleToRemo
 		kmmSign = &kmmv1beta1.Sign{
 			KeySecret:   devConfig.Spec.Driver.ImageSign.KeySecret,
 			CertSecret:  devConfig.Spec.Driver.ImageSign.CertSecret,
-			FilesToSign: getKmodsToSign(isOpenShift, node.Status.NodeInfo.KernelVersion, devConfig),
+			FilesToSign: getKmodsToSign(isOpenShift, osName, node.Status.NodeInfo.KernelVersion, devConfig),
 		}
 		if registryTLS != nil {
 			kmmSign.UnsignedImageRegistryTLS = *registryTLS
@@ -881,7 +886,7 @@ func getModprobeParametersFromNodeInfo(nodes *v1.NodeList, devConfig *amdv1alpha
 	return nil
 }
 
-func getKmodsToSign(isOpenShift bool, kernelVersion string, devConfig *amdv1alpha1.DeviceConfig) []string {
+func getKmodsToSign(isOpenShift bool, osName, kernelVersion string, devConfig *amdv1alpha1.DeviceConfig) []string {
 	if isOpenShift {
 		if devConfig.Spec.Driver.DriverType == utils.DriverTypeVFPassthrough {
 			return []string{"/opt/lib/modules/" + kernelVersion + "/extra/gim.ko"}
@@ -913,7 +918,7 @@ func getKmodsToSign(isOpenShift bool, kernelVersion string, devConfig *amdv1alph
 	if devConfig.Spec.Driver.DriverType == utils.DriverTypeVFPassthrough {
 		return []string{"/opt/lib/modules/" + kernelVersion + "/updates/dkms/gim.ko"}
 	}
-	return []string{
+	files := []string{
 		"/opt/lib/modules/" + kernelVersion + "/updates/dkms/amdkcl.ko",
 		"/opt/lib/modules/" + kernelVersion + "/updates/dkms/amdttm.ko",
 		"/opt/lib/modules/" + kernelVersion + "/updates/dkms/amdgpu.ko",
@@ -922,4 +927,11 @@ func getKmodsToSign(isOpenShift bool, kernelVersion string, devConfig *amdv1alph
 		"/opt/lib/modules/" + kernelVersion + "/updates/dkms/amddrm_buddy.ko",
 		"/opt/lib/modules/" + kernelVersion + "/updates/dkms/amddrm_ttm_helper.ko",
 	}
+	if osName == "ubuntu-26.04" {
+		files = append(files,
+			"/opt/lib/modules/"+kernelVersion+"/updates/dkms/amddrm_exec.ko",
+			"/opt/lib/modules/"+kernelVersion+"/updates/dkms/amddrm_suballoc_helper.ko",
+		)
+	}
+	return files
 }

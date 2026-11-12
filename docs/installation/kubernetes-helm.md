@@ -103,6 +103,14 @@ cert-manager-webhook-6d5cb854fc-h6vbk     1/1     Running   0          2m
 
 ## Installing Operator
 
+### Ubuntu 26.04 Driver Management
+
+When enabling driver installation on Ubuntu 26.04, set the Helm value
+`deviceConfig.spec.driver.version` to `"31.50"`, or to `""` to let the operator
+choose its default. This overrides the chart's pinned `30.20.1` version.
+See the [Driver Installation Guide](../drivers/installation.md) for the
+remaining configuration.
+
 ### 1. Add the AMD Helm Repository
 
 ```bash
