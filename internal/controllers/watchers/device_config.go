@@ -17,6 +17,9 @@ limitations under the License.
 package watchers
 
 import (
+	"reflect"
+
+	amdv1alpha1 "github.com/ROCm/gpu-operator/api/v1alpha1"
 	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 )
@@ -55,3 +58,15 @@ func (SpecChangedOrDeletionPredicate) Create(e event.CreateEvent) bool {
 func (SpecChangedOrDeletionPredicate) Delete(e event.DeleteEvent) bool {
 	return true
 }
+
+// DeviceConfigSelectorChangedPredicate ignores status-only and unrelated spec
+// updates. Creation and deletion can change another config's cleanup candidates.
+type DeviceConfigSelectorChangedPredicate struct{ predicate.Funcs }
+
+func (DeviceConfigSelectorChangedPredicate) Update(e event.UpdateEvent) bool {
+	oldConfig, oldOK := e.ObjectOld.(*amdv1alpha1.DeviceConfig)
+	newConfig, newOK := e.ObjectNew.(*amdv1alpha1.DeviceConfig)
+	return oldOK && newOK && !reflect.DeepEqual(oldConfig.Spec.Selector, newConfig.Spec.Selector)
+}
+
+func (DeviceConfigSelectorChangedPredicate) Generic(event.GenericEvent) bool { return false }

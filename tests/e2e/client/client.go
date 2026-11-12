@@ -482,11 +482,8 @@ func (c *deviceConfigsClient) Delete(name string) (*v1alpha1.DeviceConfig, error
 		Delete().
 		Namespace(c.ns).
 		Resource("deviceConfigs").
-		Body(&v1alpha1.DeviceConfig{
-			ObjectMeta: metav1.ObjectMeta{
-				Name: name,
-			},
-		}).
+		Name(name).
+		Body(&metav1.DeleteOptions{}).
 		Do(context.TODO()).
 		Into(&result)
 
