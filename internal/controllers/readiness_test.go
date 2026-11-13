@@ -286,10 +286,10 @@ func TestDeviceConfigReadiness(t *testing.T) {
 				v1.ResourceName("amd.com/cpx_nps4"): resource.MustParse("1"),
 			}
 		}
-		devicePlugin := &appsv1.DaemonSet{Status: appsv1.DaemonSetStatus{NumberAvailable: 2}}
-		ready, reason, _ := deviceConfigReadiness(devConfig, nodes, module, true, devicePlugin)
-		if ready || reason != "DevicePluginPending" {
-			t.Fatalf("got ready=%v reason=%q, want DevicePluginPending", ready, reason)
+		devicePlugin := &appsv1.DaemonSet{Status: appsv1.DaemonSetStatus{NumberAvailable: 2, UpdatedNumberScheduled: 2}}
+		ready, reason, message := deviceConfigReadiness(devConfig, nodes, module, true, devicePlugin)
+		if ready || reason != "DevicePluginPending" || message != "device plugin has not advertised an AMD resource on node node-a; check the device-plugin image and logs" {
+			t.Fatalf("got ready=%v reason=%q message=%q, want resource check to report pending", ready, reason, message)
 		}
 	})
 }
