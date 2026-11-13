@@ -2026,6 +2026,11 @@ spec:
                       description: VFIOCleanupPending indicates that the node must
                         be unbound before it can be reused.
                       type: boolean
+                    vfioBindingBootID:
+                      description: VFIOBindingBootID records the boot on which VFIO
+                        binding may have been attempted. It is set before load work
+                        starts and cleared only after successful cleanup.
+                      type: string
                   type: object
                 description: NodeReservations preserves accepted node ownership independently
                   of readiness.

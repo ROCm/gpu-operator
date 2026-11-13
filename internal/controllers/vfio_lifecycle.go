@@ -127,6 +127,17 @@ func (dcrh *deviceConfigReconcilerHelper) ensureVFIOWorkers(ctx context.Context,
 		if reservation, ok := dcrh.nodeReservation(devConfig, node.Name); ok && reservation.VFIOCleanupPending {
 			continue
 		}
+		bootID := node.Status.NodeInfo.BootID
+		reservation, _ := dcrh.nodeReservation(devConfig, node.Name)
+		if _, ready := node.Labels[vfioLabel]; ready && (bootID == "" || reservation.VFIOBindingBootID != bootID) {
+			if err := dcrh.setNodeVFIOReady(ctx, devConfig, node.Name, false, false); err != nil {
+				return err
+			}
+			delete(node.Labels, vfioLabel)
+		}
+		if bootID == "" {
+			continue
+		}
 		if kmmManaged {
 			if !kmmReady {
 				continue
@@ -138,7 +149,30 @@ func (dcrh *deviceConfigReconcilerHelper) ensureVFIOWorkers(ctx context.Context,
 		pod, err := dcrh.getOwnedWorkerPod(ctx, devConfig, &node)
 		if err == nil {
 			if pod.Labels[utils.WorkerActionLabelKey] == utils.LoadVFIOAction && pod.Status.Phase == v1.PodSucceeded {
+				if pod.Annotations[workermgr.VFIOWorkerBootIDAnnotation] == "" || pod.Annotations[workermgr.VFIOWorkerBootIDAnnotation] != bootID {
+					if err := dcrh.setNodeVFIOReady(ctx, devConfig, node.Name, false, false); err != nil {
+						return err
+					}
+					if err := dcrh.deleteWorkerPod(ctx, pod); err != nil {
+						return err
+					}
+					continue
+				}
+				if reservation.VFIOBindingBootID != bootID {
+					if err := dcrh.setVFIOBindingBootID(ctx, devConfig, node.Name, bootID); err != nil {
+						return err
+					}
+				}
 				if err := dcrh.setNodeVFIOReady(ctx, devConfig, node.Name, true, false); err != nil {
+					return err
+				}
+				if err := dcrh.deleteWorkerPod(ctx, pod); err != nil {
+					return err
+				}
+			} else if isInterruptedVFIOLoad(pod) &&
+				pod.Annotations[workermgr.VFIOWorkerBootIDAnnotation] != "" &&
+				pod.Annotations[workermgr.VFIOWorkerBootIDAnnotation] != bootID && nodeIsReady(&node) {
+				if err := dcrh.setNodeVFIOReady(ctx, devConfig, node.Name, false, false); err != nil {
 					return err
 				}
 				if err := dcrh.deleteWorkerPod(ctx, pod); err != nil {
@@ -157,11 +191,46 @@ func (dcrh *deviceConfigReconcilerHelper) ensureVFIOWorkers(ctx context.Context,
 		if _, ok := node.Labels[vfioLabel]; ok {
 			continue
 		}
+		if err := dcrh.setVFIOBindingBootID(ctx, devConfig, node.Name, bootID); err != nil {
+			return err
+		}
 		if err := dcrh.kmmPostProcessor.Work(ctx, devConfig, &node); err != nil {
 			return fmt.Errorf("failed to create VFIO worker pod on node %s: %w", node.Name, err)
 		}
 	}
 	return nil
+}
+
+func isInterruptedVFIOLoad(pod *v1.Pod) bool {
+	if pod.Status.Phase != v1.PodFailed && pod.Status.Phase != v1.PodUnknown {
+		return false
+	}
+	if pod.Status.Reason == "Terminated" || pod.Status.Reason == "NodeLost" {
+		return true
+	}
+	for _, statuses := range [][]v1.ContainerStatus{pod.Status.InitContainerStatuses, pod.Status.ContainerStatuses} {
+		for _, status := range statuses {
+			if status.State.Waiting != nil && status.State.Waiting.Reason == "ContainerStatusUnknown" {
+				return true
+			}
+			if status.State.Terminated != nil && (status.State.Terminated.Reason == "Terminated" || status.State.Terminated.Reason == "ContainerStatusUnknown") {
+				return true
+			}
+			if status.LastTerminationState.Terminated != nil && status.LastTerminationState.Terminated.Reason == "ContainerStatusUnknown" {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func nodeIsReady(node *v1.Node) bool {
+	for _, condition := range node.Status.Conditions {
+		if condition.Type == v1.NodeReady && condition.Status == v1.ConditionTrue {
+			return true
+		}
+	}
+	return false
 }
 
 func (dcrh *deviceConfigReconcilerHelper) nodeReservation(devConfig *amdv1alpha1.DeviceConfig, node string) (amdv1alpha1.NodeReservationStatus, bool) {
@@ -218,6 +287,15 @@ func (dcrh *deviceConfigReconcilerHelper) clearVFIOCleanupPending(ctx context.Co
 		return nil
 	}
 	status.VFIOCleanupPending = false
+	return dcrh.setNodeReservation(ctx, devConfig, node, &status)
+}
+
+func (dcrh *deviceConfigReconcilerHelper) setVFIOBindingBootID(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig, node, bootID string) error {
+	status, _ := dcrh.nodeReservation(devConfig, node)
+	if status.VFIOBindingBootID == bootID {
+		return nil
+	}
+	status.VFIOBindingBootID = bootID
 	return dcrh.setNodeReservation(ctx, devConfig, node, &status)
 }
 
@@ -340,7 +418,8 @@ func (dcrh *deviceConfigReconcilerHelper) vfioCleanupNodes(ctx context.Context, 
 	names := make(map[string]struct{})
 	if devConfig.Status.NodeReservationsInitialized {
 		for node, reservation := range devConfig.Status.NodeReservations {
-			if reservation.VFIOCleanupPending {
+			_, selected := selectedNodes[node]
+			if reservation.VFIOCleanupPending || reservation.VFIOBindingBootID != "" && (!enabled || deleting || !selected) {
 				names[node] = struct{}{}
 			}
 		}
@@ -460,6 +539,9 @@ func (dcrh *deviceConfigReconcilerHelper) ensureVFIOCleanup(ctx context.Context,
 		if err := dcrh.clearVFIOCleanupPending(ctx, devConfig, node.Name); err != nil {
 			return err
 		}
+		if err := dcrh.setVFIOBindingBootID(ctx, devConfig, node.Name, ""); err != nil {
+			return err
+		}
 		if err := dcrh.deleteWorkerPod(ctx, pod); err != nil {
 			return err
 		}
@@ -471,6 +553,9 @@ func (dcrh *deviceConfigReconcilerHelper) vfioCleanupComplete(ctx context.Contex
 	readyLabel := dcrh.kmmPostProcessor.GetWorkReadyLabel(types.NamespacedName{Namespace: devConfig.Namespace, Name: devConfig.Name})
 	for _, node := range nodes.Items {
 		if reservation, ok := dcrh.nodeReservation(devConfig, node.Name); ok && reservation.VFIOCleanupPending {
+			return false, nil
+		}
+		if reservation, ok := dcrh.nodeReservation(devConfig, node.Name); ok && reservation.VFIOBindingBootID != "" {
 			return false, nil
 		}
 		current := &v1.Node{}

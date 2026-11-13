@@ -42,8 +42,10 @@ type lifecycleClient struct {
 	deviceConfig   *amdv1alpha1.DeviceConfig
 	holdPodDeletes bool
 	pods           map[types.NamespacedName]*v1.Pod
+	podListCalls   int
 	nodes          map[string]*v1.Node
 	modules        map[types.NamespacedName]*kmmv1beta1.Module
+	nmcs           map[string]*kmmv1beta1.NodeModulesConfig
 }
 
 type lifecycleStatusWriter struct {
@@ -79,6 +81,12 @@ func (c *lifecycleClient) Get(_ context.Context, key client.ObjectKey, obj clien
 			return nil
 		}
 		return k8serrors.NewNotFound(schema.GroupResource{Resource: "modules"}, key.Name)
+	case *kmmv1beta1.NodeModulesConfig:
+		if nmc := c.nmcs[key.Name]; nmc != nil {
+			*out = *nmc.DeepCopy()
+			return nil
+		}
+		return k8serrors.NewNotFound(schema.GroupResource{Resource: "nodemodulesconfigs"}, key.Name)
 	case *amdv1alpha1.DeviceConfig:
 		*out = *c.deviceConfig.DeepCopy()
 		return nil
@@ -89,6 +97,7 @@ func (c *lifecycleClient) Get(_ context.Context, key client.ObjectKey, obj clien
 func (c *lifecycleClient) List(_ context.Context, list client.ObjectList, _ ...client.ListOption) error {
 	switch out := list.(type) {
 	case *v1.PodList:
+		c.podListCalls++
 		for _, pod := range c.pods {
 			out.Items = append(out.Items, *pod.DeepCopy())
 		}
@@ -135,6 +144,8 @@ func (c *lifecycleClient) Patch(_ context.Context, obj client.Object, _ client.P
 		c.nodes[value.Name] = value.DeepCopy()
 	case *v1.Pod:
 		c.pods[client.ObjectKeyFromObject(value)] = value.DeepCopy()
+	case *kmmv1beta1.Module:
+		c.modules[client.ObjectKeyFromObject(value)] = value.DeepCopy()
 	case *amdv1alpha1.DeviceConfig:
 		c.deviceConfig = value.DeepCopy()
 	default:
@@ -158,7 +169,7 @@ func lifecycleFixture(t *testing.T, driverType string, enabled bool, nodes ...*v
 	}
 	cli := &lifecycleClient{
 		deviceConfig: dc,
-		pods:         map[types.NamespacedName]*v1.Pod{}, nodes: map[string]*v1.Node{}, modules: map[types.NamespacedName]*kmmv1beta1.Module{},
+		pods:         map[types.NamespacedName]*v1.Pod{}, nodes: map[string]*v1.Node{}, modules: map[types.NamespacedName]*kmmv1beta1.Module{}, nmcs: map[string]*kmmv1beta1.NodeModulesConfig{},
 	}
 	for _, node := range nodes {
 		cli.nodes[node.Name] = node.DeepCopy()
@@ -195,6 +206,7 @@ func workerOnNode(t *testing.T, cli client.Client, namespace, name, node string)
 func TestVFDetectorWaitsForKMMAndRecoversLegacyTimeoutOnce(t *testing.T) {
 	ctx := context.Background()
 	node := &v1.Node{ObjectMeta: metav1.ObjectMeta{Name: "node-a", Labels: map[string]string{"selected": "true"}}}
+	node.Status.NodeInfo.BootID = "boot-1"
 	helper, dc, cli, scheme := lifecycleFixture(t, utils.DriverTypeVFPassthrough, true, node)
 	nodes := &v1.NodeList{Items: []v1.Node{*node}}
 	if err := helper.ensureVFIOWorkers(ctx, dc, nodes); err != nil {
@@ -249,7 +261,12 @@ func TestFailedPFLoadIsReplacedByCleanupAndRetainedUntilReenable(t *testing.T) {
 	node := &v1.Node{ObjectMeta: metav1.ObjectMeta{Name: "node-a", Labels: map[string]string{
 		"selected": "true", "gpu.operator.amd.com/test.dc.driver": utils.DriverTypePFPassthrough,
 	}}}
+	node.Status.NodeInfo.BootID = "boot-1"
 	helper, dc, cli, scheme := lifecycleFixture(t, utils.DriverTypePFPassthrough, false, node)
+	dc.Status.NodeReservationsInitialized = true
+	dc.Status.NodeReservations = map[string]amdv1alpha1.NodeReservationStatus{
+		node.Name: {VFIOBindingBootID: "boot-before-cleanup"},
+	}
 	load := lifecyclePod(t, scheme, dc, node.Name, utils.LoadVFIOAction, v1.PodFailed)
 	if err := cli.Create(ctx, load); err != nil {
 		t.Fatal(err)
@@ -293,6 +310,9 @@ func TestFailedPFLoadIsReplacedByCleanupAndRetainedUntilReenable(t *testing.T) {
 	}
 	if err := cli.Get(ctx, client.ObjectKeyFromObject(unload), &v1.Pod{}); !k8serrors.IsNotFound(err) {
 		t.Fatalf("successful cleanup worker was not consumed by reconciliation: %v", err)
+	}
+	if got := cli.deviceConfig.Status.NodeReservations[node.Name].VFIOBindingBootID; got != "" {
+		t.Fatalf("successful cleanup retained VFIO binding BootID %q", got)
 	}
 	if err := cli.Get(ctx, types.NamespacedName{Name: node.Name}, currentNode); err != nil {
 		t.Fatal(err)
@@ -411,6 +431,159 @@ func TestEnabledVFIOWithNoMatchingNodesIsNotReady(t *testing.T) {
 	t.Fatalf("NoMatchingNodes error condition was not set: %+v", dc.Status.Conditions)
 }
 
+func TestVFIOWorkerWaitsForBootIDAndRecordsBindingAttempt(t *testing.T) {
+	ctx := context.Background()
+	node := &v1.Node{ObjectMeta: metav1.ObjectMeta{Name: "node-a", Labels: map[string]string{
+		"selected": "true", "gpu.operator.amd.com/test.dc.driver": utils.DriverTypePFPassthrough,
+	}}}
+	helper, dc, cli, _ := lifecycleFixture(t, utils.DriverTypePFPassthrough, true, node)
+	helper.kmmWatchEnabled = false
+	readyLabel := helper.kmmPostProcessor.GetWorkReadyLabel(types.NamespacedName{Namespace: dc.Namespace, Name: dc.Name})
+	node.Labels[readyLabel] = ""
+	cli.nodes[node.Name] = node.DeepCopy()
+	nodes := &v1.NodeList{Items: []v1.Node{*node}}
+
+	if err := helper.ensureVFIOWorkers(ctx, dc, nodes); err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := cli.nodes[node.Name].Labels[readyLabel]; ok {
+		t.Fatal("ready label was retained without a current BootID")
+	}
+	if err := cli.Get(ctx, types.NamespacedName{Namespace: dc.Namespace, Name: "worker-dc-node-a"}, &v1.Pod{}); !k8serrors.IsNotFound(err) {
+		t.Fatalf("load worker was created without a BootID: %v", err)
+	}
+
+	node.Status.NodeInfo.BootID = "boot-1"
+	cli.nodes[node.Name] = node.DeepCopy()
+	nodes.Items[0] = *node
+	if err := helper.ensureVFIOWorkers(ctx, dc, nodes); err != nil {
+		t.Fatal(err)
+	}
+	worker := workerOnNode(t, cli, dc.Namespace, dc.Name, node.Name)
+	if got := worker.Annotations[workermgr.VFIOWorkerBootIDAnnotation]; got != "boot-1" {
+		t.Fatalf("load worker BootID annotation = %q, want boot-1", got)
+	}
+	if got := cli.deviceConfig.Status.NodeReservations[node.Name].VFIOBindingBootID; got != "boot-1" {
+		t.Fatalf("persisted binding BootID = %q, want boot-1", got)
+	}
+
+	cli.pods[client.ObjectKeyFromObject(worker)].Status.Phase = v1.PodSucceeded
+	if err := helper.ensureVFIOWorkers(ctx, dc, nodes); err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := cli.nodes[node.Name].Labels[readyLabel]; !ok {
+		t.Fatal("current-boot success did not restore the ready label")
+	}
+	if err := cli.Get(ctx, client.ObjectKeyFromObject(worker), &v1.Pod{}); !k8serrors.IsNotFound(err) {
+		t.Fatalf("successful load worker was not consumed: %v", err)
+	}
+}
+
+func TestVFIOStaleSuccessAndInterruptedLoadsAreHandledByBootID(t *testing.T) {
+	ctx := context.Background()
+	currentBoot := "boot-current"
+	ready := v1.NodeCondition{Type: v1.NodeReady, Status: v1.ConditionTrue}
+	readyLabel := "gpu.operator.amd.com/test.dc.vfio.ready"
+	nodes := []*v1.Node{
+		{ObjectMeta: metav1.ObjectMeta{Name: "stale-success", Labels: map[string]string{
+			"selected": "true", "gpu.operator.amd.com/test.dc.driver": utils.DriverTypePFPassthrough, readyLabel: "",
+		}}, Status: v1.NodeStatus{NodeInfo: v1.NodeSystemInfo{BootID: currentBoot}}},
+		{ObjectMeta: metav1.ObjectMeta{Name: "interrupted", Labels: map[string]string{"selected": "true"}}, Status: v1.NodeStatus{
+			NodeInfo: v1.NodeSystemInfo{BootID: currentBoot}, Conditions: []v1.NodeCondition{ready},
+		}},
+		{ObjectMeta: metav1.ObjectMeta{Name: "container-status-unknown", Labels: map[string]string{"selected": "true"}}, Status: v1.NodeStatus{
+			NodeInfo: v1.NodeSystemInfo{BootID: currentBoot}, Conditions: []v1.NodeCondition{ready},
+		}},
+		{ObjectMeta: metav1.ObjectMeta{Name: "same-boot", Labels: map[string]string{"selected": "true"}}, Status: v1.NodeStatus{
+			NodeInfo: v1.NodeSystemInfo{BootID: currentBoot}, Conditions: []v1.NodeCondition{ready},
+		}},
+		{ObjectMeta: metav1.ObjectMeta{Name: "command-failure", Labels: map[string]string{"selected": "true"}}, Status: v1.NodeStatus{
+			NodeInfo: v1.NodeSystemInfo{BootID: currentBoot}, Conditions: []v1.NodeCondition{ready},
+		}},
+		{ObjectMeta: metav1.ObjectMeta{Name: "legacy-failure", Labels: map[string]string{"selected": "true"}}, Status: v1.NodeStatus{
+			NodeInfo: v1.NodeSystemInfo{BootID: currentBoot}, Conditions: []v1.NodeCondition{ready},
+		}},
+		{ObjectMeta: metav1.ObjectMeta{Name: "not-ready", Labels: map[string]string{"selected": "true"}}, Status: v1.NodeStatus{
+			NodeInfo:   v1.NodeSystemInfo{BootID: currentBoot},
+			Conditions: []v1.NodeCondition{{Type: v1.NodeReady, Status: v1.ConditionFalse}},
+		}},
+	}
+	inputs := make([]*v1.Node, len(nodes))
+	for i := range nodes {
+		inputs[i] = nodes[i]
+	}
+	helper, dc, cli, scheme := lifecycleFixture(t, utils.DriverTypePFPassthrough, true, inputs...)
+	helper.kmmWatchEnabled = false
+	for _, workerNode := range []struct {
+		node   *v1.Node
+		phase  v1.PodPhase
+		reason string
+		bootID string
+	}{
+		{node: nodes[0], phase: v1.PodSucceeded, bootID: "boot-old"},
+		{node: nodes[1], phase: v1.PodFailed, reason: "NodeLost", bootID: "boot-old"},
+		{node: nodes[2], phase: v1.PodFailed, bootID: "boot-old"},
+		{node: nodes[3], phase: v1.PodFailed, reason: "NodeLost", bootID: currentBoot},
+		{node: nodes[4], phase: v1.PodFailed, reason: "Error", bootID: "boot-old"},
+		{node: nodes[5], phase: v1.PodFailed, reason: "NodeLost"},
+		{node: nodes[6], phase: v1.PodFailed, reason: "NodeLost", bootID: "boot-old"},
+	} {
+		pod := lifecyclePod(t, scheme, dc, workerNode.node.Name, utils.LoadVFIOAction, workerNode.phase)
+		if workerNode.bootID != "" {
+			pod.Annotations = map[string]string{workermgr.VFIOWorkerBootIDAnnotation: workerNode.bootID}
+		}
+		pod.Status.Reason = workerNode.reason
+		if workerNode.node.Name == "container-status-unknown" {
+			pod.Status.ContainerStatuses = []v1.ContainerStatus{{Name: "worker", State: v1.ContainerState{
+				Terminated: &v1.ContainerStateTerminated{Reason: "ContainerStatusUnknown"},
+			}}}
+		}
+		if err := cli.Create(ctx, pod); err != nil {
+			t.Fatal(err)
+		}
+	}
+	selected := &v1.NodeList{Items: make([]v1.Node, len(nodes))}
+	for i := range nodes {
+		selected.Items[i] = *nodes[i]
+	}
+	if err := helper.ensureVFIOWorkers(ctx, dc, selected); err != nil {
+		t.Fatal(err)
+	}
+	if err := cli.Get(ctx, types.NamespacedName{Namespace: dc.Namespace, Name: "worker-dc-stale-success"}, &v1.Pod{}); !k8serrors.IsNotFound(err) {
+		t.Fatalf("stale successful worker was retained: %v", err)
+	}
+	if _, ok := cli.nodes[nodes[0].Name].Labels[readyLabel]; ok {
+		t.Fatal("stale successful worker restored the VFIO-ready label")
+	}
+	for _, name := range []string{"same-boot", "command-failure", "legacy-failure", "not-ready"} {
+		pod := &v1.Pod{}
+		if err := cli.Get(ctx, types.NamespacedName{Namespace: dc.Namespace, Name: "worker-" + dc.Name + "-" + name}, pod); err != nil {
+			t.Fatalf("failed worker %s was unexpectedly removed: %v", name, err)
+		}
+	}
+	for _, name := range []string{"interrupted", "container-status-unknown"} {
+		if err := cli.Get(ctx, types.NamespacedName{Namespace: dc.Namespace, Name: "worker-" + dc.Name + "-" + name}, &v1.Pod{}); !k8serrors.IsNotFound(err) {
+			t.Fatalf("interrupted prior-boot worker %s was not removed for retry: %v", name, err)
+		}
+	}
+
+	selected.Items[0] = *cli.nodes[nodes[0].Name].DeepCopy()
+	if err := helper.ensureVFIOWorkers(ctx, dc, selected); err != nil {
+		t.Fatal(err)
+	}
+	if got := workerOnNode(t, cli, dc.Namespace, dc.Name, nodes[0].Name).Annotations[workermgr.VFIOWorkerBootIDAnnotation]; got != currentBoot {
+		t.Fatalf("replacement worker BootID = %q, want %q", got, currentBoot)
+	}
+	if err := helper.ensureVFIOWorkers(ctx, dc, selected); err != nil {
+		t.Fatal(err)
+	}
+	for _, name := range []string{"interrupted", "container-status-unknown"} {
+		if got := workerOnNode(t, cli, dc.Namespace, dc.Name, name).Annotations[workermgr.VFIOWorkerBootIDAnnotation]; got != currentBoot {
+			t.Fatalf("interrupted worker %s retry BootID = %q, want %q", name, got, currentBoot)
+		}
+	}
+}
+
 func TestDisabledPFWithEmptySelectorOnlyCleansKnownNodes(t *testing.T) {
 	ctx := context.Background()
 	known := &v1.Node{ObjectMeta: metav1.ObjectMeta{Name: "known", Labels: map[string]string{
@@ -483,6 +656,7 @@ func TestPFReenableWaitsForUnloadBeforeRebinding(t *testing.T) {
 	ctx := context.Background()
 	readyLabel := "gpu.operator.amd.com/test.dc.vfio.ready"
 	node := &v1.Node{ObjectMeta: metav1.ObjectMeta{Name: "node-a", Labels: map[string]string{"selected": "true", readyLabel: ""}}}
+	node.Status.NodeInfo.BootID = "boot-1"
 	helper, dc, cli, scheme := lifecycleFixture(t, utils.DriverTypePFPassthrough, true, node)
 	dc.Status.NodeModuleStatus = map[string]amdv1alpha1.ModuleStatus{node.Name: {}}
 	unload := lifecyclePod(t, scheme, dc, node.Name, utils.UnloadVFIOAction, v1.PodRunning)

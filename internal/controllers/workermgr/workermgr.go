@@ -38,11 +38,12 @@ import (
 )
 
 const (
-	workerContainerName   = "worker"
-	initContainerName     = "pci-device-detector"
-	pciDeviceIDTemplate   = "$$PCI_DEVICE_ID_LIST"
-	utilsContainerSA      = "amd-gpu-operator-utils-container"
-	VFDetectorRetryMarker = "gpu.operator.amd.com/vfio-detector-retry-handled"
+	workerContainerName        = "worker"
+	initContainerName          = "pci-device-detector"
+	pciDeviceIDTemplate        = "$$PCI_DEVICE_ID_LIST"
+	utilsContainerSA           = "amd-gpu-operator-utils-container"
+	VFDetectorRetryMarker      = "gpu.operator.amd.com/vfio-detector-retry-handled"
+	VFIOWorkerBootIDAnnotation = "gpu.operator.amd.com/vfio-worker-boot-id"
 )
 
 var (
@@ -96,6 +97,12 @@ func (w *workerMgr) Work(ctx context.Context, devConfig *amdv1alpha1.DeviceConfi
 		return nil
 	}
 	loadWorker := w.getPodDef(devConfig, node.Name, utils.LoadVFIOAction)
+	if bootID := node.Status.NodeInfo.BootID; bootID != "" {
+		if loadWorker.Annotations == nil {
+			loadWorker.Annotations = make(map[string]string)
+		}
+		loadWorker.Annotations[VFIOWorkerBootIDAnnotation] = bootID
+	}
 	opRes, err := controllerutil.CreateOrPatch(ctx, w.client, loadWorker, func() error {
 		return controllerutil.SetControllerReference(devConfig, loadWorker, w.scheme)
 	})

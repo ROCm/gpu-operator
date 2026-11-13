@@ -1,0 +1,148 @@
+/*
+Copyright (c) Advanced Micro Devices, Inc. All rights reserved.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+     http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
+package controllers
+
+import (
+	"context"
+	"testing"
+
+	amdv1alpha1 "github.com/ROCm/gpu-operator/api/v1alpha1"
+	utils "github.com/ROCm/gpu-operator/internal"
+	kmmv1beta1 "github.com/rh-ecosystem-edge/kernel-module-management/api/v1beta1"
+	v1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
+)
+
+func TestReserveNodeAssignmentsRetainsPreviousNonVFIONodes(t *testing.T) {
+	helper, dc, _, _ := lifecycleFixture(t, utils.DriverTypeContainer, true)
+	dc.Status.NodeReservationsInitialized = true
+	dc.Status.NodeReservations = map[string]amdv1alpha1.NodeReservationStatus{"old-node": {}}
+	if err := helper.reserveNodeAssignments(context.Background(), dc, &v1.NodeList{}); err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := dc.Status.NodeReservations["old-node"]; !ok {
+		t.Fatal("zero-match reconcile dropped the previous node reservation")
+	}
+	if _, ok := helper.nodeAssignments["old-node"]["test/dc"]; !ok {
+		t.Fatal("old node assignment was not restored")
+	}
+
+	newNode := v1.Node{ObjectMeta: metav1.ObjectMeta{Name: "new-node"}}
+	if err := helper.reserveNodeAssignments(context.Background(), dc, &v1.NodeList{Items: []v1.Node{newNode}}); err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := dc.Status.NodeReservations["old-node"]; !ok {
+		t.Fatal("selector drift released the old reservation before KMM cleanup")
+	}
+	if _, ok := dc.Status.NodeReservations["new-node"]; !ok {
+		t.Fatal("newly selected node was not reserved")
+	}
+}
+
+func TestNonVFIOReservationsSkipKMMWorkerListWithoutStaleNodes(t *testing.T) {
+	node := &v1.Node{ObjectMeta: metav1.ObjectMeta{Name: "selected-node"}}
+	helper, dc, cli, _ := lifecycleFixture(t, utils.DriverTypeContainer, true, node)
+	pending, err := helper.reconcileNonVFIONodeReservations(context.Background(), dc, &v1.NodeList{Items: []v1.Node{*node}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if pending {
+		t.Fatal("current node reservation was reported as pending")
+	}
+	if cli.podListCalls != 0 {
+		t.Fatalf("listed KMM worker pods %d times without a stale reservation", cli.podListCalls)
+	}
+}
+
+func TestNonVFIOReservationWaitsForKMMAndWorkerToReleaseNode(t *testing.T) {
+	ctx := context.Background()
+	oldNode := &v1.Node{ObjectMeta: metav1.ObjectMeta{Name: "old-node", Labels: map[string]string{"pool": "old"}}}
+	helper, dc, cli, scheme := lifecycleFixture(t, utils.DriverTypeContainer, true, oldNode)
+	dc.Spec.Selector = map[string]string{"pool": "missing"}
+	dc.Status.NodeReservationsInitialized = true
+	dc.Status.NodeReservations = map[string]amdv1alpha1.NodeReservationStatus{"old-node": {}}
+
+	module := &kmmv1beta1.Module{
+		ObjectMeta: metav1.ObjectMeta{Namespace: dc.Namespace, Name: dc.Name, UID: types.UID("module-uid")},
+		Spec:       kmmv1beta1.ModuleSpec{Selector: map[string]string{"pool": "old"}},
+	}
+	if err := controllerutil.SetControllerReference(dc, module, scheme); err != nil {
+		t.Fatal(err)
+	}
+	cli.modules[client.ObjectKeyFromObject(module)] = module.DeepCopy()
+	cli.nmcs[oldNode.Name] = &kmmv1beta1.NodeModulesConfig{
+		ObjectMeta: metav1.ObjectMeta{Name: oldNode.Name},
+		Spec: kmmv1beta1.NodeModulesConfigSpec{Modules: []kmmv1beta1.NodeModuleSpec{{
+			ModuleItem: kmmv1beta1.ModuleItem{Namespace: dc.Namespace, Name: dc.Name},
+		}}},
+		Status: kmmv1beta1.NodeModulesConfigStatus{Modules: []kmmv1beta1.NodeModuleStatus{{
+			ModuleItem: kmmv1beta1.ModuleItem{Namespace: dc.Namespace, Name: dc.Name},
+		}}},
+	}
+
+	pending, err := helper.reconcileNonVFIONodeReservations(ctx, dc, &v1.NodeList{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !pending {
+		t.Fatal("reservation was released while KMM still listed the module")
+	}
+	if got := cli.modules[client.ObjectKeyFromObject(module)].Spec.Selector; got["pool"] != "missing" {
+		t.Fatalf("KMM Module selector = %v, want current zero-match selector", got)
+	}
+	if _, ok := dc.Status.NodeReservations[oldNode.Name]; !ok {
+		t.Fatal("old reservation was released while KMM still managed the node")
+	}
+
+	nmc := cli.nmcs[oldNode.Name]
+	nmc.Spec.Modules = nil
+	nmc.Status.Modules = nil
+	cli.pods[types.NamespacedName{Namespace: dc.Namespace, Name: "kmm-worker-old"}] = &v1.Pod{
+		ObjectMeta: metav1.ObjectMeta{Namespace: dc.Namespace, Name: "kmm-worker-old", Labels: map[string]string{
+			kmmModuleNameLabel: dc.Name, kmmWorkerComponentLabel: kmmWorkerComponent,
+		}},
+		Spec: v1.PodSpec{NodeName: oldNode.Name},
+	}
+	pending, err = helper.reconcileNonVFIONodeReservations(ctx, dc, &v1.NodeList{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !pending {
+		t.Fatal("reservation was released while a KMM worker still targeted the node")
+	}
+	if _, ok := dc.Status.NodeReservations[oldNode.Name]; !ok {
+		t.Fatal("old reservation was released while a KMM worker still targeted the node")
+	}
+
+	delete(cli.pods, types.NamespacedName{Namespace: dc.Namespace, Name: "kmm-worker-old"})
+	pending, err = helper.reconcileNonVFIONodeReservations(ctx, dc, &v1.NodeList{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if pending {
+		t.Fatal("reservation remained after KMM spec, status, and worker were gone")
+	}
+	if _, ok := dc.Status.NodeReservations[oldNode.Name]; ok {
+		t.Fatal("old reservation was retained after KMM released the node")
+	}
+	if _, ok := helper.nodeAssignments[oldNode.Name]; ok {
+		t.Fatal("old in-memory node assignment remained after release")
+	}
+}

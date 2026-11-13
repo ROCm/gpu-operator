@@ -1047,6 +1047,9 @@ type ModuleStatus struct {
 type NodeReservationStatus struct {
 	// VFIOCleanupPending indicates that the node must be unbound before it can be reused.
 	VFIOCleanupPending bool `json:"vfioCleanupPending,omitempty"`
+	// VFIOBindingBootID records the boot on which VFIO binding may have been attempted.
+	// It is set before load work starts and cleared only after successful cleanup.
+	VFIOBindingBootID string `json:"vfioBindingBootID,omitempty"`
 }
 
 // DeviceConfigStatus defines the observed state of Module.

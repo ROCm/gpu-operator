@@ -335,14 +335,29 @@ func (r *DeviceConfigReconciler) Reconcile(ctx context.Context, req ctrl.Request
 				return res, nil
 			}
 		}
+		reservationReleasePending := false
+		if reservationHelper, ok := r.helper.(nonVFIONodeReservationReconciler); ok {
+			var err error
+			reservationReleasePending, err = reservationHelper.reconcileNonVFIONodeReservations(ctx, devConfig, nodes)
+			if err != nil {
+				if conditionErr := r.helper.setCondition(ctx, conditions.ConditionTypeReady, devConfig, metav1.ConditionFalse, conditions.KMMModulePending, "waiting to confirm that KMM no longer manages previously selected nodes"); conditionErr != nil {
+					logger.Error(conditionErr, "failed to set KMM reservation pending condition")
+				}
+				return res, err
+			}
+		}
 		msg := fmt.Sprintf("no nodes found matching selector %s; verify node labels or check that NFD has labeled the GPU nodes", labels.Set(devConfig.Spec.Selector).String())
+		if reservationReleasePending {
+			msg += "; KMM cleanup is pending for previously selected nodes"
+			res.RequeueAfter = nodeReservationRequeueAfter
+		}
 		if errSet := r.helper.setCondition(ctx, conditions.ConditionTypeError, devConfig, metav1.ConditionTrue, conditions.NoMatchingNodes, msg); errSet != nil {
 			logger.Error(fmt.Errorf("failed to set error condition: %v", errSet), "")
 		}
 		if errSet := r.helper.setCondition(ctx, conditions.ConditionTypeReady, devConfig, metav1.ConditionFalse, conditions.NoMatchingNodes, msg); errSet != nil {
 			logger.Error(fmt.Errorf("failed to set ready condition: %v", errSet), "")
 		}
-		return ctrl.Result{}, nil
+		return res, nil
 	}
 
 	err = r.helper.setFinalizer(ctx, devConfig)
@@ -365,6 +380,19 @@ func (r *DeviceConfigReconciler) Reconcile(ctx context.Context, req ctrl.Request
 	logger.Info("start KMM reconciliation")
 	if err = r.helper.handleKMMModule(ctx, devConfig, nodes); err != nil {
 		return res, fmt.Errorf("failed to handle KMM module for DeviceConfig %s: %v", req.NamespacedName, err)
+	}
+	reservationReleasePending := false
+	if reservationHelper, ok := r.helper.(nonVFIONodeReservationReconciler); ok {
+		reservationReleasePending, err = reservationHelper.reconcileNonVFIONodeReservations(ctx, devConfig, nodes)
+		if err != nil {
+			if conditionErr := r.helper.setCondition(ctx, conditions.ConditionTypeReady, devConfig, metav1.ConditionFalse, conditions.KMMModulePending, "waiting to confirm that KMM no longer manages previously selected nodes"); conditionErr != nil {
+				logger.Error(conditionErr, "failed to set KMM reservation pending condition")
+			}
+			return res, fmt.Errorf("failed to release stale node reservations for DeviceConfig %s: %w", req.NamespacedName, err)
+		}
+		if reservationReleasePending && (res.RequeueAfter == 0 || res.RequeueAfter > nodeReservationRequeueAfter) {
+			res.RequeueAfter = nodeReservationRequeueAfter
+		}
 	}
 	if vfioHelper, ok := r.helper.(vfioWorkerReconciler); ok {
 		if err = vfioHelper.ensureVFIOWorkers(ctx, devConfig, nodes); err != nil {
@@ -734,6 +762,19 @@ func (dcrh *deviceConfigReconcilerHelper) buildDeviceConfigStatus(ctx context.Co
 			dcrh.conditionUpdater.DeleteErrorCondition(devConfig)
 			dcrh.conditionUpdater.SetReadyCondition(devConfig, metav1.ConditionFalse, conditions.VFIOCleanupPending, "VFIO cleanup is still in progress")
 			return nil
+		}
+	}
+	if !isVFIOConfig(devConfig) {
+		selected := make(map[string]struct{}, len(nodes.Items))
+		for _, node := range nodes.Items {
+			selected[node.Name] = struct{}{}
+		}
+		for node := range devConfig.Status.NodeReservations {
+			if _, ok := selected[node]; !ok {
+				dcrh.conditionUpdater.DeleteErrorCondition(devConfig)
+				dcrh.conditionUpdater.SetReadyCondition(devConfig, metav1.ConditionFalse, conditions.KMMModulePending, "waiting for KMM to stop managing previously selected nodes")
+				return nil
+			}
 		}
 	}
 	if len(nodes.Items) == 0 && isVFIOConfig(devConfig) && (devConfig.Spec.Driver.Enable == nil || *devConfig.Spec.Driver.Enable) {
@@ -1951,15 +1992,8 @@ func (dcrh *deviceConfigReconcilerHelper) reserveNodeAssignments(ctx context.Con
 		}
 	}
 
-	if isVFIOConfig(devConfig) {
-		for _, node := range nodes.Items {
-			if _, ok := reservations[node.Name]; !ok {
-				reservations[node.Name] = amdv1alpha1.NodeReservationStatus{}
-			}
-		}
-	} else {
-		reservations = make(map[string]amdv1alpha1.NodeReservationStatus, len(nodes.Items))
-		for _, node := range nodes.Items {
+	for _, node := range nodes.Items {
+		if _, ok := reservations[node.Name]; !ok {
 			reservations[node.Name] = amdv1alpha1.NodeReservationStatus{}
 		}
 	}
