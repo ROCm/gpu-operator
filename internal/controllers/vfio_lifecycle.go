@@ -252,7 +252,9 @@ func (dcrh *deviceConfigReconcilerHelper) setNodeReservation(ctx context.Context
 		}
 	} else {
 		for name := range devConfig.Status.NodeModuleStatus {
-			reservations[name] = amdv1alpha1.NodeReservationStatus{}
+			reservations[name] = amdv1alpha1.NodeReservationStatus{
+				KMMOwnership: dcrh.kmmOwnershipForLegacyReservation(devConfig, name),
+			}
 		}
 	}
 	if status == nil {

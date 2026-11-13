@@ -2024,6 +2024,14 @@ spec:
                   description: NodeReservationStatus records durable DeviceConfig
                     ownership for a node.
                   properties:
+                    kmmOwnership:
+                      description: KMMOwnership records whether KMM may still manage
+                        this node. Missing values are unknown.
+                      enum:
+                      - unknown
+                      - never-managed
+                      - managed
+                      type: string
                     vfioCleanupPending:
                       description: VFIOCleanupPending indicates that the node must
                         be unbound before it can be reused.

@@ -1044,12 +1044,23 @@ type ModuleStatus struct {
 }
 
 // NodeReservationStatus records durable DeviceConfig ownership for a node.
+type KMMOwnership string
+
+const (
+	KMMOwnershipUnknown      KMMOwnership = "unknown"
+	KMMOwnershipNeverManaged KMMOwnership = "never-managed"
+	KMMOwnershipManaged      KMMOwnership = "managed"
+)
+
 type NodeReservationStatus struct {
 	// VFIOCleanupPending indicates that the node must be unbound before it can be reused.
 	VFIOCleanupPending bool `json:"vfioCleanupPending,omitempty"`
 	// VFIOBindingBootID records the boot on which VFIO binding may have been attempted.
 	// It is set before load work starts and cleared only after successful cleanup.
 	VFIOBindingBootID string `json:"vfioBindingBootID,omitempty"`
+	// KMMOwnership records whether KMM may still manage this node. Missing values are unknown.
+	//+kubebuilder:validation:Enum=unknown;never-managed;managed
+	KMMOwnership KMMOwnership `json:"kmmOwnership,omitempty"`
 }
 
 // DeviceConfigStatus defines the observed state of Module.

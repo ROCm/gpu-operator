@@ -336,9 +336,10 @@ func (r *DeviceConfigReconciler) Reconcile(ctx context.Context, req ctrl.Request
 			}
 		}
 		reservationReleasePending := false
+		reservationReleaseRetry := false
 		if reservationHelper, ok := r.helper.(nonVFIONodeReservationReconciler); ok {
 			var err error
-			reservationReleasePending, err = reservationHelper.reconcileNonVFIONodeReservations(ctx, devConfig, nodes)
+			reservationReleasePending, reservationReleaseRetry, err = reservationHelper.reconcileNonVFIONodeReservations(ctx, devConfig, nodes)
 			if err != nil {
 				if conditionErr := r.helper.setCondition(ctx, conditions.ConditionTypeReady, devConfig, metav1.ConditionFalse, conditions.KMMModulePending, "waiting to confirm that KMM no longer manages previously selected nodes"); conditionErr != nil {
 					logger.Error(conditionErr, "failed to set KMM reservation pending condition")
@@ -349,7 +350,14 @@ func (r *DeviceConfigReconciler) Reconcile(ctx context.Context, req ctrl.Request
 		msg := fmt.Sprintf("no nodes found matching selector %s; verify node labels or check that NFD has labeled the GPU nodes", labels.Set(devConfig.Spec.Selector).String())
 		if reservationReleasePending {
 			msg += "; KMM cleanup is pending for previously selected nodes"
-			res.RequeueAfter = nodeReservationRequeueAfter
+			if reservationReleaseRetry {
+				res.RequeueAfter = nodeReservationRequeueAfter
+			} else {
+				if errSet := r.helper.setCondition(ctx, conditions.ConditionTypeReady, devConfig, metav1.ConditionFalse, conditions.KMMModulePending, msg); errSet != nil {
+					logger.Error(errSet, "failed to set KMM reservation pending condition")
+				}
+				return res, nil
+			}
 		}
 		if errSet := r.helper.setCondition(ctx, conditions.ConditionTypeError, devConfig, metav1.ConditionTrue, conditions.NoMatchingNodes, msg); errSet != nil {
 			logger.Error(fmt.Errorf("failed to set error condition: %v", errSet), "")
@@ -381,16 +389,16 @@ func (r *DeviceConfigReconciler) Reconcile(ctx context.Context, req ctrl.Request
 	if err = r.helper.handleKMMModule(ctx, devConfig, nodes); err != nil {
 		return res, fmt.Errorf("failed to handle KMM module for DeviceConfig %s: %v", req.NamespacedName, err)
 	}
-	reservationReleasePending := false
+	reservationReleaseRetry := false
 	if reservationHelper, ok := r.helper.(nonVFIONodeReservationReconciler); ok {
-		reservationReleasePending, err = reservationHelper.reconcileNonVFIONodeReservations(ctx, devConfig, nodes)
+		_, reservationReleaseRetry, err = reservationHelper.reconcileNonVFIONodeReservations(ctx, devConfig, nodes)
 		if err != nil {
 			if conditionErr := r.helper.setCondition(ctx, conditions.ConditionTypeReady, devConfig, metav1.ConditionFalse, conditions.KMMModulePending, "waiting to confirm that KMM no longer manages previously selected nodes"); conditionErr != nil {
 				logger.Error(conditionErr, "failed to set KMM reservation pending condition")
 			}
 			return res, fmt.Errorf("failed to release stale node reservations for DeviceConfig %s: %w", req.NamespacedName, err)
 		}
-		if reservationReleasePending && (res.RequeueAfter == 0 || res.RequeueAfter > nodeReservationRequeueAfter) {
+		if reservationReleaseRetry && (res.RequeueAfter == 0 || res.RequeueAfter > nodeReservationRequeueAfter) {
 			res.RequeueAfter = nodeReservationRequeueAfter
 		}
 	}
@@ -1984,17 +1992,35 @@ func (dcrh *deviceConfigReconcilerHelper) reserveNodeAssignments(ctx context.Con
 	reservations := make(map[string]amdv1alpha1.NodeReservationStatus)
 	if devConfig.Status.NodeReservationsInitialized {
 		for node, status := range devConfig.Status.NodeReservations {
+			if status.KMMOwnership == "" {
+				status.KMMOwnership = dcrh.kmmOwnershipForLegacyReservation(devConfig, node)
+			}
+			if dcrh.shouldUseKMMOperatorLevel(devConfig) || moduleStatusShowsKMM(devConfig.Status.NodeModuleStatus[node]) {
+				status.KMMOwnership = amdv1alpha1.KMMOwnershipManaged
+			}
 			reservations[node] = status
 		}
 	} else {
 		for node := range devConfig.Status.NodeModuleStatus {
-			reservations[node] = amdv1alpha1.NodeReservationStatus{}
+			reservations[node] = amdv1alpha1.NodeReservationStatus{
+				KMMOwnership: dcrh.kmmOwnershipForLegacyReservation(devConfig, node),
+			}
 		}
 	}
 
 	for _, node := range nodes.Items {
-		if _, ok := reservations[node.Name]; !ok {
-			reservations[node.Name] = amdv1alpha1.NodeReservationStatus{}
+		if status, ok := reservations[node.Name]; ok {
+			if status.KMMOwnership == "" {
+				status.KMMOwnership = amdv1alpha1.KMMOwnershipUnknown
+			}
+			if dcrh.shouldUseKMMOperatorLevel(devConfig) || moduleStatusShowsKMM(devConfig.Status.NodeModuleStatus[node.Name]) {
+				status.KMMOwnership = amdv1alpha1.KMMOwnershipManaged
+			}
+			reservations[node.Name] = status
+		} else {
+			reservations[node.Name] = amdv1alpha1.NodeReservationStatus{
+				KMMOwnership: dcrh.kmmOwnershipForNewReservation(devConfig, node.Name),
+			}
 		}
 	}
 

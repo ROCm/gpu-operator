@@ -29,6 +29,7 @@ import (
 	kmmv1beta1 "github.com/rh-ecosystem-edge/kernel-module-management/api/v1beta1"
 	v1 "k8s.io/api/core/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -46,6 +47,8 @@ type lifecycleClient struct {
 	nodes          map[string]*v1.Node
 	modules        map[types.NamespacedName]*kmmv1beta1.Module
 	nmcs           map[string]*kmmv1beta1.NodeModulesConfig
+	moduleNoMatch  bool
+	nmcNoMatch     bool
 }
 
 type lifecycleStatusWriter struct {
@@ -76,12 +79,18 @@ func (c *lifecycleClient) Get(_ context.Context, key client.ObjectKey, obj clien
 		}
 		return k8serrors.NewNotFound(schema.GroupResource{Resource: "nodes"}, key.Name)
 	case *kmmv1beta1.Module:
+		if c.moduleNoMatch {
+			return &meta.NoKindMatchError{GroupKind: schema.GroupKind{Group: "kmm.sigs.k8s.io", Kind: "Module"}}
+		}
 		if module := c.modules[key]; module != nil {
 			*out = *module.DeepCopy()
 			return nil
 		}
 		return k8serrors.NewNotFound(schema.GroupResource{Resource: "modules"}, key.Name)
 	case *kmmv1beta1.NodeModulesConfig:
+		if c.nmcNoMatch {
+			return &meta.NoKindMatchError{GroupKind: schema.GroupKind{Group: "kmm.sigs.k8s.io", Kind: "NodeModulesConfig"}}
+		}
 		if nmc := c.nmcs[key.Name]; nmc != nil {
 			*out = *nmc.DeepCopy()
 			return nil
