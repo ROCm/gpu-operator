@@ -8,7 +8,6 @@ import (
 	amdv1alpha1 "github.com/ROCm/gpu-operator/api/v1alpha1"
 	utils "github.com/ROCm/gpu-operator/internal"
 	mock_client "github.com/ROCm/gpu-operator/internal/client"
-	"github.com/ROCm/gpu-operator/internal/controllers/workermgr"
 	"github.com/go-logr/logr"
 	"go.uber.org/mock/gomock"
 	v1 "k8s.io/api/core/v1"
@@ -55,7 +54,6 @@ func TestGetWorkerDeviceConfigRejectsStaleOwner(t *testing.T) {
 func TestWorkerUnloadCompletesDuringDeviceConfigDeletion(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	kubeClient := mock_client.NewMockClient(ctrl)
-	workerMgr := workermgr.NewMockWorkerMgrAPI(ctrl)
 	devConfig := &amdv1alpha1.DeviceConfig{ObjectMeta: metav1.ObjectMeta{
 		Namespace:         "test",
 		Name:              "dc",
@@ -66,11 +64,9 @@ func TestWorkerUnloadCompletesDuringDeviceConfigDeletion(t *testing.T) {
 		func(_ context.Context, _ types.NamespacedName, obj client.Object, _ ...client.GetOption) {
 			obj.(*amdv1alpha1.DeviceConfig).ObjectMeta = *devConfig.ObjectMeta.DeepCopy()
 		},
-	).Return(nil)
-	kubeClient.EXPECT().Delete(gomock.Any(), gomock.Any()).Return(nil)
-	workerMgr.EXPECT().RemoveWorkReadyLabel(gomock.Any(), gomock.Any(), types.NamespacedName{Namespace: "test", Name: "dc"}, "node")
+	).Return(nil).Times(1)
 
-	h := &PodEventHandler{client: kubeClient, workerMgr: workerMgr}
+	h := &PodEventHandler{client: kubeClient}
 	controller := true
 	pod := &v1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
@@ -91,12 +87,72 @@ func TestWorkerUnloadCompletesDuringDeviceConfigDeletion(t *testing.T) {
 	q := workqueue.NewTypedRateLimitingQueue(workqueue.DefaultTypedControllerRateLimiter[reconcile.Request]())
 	defer q.ShutDown()
 	h.handleWorkerMgrPodEvt(context.Background(), logr.Discard(), pod, utils.UnloadVFIOAction, q)
+	if q.Len() != 1 {
+		t.Fatalf("successful unload queued %d reconciles, want 1", q.Len())
+	}
+}
+
+func TestSuccessfulLoadIsConsumedByReconciliation(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	kubeClient := mock_client.NewMockClient(ctrl)
+	enabled := true
+	dc := &amdv1alpha1.DeviceConfig{ObjectMeta: metav1.ObjectMeta{
+		Namespace: "test", Name: "dc", UID: types.UID("current"),
+	}, Spec: amdv1alpha1.DeviceConfigSpec{Driver: amdv1alpha1.DriverSpec{
+		DriverType: utils.DriverTypeVFPassthrough, Enable: &enabled,
+	}}}
+	kubeClient.EXPECT().Get(gomock.Any(), types.NamespacedName{Namespace: "test", Name: "dc"}, gomock.Any()).Do(
+		func(_ context.Context, _ types.NamespacedName, obj client.Object, _ ...client.GetOption) {
+			*obj.(*amdv1alpha1.DeviceConfig) = *dc.DeepCopy()
+		},
+	).Return(nil)
+	controller := true
+	pod := &v1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace: "test", Name: "worker-dc-node",
+			Labels:          map[string]string{utils.WorkerActionLabelKey: utils.LoadVFIOAction},
+			OwnerReferences: []metav1.OwnerReference{{Kind: utils.KindDeviceConfig, Name: dc.Name, UID: dc.UID, Controller: &controller}},
+		},
+		Spec: v1.PodSpec{NodeName: "node"}, Status: v1.PodStatus{Phase: v1.PodSucceeded},
+	}
+	h := &PodEventHandler{client: kubeClient}
+	q := workqueue.NewTypedRateLimitingQueue(workqueue.DefaultTypedControllerRateLimiter[reconcile.Request]())
+	defer q.ShutDown()
+	h.handleWorkerMgrPodEvt(context.Background(), logr.Discard(), pod, utils.LoadVFIOAction, q)
+	if q.Len() != 1 {
+		t.Fatalf("successful load queued %d reconciles, want 1", q.Len())
+	}
+}
+
+func TestDeletedFailedUnloadQueuesReconciliation(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	kubeClient := mock_client.NewMockClient(ctrl)
+	dc := &amdv1alpha1.DeviceConfig{ObjectMeta: metav1.ObjectMeta{
+		Namespace: "test", Name: "dc", UID: types.UID("current"),
+	}, Spec: amdv1alpha1.DeviceConfigSpec{Driver: amdv1alpha1.DriverSpec{DriverType: utils.DriverTypeVFPassthrough}}}
+	kubeClient.EXPECT().Get(gomock.Any(), types.NamespacedName{Namespace: "test", Name: "dc"}, gomock.Any()).Do(
+		func(_ context.Context, _ types.NamespacedName, obj client.Object, _ ...client.GetOption) {
+			*obj.(*amdv1alpha1.DeviceConfig) = *dc.DeepCopy()
+		},
+	).Return(nil)
+	controller := true
+	pod := &v1.Pod{ObjectMeta: metav1.ObjectMeta{
+		Namespace: "test", Name: "worker-dc-node",
+		Labels:          map[string]string{utils.WorkerActionLabelKey: utils.UnloadVFIOAction},
+		OwnerReferences: []metav1.OwnerReference{{Kind: utils.KindDeviceConfig, Name: dc.Name, UID: dc.UID, Controller: &controller}},
+	}, Spec: v1.PodSpec{NodeName: "node"}, Status: v1.PodStatus{Phase: v1.PodFailed}}
+	h := &PodEventHandler{client: kubeClient}
+	q := workqueue.NewTypedRateLimitingQueue(workqueue.DefaultTypedControllerRateLimiter[reconcile.Request]())
+	defer q.ShutDown()
+	h.Delete(context.Background(), event.TypedDeleteEvent[client.Object]{Object: pod}, q)
+	if q.Len() != 1 {
+		t.Fatalf("failed unload deletion queued %d reconciles, want 1", q.Len())
+	}
 }
 
 func TestPFCleanupMarkerIsRetainedAndDeletionQueuesReconcile(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	kubeClient := mock_client.NewMockClient(ctrl)
-	workerMgr := workermgr.NewMockWorkerMgrAPI(ctrl)
 	disabled := false
 	dc := &amdv1alpha1.DeviceConfig{
 		ObjectMeta: metav1.ObjectMeta{Namespace: "test", Name: "dc", UID: types.UID("current")},
@@ -118,7 +174,7 @@ func TestPFCleanupMarkerIsRetainedAndDeletionQueuesReconcile(t *testing.T) {
 		Spec:   v1.PodSpec{NodeName: "node"},
 		Status: v1.PodStatus{Phase: v1.PodSucceeded},
 	}
-	h := &PodEventHandler{client: kubeClient, workerMgr: workerMgr}
+	h := &PodEventHandler{client: kubeClient}
 	qUpdate := workqueue.NewTypedRateLimitingQueue(workqueue.DefaultTypedControllerRateLimiter[reconcile.Request]())
 	defer qUpdate.ShutDown()
 	h.handleWorkerMgrPodEvt(context.Background(), logr.Discard(), pod, utils.UnloadVFIOAction, qUpdate)

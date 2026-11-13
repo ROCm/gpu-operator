@@ -205,31 +205,8 @@ func (h *NodeEventHandler) reconcileRelatedDeviceConfig(ctx context.Context, obj
 
 func (h *NodeEventHandler) handlePostProcess(ctx context.Context, logger logr.Logger, oldNode, node *v1.Node) {
 	// detect whether vfio bind status
-	hasVFIOReadyLabel, vfioLabel, vfioDevConfigNamespace, vfioDevConfigName := utils.HasNodeLabelTemplateMatch(node.Labels, utils.VFIOMountReadyLabelTemplate)
-	// detect desired driver type
-	hasDriverTypeLabel, _, _, _ := utils.HasNodeLabelTemplateMatch(node.Labels, utils.DriverTypeNodeLabelTemplate)
-
-	if !hasDriverTypeLabel && hasVFIOReadyLabel {
-		// trigger VFIO cleanup worker pod
-		devConfig := &amdv1alpha1.DeviceConfig{}
-		err := h.client.Get(ctx, types.NamespacedName{
-			Namespace: vfioDevConfigNamespace,
-			Name:      vfioDevConfigName,
-		}, devConfig)
-		if err != nil {
-			if !k8serrors.IsNotFound(err) {
-				logger.Error(err, "failed to get DeviceConfig")
-			}
-			return
-		}
-		if devConfig.Spec.Driver.DriverType == utils.DriverTypePFPassthrough {
-			return // PF cleanup is sequenced by reconciliation using the shared worker pod name.
-		}
-		logger.Info("launching VFIO cleanup worker", "node", node.Name, "label", vfioLabel)
-		if err := h.workerMgr.Cleanup(ctx, devConfig, node); err != nil {
-			logger.Error(err, "failed to create cleanup worker pod")
-		}
-	} else if hasVFIOReadyLabel && oldNode.Status.NodeInfo.BootID != node.Status.NodeInfo.BootID {
+	hasVFIOReadyLabel, _, vfioDevConfigNamespace, vfioDevConfigName := utils.HasNodeLabelTemplateMatch(node.Labels, utils.VFIOMountReadyLabelTemplate)
+	if hasVFIOReadyLabel && oldNode.Status.NodeInfo.BootID != node.Status.NodeInfo.BootID {
 		// if the node was rebooted, most of time devices need rebinding to vfio-pci
 		// directly remove the VFIO ready label
 		// so that the event handler will bring up a new vfio worker pod to load devices into VFIO

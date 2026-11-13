@@ -46,6 +46,19 @@ type lifecycleClient struct {
 	modules        map[types.NamespacedName]*kmmv1beta1.Module
 }
 
+type lifecycleStatusWriter struct {
+	client.SubResourceWriter
+	client *lifecycleClient
+}
+
+func (w lifecycleStatusWriter) Patch(ctx context.Context, obj client.Object, patch client.Patch, _ ...client.SubResourcePatchOption) error {
+	return w.client.Patch(ctx, obj, patch)
+}
+
+func (c *lifecycleClient) Status() client.SubResourceWriter {
+	return lifecycleStatusWriter{client: c}
+}
+
 func (c *lifecycleClient) Get(_ context.Context, key client.ObjectKey, obj client.Object, _ ...client.GetOption) error {
 	switch out := obj.(type) {
 	case *v1.Pod:
@@ -151,7 +164,8 @@ func lifecycleFixture(t *testing.T, driverType string, enabled bool, nodes ...*v
 		cli.nodes[node.Name] = node.DeepCopy()
 	}
 	return &deviceConfigReconcilerHelper{
-		client: cli, kmmWatchEnabled: true, kmmPostProcessor: workermgr.NewWorkerMgr(cli, scheme),
+		client: cli, kmmWatchEnabled: true, nodeAssignments: map[string]map[string]struct{}{},
+		conditionUpdater: conditions.NewDeviceConfigConditionMgr(), kmmPostProcessor: workermgr.NewWorkerMgr(cli, scheme),
 	}, dc, cli, scheme
 }
 
@@ -277,14 +291,16 @@ func TestFailedPFLoadIsReplacedByCleanupAndRetainedUntilReenable(t *testing.T) {
 	if err := helper.ensureVFIOWorkers(ctx, dc, selected); err != nil {
 		t.Fatal(err)
 	}
-	workerOnNode(t, cli, dc.Namespace, dc.Name, node.Name) // Successful cleanup remains as the disabled-state marker.
+	if err := cli.Get(ctx, client.ObjectKeyFromObject(unload), &v1.Pod{}); !k8serrors.IsNotFound(err) {
+		t.Fatalf("successful cleanup worker was not consumed by reconciliation: %v", err)
+	}
 	if err := cli.Get(ctx, types.NamespacedName{Name: node.Name}, currentNode); err != nil {
 		t.Fatal(err)
 	}
 	if _, ok := currentNode.Labels[utils.GetDriverTypeNodeLabel(dc)]; ok {
 		t.Fatal("driver label remained after PF cleanup")
 	}
-	complete, err := helper.pfCleanupComplete(ctx, dc, &v1.NodeList{Items: []v1.Node{*currentNode}})
+	complete, err := helper.vfioCleanupComplete(ctx, dc, &v1.NodeList{Items: []v1.Node{*currentNode}})
 	if err != nil || !complete {
 		t.Fatalf("PF cleanup not complete: %v", err)
 	}
@@ -293,14 +309,8 @@ func TestFailedPFLoadIsReplacedByCleanupAndRetainedUntilReenable(t *testing.T) {
 	if err := helper.ensureVFIOWorkers(ctx, dc, selected); err != nil {
 		t.Fatal(err)
 	}
-	if err := cli.Get(ctx, client.ObjectKeyFromObject(unload), &v1.Pod{}); !k8serrors.IsNotFound(err) {
-		t.Fatalf("cleanup marker was not removed before re-enable: %v", err)
-	}
-	if err := helper.ensureVFIOWorkers(ctx, dc, selected); err != nil {
-		t.Fatal(err)
-	}
 	if got := workerOnNode(t, cli, dc.Namespace, dc.Name, node.Name); got.Labels[utils.WorkerActionLabelKey] != utils.LoadVFIOAction {
-		t.Fatal("PF load worker was not recreated after cleanup marker deletion")
+		t.Fatal("PF load worker was not recreated after successful cleanup")
 	}
 }
 
@@ -327,24 +337,13 @@ func TestPFFinalizerWaitsForEveryAffectedNode(t *testing.T) {
 	if err := helper.finalizeDeviceConfig(ctx, dc, selected); err == nil {
 		t.Fatal("finalizer completed while cleanup workers were pending")
 	}
-	for _, name := range []string{nodeA.Name, nodeB.Name} {
-		if workerOnNode(t, cli, dc.Namespace, dc.Name, name).Labels[utils.WorkerActionLabelKey] != utils.UnloadVFIOAction {
-			t.Fatalf("node %s has no unload worker", name)
-		}
+	if workerOnNode(t, cli, dc.Namespace, dc.Name, nodeB.Name).Labels[utils.WorkerActionLabelKey] != utils.UnloadVFIOAction {
+		t.Fatal("formerly selected node has no unload worker")
 	}
-	cli.pods[types.NamespacedName{Namespace: dc.Namespace, Name: "worker-dc-node-a"}].Status.Phase = v1.PodSucceeded
-	if err := helper.finalizeDeviceConfig(ctx, dc, selected); err == nil {
-		t.Fatal("finalizer completed before every node unloaded")
-	}
-	workerOnNode(t, cli, dc.Namespace, dc.Name, nodeA.Name) // Keep the successful marker until node B completes.
-	cli.pods[types.NamespacedName{Namespace: dc.Namespace, Name: "worker-dc-node-b"}].Status.Phase = v1.PodFailed
-	if err := helper.finalizeDeviceConfig(ctx, dc, selected); err == nil {
-		t.Fatal("finalizer completed after a failed unload")
+	if err := cli.Get(ctx, types.NamespacedName{Namespace: dc.Namespace, Name: "worker-dc-node-a"}, &v1.Pod{}); !k8serrors.IsNotFound(err) {
+		t.Fatalf("selected node without prior binding got a cleanup worker: %v", err)
 	}
 	cli.pods[types.NamespacedName{Namespace: dc.Namespace, Name: "worker-dc-node-b"}].Status.Phase = v1.PodSucceeded
-	if err := helper.finalizeDeviceConfig(ctx, dc, selected); err == nil {
-		t.Fatal("finalizer completed before the VFIO-ready label was removed")
-	}
 	if err := helper.finalizeDeviceConfig(ctx, dc, selected); err != nil {
 		t.Fatal(err)
 	}
@@ -362,7 +361,8 @@ func TestPFFinalizerWaitsForEveryAffectedNode(t *testing.T) {
 func TestDisabledPFCleanupWithNoSelectedNodesUpdatesReady(t *testing.T) {
 	ctx := context.Background()
 	node := &v1.Node{ObjectMeta: metav1.ObjectMeta{Name: "old-node", Labels: map[string]string{
-		"gpu.operator.amd.com/test.dc.driver": utils.DriverTypePFPassthrough,
+		"gpu.operator.amd.com/test.dc.driver":     utils.DriverTypePFPassthrough,
+		"gpu.operator.amd.com/test.dc.vfio.ready": "",
 	}}}
 	helper, dc, cli, _ := lifecycleFixture(t, utils.DriverTypePFPassthrough, false, node)
 	helper.conditionUpdater = conditions.NewDeviceConfigConditionMgr()
@@ -392,10 +392,30 @@ func TestDisabledPFCleanupWithNoSelectedNodesUpdatesReady(t *testing.T) {
 	}
 }
 
+func TestEnabledVFIOWithNoMatchingNodesIsNotReady(t *testing.T) {
+	helper, dc, _, _ := lifecycleFixture(t, utils.DriverTypePFPassthrough, true)
+	helper.kmmWatchEnabled = false
+
+	if err := helper.buildDeviceConfigStatus(context.Background(), dc, &v1.NodeList{}); err != nil {
+		t.Fatal(err)
+	}
+	ready := helper.conditionUpdater.GetReadyCondition(dc)
+	if ready == nil || ready.Status != metav1.ConditionFalse || ready.Reason != conditions.NoMatchingNodes {
+		t.Fatalf("enabled VFIO configuration with no selected nodes reported ready: %+v", ready)
+	}
+	for _, condition := range dc.Status.Conditions {
+		if condition.Type == conditions.ConditionTypeError && condition.Status == metav1.ConditionTrue && condition.Reason == conditions.NoMatchingNodes {
+			return
+		}
+	}
+	t.Fatalf("NoMatchingNodes error condition was not set: %+v", dc.Status.Conditions)
+}
+
 func TestDisabledPFWithEmptySelectorOnlyCleansKnownNodes(t *testing.T) {
 	ctx := context.Background()
 	known := &v1.Node{ObjectMeta: metav1.ObjectMeta{Name: "known", Labels: map[string]string{
-		"gpu.operator.amd.com/test.dc.driver": utils.DriverTypePFPassthrough,
+		"gpu.operator.amd.com/test.dc.driver":     utils.DriverTypePFPassthrough,
+		"gpu.operator.amd.com/test.dc.vfio.ready": "",
 	}}}
 	unrelated := &v1.Node{ObjectMeta: metav1.ObjectMeta{Name: "unrelated"}}
 	helper, dc, cli, _ := lifecycleFixture(t, utils.DriverTypePFPassthrough, false, known, unrelated)
@@ -417,8 +437,207 @@ func TestPFCleanupFindsOwnedWorkerWithoutNodeLabels(t *testing.T) {
 	if err := cli.Create(ctx, pod); err != nil {
 		t.Fatal(err)
 	}
-	nodes, err := helper.pfCleanupNodes(ctx, dc, &v1.NodeList{})
+	nodes, err := helper.vfioCleanupNodes(ctx, dc, &v1.NodeList{})
 	if err != nil || len(nodes.Items) != 1 || nodes.Items[0].Name != node.Name {
 		t.Fatalf("owned worker node was not recovered: nodes=%v err=%v", nodes, err)
+	}
+}
+
+func TestEmptySelectionDetectsOwnedWorkerWithoutReservations(t *testing.T) {
+	ctx := context.Background()
+	node := &v1.Node{ObjectMeta: metav1.ObjectMeta{Name: "former-node"}}
+	helper, dc, cli, scheme := lifecycleFixture(t, utils.DriverTypeVFPassthrough, true, node)
+	dc.Status.NodeReservationsInitialized = true
+	dc.Status.NodeReservations = map[string]amdv1alpha1.NodeReservationStatus{}
+	load := lifecyclePod(t, scheme, dc, node.Name, utils.LoadVFIOAction, v1.PodFailed)
+	if err := cli.Create(ctx, load); err != nil {
+		t.Fatal(err)
+	}
+	hasCleanup, err := helper.hasVFIOCleanup(ctx, dc, &v1.NodeList{})
+	if err != nil || !hasCleanup {
+		t.Fatalf("owned worker was ignored without reservations: hasCleanup=%t err=%v", hasCleanup, err)
+	}
+}
+
+func TestLegacyCleanupConditionDoesNotUnbindEveryReservedNode(t *testing.T) {
+	ctx := context.Background()
+	readyLabel := "gpu.operator.amd.com/test.dc.vfio.ready"
+	driverLabel := "gpu.operator.amd.com/test.dc.driver"
+	boundNode := &v1.Node{ObjectMeta: metav1.ObjectMeta{Name: "bound-node", Labels: map[string]string{
+		readyLabel: "", driverLabel: utils.DriverTypePFPassthrough, "selected": "true",
+	}}}
+	unboundNode := &v1.Node{ObjectMeta: metav1.ObjectMeta{Name: "unbound-node", Labels: map[string]string{
+		driverLabel: utils.DriverTypePFPassthrough, "selected": "true",
+	}}}
+	helper, dc, _, _ := lifecycleFixture(t, utils.DriverTypePFPassthrough, true, boundNode, unboundNode)
+	dc.Status.NodeModuleStatus = map[string]amdv1alpha1.ModuleStatus{boundNode.Name: {}, unboundNode.Name: {}}
+	helper.conditionUpdater.SetReadyCondition(dc, metav1.ConditionFalse, conditions.VFIOCleanupPending, "legacy global cleanup condition")
+
+	nodes, err := helper.vfioCleanupNodes(ctx, dc, &v1.NodeList{Items: []v1.Node{*boundNode, *unboundNode}})
+	if err != nil || len(nodes.Items) != 1 || nodes.Items[0].Name != boundNode.Name {
+		t.Fatalf("legacy cleanup selected nodes without binding evidence: nodes=%v err=%v", nodes, err)
+	}
+}
+
+func TestPFReenableWaitsForUnloadBeforeRebinding(t *testing.T) {
+	ctx := context.Background()
+	readyLabel := "gpu.operator.amd.com/test.dc.vfio.ready"
+	node := &v1.Node{ObjectMeta: metav1.ObjectMeta{Name: "node-a", Labels: map[string]string{"selected": "true", readyLabel: ""}}}
+	helper, dc, cli, scheme := lifecycleFixture(t, utils.DriverTypePFPassthrough, true, node)
+	dc.Status.NodeModuleStatus = map[string]amdv1alpha1.ModuleStatus{node.Name: {}}
+	unload := lifecyclePod(t, scheme, dc, node.Name, utils.UnloadVFIOAction, v1.PodRunning)
+	if err := cli.Create(ctx, unload); err != nil {
+		t.Fatal(err)
+	}
+	selected := &v1.NodeList{Items: []v1.Node{*node}}
+	if err := helper.ensureVFIOWorkers(ctx, dc, selected); err != nil {
+		t.Fatal(err)
+	}
+	if got := workerOnNode(t, cli, dc.Namespace, dc.Name, node.Name); got.Labels[utils.WorkerActionLabelKey] != utils.UnloadVFIOAction {
+		t.Fatal("running unload worker was replaced before cleanup completed")
+	}
+	if _, ok := cli.nodes[node.Name].Labels[readyLabel]; ok {
+		t.Fatal("VFIO-ready label remained set while cleanup was running")
+	}
+	cli.pods[client.ObjectKeyFromObject(unload)].Status.Phase = v1.PodSucceeded
+	if err := helper.ensureVFIOWorkers(ctx, dc, selected); err != nil {
+		t.Fatal(err)
+	}
+	currentNode := &v1.Node{}
+	if err := cli.Get(ctx, types.NamespacedName{Name: node.Name}, currentNode); err != nil {
+		t.Fatal(err)
+	}
+	selected.Items[0] = *currentNode
+	if err := helper.ensureVFIOWorkers(ctx, dc, selected); err != nil {
+		t.Fatal(err)
+	}
+	if got := workerOnNode(t, cli, dc.Namespace, dc.Name, node.Name); got.Labels[utils.WorkerActionLabelKey] != utils.LoadVFIOAction {
+		t.Fatal("fresh load worker was not created after successful cleanup")
+	}
+}
+
+func TestDisabledVFLoadCompletionSchedulesCleanup(t *testing.T) {
+	ctx := context.Background()
+	readyLabel := "gpu.operator.amd.com/test.dc.vfio.ready"
+	node := &v1.Node{ObjectMeta: metav1.ObjectMeta{Name: "node-a", Labels: map[string]string{"selected": "true", readyLabel: ""}}}
+	helper, dc, cli, scheme := lifecycleFixture(t, utils.DriverTypeVFPassthrough, false, node)
+	dc.Status.NodeModuleStatus = map[string]amdv1alpha1.ModuleStatus{node.Name: {}}
+	load := lifecyclePod(t, scheme, dc, node.Name, utils.LoadVFIOAction, v1.PodSucceeded)
+	if err := cli.Create(ctx, load); err != nil {
+		t.Fatal(err)
+	}
+	selected := &v1.NodeList{Items: []v1.Node{*node}}
+	for range 2 {
+		if err := helper.ensureVFIOWorkers(ctx, dc, selected); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if got := workerOnNode(t, cli, dc.Namespace, dc.Name, node.Name); got.Labels[utils.WorkerActionLabelKey] != utils.UnloadVFIOAction {
+		t.Fatal("disabled VF load was not replaced with cleanup")
+	}
+	if _, ok := cli.nodes[node.Name].Labels[readyLabel]; ok {
+		t.Fatal("disabled VF configuration retained its ready label")
+	}
+}
+
+func TestDisabledPFDoesNotCleanupUnownedSelectedNode(t *testing.T) {
+	ctx := context.Background()
+	node := &v1.Node{ObjectMeta: metav1.ObjectMeta{Name: "never-owned", Labels: map[string]string{
+		"selected": "true", "gpu.operator.amd.com/test.dc.driver": utils.DriverTypePFPassthrough,
+	}}}
+	helper, dc, cli, _ := lifecycleFixture(t, utils.DriverTypePFPassthrough, false, node)
+	if err := helper.ensureVFIOWorkers(ctx, dc, &v1.NodeList{Items: []v1.Node{*node}}); err != nil {
+		t.Fatal(err)
+	}
+	if err := cli.Get(ctx, types.NamespacedName{Namespace: dc.Namespace, Name: "worker-dc-never-owned"}, &v1.Pod{}); !k8serrors.IsNotFound(err) {
+		t.Fatalf("disabled configuration scheduled cleanup without prior ownership: %v", err)
+	}
+}
+
+func TestPFReenableRetriesFailedUnloadBeforeRebinding(t *testing.T) {
+	ctx := context.Background()
+	readyLabel := "gpu.operator.amd.com/test.dc.vfio.ready"
+	node := &v1.Node{ObjectMeta: metav1.ObjectMeta{Name: "node-a", Labels: map[string]string{"selected": "true", readyLabel: ""}}}
+	helper, dc, cli, scheme := lifecycleFixture(t, utils.DriverTypePFPassthrough, true, node)
+	dc.Status.NodeModuleStatus = map[string]amdv1alpha1.ModuleStatus{node.Name: {}}
+	unload := lifecyclePod(t, scheme, dc, node.Name, utils.UnloadVFIOAction, v1.PodFailed)
+	if err := cli.Create(ctx, unload); err != nil {
+		t.Fatal(err)
+	}
+	selected := &v1.NodeList{Items: []v1.Node{*node}}
+	if err := helper.ensureVFIOWorkers(ctx, dc, selected); err != nil {
+		t.Fatal(err)
+	}
+	if err := helper.ensureVFIOWorkers(ctx, dc, selected); err != nil {
+		t.Fatal(err)
+	}
+	if got := workerOnNode(t, cli, dc.Namespace, dc.Name, node.Name); got.Labels[utils.WorkerActionLabelKey] != utils.UnloadVFIOAction {
+		t.Fatal("failed cleanup was not retried before rebinding")
+	}
+	if _, ok := cli.nodes[node.Name].Labels[readyLabel]; ok {
+		t.Fatal("VFIO-ready label remained set after failed cleanup")
+	}
+}
+
+func TestPFCleanupDoesNotUnbindNodeAssignedToAnotherConfig(t *testing.T) {
+	ctx := context.Background()
+	readyLabel := "gpu.operator.amd.com/test.dc.vfio.ready"
+	node := &v1.Node{ObjectMeta: metav1.ObjectMeta{Name: "node-a", Labels: map[string]string{readyLabel: ""}}}
+	helper, dc, cli, _ := lifecycleFixture(t, utils.DriverTypePFPassthrough, false, node)
+	helper.nodeAssignments[node.Name] = map[string]struct{}{"other/other-dc": {}}
+	helper.conditionUpdater.SetReadyCondition(dc, metav1.ConditionTrue, conditions.ReadyStatus, "")
+	err := helper.ensureVFIOWorkers(ctx, dc, &v1.NodeList{})
+	if err == nil {
+		t.Fatal("cleanup did not report conflicting node ownership")
+	}
+	if reservation := cli.deviceConfig.Status.NodeReservations[node.Name]; !reservation.VFIOCleanupPending {
+		t.Fatal("blocked cleanup was not persisted as pending")
+	}
+	ready := helper.conditionUpdater.GetReadyCondition(cli.deviceConfig)
+	if ready == nil || ready.Status != metav1.ConditionFalse || ready.Reason != conditions.VFIOCleanupPending {
+		t.Fatalf("blocked cleanup left DeviceConfig ready: %+v", ready)
+	}
+	if err := cli.Get(ctx, types.NamespacedName{Namespace: dc.Namespace, Name: "worker-dc-node-a"}, &v1.Pod{}); !k8serrors.IsNotFound(err) {
+		t.Fatalf("cleanup worker was created for a node assigned elsewhere: %v", err)
+	}
+}
+
+func TestPFSelectorDriftCleansPreviouslyOwnedNode(t *testing.T) {
+	ctx := context.Background()
+	readyLabel := "gpu.operator.amd.com/test.dc.vfio.ready"
+	oldNode := &v1.Node{ObjectMeta: metav1.ObjectMeta{Name: "old-node", Labels: map[string]string{readyLabel: ""}}}
+	newNode := &v1.Node{ObjectMeta: metav1.ObjectMeta{Name: "new-node", Labels: map[string]string{"selected": "true"}}}
+	helper, dc, cli, _ := lifecycleFixture(t, utils.DriverTypePFPassthrough, true, oldNode, newNode)
+	dc.Status.NodeModuleStatus = map[string]amdv1alpha1.ModuleStatus{oldNode.Name: {}, newNode.Name: {}}
+	if err := helper.ensureVFIOWorkers(ctx, dc, &v1.NodeList{Items: []v1.Node{*newNode}}); err != nil {
+		t.Fatal(err)
+	}
+	if got := workerOnNode(t, cli, dc.Namespace, dc.Name, oldNode.Name); got.Labels[utils.WorkerActionLabelKey] != utils.UnloadVFIOAction {
+		t.Fatal("formerly selected owned node was not cleaned up")
+	}
+}
+
+func TestDisabledVFCleanupKeepsReadyFalse(t *testing.T) {
+	ctx := context.Background()
+	node := &v1.Node{ObjectMeta: metav1.ObjectMeta{Name: "node-a", Labels: map[string]string{"selected": "true"}}}
+	helper, dc, cli, scheme := lifecycleFixture(t, utils.DriverTypeVFPassthrough, false, node)
+	helper.conditionUpdater = conditions.NewDeviceConfigConditionMgr()
+	dc.Status.NodeModuleStatus = map[string]amdv1alpha1.ModuleStatus{node.Name: {}}
+	load := lifecyclePod(t, scheme, dc, node.Name, utils.LoadVFIOAction, v1.PodSucceeded)
+	if err := cli.Create(ctx, load); err != nil {
+		t.Fatal(err)
+	}
+	selected := &v1.NodeList{Items: []v1.Node{*node}}
+	for range 2 {
+		if err := helper.ensureVFIOWorkers(ctx, dc, selected); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := helper.buildDeviceConfigStatus(ctx, dc, &v1.NodeList{}); err != nil {
+		t.Fatal(err)
+	}
+	ready := helper.conditionUpdater.GetReadyCondition(dc)
+	if ready == nil || ready.Status != metav1.ConditionFalse || ready.Reason != conditions.VFIOCleanupPending {
+		t.Fatalf("disabled VFIO configuration reported ready during cleanup: %+v", ready)
 	}
 }

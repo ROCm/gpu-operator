@@ -571,6 +571,23 @@ spec:
                 description: NodeModuleStatus contains per node status of driver module
                   installation
                 type: object
+              nodeReservations:
+                additionalProperties:
+                  description: NodeReservationStatus records durable DeviceConfig
+                    ownership for a node.
+                  properties:
+                    vfioCleanupPending:
+                      description: VFIOCleanupPending indicates that the node must
+                        be unbound before it can be reused.
+                      type: boolean
+                  type: object
+                description: NodeReservations preserves accepted node ownership independently
+                  of readiness.
+                type: object
+              nodeReservationsInitialized:
+                description: NodeReservationsInitialized distinguishes a migrated
+                  empty set from legacy status.
+                type: boolean
               observedGeneration:
                 description: ObservedGeneration is the latest spec generation successfully
                   processed by the controller

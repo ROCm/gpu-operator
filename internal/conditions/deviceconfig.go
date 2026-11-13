@@ -41,7 +41,7 @@ const (
 	KMMModulePending = "KMMModulePending"
 	// VFIOBindingPending indicates that the VFIO post-processing label is not present on every selected node.
 	VFIOBindingPending = "VFIOBindingPending"
-	// VFIOCleanupPending indicates that PF devices have not all been unbound.
+	// VFIOCleanupPending indicates that VFIO cleanup is still pending for a node.
 	VFIOCleanupPending = "VFIOCleanupPending"
 	// VFIOWorkerFailed indicates that the VFIO post-processing pod failed.
 	VFIOWorkerFailed = "VFIOWorkerFailed"
