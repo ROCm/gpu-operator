@@ -379,6 +379,9 @@ func (dcrh *deviceConfigReconcilerHelper) releaseUnneededStaleReservations(ctx c
 				continue
 			}
 		}
+		if devConfig.Spec.Driver.DriverType == utils.DriverTypeVFPassthrough && dcrh.shouldUseKMMOperatorLevel(devConfig) {
+			continue
+		}
 		if err := dcrh.setNodeReservation(ctx, devConfig, node, nil); err != nil {
 			return err
 		}

@@ -59,7 +59,7 @@ func TestReserveNodeAssignmentsRetainsPreviousNonVFIONodes(t *testing.T) {
 func TestNonVFIOReservationsSkipKMMWorkerListWithoutStaleNodes(t *testing.T) {
 	node := &v1.Node{ObjectMeta: metav1.ObjectMeta{Name: "selected-node"}}
 	helper, dc, cli, _ := lifecycleFixture(t, utils.DriverTypeContainer, true, node)
-	pending, requeue, err := helper.reconcileNonVFIONodeReservations(context.Background(), dc, &v1.NodeList{Items: []v1.Node{*node}})
+	pending, requeue, err := helper.reconcileKMMNodeReservations(context.Background(), dc, &v1.NodeList{Items: []v1.Node{*node}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -97,7 +97,7 @@ func TestNonVFIOReservationWaitsForKMMAndWorkerToReleaseNode(t *testing.T) {
 		}}},
 	}
 
-	pending, requeue, err := helper.reconcileNonVFIONodeReservations(ctx, dc, &v1.NodeList{})
+	pending, requeue, err := helper.reconcileKMMNodeReservations(ctx, dc, &v1.NodeList{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -120,7 +120,7 @@ func TestNonVFIOReservationWaitsForKMMAndWorkerToReleaseNode(t *testing.T) {
 		}},
 		Spec: v1.PodSpec{NodeName: oldNode.Name},
 	}
-	pending, requeue, err = helper.reconcileNonVFIONodeReservations(ctx, dc, &v1.NodeList{})
+	pending, requeue, err = helper.reconcileKMMNodeReservations(ctx, dc, &v1.NodeList{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -132,7 +132,7 @@ func TestNonVFIOReservationWaitsForKMMAndWorkerToReleaseNode(t *testing.T) {
 	}
 
 	delete(cli.pods, types.NamespacedName{Namespace: dc.Namespace, Name: "kmm-worker-old"})
-	pending, requeue, err = helper.reconcileNonVFIONodeReservations(ctx, dc, &v1.NodeList{})
+	pending, requeue, err = helper.reconcileKMMNodeReservations(ctx, dc, &v1.NodeList{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -164,7 +164,7 @@ func TestNeverManagedReservationReleasesWhenKMMAPIIsUnavailable(t *testing.T) {
 	if err := helper.reserveNodeAssignments(context.Background(), dc, &v1.NodeList{}); err != nil {
 		t.Fatal(err)
 	}
-	pending, requeue, err := helper.reconcileNonVFIONodeReservations(context.Background(), dc, &v1.NodeList{})
+	pending, requeue, err := helper.reconcileKMMNodeReservations(context.Background(), dc, &v1.NodeList{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -201,7 +201,7 @@ func TestUnknownKMMReservationStaysHeldWithoutAPI(t *testing.T) {
 			}
 			cli.moduleNoMatch = true
 
-			pending, requeue, err := helper.reconcileNonVFIONodeReservations(context.Background(), dc, &v1.NodeList{})
+			pending, requeue, err := helper.reconcileKMMNodeReservations(context.Background(), dc, &v1.NodeList{})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -224,7 +224,7 @@ func TestUnknownKMMReservationStaysHeldWhenNMCAPIIsUnavailable(t *testing.T) {
 	}
 	cli.nmcNoMatch = true
 
-	pending, requeue, err := helper.reconcileNonVFIONodeReservations(context.Background(), dc, &v1.NodeList{})
+	pending, requeue, err := helper.reconcileKMMNodeReservations(context.Background(), dc, &v1.NodeList{})
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -293,6 +293,28 @@ func (r *DeviceConfigReconciler) Reconcile(ctx context.Context, req ctrl.Request
 			return res, fmt.Errorf("failed to persist node assignments for DeviceConfig %s: %w", req.NamespacedName, err)
 		}
 	}
+	if len(nodes.Items) > 0 && r.kmmWatchEnabled && utils.ShouldUseKMM(devConfig) &&
+		devConfig.Spec.Driver.DriverType == utils.DriverTypeVFPassthrough {
+		if vfioHelper, ok := r.helper.(vfioWorkerReconciler); ok {
+			hasCleanup, err := vfioHelper.hasVFIOCleanup(ctx, devConfig, nodes)
+			if err != nil {
+				return res, err
+			}
+			if hasCleanup {
+				if err := r.helper.setFinalizer(ctx, devConfig); err != nil {
+					return res, err
+				}
+				if err := vfioHelper.ensureVFIOWorkers(ctx, devConfig, nodes); err != nil {
+					return res, fmt.Errorf("failed to stage VFIO cleanup before KMM selector update: %w", err)
+				}
+				if err := r.helper.setCondition(ctx, conditions.ConditionTypeReady, devConfig, metav1.ConditionFalse, conditions.VFIOCleanupPending, "waiting for VFIO cleanup before updating the KMM Module selector"); err != nil {
+					return res, err
+				}
+				r.helper.updateNodeAssignments(req.String(), nodeListForReservations(devConfig.Status.NodeReservations), false)
+				return res, nil
+			}
+		}
+	}
 
 	if len(nodes.Items) == 0 && isDisabledPF(devConfig) {
 		if err := r.helper.setFinalizer(ctx, devConfig); err != nil {
@@ -325,6 +347,27 @@ func (r *DeviceConfigReconciler) Reconcile(ctx context.Context, req ctrl.Request
 				if err := vfioHelper.ensureVFIOWorkers(ctx, devConfig, nodes); err != nil {
 					return res, err
 				}
+				if r.kmmWatchEnabled && utils.ShouldUseKMM(devConfig) &&
+					devConfig.Spec.Driver.DriverType == utils.DriverTypeVFPassthrough {
+					hasCleanup, err = vfioHelper.hasVFIOCleanup(ctx, devConfig, nodes)
+					if err != nil {
+						return res, err
+					}
+					if !hasCleanup {
+						if reservationHelper, ok := r.helper.(kmmNodeReservationReconciler); ok {
+							_, retry, err := reservationHelper.reconcileKMMNodeReservations(ctx, devConfig, nodes)
+							if err != nil {
+								if conditionErr := r.helper.setCondition(ctx, conditions.ConditionTypeReady, devConfig, metav1.ConditionFalse, conditions.KMMModulePending, "waiting to confirm that KMM no longer manages previously selected nodes"); conditionErr != nil {
+									logger.Error(conditionErr, "failed to set KMM reservation pending condition")
+								}
+								return res, err
+							}
+							if retry {
+								res.RequeueAfter = nodeReservationRequeueAfter
+							}
+						}
+					}
+				}
 				if err := r.helper.buildDeviceConfigStatus(ctx, devConfig, nodes); err != nil {
 					return res, err
 				}
@@ -337,9 +380,9 @@ func (r *DeviceConfigReconciler) Reconcile(ctx context.Context, req ctrl.Request
 		}
 		reservationReleasePending := false
 		reservationReleaseRetry := false
-		if reservationHelper, ok := r.helper.(nonVFIONodeReservationReconciler); ok {
+		if reservationHelper, ok := r.helper.(kmmNodeReservationReconciler); ok {
 			var err error
-			reservationReleasePending, reservationReleaseRetry, err = reservationHelper.reconcileNonVFIONodeReservations(ctx, devConfig, nodes)
+			reservationReleasePending, reservationReleaseRetry, err = reservationHelper.reconcileKMMNodeReservations(ctx, devConfig, nodes)
 			if err != nil {
 				if conditionErr := r.helper.setCondition(ctx, conditions.ConditionTypeReady, devConfig, metav1.ConditionFalse, conditions.KMMModulePending, "waiting to confirm that KMM no longer manages previously selected nodes"); conditionErr != nil {
 					logger.Error(conditionErr, "failed to set KMM reservation pending condition")
@@ -390,8 +433,8 @@ func (r *DeviceConfigReconciler) Reconcile(ctx context.Context, req ctrl.Request
 		return res, fmt.Errorf("failed to handle KMM module for DeviceConfig %s: %v", req.NamespacedName, err)
 	}
 	reservationReleaseRetry := false
-	if reservationHelper, ok := r.helper.(nonVFIONodeReservationReconciler); ok {
-		_, reservationReleaseRetry, err = reservationHelper.reconcileNonVFIONodeReservations(ctx, devConfig, nodes)
+	if reservationHelper, ok := r.helper.(kmmNodeReservationReconciler); ok {
+		_, reservationReleaseRetry, err = reservationHelper.reconcileKMMNodeReservations(ctx, devConfig, nodes)
 		if err != nil {
 			if conditionErr := r.helper.setCondition(ctx, conditions.ConditionTypeReady, devConfig, metav1.ConditionFalse, conditions.KMMModulePending, "waiting to confirm that KMM no longer manages previously selected nodes"); conditionErr != nil {
 				logger.Error(conditionErr, "failed to set KMM reservation pending condition")
@@ -773,6 +816,19 @@ func (dcrh *deviceConfigReconcilerHelper) buildDeviceConfigStatus(ctx context.Co
 		}
 	}
 	if !isVFIOConfig(devConfig) {
+		selected := make(map[string]struct{}, len(nodes.Items))
+		for _, node := range nodes.Items {
+			selected[node.Name] = struct{}{}
+		}
+		for node := range devConfig.Status.NodeReservations {
+			if _, ok := selected[node]; !ok {
+				dcrh.conditionUpdater.DeleteErrorCondition(devConfig)
+				dcrh.conditionUpdater.SetReadyCondition(devConfig, metav1.ConditionFalse, conditions.KMMModulePending, "waiting for KMM to stop managing previously selected nodes")
+				return nil
+			}
+		}
+	}
+	if devConfig.Spec.Driver.DriverType == utils.DriverTypeVFPassthrough && dcrh.shouldUseKMMOperatorLevel(devConfig) {
 		selected := make(map[string]struct{}, len(nodes.Items))
 		for _, node := range nodes.Items {
 			selected[node.Name] = struct{}{}

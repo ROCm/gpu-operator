@@ -31,11 +31,13 @@ import (
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
+	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 )
 
 type lifecycleClient struct {
@@ -103,7 +105,11 @@ func (c *lifecycleClient) Get(_ context.Context, key client.ObjectKey, obj clien
 	return k8serrors.NewNotFound(schema.GroupResource{Resource: "objects"}, key.Name)
 }
 
-func (c *lifecycleClient) List(_ context.Context, list client.ObjectList, _ ...client.ListOption) error {
+func (c *lifecycleClient) List(_ context.Context, list client.ObjectList, options ...client.ListOption) error {
+	listOptions := &client.ListOptions{}
+	for _, option := range options {
+		option.ApplyToList(listOptions)
+	}
 	switch out := list.(type) {
 	case *v1.PodList:
 		c.podListCalls++
@@ -112,8 +118,12 @@ func (c *lifecycleClient) List(_ context.Context, list client.ObjectList, _ ...c
 		}
 	case *v1.NodeList:
 		for _, node := range c.nodes {
-			out.Items = append(out.Items, *node.DeepCopy())
+			if listOptions.LabelSelector == nil || listOptions.LabelSelector.Matches(labels.Set(node.Labels)) {
+				out.Items = append(out.Items, *node.DeepCopy())
+			}
 		}
+	case *amdv1alpha1.DeviceConfigList:
+		out.Items = append(out.Items, *c.deviceConfig.DeepCopy())
 	default:
 		return fmt.Errorf("unsupported List object %T", list)
 	}
@@ -796,6 +806,131 @@ func TestDisabledVFLoadCompletionSchedulesCleanup(t *testing.T) {
 	}
 	if got := workerOnNode(t, cli, dc.Namespace, dc.Name, node.Name); got.Labels[utils.WorkerActionLabelKey] != utils.LoadVFIOAction {
 		t.Fatal("VF load worker was not recreated after disabled load cleanup succeeded")
+	}
+}
+
+func TestVFSelectorDriftWaitsForUnbindThenKMMRelease(t *testing.T) {
+	ctx := context.Background()
+	readyLabel := "gpu.operator.amd.com/test.dc.vfio.ready"
+	oldNode := &v1.Node{ObjectMeta: metav1.ObjectMeta{Name: "old-node", Labels: map[string]string{
+		"pool": "old", readyLabel: "",
+	}}}
+	oldNode.Status.NodeInfo.BootID = "boot-1"
+	helper, dc, cli, scheme := lifecycleFixture(t, utils.DriverTypeVFPassthrough, true, oldNode)
+	dc.Generation = 1
+	dc.Status.ObservedGeneration = 1
+	dc.Spec.Selector = map[string]string{"pool": "new"}
+	dc.Status.NodeReservationsInitialized = true
+	dc.Status.NodeReservations = map[string]amdv1alpha1.NodeReservationStatus{
+		oldNode.Name: {KMMOwnership: amdv1alpha1.KMMOwnershipManaged, VFIOBindingBootID: "boot-1"},
+	}
+	module := &kmmv1beta1.Module{
+		ObjectMeta: metav1.ObjectMeta{Namespace: dc.Namespace, Name: dc.Name},
+		Spec:       kmmv1beta1.ModuleSpec{Selector: map[string]string{"pool": "old"}},
+	}
+	if err := controllerutil.SetControllerReference(dc, module, scheme); err != nil {
+		t.Fatal(err)
+	}
+	cli.modules[client.ObjectKeyFromObject(module)] = module.DeepCopy()
+	moduleItem := kmmv1beta1.ModuleItem{Namespace: dc.Namespace, Name: dc.Name}
+	cli.nmcs[oldNode.Name] = &kmmv1beta1.NodeModulesConfig{
+		ObjectMeta: metav1.ObjectMeta{Name: oldNode.Name},
+		Spec:       kmmv1beta1.NodeModulesConfigSpec{Modules: []kmmv1beta1.NodeModuleSpec{{ModuleItem: moduleItem}}},
+		Status:     kmmv1beta1.NodeModulesConfigStatus{Modules: []kmmv1beta1.NodeModuleStatus{{ModuleItem: moduleItem}}},
+	}
+	kmmWorker := &v1.Pod{
+		ObjectMeta: metav1.ObjectMeta{Namespace: dc.Namespace, Name: "kmm-worker-old", Labels: map[string]string{
+			kmmModuleNameLabel: dc.Name, kmmWorkerComponentLabel: kmmWorkerComponent,
+		}},
+		Spec: v1.PodSpec{NodeName: oldNode.Name},
+	}
+	cli.pods[client.ObjectKeyFromObject(kmmWorker)] = kmmWorker
+	reconciler := &DeviceConfigReconciler{Client: cli, helper: helper, kmmWatchEnabled: true}
+	req := reconcile.Request{NamespacedName: client.ObjectKeyFromObject(dc)}
+
+	if _, err := reconciler.Reconcile(ctx, req); err != nil {
+		t.Fatal(err)
+	}
+	if got := cli.modules[client.ObjectKeyFromObject(module)].Spec.Selector; got["pool"] != "old" {
+		t.Fatalf("KMM selector changed before VFIO unbind: %v", got)
+	}
+	unload := workerOnNode(t, cli, dc.Namespace, dc.Name, oldNode.Name)
+	if unload.Labels[utils.WorkerActionLabelKey] != utils.UnloadVFIOAction {
+		t.Fatal("selector transition did not schedule VFIO unbind")
+	}
+
+	cli.pods[client.ObjectKeyFromObject(unload)].Status.Phase = v1.PodSucceeded
+	if _, err := reconciler.Reconcile(ctx, req); err != nil {
+		t.Fatal(err)
+	}
+	if got := cli.modules[client.ObjectKeyFromObject(module)].Spec.Selector; got["pool"] != "new" {
+		t.Fatalf("KMM selector = %v after unbind, want new selector", got)
+	}
+	if _, ok := cli.deviceConfig.Status.NodeReservations[oldNode.Name]; !ok {
+		t.Fatal("reservation was released while KMM NMC and worker still referenced the node")
+	}
+	if ready := helper.conditionUpdater.GetReadyCondition(cli.deviceConfig); ready == nil || ready.Status != metav1.ConditionFalse || ready.Reason != conditions.KMMModulePending {
+		t.Fatalf("DeviceConfig did not report pending KMM release: %+v", ready)
+	}
+
+	cli.nmcs[oldNode.Name].Spec.Modules = nil
+	if _, err := reconciler.Reconcile(ctx, req); err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := cli.deviceConfig.Status.NodeReservations[oldNode.Name]; !ok {
+		t.Fatal("reservation was released while NMC status still referenced the node")
+	}
+	cli.nmcs[oldNode.Name].Status.Modules = nil
+	if _, err := reconciler.Reconcile(ctx, req); err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := cli.deviceConfig.Status.NodeReservations[oldNode.Name]; !ok {
+		t.Fatal("reservation was released while KMM worker still referenced the node")
+	}
+	delete(cli.pods, client.ObjectKeyFromObject(kmmWorker))
+	if _, err := reconciler.Reconcile(ctx, req); err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := cli.deviceConfig.Status.NodeReservations[oldNode.Name]; ok {
+		t.Fatal("reservation remained after Module selector, NMC, and KMM worker released the node")
+	}
+}
+
+func TestNonzeroVFSelectorDriftKeepsKMMSelectorUntilUnbind(t *testing.T) {
+	ctx := context.Background()
+	readyLabel := "gpu.operator.amd.com/test.dc.vfio.ready"
+	oldNode := &v1.Node{ObjectMeta: metav1.ObjectMeta{Name: "old-node", Labels: map[string]string{
+		"pool": "old", readyLabel: "",
+	}}}
+	oldNode.Status.NodeInfo.BootID = "boot-1"
+	newNode := &v1.Node{ObjectMeta: metav1.ObjectMeta{Name: "new-node", Labels: map[string]string{"pool": "new"}}}
+	helper, dc, cli, scheme := lifecycleFixture(t, utils.DriverTypeVFPassthrough, true, oldNode, newNode)
+	dc.Generation = 1
+	dc.Status.ObservedGeneration = 1
+	dc.Spec.Selector = map[string]string{"pool": "new"}
+	dc.Status.NodeReservationsInitialized = true
+	dc.Status.NodeReservations = map[string]amdv1alpha1.NodeReservationStatus{
+		oldNode.Name: {KMMOwnership: amdv1alpha1.KMMOwnershipManaged, VFIOBindingBootID: "boot-1"},
+	}
+	module := &kmmv1beta1.Module{
+		ObjectMeta: metav1.ObjectMeta{Namespace: dc.Namespace, Name: dc.Name},
+		Spec:       kmmv1beta1.ModuleSpec{Selector: map[string]string{"pool": "old"}},
+	}
+	if err := controllerutil.SetControllerReference(dc, module, scheme); err != nil {
+		t.Fatal(err)
+	}
+	cli.modules[client.ObjectKeyFromObject(module)] = module.DeepCopy()
+	reconciler := &DeviceConfigReconciler{Client: cli, helper: helper, kmmWatchEnabled: true}
+	req := reconcile.Request{NamespacedName: client.ObjectKeyFromObject(dc)}
+
+	if _, err := reconciler.Reconcile(ctx, req); err != nil {
+		t.Fatal(err)
+	}
+	if got := cli.modules[client.ObjectKeyFromObject(module)].Spec.Selector; got["pool"] != "old" {
+		t.Fatalf("KMM selector changed before VFIO unbind: %v", got)
+	}
+	if got := workerOnNode(t, cli, dc.Namespace, dc.Name, oldNode.Name); got.Labels[utils.WorkerActionLabelKey] != utils.UnloadVFIOAction {
+		t.Fatal("selector transition did not schedule VFIO unbind")
 	}
 }
 

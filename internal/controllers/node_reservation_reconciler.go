@@ -41,12 +41,13 @@ const (
 	kmmWorkerComponent          = "worker"
 )
 
-type nonVFIONodeReservationReconciler interface {
-	reconcileNonVFIONodeReservations(context.Context, *amdv1alpha1.DeviceConfig, *v1.NodeList) (bool, bool, error)
+type kmmNodeReservationReconciler interface {
+	reconcileKMMNodeReservations(context.Context, *amdv1alpha1.DeviceConfig, *v1.NodeList) (bool, bool, error)
 }
 
-func (dcrh *deviceConfigReconcilerHelper) reconcileNonVFIONodeReservations(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig, selected *v1.NodeList) (bool, bool, error) {
-	if isVFIOConfig(devConfig) {
+func (dcrh *deviceConfigReconcilerHelper) reconcileKMMNodeReservations(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig, selected *v1.NodeList) (bool, bool, error) {
+	if isVFIOConfig(devConfig) &&
+		(devConfig.Spec.Driver.DriverType != utils.DriverTypeVFPassthrough || !dcrh.shouldUseKMMOperatorLevel(devConfig)) {
 		return false, false, nil
 	}
 	if selected == nil {
