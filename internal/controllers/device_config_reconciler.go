@@ -1989,6 +1989,17 @@ func nodeListForReservations(reservations map[string]amdv1alpha1.NodeReservation
 }
 
 func (dcrh *deviceConfigReconcilerHelper) reserveNodeAssignments(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig, nodes *v1.NodeList) error {
+	legacyCleanupNodes := map[string]struct{}{}
+	if !devConfig.Status.NodeReservationsInitialized && isVFIOConfig(devConfig) {
+		cleanup, err := dcrh.vfioCleanupNodes(ctx, devConfig, nodes)
+		if err != nil {
+			return fmt.Errorf("migrating legacy VFIO cleanup reservations: %w", err)
+		}
+		for _, node := range cleanup.Items {
+			legacyCleanupNodes[node.Name] = struct{}{}
+		}
+	}
+
 	reservations := make(map[string]amdv1alpha1.NodeReservationStatus)
 	if devConfig.Status.NodeReservationsInitialized {
 		for node, status := range devConfig.Status.NodeReservations {
@@ -2006,6 +2017,14 @@ func (dcrh *deviceConfigReconcilerHelper) reserveNodeAssignments(ctx context.Con
 				KMMOwnership: dcrh.kmmOwnershipForLegacyReservation(devConfig, node),
 			}
 		}
+	}
+	for node := range legacyCleanupNodes {
+		status, ok := reservations[node]
+		if !ok {
+			status.KMMOwnership = dcrh.kmmOwnershipForLegacyReservation(devConfig, node)
+		}
+		status.VFIOCleanupPending = true
+		reservations[node] = status
 	}
 
 	for _, node := range nodes.Items {

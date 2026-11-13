@@ -427,15 +427,9 @@ func (dcrh *deviceConfigReconcilerHelper) vfioCleanupNodes(ctx context.Context, 
 		}
 	}
 	legacyCleanupPending := false
-	if dcrh.conditionUpdater != nil {
+	if !devConfig.Status.NodeReservationsInitialized && dcrh.conditionUpdater != nil {
 		ready := dcrh.conditionUpdater.GetReadyCondition(devConfig)
 		legacyCleanupPending = ready != nil && ready.Reason == conditions.VFIOCleanupPending
-		for _, reservation := range devConfig.Status.NodeReservations {
-			if reservation.VFIOCleanupPending {
-				legacyCleanupPending = false
-				break
-			}
-		}
 	}
 	pods := &v1.PodList{}
 	if err := dcrh.client.List(ctx, pods, client.InNamespace(devConfig.Namespace)); err != nil {

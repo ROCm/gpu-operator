@@ -85,3 +85,35 @@ func TestNodeHandlerRequeuesOnAllocatableChange(t *testing.T) {
 		t.Fatalf("queue length = %d, want 1", queue.Len())
 	}
 }
+
+func TestNodeReadyTransitionQueuesReconcile(t *testing.T) {
+	for _, bootID := range []string{"boot-1", "boot-2"} {
+		t.Run(bootID, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			kubeClient := mock_client.NewMockClient(ctrl)
+			kubeClient.EXPECT().List(gomock.Any(), gomock.Any()).DoAndReturn(func(_ context.Context, list client.ObjectList, _ ...client.ListOption) error {
+				list.(*amdv1alpha1.DeviceConfigList).Items = []amdv1alpha1.DeviceConfig{{ObjectMeta: metav1.ObjectMeta{Name: "dc", Namespace: "ns"}}}
+				return nil
+			})
+			handler := NewNodeEventHandler(kubeClient, nil)
+			queue := workqueue.NewTypedRateLimitingQueue(workqueue.DefaultTypedControllerRateLimiter[reconcile.Request]())
+			defer queue.ShutDown()
+
+			oldNode := &corev1.Node{ObjectMeta: metav1.ObjectMeta{Name: "node"}, Status: corev1.NodeStatus{
+				NodeInfo:   corev1.NodeSystemInfo{BootID: "boot-1"},
+				Conditions: []corev1.NodeCondition{{Type: corev1.NodeReady, Status: corev1.ConditionFalse}},
+			}}
+			newNode := oldNode.DeepCopy()
+			newNode.Status.NodeInfo.BootID = bootID
+			newNode.Status.Conditions[0].Status = corev1.ConditionTrue
+			evt := event.UpdateEvent{ObjectOld: oldNode, ObjectNew: newNode}
+			if !(NodePredicate{}).Update(evt) {
+				t.Fatal("Ready transition should pass the node predicate")
+			}
+			handler.Update(context.Background(), evt, queue)
+			if queue.Len() != 1 {
+				t.Fatalf("Ready transition queued %d reconciles, want 1", queue.Len())
+			}
+		})
+	}
+}

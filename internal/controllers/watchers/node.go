@@ -69,19 +69,26 @@ func (NodePredicate) Update(e event.UpdateEvent) bool {
 		return false
 	}
 
-	// send the event to node event handler if Node has the following update
-	// 1. kernel upgrade
-	// 2. spec change like podCIDR or taints
-	// 3. bootID for tracking node reboot
-	// 4. node labels change, which may affect the DeviceConfigs node selector
-	if oldNode.Status.NodeInfo.KernelVersion != newNode.Status.NodeInfo.KernelVersion ||
+	return nodeNeedsReconcile(oldNode, newNode)
+}
+
+func nodeNeedsReconcile(oldNode, newNode *v1.Node) bool {
+	return oldNode.Status.NodeInfo.KernelVersion != newNode.Status.NodeInfo.KernelVersion ||
 		oldNode.Generation != newNode.Generation ||
 		oldNode.Status.NodeInfo.BootID != newNode.Status.NodeInfo.BootID ||
-		!reflect.DeepEqual(oldNode.Labels, newNode.Labels) {
-		return true
-	}
+		!reflect.DeepEqual(oldNode.Labels, newNode.Labels) ||
+		!reflect.DeepEqual(oldNode.Status.Allocatable, newNode.Status.Allocatable) ||
+		!reflect.DeepEqual(oldNode.Status.Capacity, newNode.Status.Capacity) ||
+		nodeReadyStatus(oldNode) != nodeReadyStatus(newNode)
+}
 
-	return false
+func nodeReadyStatus(node *v1.Node) v1.ConditionStatus {
+	for _, condition := range node.Status.Conditions {
+		if condition.Type == v1.NodeReady {
+			return condition.Status
+		}
+	}
+	return v1.ConditionUnknown
 }
 
 func (NodePredicate) Generic(e event.GenericEvent) bool {
@@ -141,15 +148,7 @@ func (h *NodeEventHandler) Update(ctx context.Context, evt event.UpdateEvent, q 
 		return
 	}
 
-	// send the event to node event handler if Node has the following update
-	// 1. kernel upgrade
-	// 2. spec change like podCIDR or taints
-	// 3. bootID for tracking node reboot
-	// 4. node labels change, which may affect the DeviceConfigs node selector
-	if oldNode.Status.NodeInfo.KernelVersion != newNode.Status.NodeInfo.KernelVersion ||
-		oldNode.Generation != newNode.Generation ||
-		oldNode.Status.NodeInfo.BootID != newNode.Status.NodeInfo.BootID ||
-		!reflect.DeepEqual(oldNode.Labels, newNode.Labels) {
+	if nodeNeedsReconcile(oldNode, newNode) {
 		h.reconcileAllDeviceConfigs(ctx, q)
 	}
 	h.handlePostProcess(ctx, logger, oldNode, newNode)
