@@ -196,6 +196,8 @@ func TestUnknownKMMReservationStaysHeldWithoutAPI(t *testing.T) {
 		t.Run(string(state), func(t *testing.T) {
 			oldNode := &v1.Node{ObjectMeta: metav1.ObjectMeta{Name: "old-node"}}
 			helper, dc, cli, _ := lifecycleFixture(t, utils.DriverTypeContainer, false, oldNode)
+			enabled := true
+			dc.Spec.Driver.Enable = &enabled
 			dc.Status.NodeReservationsInitialized = true
 			dc.Status.NodeReservations = map[string]amdv1alpha1.NodeReservationStatus{
 				oldNode.Name: {KMMOwnership: state},
@@ -213,6 +215,29 @@ func TestUnknownKMMReservationStaysHeldWithoutAPI(t *testing.T) {
 				t.Fatal("reservation was released without proving KMM ownership ended")
 			}
 		})
+	}
+}
+
+func TestUnknownReservationReleasesWhenKMMWasNeverRequestedAndAPIsAreAbsent(t *testing.T) {
+	oldNode := &v1.Node{ObjectMeta: metav1.ObjectMeta{Name: "old-node"}}
+	helper, dc, cli, _ := lifecycleFixture(t, utils.DriverTypeVFPassthrough, false, oldNode)
+	helper.kmmWatchEnabled = false
+	dc.Status.NodeReservationsInitialized = true
+	dc.Status.NodeReservations = map[string]amdv1alpha1.NodeReservationStatus{
+		oldNode.Name: {KMMOwnership: amdv1alpha1.KMMOwnershipUnknown},
+	}
+	cli.moduleNoMatch = true
+	cli.nmcNoMatch = true
+
+	pending, requeue, err := helper.reconcileKMMNodeReservations(context.Background(), dc, &v1.NodeList{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if pending || requeue {
+		t.Fatalf("result = pending %t, requeue %t; want no KMM wait for explicitly disabled config with absent APIs", pending, requeue)
+	}
+	if _, ok := dc.Status.NodeReservations[oldNode.Name]; ok {
+		t.Fatal("legacy unknown reservation remained after KMM was never requested and both APIs were absent")
 	}
 }
 

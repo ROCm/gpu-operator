@@ -147,7 +147,9 @@ func (dcrh *deviceConfigReconcilerHelper) reconcileKMMNodeReservations(ctx conte
 			requeue = true
 			continue
 		}
-		if moduleUnavailable && reservation.KMMOwnership != amdv1alpha1.KMMOwnershipNeverManaged {
+		neverKMMUnavailable := reservation.KMMOwnership == amdv1alpha1.KMMOwnershipUnknown && moduleUnavailable &&
+			devConfig.Spec.Driver.Enable != nil && !*devConfig.Spec.Driver.Enable
+		if moduleUnavailable && reservation.KMMOwnership != amdv1alpha1.KMMOwnershipNeverManaged && !neverKMMUnavailable {
 			pending = true
 			requeue = true
 			continue
@@ -155,7 +157,7 @@ func (dcrh *deviceConfigReconcilerHelper) reconcileKMMNodeReservations(ctx conte
 
 		managed, err := dcrh.nodeHasKMMModuleState(ctx, devConfig, nodeName, pods)
 		if meta.IsNoMatchError(err) {
-			if reservation.KMMOwnership != amdv1alpha1.KMMOwnershipNeverManaged {
+			if reservation.KMMOwnership != amdv1alpha1.KMMOwnershipNeverManaged && !neverKMMUnavailable {
 				pending = true
 				requeue = true
 				continue
