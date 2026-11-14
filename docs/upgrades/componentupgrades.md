@@ -18,6 +18,8 @@ These components need a upgrade policy to be mentioned to decide how the daemons
 - `OnDelete`: Upgrade of image will happen for the pod only when user manually deletes the pod. When it comes back up, it comes back with the new image.
     In this case, CR update will not trigger any upgrade without user intervention of deleting each pod.
 
+For VF passthrough with the device plugin enabled, `DeviceConfig` Ready under `OnDelete` means the existing device-plugin pods are available and AMD resources are advertised. Ready does not verify that those pods use the desired image; replace the old pods and check their images separately.
+
 ```{note}
 **MaxUnavailable** field is meaningful only when **UpgradeStrategy** is set to `RollingUpdate`. If *UpgradeStrategy* is set to `OnDelete` and **MaxUnavailable** is set to an integer, behaviour of `OnDelete` is still as explained above
 ```

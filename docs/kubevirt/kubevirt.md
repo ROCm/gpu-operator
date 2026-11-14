@@ -17,6 +17,7 @@ The AMD GPU Operator now supports integration with [**KubeVirt**](https://kubevi
 - VF-Passthrough requires [AMD MxGPU GIM Driver](https://github.com/amd/MxGPU-Virtualization) supported GPUs.
 - VF-Passthrough requires that host should be configured properly to support SR-IOV (Single Root I/O Virtualization) related features by following [GIM driver documentation](https://instinct.docs.amd.com/projects/virt-drv/en/latest/index.html).
 - Both VF-Passthrough and PF-Passthrough require the host operating system to have `vfio`-related kernel modules ready for use.
+- On OpenShift, configure IOMMU and the `amdgpu` blacklist with the [Machine Config Operator](../installation/openshift-olm.md#create-blacklist-for-installing-out-of-tree-kernel-module) before creating the `DeviceConfig`. Wait for the MachineConfigPool rollout and node reboot; the operator does not edit host modprobe files or reboot nodes.
 
 ## Host Configuration
 
@@ -36,6 +37,8 @@ You need to set up System BIOS to enable the virtualization related features. Fo
 
 ### GRUB Config Update
 
+This section applies to vanilla Kubernetes hosts. On OpenShift, use the MachineConfig example linked above instead of editing `/etc/default/grub` directly.
+
 - Edit GRUB Configuration File:
 Use a text editor to modify the /etc/default/grub file (Following example uses “nano” text editor). Open the terminal and run the following command:
 
@@ -47,7 +50,7 @@ sudo nano /etc/default/grub
 Look for the line that begins with `GRUB_CMDLINE_LINUX`. Modify it to include following parameters, :
 
 ```bash
-GRUB_CMDLINE_LINUX="modprobe.blacklist=amdgpu iommu=on amd_iommu=on"
+GRUB_CMDLINE_LINUX="rd.driver.blacklist=amdgpu modprobe.blacklist=amdgpu iommu=pt amd_iommu=on"
 ```
 
 If there are already parameters in the quotes, append your new parameters separated by spaces.
@@ -79,7 +82,7 @@ cat /proc/cmdline
 When you run the command above, you should see a line that includes:
 
 ```bash
-modprobe.blacklist=amdgpu iommu=on amd_iommu=on  
+rd.driver.blacklist=amdgpu modprobe.blacklist=amdgpu iommu=pt amd_iommu=on
 ```
 
 This indicates that your changes have been applied correctly.
@@ -171,6 +174,10 @@ spec:
 
     # specify the driver type as vf-passthrough
     driverType: vf-passthrough
+
+    # On OpenShift, configure the host blacklist and IOMMU with MCO.
+    # This field does not modify OpenShift host configuration.
+    blacklist: false
     
     # specify the VF device IDs you want to bind to vfio-pci
     # by default all the latest AMD Instinct GPU VF deviceIDs will be utilized to detect VF and bind to vfio-pci
@@ -190,6 +197,15 @@ spec:
     # Make sure you created the secret within the namespace that KMM operator is running
     imageRegistrySecret:
       name: my-pull-secret
+
+  devicePlugin:
+    enableDevicePlugin: true
+    # Pin a VF-aware image tested with KubeVirt; do not use a mutable latest tag.
+    devicePluginImage: registry.example.com/amd/k8s-device-plugin:<tested-tag>
+    # KubeVirt's external provider uses amd.com/gpu in this example.
+    devicePluginArguments:
+      resource_naming_strategy: single
+    enableNodeLabeller: false
 ```
 
 2. Verify that the worker node is labeled with proper driver type and vfio ready labels:
@@ -221,6 +237,8 @@ $ kubectl get node <your worker node name> -oyaml | grep -i allocatable -A 5
   allocatable:
     amd.com/gpu: "1"
 ```
+
+The selected device-plugin image must discover VFs bound to `vfio-pci` and expose their PCI device IDs through the Kubernetes device-plugin interface used by KubeVirt. The operator does not discover VFs or add an unsupported `driver_type` argument on behalf of the image.
 
 ### PF-Passthrough
 
@@ -318,7 +336,7 @@ The Device Plugin is responsible for discovering AMD GPU devices and advertising
 
 The Device Plugin assumes homogeneous nodes, meaning a node is configured to operate in a single mode: container, vf-passthrough, or pf-passthrough. All discoverable GPU resources on that node will be of the same type.
 
-The Device Plugin uses automatic mode detection. If no explicit operational mode is specified using the `driver_type` command-line argument, it inspects the system setup (such as the presence of /dev/kfd, virtfn* symlinks, or driver bindings) and selects the appropriate mode (container, vf-passthrough, or pf-passthrough) accordingly. This simplifies deployment and reduces manual configuration requirements.
+The Device Plugin uses automatic mode detection. If no explicit operational mode is specified using the `driver_type` command-line argument, it inspects the system setup (such as the presence of /dev/kfd, virtfn* symlinks, or driver bindings) and selects the appropriate mode (container, vf-passthrough, or pf-passthrough) accordingly. The operator passes through explicit device-plugin arguments but does not synthesize `driver_type`; only add it when the selected image documents support for it.
 
 ### Node Labeler
 

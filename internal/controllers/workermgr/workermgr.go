@@ -38,9 +38,12 @@ import (
 )
 
 const (
-	workerContainerName = "worker"
-	initContainerName   = "pci-device-detector"
-	pciDeviceIDTemplate = "$$PCI_DEVICE_ID_LIST"
+	workerContainerName        = "worker"
+	initContainerName          = "pci-device-detector"
+	pciDeviceIDTemplate        = "$$PCI_DEVICE_ID_LIST"
+	utilsContainerSA           = "amd-gpu-operator-utils-container"
+	VFDetectorRetryMarker      = "gpu.operator.amd.com/vfio-detector-retry-handled"
+	VFIOWorkerBootIDAnnotation = "gpu.operator.amd.com/vfio-worker-boot-id"
 )
 
 var (
@@ -94,6 +97,12 @@ func (w *workerMgr) Work(ctx context.Context, devConfig *amdv1alpha1.DeviceConfi
 		return nil
 	}
 	loadWorker := w.getPodDef(devConfig, node.Name, utils.LoadVFIOAction)
+	if bootID := node.Status.NodeInfo.BootID; bootID != "" {
+		if loadWorker.Annotations == nil {
+			loadWorker.Annotations = make(map[string]string)
+		}
+		loadWorker.Annotations[VFIOWorkerBootIDAnnotation] = bootID
+	}
 	opRes, err := controllerutil.CreateOrPatch(ctx, w.client, loadWorker, func() error {
 		return controllerutil.SetControllerReference(devConfig, loadWorker, w.scheme)
 	})
@@ -306,12 +315,11 @@ func (w *workerMgr) getPodDef(devConfig *amdv1alpha1.DeviceConfig, nodeName, act
 			// then start binding VF
 			// otherwise there could be fake completion, the pod completed without binding anything
 			getDetectVFCommand := func() string {
-				detectCommands := make([]string, 0, len(getVFIODeviceIDs(devConfig)))
+				deviceIDs := make([]string, 0, len(getVFIODeviceIDs(devConfig)))
 				for _, deviceID := range getVFIODeviceIDs(devConfig) {
-					selector := quoteShellArg("1002:" + deviceID)
-					detectCommands = append(detectCommands, fmt.Sprintf("lspci -nn -d %s | grep -q .", selector))
+					deviceIDs = append(deviceIDs, quoteShellArg(deviceID))
 				}
-				return fmt.Sprintf("while ! { %s; }; do echo \"PCI device not found\"; sleep 2; done", strings.Join(detectCommands, " || "))
+				return fmt.Sprintf("timeout 10m bash -c 'previous=\"\"; stable=0; while :; do current=$(for product in \"$@\"; do lspci -nn -d \"1002:$product\"; done); if [ -n \"$current\" ] && [ \"$current\" = \"$previous\" ]; then stable=$((stable + 1)); else stable=0; fi; [ $stable -ge 2 ] && break; previous=\"$current\"; echo \"PCI device inventory not stable\"; sleep 2; done' -- %s", strings.Join(deviceIDs, " "))
 			}
 			initContainers = []v1.Container{
 				{
@@ -346,8 +354,9 @@ func (w *workerMgr) getPodDef(devConfig *amdv1alpha1.DeviceConfig, nodeName, act
 			},
 		},
 		Spec: v1.PodSpec{
-			NodeName:       nodeName,
-			InitContainers: initContainers,
+			NodeName:           nodeName,
+			ServiceAccountName: utilsContainerSA,
+			InitContainers:     initContainers,
 			Containers: []v1.Container{
 				{
 					Name:    workerContainerName,
@@ -360,9 +369,12 @@ func (w *workerMgr) getPodDef(devConfig *amdv1alpha1.DeviceConfig, nodeName, act
 					VolumeMounts: volumeMounts,
 				},
 			},
-			RestartPolicy: v1.RestartPolicyOnFailure,
+			RestartPolicy: v1.RestartPolicyNever,
 			Volumes:       volumes,
 		},
+	}
+	if action == utils.LoadVFIOAction && devConfig.Spec.Driver.DriverType == utils.DriverTypeVFPassthrough {
+		worker.Annotations = map[string]string{VFDetectorRetryMarker: "true"}
 	}
 
 	// add image pull policy if specified

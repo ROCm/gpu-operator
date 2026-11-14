@@ -1042,6 +1042,11 @@ spec:
         path: metricsExporter.nodesMatchingSelectorNumber
         x-descriptors:
         - urn:alm:descriptor:com.amd.deviceconfigs:nodesMatchingSelectorNumber
+      - description: NodeReservations preserves accepted node ownership independently of readiness
+        displayName: NodeReservations
+        path: nodeReservations
+        x-descriptors:
+        - urn:alm:descriptor:com.amd.deviceconfigs:nodeReservations
       - description: NodeModuleStatus contains per node status of driver module installation
         displayName: NodeModuleStatus
         path: nodeModuleStatus
