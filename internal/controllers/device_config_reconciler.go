@@ -36,7 +36,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"maps"
 	"os"
+	"sort"
 	"strings"
 	"sync"
 
@@ -119,7 +121,7 @@ func NewDeviceConfigReconciler(
 	upgradeMgrHandler := newUpgradeMgrHandler(client, k8sConfig)
 	remediationMgrHandler := newRemediationMgrHandler(client, apiReader, k8sConfig, isOpenShift)
 	helper := newDeviceConfigReconcilerHelper(client, kmmHandler, dpHandler, nlHandler, upgradeMgrHandler, remediationMgrHandler, metricsHandler, testrunnerHandler, configmanagerHandler, workerMgr, isOpenShift, kmmWatchEnabled)
-	podEventHandler := watchers.NewPodEventHandler(client, workerMgr)
+	podEventHandler := watchers.NewPodEventHandler(client)
 	nodeEventHandler := watchers.NewNodeEventHandler(client, workerMgr)
 	daemonsetEventHandler := watchers.NewDaemonsetEventHandler(client)
 	return &DeviceConfigReconciler{
@@ -284,16 +286,129 @@ func (r *DeviceConfigReconciler) Reconcile(ctx context.Context, req ctrl.Request
 		}
 		return res, fmt.Errorf("validation failed for DeviceConfig %s: %v", req.NamespacedName, result)
 	}
+	if reservationHelper, ok := r.helper.(interface {
+		reserveNodeAssignments(context.Context, *amdv1alpha1.DeviceConfig, *v1.NodeList) error
+	}); ok {
+		if err := reservationHelper.reserveNodeAssignments(ctx, devConfig, nodes); err != nil {
+			return res, fmt.Errorf("failed to persist node assignments for DeviceConfig %s: %w", req.NamespacedName, err)
+		}
+	}
+	if len(nodes.Items) > 0 && devConfig.Spec.Driver.DriverType == utils.DriverTypeVFPassthrough &&
+		((r.kmmWatchEnabled && utils.ShouldUseKMM(devConfig)) || hasUnselectedKMMReservation(devConfig, nodes)) {
+		if vfioHelper, ok := r.helper.(vfioWorkerReconciler); ok {
+			hasCleanup, err := vfioHelper.hasVFIOCleanup(ctx, devConfig, nodes)
+			if err != nil {
+				return res, err
+			}
+			if hasCleanup {
+				if err := r.helper.setFinalizer(ctx, devConfig); err != nil {
+					return res, err
+				}
+				if err := vfioHelper.ensureVFIOWorkers(ctx, devConfig, nodes); err != nil {
+					return res, fmt.Errorf("failed to stage VFIO cleanup before KMM selector update: %w", err)
+				}
+				if err := r.helper.setCondition(ctx, conditions.ConditionTypeReady, devConfig, metav1.ConditionFalse, conditions.VFIOCleanupPending, "waiting for VFIO cleanup before updating the KMM Module selector"); err != nil {
+					return res, err
+				}
+				r.helper.updateNodeAssignments(req.String(), nodeListForReservations(devConfig.Status.NodeReservations), false)
+				return res, nil
+			}
+		}
+	}
 
+	if len(nodes.Items) == 0 && isDisabledPF(devConfig) {
+		if err := r.helper.setFinalizer(ctx, devConfig); err != nil {
+			return res, err
+		}
+		if vfioHelper, ok := r.helper.(vfioWorkerReconciler); ok {
+			if err := vfioHelper.ensureVFIOWorkers(ctx, devConfig, nodes); err != nil {
+				return res, err
+			}
+		}
+		if err := r.helper.buildDeviceConfigStatus(ctx, devConfig, nodes); err != nil {
+			return res, err
+		}
+		if err := r.helper.updateDeviceConfigStatus(ctx, devConfig); err != nil {
+			return res, err
+		}
+		r.helper.updateNodeAssignments(req.String(), nodeListForReservations(devConfig.Status.NodeReservations), false)
+		return res, nil
+	}
 	if len(nodes.Items) == 0 {
+		if vfioHelper, ok := r.helper.(vfioWorkerReconciler); ok && isVFIOConfig(devConfig) {
+			hasCleanup, err := vfioHelper.hasVFIOCleanup(ctx, devConfig, nodes)
+			if err != nil {
+				return res, err
+			}
+			if len(devConfig.Status.NodeReservations) > 0 || hasCleanup {
+				if err := r.helper.setFinalizer(ctx, devConfig); err != nil {
+					return res, err
+				}
+				if err := vfioHelper.ensureVFIOWorkers(ctx, devConfig, nodes); err != nil {
+					return res, err
+				}
+				if devConfig.Spec.Driver.DriverType == utils.DriverTypeVFPassthrough &&
+					((r.kmmWatchEnabled && utils.ShouldUseKMM(devConfig)) || hasUnselectedKMMReservation(devConfig, nodes)) {
+					hasCleanup, err = vfioHelper.hasVFIOCleanup(ctx, devConfig, nodes)
+					if err != nil {
+						return res, err
+					}
+					if !hasCleanup {
+						if reservationHelper, ok := r.helper.(kmmNodeReservationReconciler); ok {
+							_, retry, err := reservationHelper.reconcileKMMNodeReservations(ctx, devConfig, nodes)
+							if err != nil {
+								if conditionErr := r.helper.setCondition(ctx, conditions.ConditionTypeReady, devConfig, metav1.ConditionFalse, conditions.KMMModulePending, "waiting to confirm that KMM no longer manages previously selected nodes"); conditionErr != nil {
+									logger.Error(conditionErr, "failed to set KMM reservation pending condition")
+								}
+								return res, err
+							}
+							if retry {
+								res.RequeueAfter = nodeReservationRequeueAfter
+							}
+						}
+					}
+				}
+				if err := r.helper.buildDeviceConfigStatus(ctx, devConfig, nodes); err != nil {
+					return res, err
+				}
+				if err := r.helper.updateDeviceConfigStatus(ctx, devConfig); err != nil {
+					return res, err
+				}
+				r.helper.updateNodeAssignments(req.String(), nodeListForReservations(devConfig.Status.NodeReservations), false)
+				return res, nil
+			}
+		}
+		reservationReleasePending := false
+		reservationReleaseRetry := false
+		if reservationHelper, ok := r.helper.(kmmNodeReservationReconciler); ok {
+			var err error
+			reservationReleasePending, reservationReleaseRetry, err = reservationHelper.reconcileKMMNodeReservations(ctx, devConfig, nodes)
+			if err != nil {
+				if conditionErr := r.helper.setCondition(ctx, conditions.ConditionTypeReady, devConfig, metav1.ConditionFalse, conditions.KMMModulePending, "waiting to confirm that KMM no longer manages previously selected nodes"); conditionErr != nil {
+					logger.Error(conditionErr, "failed to set KMM reservation pending condition")
+				}
+				return res, err
+			}
+		}
 		msg := fmt.Sprintf("no nodes found matching selector %s; verify node labels or check that NFD has labeled the GPU nodes", labels.Set(devConfig.Spec.Selector).String())
+		if reservationReleasePending {
+			msg += "; KMM cleanup is pending for previously selected nodes"
+			if reservationReleaseRetry {
+				res.RequeueAfter = nodeReservationRequeueAfter
+			} else {
+				if errSet := r.helper.setCondition(ctx, conditions.ConditionTypeReady, devConfig, metav1.ConditionFalse, conditions.KMMModulePending, msg); errSet != nil {
+					logger.Error(errSet, "failed to set KMM reservation pending condition")
+				}
+				return res, nil
+			}
+		}
 		if errSet := r.helper.setCondition(ctx, conditions.ConditionTypeError, devConfig, metav1.ConditionTrue, conditions.NoMatchingNodes, msg); errSet != nil {
 			logger.Error(fmt.Errorf("failed to set error condition: %v", errSet), "")
 		}
 		if errSet := r.helper.setCondition(ctx, conditions.ConditionTypeReady, devConfig, metav1.ConditionFalse, conditions.NoMatchingNodes, msg); errSet != nil {
 			logger.Error(fmt.Errorf("failed to set ready condition: %v", errSet), "")
 		}
-		return ctrl.Result{}, nil
+		return res, nil
 	}
 
 	err = r.helper.setFinalizer(ctx, devConfig)
@@ -316,6 +431,24 @@ func (r *DeviceConfigReconciler) Reconcile(ctx context.Context, req ctrl.Request
 	logger.Info("start KMM reconciliation")
 	if err = r.helper.handleKMMModule(ctx, devConfig, nodes); err != nil {
 		return res, fmt.Errorf("failed to handle KMM module for DeviceConfig %s: %v", req.NamespacedName, err)
+	}
+	reservationReleaseRetry := false
+	if reservationHelper, ok := r.helper.(kmmNodeReservationReconciler); ok {
+		_, reservationReleaseRetry, err = reservationHelper.reconcileKMMNodeReservations(ctx, devConfig, nodes)
+		if err != nil {
+			if conditionErr := r.helper.setCondition(ctx, conditions.ConditionTypeReady, devConfig, metav1.ConditionFalse, conditions.KMMModulePending, "waiting to confirm that KMM no longer manages previously selected nodes"); conditionErr != nil {
+				logger.Error(conditionErr, "failed to set KMM reservation pending condition")
+			}
+			return res, fmt.Errorf("failed to release stale node reservations for DeviceConfig %s: %w", req.NamespacedName, err)
+		}
+		if reservationReleaseRetry && (res.RequeueAfter == 0 || res.RequeueAfter > nodeReservationRequeueAfter) {
+			res.RequeueAfter = nodeReservationRequeueAfter
+		}
+	}
+	if vfioHelper, ok := r.helper.(vfioWorkerReconciler); ok {
+		if err = vfioHelper.ensureVFIOWorkers(ctx, devConfig, nodes); err != nil {
+			return res, fmt.Errorf("failed to handle VFIO workers for DeviceConfig %s: %v", req.NamespacedName, err)
+		}
 	}
 
 	logger.Info("start device-plugin reconciliation")
@@ -381,8 +514,8 @@ func (r *DeviceConfigReconciler) Reconcile(ctx context.Context, req ctrl.Request
 		return finalRes, fmt.Errorf("failed to update status for DeviceConfig %s: %v", req.NamespacedName, err)
 	}
 
-	// Update nodeAssignments after DeviceConfig status update
-	r.helper.updateNodeAssignments(req.String(), nodes, false)
+	// Update nodeAssignments after DeviceConfig status update.
+	r.helper.updateNodeAssignments(req.String(), nodeListForReservations(devConfig.Status.NodeReservations), false)
 
 	return finalRes, nil
 }
@@ -419,6 +552,11 @@ type deviceConfigReconcilerHelperAPI interface {
 	shouldReconcile(ctx context.Context, ugpgradeRes, remediationRes ctrl.Result) ctrl.Result
 }
 
+type vfioWorkerReconciler interface {
+	ensureVFIOWorkers(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig, nodes *v1.NodeList) error
+	hasVFIOCleanup(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig, nodes *v1.NodeList) (bool, error)
+}
+
 type deviceConfigReconcilerHelper struct {
 	client              client.Client
 	kmmWatchEnabled     bool
@@ -430,7 +568,7 @@ type deviceConfigReconcilerHelper struct {
 	testrunnerHandler   testrunner.TestRunner
 
 	configmanagerHandler  configmanager.ConfigManager
-	nodeAssignments       map[string]string
+	nodeAssignments       map[string]map[string]struct{}
 	conditionUpdater      conditions.ConditionUpdater
 	validator             validator.ValidatorAPI
 	kmmPostProcessor      workermgr.WorkerMgrAPI
@@ -463,7 +601,7 @@ func newDeviceConfigReconcilerHelper(client client.Client,
 		metricsHandler:        metricsHandler,
 		testrunnerHandler:     testrunnerHandler,
 		configmanagerHandler:  configmanagerHandler,
-		nodeAssignments:       make(map[string]string),
+		nodeAssignments:       make(map[string]map[string]struct{}),
 		conditionUpdater:      conditionUpdater,
 		validator:             validator,
 		kmmPostProcessor:      workerMgr,
@@ -614,10 +752,12 @@ func (dcrh *deviceConfigReconcilerHelper) hasSecretReference(secretName string, 
 }
 
 func (dcrh *deviceConfigReconcilerHelper) buildDeviceConfigStatus(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig, nodes *v1.NodeList) error {
+	var kmmModuleObj *kmmv1beta1.Module
 	// fetch DeviceConfig-owned custom resource
 	// then retrieve its status and put it to DeviceConfig's status fields
 	if dcrh.shouldUseKMMOperatorLevel(devConfig) {
-		kmmModuleObj, err := dcrh.getDeviceConfigOwnedKMMModule(ctx, devConfig)
+		var err error
+		kmmModuleObj, err = dcrh.getDeviceConfigOwnedKMMModule(ctx, devConfig)
 		if err != nil {
 			return fmt.Errorf("failed to fetch owned kmm module for DeviceConfig %+v: %+v",
 				types.NamespacedName{Namespace: devConfig.Namespace, Name: devConfig.Name}, err)
@@ -638,10 +778,98 @@ func (dcrh *deviceConfigReconcilerHelper) buildDeviceConfigStatus(ctx context.Co
 
 	// Successfully processed the config
 	devConfig.Status.ObservedGeneration = devConfig.Generation
+	statusNodes := nodes
+	disabledVFIO := isVFIOConfig(devConfig) && devConfig.Spec.Driver.Enable != nil && !*devConfig.Spec.Driver.Enable
+	if isDisabledPF(devConfig) || disabledVFIO {
+		var err error
+		statusNodes, err = dcrh.vfioCleanupNodes(ctx, devConfig, nodes)
+		if err != nil {
+			return err
+		}
+	}
+	if failedNode, err := dcrh.getFailedWorkerNode(ctx, devConfig, statusNodes); err != nil {
+		return err
+	} else if failedNode != "" {
+		message := fmt.Sprintf("VFIO worker failed on node %s", failedNode)
+		dcrh.conditionUpdater.SetErrorCondition(devConfig, metav1.ConditionTrue, conditions.VFIOWorkerFailed, message)
+		dcrh.conditionUpdater.SetReadyCondition(devConfig, metav1.ConditionFalse, conditions.VFIOWorkerFailed, message)
+		return nil
+	}
+	if isDisabledPF(devConfig) || disabledVFIO {
+		complete, err := dcrh.vfioCleanupComplete(ctx, devConfig, statusNodes)
+		if err != nil {
+			return err
+		}
+		dcrh.conditionUpdater.DeleteErrorCondition(devConfig)
+		if !complete {
+			dcrh.conditionUpdater.SetReadyCondition(devConfig, metav1.ConditionFalse, conditions.VFIOCleanupPending, "VFIO cleanup is still in progress")
+		} else if devConfig.Spec.Driver.DriverType == utils.DriverTypeVFPassthrough && hasUnselectedKMMReservation(devConfig, nodes) {
+			dcrh.conditionUpdater.SetReadyCondition(devConfig, metav1.ConditionFalse, conditions.KMMModulePending, "waiting for KMM to stop managing previously selected nodes")
+		} else {
+			dcrh.conditionUpdater.SetReadyCondition(devConfig, metav1.ConditionTrue, conditions.ReadyStatus, "")
+		}
+		return nil
+	}
+	for _, reservation := range devConfig.Status.NodeReservations {
+		if reservation.VFIOCleanupPending {
+			dcrh.conditionUpdater.DeleteErrorCondition(devConfig)
+			dcrh.conditionUpdater.SetReadyCondition(devConfig, metav1.ConditionFalse, conditions.VFIOCleanupPending, "VFIO cleanup is still in progress")
+			return nil
+		}
+	}
+	if !isVFIOConfig(devConfig) {
+		selected := make(map[string]struct{}, len(nodes.Items))
+		for _, node := range nodes.Items {
+			selected[node.Name] = struct{}{}
+		}
+		for node := range devConfig.Status.NodeReservations {
+			if _, ok := selected[node]; !ok {
+				dcrh.conditionUpdater.DeleteErrorCondition(devConfig)
+				dcrh.conditionUpdater.SetReadyCondition(devConfig, metav1.ConditionFalse, conditions.KMMModulePending, "waiting for KMM to stop managing previously selected nodes")
+				return nil
+			}
+		}
+	}
+	if devConfig.Spec.Driver.DriverType == utils.DriverTypeVFPassthrough && hasUnselectedKMMReservation(devConfig, nodes) {
+		dcrh.conditionUpdater.DeleteErrorCondition(devConfig)
+		dcrh.conditionUpdater.SetReadyCondition(devConfig, metav1.ConditionFalse, conditions.KMMModulePending, "waiting for KMM to stop managing previously selected nodes")
+		return nil
+	}
+	if len(nodes.Items) == 0 && isVFIOConfig(devConfig) && (devConfig.Spec.Driver.Enable == nil || *devConfig.Spec.Driver.Enable) {
+		message := fmt.Sprintf("no nodes found matching selector %s; verify node labels or check that NFD has labeled the GPU nodes", labels.Set(devConfig.Spec.Selector).String())
+		dcrh.conditionUpdater.SetErrorCondition(devConfig, metav1.ConditionTrue, conditions.NoMatchingNodes, message)
+		dcrh.conditionUpdater.SetReadyCondition(devConfig, metav1.ConditionFalse, conditions.NoMatchingNodes, message)
+		return nil
+	}
+
+	ready, reason, message := deviceConfigReadiness(devConfig, nodes, kmmModuleObj, dcrh.shouldUseKMMOperatorLevel(devConfig))
 	dcrh.conditionUpdater.DeleteErrorCondition(devConfig)
-	dcrh.conditionUpdater.SetReadyCondition(devConfig, metav1.ConditionTrue, conditions.ReadyStatus, "")
+	if ready {
+		dcrh.conditionUpdater.SetReadyCondition(devConfig, metav1.ConditionTrue, conditions.ReadyStatus, message)
+	} else {
+		dcrh.conditionUpdater.SetReadyCondition(devConfig, metav1.ConditionFalse, reason, message)
+	}
 
 	return nil
+}
+
+func (dcrh *deviceConfigReconcilerHelper) getFailedWorkerNode(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig, nodes *v1.NodeList) (string, error) {
+	if devConfig.Spec.Driver.DriverType != utils.DriverTypeVFPassthrough && devConfig.Spec.Driver.DriverType != utils.DriverTypePFPassthrough {
+		return "", nil
+	}
+	for _, node := range nodes.Items {
+		pod, err := dcrh.kmmPostProcessor.GetWorkerPod(ctx, devConfig, &node)
+		if k8serrors.IsNotFound(err) {
+			continue
+		}
+		if err != nil {
+			return "", fmt.Errorf("failed to fetch VFIO worker pod on node %s: %w", node.Name, err)
+		}
+		if pod.Status.Phase == v1.PodFailed || pod.Status.Phase == v1.PodUnknown {
+			return node.Name, nil
+		}
+	}
+	return "", nil
 }
 
 func (dcrh *deviceConfigReconcilerHelper) updateDeviceConfigStatus(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig) error {
@@ -680,6 +908,7 @@ func (dcrh *deviceConfigReconcilerHelper) buildDeviceConfigNodeStatus(ctx contex
 	logger := log.FromContext(ctx)
 	previousUpgradeTimes := make(map[string]string)
 	previousBootIds := make(map[string]string)
+	previousNodeStatuses := devConfig.Status.NodeModuleStatus
 	// Persist the UpgradeStartTime
 	for nodeName, moduleStatus := range devConfig.Status.NodeModuleStatus {
 		previousUpgradeTimes[nodeName] = moduleStatus.UpgradeStartTime
@@ -741,6 +970,13 @@ func (dcrh *deviceConfigReconcilerHelper) buildDeviceConfigNodeStatus(ctx contex
 						BootId:             bootId,
 					}
 				}
+			}
+		}
+	}
+	for nodeName, moduleStatus := range previousNodeStatuses {
+		if reservation, ok := dcrh.nodeReservation(devConfig, nodeName); ok && reservation.VFIOCleanupPending {
+			if _, exists := devConfig.Status.NodeModuleStatus[nodeName]; !exists {
+				devConfig.Status.NodeModuleStatus[nodeName] = moduleStatus
 			}
 		}
 	}
@@ -985,12 +1221,54 @@ func (dcrh *deviceConfigReconcilerHelper) finalizeDeviceConfig(ctx context.Conte
 	}
 
 	// finalize KMM CR of managing out-of-tree kernel module
+	if isVFIOConfig(devConfig) {
+		var err error
+		cleanupNodes, err := dcrh.vfioCleanupNodes(ctx, devConfig, nodes)
+		if err != nil {
+			return err
+		}
+		// When KMM owns the GIM lifecycle, VF devices disappear with GIM and do not need pre-delete unbinding.
+		cleanupBeforeKMMDelete := devConfig.Spec.Driver.DriverType == utils.DriverTypePFPassthrough || !dcrh.kmmWatchEnabled
+		if cleanupBeforeKMMDelete {
+			for _, node := range cleanupNodes.Items {
+				if err := dcrh.checkNodeReservationOwner(ctx, devConfig, node.Name); err != nil {
+					return err
+				}
+			}
+			if err := dcrh.ensureVFIOCleanup(ctx, devConfig, cleanupNodes); err != nil {
+				return err
+			}
+			complete, err := dcrh.vfioCleanupComplete(ctx, devConfig, cleanupNodes)
+			if err != nil {
+				return err
+			}
+			if !complete {
+				return errors.New("waiting for VFIO cleanup")
+			}
+		}
+		byName := make(map[string]v1.Node, len(nodes.Items)+len(cleanupNodes.Items))
+		for _, node := range nodes.Items {
+			byName[node.Name] = node
+		}
+		for _, node := range cleanupNodes.Items {
+			byName[node.Name] = node
+		}
+		nodes = &v1.NodeList{}
+		for _, node := range byName {
+			nodes.Items = append(nodes.Items, node)
+		}
+	}
 	if err := utils.UpdateDriverTypeNodeLabel(ctx, dcrh.client, devConfig, nodes, true); err != nil {
 		return fmt.Errorf("failed to remove driver type node label: %+v", err)
 	}
 
 	if !dcrh.kmmWatchEnabled {
 		// When KMM watch is disabled, skip KMM Module deletion and leave any existing KMM resources orphaned
+		if isVFIOConfig(devConfig) {
+			if err := dcrh.deleteVFIOCleanupMarkers(ctx, devConfig, nodes); err != nil {
+				return err
+			}
+		}
 		devConfigCopy := devConfig.DeepCopy()
 		controllerutil.RemoveFinalizer(devConfig, deviceConfigFinalizer)
 		return dcrh.client.Patch(ctx, devConfig, client.MergeFrom(devConfigCopy))
@@ -1015,13 +1293,9 @@ func (dcrh *deviceConfigReconcilerHelper) finalizeDeviceConfig(ctx context.Conte
 				default:
 					logger.Info("module already deleted, removing finalizer", "module", namespacedName)
 				}
-			} else if devConfig.Spec.Driver.Enable != nil &&
-				*devConfig.Spec.Driver.Enable &&
-				devConfig.Spec.Driver.DriverType == utils.DriverTypePFPassthrough {
-				// for pf-passthrough, unbind devices from vfio
-				// so that they can be used by other driver
-				if !dcrh.checkPostProcessFinalizeCondition(ctx, devConfig, nodes, false) {
-					return errors.New("waiting for post-process finalize condition")
+			} else if isVFIOConfig(devConfig) {
+				if err := dcrh.deleteVFIOCleanupMarkers(ctx, devConfig, nodes); err != nil {
+					return err
 				}
 			} else {
 				// driver disabled mode won't have KMM CR created
@@ -1187,8 +1461,9 @@ func (dcrh *deviceConfigReconcilerHelper) handleBuildConfigMap(ctx context.Conte
 func (dcrh *deviceConfigReconcilerHelper) handleKMMModule(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig, nodes *v1.NodeList) error {
 	logger := log.FromContext(ctx)
 
-	// add driver type node label if it is necessary
-	if err := utils.UpdateDriverTypeNodeLabel(ctx, dcrh.client, devConfig, nodes, false); err != nil {
+	// add or remove the driver type node label as driver management changes
+	cleanupDriverLabel := devConfig.Spec.Driver.Enable != nil && !*devConfig.Spec.Driver.Enable && !isDisabledPF(devConfig) && !isVFIOConfig(devConfig)
+	if err := utils.UpdateDriverTypeNodeLabel(ctx, dcrh.client, devConfig, nodes, cleanupDriverLabel); err != nil {
 		return err
 	}
 
@@ -1660,17 +1935,23 @@ func (dcrh *deviceConfigReconcilerHelper) updateNodeLabels(ctx context.Context, 
 }
 
 func (dcrh *deviceConfigReconcilerHelper) validateNodeAssignments(namespacedName string, nodes *v1.NodeList) error {
-	var err error
-
 	for _, node := range nodes.Items {
-		val, ok := dcrh.nodeAssignments[node.Name]
-		if ok && val != namespacedName {
-			err = fmt.Errorf("node %s already assigned to DeviceConfig %s, cannot re-assign to %s", node.Name, val, namespacedName)
-			break
+		owners := dcrh.nodeAssignments[node.Name]
+		if len(owners) > 1 {
+			conflicts := make([]string, 0, len(owners))
+			for owner := range owners {
+				conflicts = append(conflicts, owner)
+			}
+			sort.Strings(conflicts)
+			return fmt.Errorf("node %s has conflicting persisted DeviceConfig assignments %v", node.Name, conflicts)
+		}
+		for owner := range owners {
+			if owner != namespacedName {
+				return fmt.Errorf("node %s already assigned to DeviceConfig %s, cannot re-assign to %s", node.Name, owner, namespacedName)
+			}
 		}
 	}
-
-	return err
+	return nil
 }
 
 func (dcrh *deviceConfigReconcilerHelper) buildNodeAssignments(ctx context.Context, deviceConfigList *amdv1alpha1.DeviceConfigList) error {
@@ -1680,31 +1961,18 @@ func (dcrh *deviceConfigReconcilerHelper) buildNodeAssignments(ctx context.Conte
 
 	logger := log.FromContext(ctx)
 
-	isReady := func(devConfig *amdv1alpha1.DeviceConfig) bool {
-		ready := dcrh.conditionUpdater.GetReadyCondition(devConfig)
-		if ready == nil {
-			return false
-		}
-		return ready.Status == metav1.ConditionTrue
-	}
-
 	for _, devConfig := range deviceConfigList.Items {
-		if isReady(&devConfig) {
-			namespacedName := types.NamespacedName{
-				Namespace: devConfig.Namespace,
-				Name:      devConfig.Name,
+		namespacedName := types.NamespacedName{Namespace: devConfig.Namespace, Name: devConfig.Name}
+		for _, node := range nodeReservationNames(&devConfig) {
+			owners := dcrh.nodeAssignments[node]
+			if owners == nil {
+				owners = make(map[string]struct{})
+				dcrh.nodeAssignments[node] = owners
 			}
-
-			nodeItems := []v1.Node{}
-			for node := range devConfig.Status.NodeModuleStatus {
-				nodeItems = append(nodeItems, v1.Node{ObjectMeta: metav1.ObjectMeta{Name: node}})
+			owners[namespacedName.String()] = struct{}{}
+			if len(owners) > 1 {
+				logger.Error(fmt.Errorf("conflicting DeviceConfig reservations for node %s", node), "node assignment conflict detected during initialization", "DeviceConfig", namespacedName)
 			}
-			err := dcrh.validateNodeAssignments(namespacedName.String(), &v1.NodeList{Items: nodeItems})
-			if err != nil {
-				logger.Error(err, "node assignment conflict detected during initialization, skipping DeviceConfig", "DeviceConfig", namespacedName)
-				continue
-			}
-			dcrh.updateNodeAssignments(namespacedName.String(), &v1.NodeList{Items: nodeItems}, false)
 		}
 	}
 
@@ -1715,21 +1983,126 @@ func (dcrh *deviceConfigReconcilerHelper) updateNodeAssignments(namespacedName s
 	if isFinalizer {
 		if nodes != nil {
 			for _, node := range nodes.Items {
-				delete(dcrh.nodeAssignments, node.Name)
+				dcrh.removeNodeAssignment(node.Name, namespacedName)
 			}
 		} else {
-			for k, v := range dcrh.nodeAssignments {
-				if v == namespacedName {
-					delete(dcrh.nodeAssignments, k)
-				}
+			for node := range dcrh.nodeAssignments {
+				dcrh.removeNodeAssignment(node, namespacedName)
 			}
 		}
 		return
 	}
 
-	for _, node := range nodes.Items {
-		dcrh.nodeAssignments[node.Name] = namespacedName
+	for node := range dcrh.nodeAssignments {
+		dcrh.removeNodeAssignment(node, namespacedName)
 	}
+	for _, node := range nodes.Items {
+		owners := dcrh.nodeAssignments[node.Name]
+		if owners == nil {
+			owners = make(map[string]struct{})
+			dcrh.nodeAssignments[node.Name] = owners
+		}
+		owners[namespacedName] = struct{}{}
+	}
+}
+
+func (dcrh *deviceConfigReconcilerHelper) removeNodeAssignment(node, namespacedName string) {
+	owners := dcrh.nodeAssignments[node]
+	delete(owners, namespacedName)
+	if len(owners) == 0 {
+		delete(dcrh.nodeAssignments, node)
+	}
+}
+
+func nodeReservationNames(devConfig *amdv1alpha1.DeviceConfig) []string {
+	nodes := make([]string, 0)
+	if devConfig.Status.NodeReservationsInitialized {
+		for node := range devConfig.Status.NodeReservations {
+			nodes = append(nodes, node)
+		}
+	} else {
+		for node := range devConfig.Status.NodeModuleStatus {
+			nodes = append(nodes, node)
+		}
+	}
+	sort.Strings(nodes)
+	return nodes
+}
+
+func nodeListForReservations(reservations map[string]amdv1alpha1.NodeReservationStatus) *v1.NodeList {
+	nodes := make([]v1.Node, 0, len(reservations))
+	for name := range reservations {
+		nodes = append(nodes, v1.Node{ObjectMeta: metav1.ObjectMeta{Name: name}})
+	}
+	sort.Slice(nodes, func(i, j int) bool { return nodes[i].Name < nodes[j].Name })
+	return &v1.NodeList{Items: nodes}
+}
+
+func (dcrh *deviceConfigReconcilerHelper) reserveNodeAssignments(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig, nodes *v1.NodeList) error {
+	legacyCleanupNodes := map[string]struct{}{}
+	if !devConfig.Status.NodeReservationsInitialized && isVFIOConfig(devConfig) {
+		cleanup, err := dcrh.vfioCleanupNodes(ctx, devConfig, nodes)
+		if err != nil {
+			return fmt.Errorf("migrating legacy VFIO cleanup reservations: %w", err)
+		}
+		for _, node := range cleanup.Items {
+			legacyCleanupNodes[node.Name] = struct{}{}
+		}
+	}
+
+	reservations := make(map[string]amdv1alpha1.NodeReservationStatus)
+	if devConfig.Status.NodeReservationsInitialized {
+		for node, status := range devConfig.Status.NodeReservations {
+			if status.KMMOwnership == "" {
+				status.KMMOwnership = dcrh.kmmOwnershipForLegacyReservation(devConfig, node)
+			}
+			if dcrh.shouldUseKMMOperatorLevel(devConfig) || moduleStatusShowsKMM(devConfig.Status.NodeModuleStatus[node]) {
+				status.KMMOwnership = amdv1alpha1.KMMOwnershipManaged
+			}
+			reservations[node] = status
+		}
+	} else {
+		for node := range devConfig.Status.NodeModuleStatus {
+			reservations[node] = amdv1alpha1.NodeReservationStatus{
+				KMMOwnership: dcrh.kmmOwnershipForLegacyReservation(devConfig, node),
+			}
+		}
+	}
+	for node := range legacyCleanupNodes {
+		status, ok := reservations[node]
+		if !ok {
+			status.KMMOwnership = dcrh.kmmOwnershipForLegacyReservation(devConfig, node)
+		}
+		status.VFIOCleanupPending = true
+		reservations[node] = status
+	}
+
+	for _, node := range nodes.Items {
+		if status, ok := reservations[node.Name]; ok {
+			if status.KMMOwnership == "" {
+				status.KMMOwnership = amdv1alpha1.KMMOwnershipUnknown
+			}
+			if dcrh.shouldUseKMMOperatorLevel(devConfig) || moduleStatusShowsKMM(devConfig.Status.NodeModuleStatus[node.Name]) {
+				status.KMMOwnership = amdv1alpha1.KMMOwnershipManaged
+			}
+			reservations[node.Name] = status
+		} else {
+			reservations[node.Name] = amdv1alpha1.NodeReservationStatus{
+				KMMOwnership: dcrh.kmmOwnershipForNewReservation(devConfig, node.Name),
+			}
+		}
+	}
+
+	changed := !devConfig.Status.NodeReservationsInitialized || !maps.Equal(devConfig.Status.NodeReservations, reservations)
+	devConfig.Status.NodeReservations = reservations
+	devConfig.Status.NodeReservationsInitialized = true
+	if changed {
+		if err := dcrh.updateDeviceConfigStatus(ctx, devConfig); err != nil {
+			return fmt.Errorf("persisting node reservations: %w", err)
+		}
+	}
+	dcrh.updateNodeAssignments(types.NamespacedName{Namespace: devConfig.Namespace, Name: devConfig.Name}.String(), nodeListForReservations(reservations), false)
+	return nil
 }
 
 func (dcrh *deviceConfigReconcilerHelper) setCondition(ctx context.Context, condition string, devConfig *amdv1alpha1.DeviceConfig, status metav1.ConditionStatus, reason string, message string) error {

@@ -28,6 +28,7 @@ import (
 
 	amdv1alpha1 "github.com/ROCm/gpu-operator/api/v1alpha1"
 	utils "github.com/ROCm/gpu-operator/internal"
+	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -49,7 +50,7 @@ func TestVFIOWorkerQuotesConfiguredDeviceIDsForBindingAndDetection(t *testing.T)
 	if !strings.Contains(bindCommand, "'75b3; echo injected'") {
 		t.Fatalf("bind command does not contain configured VF ID: %s", bindCommand)
 	}
-	if !strings.Contains(detectCommand, "lspci -nn -d '1002:75b3; echo injected' | grep -q .") {
+	if !strings.Contains(detectCommand, "-- '75b3; echo injected'") {
 		t.Fatalf("detect command does not contain configured VF ID: %s", detectCommand)
 	}
 }
@@ -105,6 +106,15 @@ func TestVFIOWorkerDetectsConfiguredIDsUsingLspciSelectors(t *testing.T) {
 			}
 			pod := (&workerMgr{}).getPodDef(devConfig, "test-node", utils.LoadVFIOAction)
 			detectCommand := pod.Spec.InitContainers[0].Command[2]
+			if !strings.Contains(detectCommand, "timeout 10m") || !strings.Contains(detectCommand, "lspci -nn -d \"1002:$product\"") {
+				t.Fatalf("detect command is not bounded to AMD devices: %s", detectCommand)
+			}
+			if pod.Spec.RestartPolicy != v1.RestartPolicyNever {
+				t.Fatalf("worker pod restart policy is %q, want Never", pod.Spec.RestartPolicy)
+			}
+			if pod.Spec.ServiceAccountName != utilsContainerSA {
+				t.Fatalf("worker pod service account is %q, want %s", pod.Spec.ServiceAccountName, utilsContainerSA)
+			}
 
 			got := runVFDetection(t, detectCommand, tt.match)
 			if !reflect.DeepEqual(got, tt.want) {
@@ -149,6 +159,12 @@ func TestVFIOWorkerUsesConfiguredIDsInBindAndUnbindCommands(t *testing.T) {
 
 	bindPod := (&workerMgr{}).getPodDef(devConfig, "test-node", utils.LoadVFIOAction)
 	unbindPod := (&workerMgr{}).getPodDef(devConfig, "test-node", utils.UnloadVFIOAction)
+	if !strings.Contains(bindPod.Spec.Containers[0].Command[2], "failed to bind GPU VF device") {
+		t.Fatal("bind command does not fail when vfio-pci binding is not effective")
+	}
+	if !strings.Contains(unbindPod.Spec.Containers[0].Command[2], "failed to unbind GPU device") || !strings.Contains(unbindPod.Spec.Containers[0].Command[2], "remains bound") {
+		t.Fatal("unbind command does not fail when vfio-pci unbinding is not effective")
+	}
 	for name, command := range map[string]string{
 		"bind":   bindPod.Spec.Containers[0].Command[2],
 		"unbind": unbindPod.Spec.Containers[0].Command[2],
@@ -174,6 +190,7 @@ func runVFDetection(t *testing.T, detectCommand, match string) []string {
 
 	tempDir := t.TempDir()
 	lspciPath := filepath.Join(tempDir, "lspci")
+	sleepPath := filepath.Join(tempDir, "sleep")
 	argsPath := filepath.Join(tempDir, "lspci.args")
 	lspciScript := "#!/bin/sh\n" +
 		"set -eu\n" +
@@ -186,6 +203,9 @@ func runVFDetection(t *testing.T, detectCommand, match string) []string {
 		"fi\n" +
 		"exit 1\n"
 	if err := os.WriteFile(lspciPath, []byte(lspciScript), 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(sleepPath, []byte("#!/bin/sh\nexit 0\n"), 0755); err != nil {
 		t.Fatal(err)
 	}
 
@@ -206,5 +226,14 @@ func runVFDetection(t *testing.T, detectCommand, match string) []string {
 	if len(strings.TrimSpace(string(data))) == 0 {
 		return nil
 	}
-	return strings.Split(strings.TrimSpace(string(data)), "\n")
+	var unique []string
+	seen := map[string]struct{}{}
+	for _, value := range strings.Split(strings.TrimSpace(string(data)), "\n") {
+		if _, ok := seen[value]; ok {
+			continue
+		}
+		seen[value] = struct{}{}
+		unique = append(unique, value)
+	}
+	return unique
 }

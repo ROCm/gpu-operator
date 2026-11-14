@@ -34,7 +34,6 @@ package watchers
 
 import (
 	"context"
-	"fmt"
 	"reflect"
 
 	"github.com/go-logr/logr"
@@ -70,19 +69,26 @@ func (NodePredicate) Update(e event.UpdateEvent) bool {
 		return false
 	}
 
-	// send the event to node event handler if Node has the following update
-	// 1. kernel upgrade
-	// 2. spec change like podCIDR or taints
-	// 3. bootID for tracking node reboot
-	// 4. node labels change, which may affect the DeviceConfigs node selector
-	if oldNode.Status.NodeInfo.KernelVersion != newNode.Status.NodeInfo.KernelVersion ||
+	return nodeNeedsReconcile(oldNode, newNode)
+}
+
+func nodeNeedsReconcile(oldNode, newNode *v1.Node) bool {
+	return oldNode.Status.NodeInfo.KernelVersion != newNode.Status.NodeInfo.KernelVersion ||
 		oldNode.Generation != newNode.Generation ||
 		oldNode.Status.NodeInfo.BootID != newNode.Status.NodeInfo.BootID ||
-		!reflect.DeepEqual(oldNode.Labels, newNode.Labels) {
-		return true
-	}
+		!reflect.DeepEqual(oldNode.Labels, newNode.Labels) ||
+		!reflect.DeepEqual(oldNode.Status.Allocatable, newNode.Status.Allocatable) ||
+		!reflect.DeepEqual(oldNode.Status.Capacity, newNode.Status.Capacity) ||
+		nodeReadyStatus(oldNode) != nodeReadyStatus(newNode)
+}
 
-	return false
+func nodeReadyStatus(node *v1.Node) v1.ConditionStatus {
+	for _, condition := range node.Status.Conditions {
+		if condition.Type == v1.NodeReady {
+			return condition.Status
+		}
+	}
+	return v1.ConditionUnknown
 }
 
 func (NodePredicate) Generic(e event.GenericEvent) bool {
@@ -142,15 +148,7 @@ func (h *NodeEventHandler) Update(ctx context.Context, evt event.UpdateEvent, q 
 		return
 	}
 
-	// send the event to node event handler if Node has the following update
-	// 1. kernel upgrade
-	// 2. spec change like podCIDR or taints
-	// 3. bootID for tracking node reboot
-	// 4. node labels change, which may affect the DeviceConfigs node selector
-	if oldNode.Status.NodeInfo.KernelVersion != newNode.Status.NodeInfo.KernelVersion ||
-		oldNode.Generation != newNode.Generation ||
-		oldNode.Status.NodeInfo.BootID != newNode.Status.NodeInfo.BootID ||
-		!reflect.DeepEqual(oldNode.Labels, newNode.Labels) {
+	if nodeNeedsReconcile(oldNode, newNode) {
 		h.reconcileAllDeviceConfigs(ctx, q)
 	}
 	h.handlePostProcess(ctx, logger, oldNode, newNode)
@@ -206,53 +204,8 @@ func (h *NodeEventHandler) reconcileRelatedDeviceConfig(ctx context.Context, obj
 
 func (h *NodeEventHandler) handlePostProcess(ctx context.Context, logger logr.Logger, oldNode, node *v1.Node) {
 	// detect whether vfio bind status
-	hasVFIOReadyLabel, vfioLabel, vfioDevConfigNamespace, vfioDevConfigName := utils.HasNodeLabelTemplateMatch(node.Labels, utils.VFIOMountReadyLabelTemplate)
-	// detect desired driver type
-	hasDriverTypeLabel, driverTypeLabel, driverDevConfigNamespace, driverDevConfigName := utils.HasNodeLabelTemplateMatch(node.Labels, utils.DriverTypeNodeLabelTemplate)
-
-	if hasDriverTypeLabel && !hasVFIOReadyLabel {
-		// if driver type is specified but vfio bind is not ready
-		// start the vfio bind work for vf-passthrough and pf-passthrough driver
-		devConfig := &amdv1alpha1.DeviceConfig{}
-		err := h.client.Get(ctx, types.NamespacedName{
-			Namespace: driverDevConfigNamespace,
-			Name:      driverDevConfigName,
-		}, devConfig)
-		if err != nil {
-			if !k8serrors.IsNotFound(err) {
-				logger.Error(err, "failed to get DeviceConfig")
-			}
-			return
-		}
-		// only trigger post installation process for specific driver types
-		switch devConfig.Spec.Driver.DriverType {
-		case utils.DriverTypeVFPassthrough,
-			utils.DriverTypePFPassthrough:
-			logger.Info(fmt.Sprintf("node %v with configured %v driver %v doesn't have VFIO binding ready, launching VFIO worker pod",
-				devConfig.Spec.Driver.DriverType, node.Name, driverTypeLabel))
-			if err := h.workerMgr.Work(ctx, devConfig, node); err != nil {
-				logger.Error(err, "failed to create worker pod")
-			}
-		}
-	} else if !hasDriverTypeLabel && hasVFIOReadyLabel {
-		logger.Info(fmt.Sprintf("node %v with configured driver %v only has VFIO label %v %v %v, launching VFIO cleanup worker pod",
-			node.Name, driverTypeLabel, vfioLabel, vfioDevConfigNamespace, vfioDevConfigName))
-		// trigger VFIO cleanup worker pod
-		devConfig := &amdv1alpha1.DeviceConfig{}
-		err := h.client.Get(ctx, types.NamespacedName{
-			Namespace: vfioDevConfigNamespace,
-			Name:      vfioDevConfigName,
-		}, devConfig)
-		if err != nil {
-			if !k8serrors.IsNotFound(err) {
-				logger.Error(err, "failed to get DeviceConfig")
-			}
-			return
-		}
-		if err := h.workerMgr.Cleanup(ctx, devConfig, node); err != nil {
-			logger.Error(err, "failed to create cleanup worker pod")
-		}
-	} else if oldNode.Status.NodeInfo.BootID != node.Status.NodeInfo.BootID {
+	hasVFIOReadyLabel, _, vfioDevConfigNamespace, vfioDevConfigName := utils.HasNodeLabelTemplateMatch(node.Labels, utils.VFIOMountReadyLabelTemplate)
+	if hasVFIOReadyLabel && oldNode.Status.NodeInfo.BootID != node.Status.NodeInfo.BootID {
 		// if the node was rebooted, most of time devices need rebinding to vfio-pci
 		// directly remove the VFIO ready label
 		// so that the event handler will bring up a new vfio worker pod to load devices into VFIO
