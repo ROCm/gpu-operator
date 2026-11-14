@@ -293,8 +293,8 @@ func (r *DeviceConfigReconciler) Reconcile(ctx context.Context, req ctrl.Request
 			return res, fmt.Errorf("failed to persist node assignments for DeviceConfig %s: %w", req.NamespacedName, err)
 		}
 	}
-	if len(nodes.Items) > 0 && r.kmmWatchEnabled && utils.ShouldUseKMM(devConfig) &&
-		devConfig.Spec.Driver.DriverType == utils.DriverTypeVFPassthrough {
+	if len(nodes.Items) > 0 && devConfig.Spec.Driver.DriverType == utils.DriverTypeVFPassthrough &&
+		((r.kmmWatchEnabled && utils.ShouldUseKMM(devConfig)) || hasUnselectedKMMReservation(devConfig, nodes)) {
 		if vfioHelper, ok := r.helper.(vfioWorkerReconciler); ok {
 			hasCleanup, err := vfioHelper.hasVFIOCleanup(ctx, devConfig, nodes)
 			if err != nil {
@@ -347,8 +347,8 @@ func (r *DeviceConfigReconciler) Reconcile(ctx context.Context, req ctrl.Request
 				if err := vfioHelper.ensureVFIOWorkers(ctx, devConfig, nodes); err != nil {
 					return res, err
 				}
-				if r.kmmWatchEnabled && utils.ShouldUseKMM(devConfig) &&
-					devConfig.Spec.Driver.DriverType == utils.DriverTypeVFPassthrough {
+				if devConfig.Spec.Driver.DriverType == utils.DriverTypeVFPassthrough &&
+					((r.kmmWatchEnabled && utils.ShouldUseKMM(devConfig)) || hasUnselectedKMMReservation(devConfig, nodes)) {
 					hasCleanup, err = vfioHelper.hasVFIOCleanup(ctx, devConfig, nodes)
 					if err != nil {
 						return res, err
@@ -803,6 +803,8 @@ func (dcrh *deviceConfigReconcilerHelper) buildDeviceConfigStatus(ctx context.Co
 		dcrh.conditionUpdater.DeleteErrorCondition(devConfig)
 		if !complete {
 			dcrh.conditionUpdater.SetReadyCondition(devConfig, metav1.ConditionFalse, conditions.VFIOCleanupPending, "VFIO cleanup is still in progress")
+		} else if devConfig.Spec.Driver.DriverType == utils.DriverTypeVFPassthrough && hasUnselectedKMMReservation(devConfig, nodes) {
+			dcrh.conditionUpdater.SetReadyCondition(devConfig, metav1.ConditionFalse, conditions.KMMModulePending, "waiting for KMM to stop managing previously selected nodes")
 		} else {
 			dcrh.conditionUpdater.SetReadyCondition(devConfig, metav1.ConditionTrue, conditions.ReadyStatus, "")
 		}
@@ -828,18 +830,10 @@ func (dcrh *deviceConfigReconcilerHelper) buildDeviceConfigStatus(ctx context.Co
 			}
 		}
 	}
-	if devConfig.Spec.Driver.DriverType == utils.DriverTypeVFPassthrough && dcrh.shouldUseKMMOperatorLevel(devConfig) {
-		selected := make(map[string]struct{}, len(nodes.Items))
-		for _, node := range nodes.Items {
-			selected[node.Name] = struct{}{}
-		}
-		for node := range devConfig.Status.NodeReservations {
-			if _, ok := selected[node]; !ok {
-				dcrh.conditionUpdater.DeleteErrorCondition(devConfig)
-				dcrh.conditionUpdater.SetReadyCondition(devConfig, metav1.ConditionFalse, conditions.KMMModulePending, "waiting for KMM to stop managing previously selected nodes")
-				return nil
-			}
-		}
+	if devConfig.Spec.Driver.DriverType == utils.DriverTypeVFPassthrough && hasUnselectedKMMReservation(devConfig, nodes) {
+		dcrh.conditionUpdater.DeleteErrorCondition(devConfig)
+		dcrh.conditionUpdater.SetReadyCondition(devConfig, metav1.ConditionFalse, conditions.KMMModulePending, "waiting for KMM to stop managing previously selected nodes")
+		return nil
 	}
 	if len(nodes.Items) == 0 && isVFIOConfig(devConfig) && (devConfig.Spec.Driver.Enable == nil || *devConfig.Spec.Driver.Enable) {
 		message := fmt.Sprintf("no nodes found matching selector %s; verify node labels or check that NFD has labeled the GPU nodes", labels.Set(devConfig.Spec.Selector).String())

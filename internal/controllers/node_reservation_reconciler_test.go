@@ -154,6 +154,7 @@ func TestNeverManagedReservationReleasesWhenKMMAPIIsUnavailable(t *testing.T) {
 	dc.Status.NodeReservationsInitialized = true
 	dc.Status.NodeReservations = map[string]amdv1alpha1.NodeReservationStatus{}
 	cli.moduleNoMatch = true
+	cli.nmcNoMatch = true
 
 	if err := helper.reserveNodeAssignments(context.Background(), dc, &v1.NodeList{Items: []v1.Node{*oldNode}}); err != nil {
 		t.Fatal(err)
@@ -205,8 +206,8 @@ func TestUnknownKMMReservationStaysHeldWithoutAPI(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if !pending || requeue {
-				t.Fatalf("result = pending %t, requeue %t; want pending without retry for unavailable API", pending, requeue)
+			if !pending || !requeue {
+				t.Fatalf("result = pending %t, requeue %t; want retry while KMM API is unavailable", pending, requeue)
 			}
 			if _, ok := dc.Status.NodeReservations[oldNode.Name]; !ok {
 				t.Fatal("reservation was released without proving KMM ownership ended")
@@ -228,10 +229,128 @@ func TestUnknownKMMReservationStaysHeldWhenNMCAPIIsUnavailable(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !pending || requeue {
-		t.Fatalf("result = pending %t, requeue %t; want pending without retry for unavailable NMC API", pending, requeue)
+	if !pending || !requeue {
+		t.Fatalf("result = pending %t, requeue %t; want retry while NMC API is unavailable", pending, requeue)
 	}
 	if _, ok := dc.Status.NodeReservations[oldNode.Name]; !ok {
 		t.Fatal("reservation was released while KMM state was not observable")
+	}
+}
+
+func TestPreviouslyManagedVFIOReservationRetriesWhileKMMWatchIsDisabled(t *testing.T) {
+	oldNode := &v1.Node{ObjectMeta: metav1.ObjectMeta{Name: "old-node"}}
+	helper, dc, cli, _ := lifecycleFixture(t, utils.DriverTypeVFPassthrough, false, oldNode)
+	helper.kmmWatchEnabled = false
+	dc.Spec.Selector = map[string]string{"pool": "new"}
+	dc.Status.NodeReservationsInitialized = true
+	dc.Status.NodeReservations = map[string]amdv1alpha1.NodeReservationStatus{
+		oldNode.Name: {KMMOwnership: amdv1alpha1.KMMOwnershipManaged},
+	}
+	cli.moduleNoMatch = true
+	cli.nmcNoMatch = true
+
+	pending, requeue, err := helper.reconcileKMMNodeReservations(context.Background(), dc, &v1.NodeList{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !pending || !requeue {
+		t.Fatalf("result = pending %t, requeue %t; want retry until the previously used KMM APIs return", pending, requeue)
+	}
+	if _, ok := dc.Status.NodeReservations[oldNode.Name]; !ok {
+		t.Fatal("reservation was released while previously managed KMM state was unavailable")
+	}
+}
+
+func TestDisabledKMMKeepsNewNodeReservedForUnownedModule(t *testing.T) {
+	ctx := context.Background()
+	node := &v1.Node{ObjectMeta: metav1.ObjectMeta{Name: "new-node", Labels: map[string]string{"pool": "new"}}}
+	helper, dc, cli, scheme := lifecycleFixture(t, utils.DriverTypeVFPassthrough, false, node)
+	helper.kmmWatchEnabled = false
+	dc.Spec.Selector = map[string]string{"pool": "new"}
+	dc.Status.NodeReservationsInitialized = true
+	dc.Status.NodeReservations = map[string]amdv1alpha1.NodeReservationStatus{
+		node.Name: {KMMOwnership: amdv1alpha1.KMMOwnershipNeverManaged},
+	}
+	module := &kmmv1beta1.Module{
+		ObjectMeta: metav1.ObjectMeta{Namespace: dc.Namespace, Name: dc.Name},
+		Spec:       kmmv1beta1.ModuleSpec{Selector: map[string]string{"pool": "new"}},
+	}
+	previousOwner := dc.DeepCopy()
+	previousOwner.UID = types.UID("previous-dc-uid")
+	if err := controllerutil.SetControllerReference(previousOwner, module, scheme); err != nil {
+		t.Fatal(err)
+	}
+	cli.modules[client.ObjectKeyFromObject(module)] = module.DeepCopy()
+
+	if pending, requeue, err := helper.reconcileKMMNodeReservations(ctx, dc, &v1.NodeList{Items: []v1.Node{*node}}); err != nil || pending || requeue {
+		t.Fatalf("selected-node reconciliation = pending %t, requeue %t, err %v", pending, requeue, err)
+	}
+	if got := dc.Status.NodeReservations[node.Name].KMMOwnership; got != amdv1alpha1.KMMOwnershipUnknown {
+		t.Fatalf("selected node ownership = %q, want unknown from unowned lingering Module selector", got)
+	}
+	if got := cli.modules[client.ObjectKeyFromObject(module)].Spec.Selector; got["pool"] != "new" {
+		t.Fatalf("lingering Module selector = %v, want unchanged", got)
+	}
+
+	dc.Spec.Selector = map[string]string{"pool": "other"}
+	pending, requeue, err := helper.reconcileKMMNodeReservations(ctx, dc, &v1.NodeList{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !pending || !requeue {
+		t.Fatalf("stale-node reconciliation = pending %t, requeue %t; want reservation held for lingering Module", pending, requeue)
+	}
+	if _, ok := dc.Status.NodeReservations[node.Name]; !ok {
+		t.Fatal("reservation was released while the lingering Module still selected the node")
+	}
+	if got := cli.modules[client.ObjectKeyFromObject(module)].Spec.Selector; got["pool"] != "new" {
+		t.Fatalf("lingering Module selector changed to %v while KMM was disabled", got)
+	}
+}
+
+func TestDisabledKMMKeepsMissingNodeReservedForLingeringModule(t *testing.T) {
+	ctx := context.Background()
+	node := &v1.Node{ObjectMeta: metav1.ObjectMeta{Name: "returning-node", Labels: map[string]string{"pool": "new"}}}
+	helper, dc, cli, scheme := lifecycleFixture(t, utils.DriverTypeVFPassthrough, false, node)
+	helper.kmmWatchEnabled = false
+	dc.Status.NodeReservationsInitialized = true
+	dc.Status.NodeReservations = map[string]amdv1alpha1.NodeReservationStatus{
+		node.Name: {KMMOwnership: amdv1alpha1.KMMOwnershipManaged},
+	}
+	module := &kmmv1beta1.Module{
+		ObjectMeta: metav1.ObjectMeta{Namespace: dc.Namespace, Name: dc.Name},
+		Spec:       kmmv1beta1.ModuleSpec{Selector: map[string]string{"pool": "new"}},
+	}
+	if err := controllerutil.SetControllerReference(dc, module, scheme); err != nil {
+		t.Fatal(err)
+	}
+	cli.modules[client.ObjectKeyFromObject(module)] = module.DeepCopy()
+	helper.updateNodeAssignments("test/dc", nodeListForReservations(dc.Status.NodeReservations), false)
+	delete(cli.nodes, node.Name)
+
+	pending, requeue, err := helper.reconcileKMMNodeReservations(ctx, dc, &v1.NodeList{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !pending || !requeue {
+		t.Fatalf("missing-node reconciliation = pending %t, requeue %t; want reservation held", pending, requeue)
+	}
+	if _, ok := dc.Status.NodeReservations[node.Name]; !ok {
+		t.Fatal("reservation was released while an owned Module could still select the missing node")
+	}
+	if _, ok := helper.nodeAssignments[node.Name]["test/dc"]; !ok {
+		t.Fatal("node assignment was released while the node was missing")
+	}
+
+	cli.nodes[node.Name] = node.DeepCopy()
+	pending, requeue, err = helper.reconcileKMMNodeReservations(ctx, dc, &v1.NodeList{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !pending || !requeue {
+		t.Fatalf("rejoined-node reconciliation = pending %t, requeue %t; want reservation held", pending, requeue)
+	}
+	if _, ok := dc.Status.NodeReservations[node.Name]; !ok {
+		t.Fatal("reservation was released after the node returned under a matching Module selector")
 	}
 }

@@ -379,7 +379,8 @@ func (dcrh *deviceConfigReconcilerHelper) releaseUnneededStaleReservations(ctx c
 				continue
 			}
 		}
-		if devConfig.Spec.Driver.DriverType == utils.DriverTypeVFPassthrough && dcrh.shouldUseKMMOperatorLevel(devConfig) {
+		if reservation, exists := dcrh.nodeReservation(devConfig, node); exists &&
+			reservation.KMMOwnership != amdv1alpha1.KMMOwnershipNeverManaged {
 			continue
 		}
 		if err := dcrh.setNodeReservation(ctx, devConfig, node, nil); err != nil {
@@ -429,11 +430,6 @@ func (dcrh *deviceConfigReconcilerHelper) vfioCleanupNodes(ctx context.Context, 
 			}
 		}
 	}
-	legacyCleanupPending := false
-	if !devConfig.Status.NodeReservationsInitialized && dcrh.conditionUpdater != nil {
-		ready := dcrh.conditionUpdater.GetReadyCondition(devConfig)
-		legacyCleanupPending = ready != nil && ready.Reason == conditions.VFIOCleanupPending
-	}
 	pods := &v1.PodList{}
 	if err := dcrh.client.List(ctx, pods, client.InNamespace(devConfig.Namespace)); err != nil {
 		return nil, fmt.Errorf("failed to list VFIO workers: %w", err)
@@ -460,7 +456,7 @@ func (dcrh *deviceConfigReconcilerHelper) vfioCleanupNodes(ctx context.Context, 
 		allNodesByName[node.Name] = node
 		_, selected := selectedNodes[node.Name]
 		if utils.HasNodeLabelKey(node, readyLabel) &&
-			(!enabled || deleting || !selected || node.Labels[driverLabel] != string(devConfig.Spec.Driver.DriverType) || legacyCleanupPending) {
+			(!enabled || deleting || !selected || node.Labels[driverLabel] != string(devConfig.Spec.Driver.DriverType)) {
 			names[node.Name] = struct{}{}
 		}
 	}

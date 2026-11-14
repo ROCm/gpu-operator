@@ -655,19 +655,20 @@ func TestLegacyCleanupConditionDoesNotUnbindEveryReservedNode(t *testing.T) {
 	ctx := context.Background()
 	readyLabel := "gpu.operator.amd.com/test.dc.vfio.ready"
 	driverLabel := "gpu.operator.amd.com/test.dc.driver"
-	boundNode := &v1.Node{ObjectMeta: metav1.ObjectMeta{Name: "bound-node", Labels: map[string]string{
+	healthyNode := &v1.Node{ObjectMeta: metav1.ObjectMeta{Name: "healthy-node", Labels: map[string]string{
 		readyLabel: "", driverLabel: utils.DriverTypePFPassthrough, "selected": "true",
 	}}}
-	unboundNode := &v1.Node{ObjectMeta: metav1.ObjectMeta{Name: "unbound-node", Labels: map[string]string{
-		driverLabel: utils.DriverTypePFPassthrough, "selected": "true",
+	departedNode := &v1.Node{ObjectMeta: metav1.ObjectMeta{Name: "departed-node", Labels: map[string]string{
+		readyLabel: "", driverLabel: utils.DriverTypePFPassthrough, "pool": "old",
 	}}}
-	helper, dc, _, _ := lifecycleFixture(t, utils.DriverTypePFPassthrough, true, boundNode, unboundNode)
-	dc.Status.NodeModuleStatus = map[string]amdv1alpha1.ModuleStatus{boundNode.Name: {}, unboundNode.Name: {}}
+	helper, dc, _, _ := lifecycleFixture(t, utils.DriverTypePFPassthrough, true, healthyNode, departedNode)
+	dc.Spec.Selector = map[string]string{"selected": "true"}
+	dc.Status.NodeModuleStatus = map[string]amdv1alpha1.ModuleStatus{healthyNode.Name: {}, departedNode.Name: {}}
 	helper.conditionUpdater.SetReadyCondition(dc, metav1.ConditionFalse, conditions.VFIOCleanupPending, "legacy global cleanup condition")
 
-	nodes, err := helper.vfioCleanupNodes(ctx, dc, &v1.NodeList{Items: []v1.Node{*boundNode, *unboundNode}})
-	if err != nil || len(nodes.Items) != 1 || nodes.Items[0].Name != boundNode.Name {
-		t.Fatalf("legacy cleanup selected nodes without binding evidence: nodes=%v err=%v", nodes, err)
+	nodes, err := helper.vfioCleanupNodes(ctx, dc, &v1.NodeList{Items: []v1.Node{*healthyNode}})
+	if err != nil || len(nodes.Items) != 1 || nodes.Items[0].Name != departedNode.Name {
+		t.Fatalf("legacy cleanup did not target only the departed bound node: nodes=%v err=%v", nodes, err)
 	}
 }
 
@@ -675,34 +676,36 @@ func TestReserveNodeAssignmentsMigratesLegacyCleanupBeforeInitialization(t *test
 	ctx := context.Background()
 	readyLabel := "gpu.operator.amd.com/test.dc.vfio.ready"
 	driverLabel := "gpu.operator.amd.com/test.dc.driver"
-	boundNode := &v1.Node{ObjectMeta: metav1.ObjectMeta{Name: "bound-node", Labels: map[string]string{
-		readyLabel: "", driverLabel: utils.DriverTypePFPassthrough, "selected": "true",
+	departedNode := &v1.Node{ObjectMeta: metav1.ObjectMeta{Name: "departed-node", Labels: map[string]string{
+		readyLabel: "", driverLabel: utils.DriverTypePFPassthrough, "pool": "old",
 	}}}
-	unboundNode := &v1.Node{ObjectMeta: metav1.ObjectMeta{Name: "unbound-node", Labels: map[string]string{
-		driverLabel: utils.DriverTypePFPassthrough, "selected": "true",
+	healthyNode := &v1.Node{ObjectMeta: metav1.ObjectMeta{Name: "healthy-node", Labels: map[string]string{
+		readyLabel: "", driverLabel: utils.DriverTypePFPassthrough, "pool": "new", "selected": "true",
 	}}}
-	helper, dc, _, _ := lifecycleFixture(t, utils.DriverTypePFPassthrough, true, boundNode, unboundNode)
-	dc.Status.NodeModuleStatus = map[string]amdv1alpha1.ModuleStatus{boundNode.Name: {}, unboundNode.Name: {}}
+	helper, dc, cli, _ := lifecycleFixture(t, utils.DriverTypePFPassthrough, true, departedNode, healthyNode)
+	dc.Spec.Selector = map[string]string{"pool": "new"}
+	dc.Status.NodeModuleStatus = map[string]amdv1alpha1.ModuleStatus{departedNode.Name: {}, healthyNode.Name: {}}
 	helper.conditionUpdater.SetReadyCondition(dc, metav1.ConditionFalse, conditions.VFIOCleanupPending, "legacy global cleanup condition")
 
-	if err := helper.reserveNodeAssignments(ctx, dc, &v1.NodeList{Items: []v1.Node{*boundNode, *unboundNode}}); err != nil {
+	if err := helper.reserveNodeAssignments(ctx, dc, &v1.NodeList{Items: []v1.Node{*healthyNode}}); err != nil {
 		t.Fatal(err)
 	}
 	if !dc.Status.NodeReservationsInitialized {
 		t.Fatal("legacy reservation migration was not recorded")
 	}
-	if !dc.Status.NodeReservations[boundNode.Name].VFIOCleanupPending {
-		t.Fatal("legacy bound node did not receive its per-node cleanup marker")
+	if !dc.Status.NodeReservations[departedNode.Name].VFIOCleanupPending {
+		t.Fatal("departed bound node did not receive its per-node cleanup marker")
 	}
-	if dc.Status.NodeReservations[unboundNode.Name].VFIOCleanupPending {
-		t.Fatal("legacy unbound node received a cleanup marker without VFIO evidence")
+	if dc.Status.NodeReservations[healthyNode.Name].VFIOCleanupPending {
+		t.Fatal("healthy selected node received a cleanup marker from global status alone")
 	}
 
 	// A stale global Ready condition must not replay cleanup after per-node work is complete.
-	reservation := dc.Status.NodeReservations[boundNode.Name]
+	reservation := dc.Status.NodeReservations[departedNode.Name]
 	reservation.VFIOCleanupPending = false
-	dc.Status.NodeReservations[boundNode.Name] = reservation
-	cleanup, err := helper.vfioCleanupNodes(ctx, dc, &v1.NodeList{Items: []v1.Node{*boundNode, *unboundNode}})
+	dc.Status.NodeReservations[departedNode.Name] = reservation
+	delete(cli.nodes[departedNode.Name].Labels, readyLabel)
+	cleanup, err := helper.vfioCleanupNodes(ctx, dc, &v1.NodeList{Items: []v1.Node{*healthyNode}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -809,7 +812,7 @@ func TestDisabledVFLoadCompletionSchedulesCleanup(t *testing.T) {
 	}
 }
 
-func TestVFSelectorDriftWaitsForUnbindThenKMMRelease(t *testing.T) {
+func TestDisabledKMMVFSelectorDriftWaitsForUnbindThenKMMRelease(t *testing.T) {
 	ctx := context.Background()
 	readyLabel := "gpu.operator.amd.com/test.dc.vfio.ready"
 	oldNode := &v1.Node{ObjectMeta: metav1.ObjectMeta{Name: "old-node", Labels: map[string]string{
@@ -817,6 +820,9 @@ func TestVFSelectorDriftWaitsForUnbindThenKMMRelease(t *testing.T) {
 	}}}
 	oldNode.Status.NodeInfo.BootID = "boot-1"
 	helper, dc, cli, scheme := lifecycleFixture(t, utils.DriverTypeVFPassthrough, true, oldNode)
+	helper.kmmWatchEnabled = false
+	disabled := false
+	dc.Spec.Driver.Enable = &disabled
 	dc.Generation = 1
 	dc.Status.ObservedGeneration = 1
 	dc.Spec.Selector = map[string]string{"pool": "new"}
@@ -845,7 +851,7 @@ func TestVFSelectorDriftWaitsForUnbindThenKMMRelease(t *testing.T) {
 		Spec: v1.PodSpec{NodeName: oldNode.Name},
 	}
 	cli.pods[client.ObjectKeyFromObject(kmmWorker)] = kmmWorker
-	reconciler := &DeviceConfigReconciler{Client: cli, helper: helper, kmmWatchEnabled: true}
+	reconciler := &DeviceConfigReconciler{Client: cli, helper: helper, kmmWatchEnabled: false}
 	req := reconcile.Request{NamespacedName: client.ObjectKeyFromObject(dc)}
 
 	if _, err := reconciler.Reconcile(ctx, req); err != nil {
@@ -863,8 +869,8 @@ func TestVFSelectorDriftWaitsForUnbindThenKMMRelease(t *testing.T) {
 	if _, err := reconciler.Reconcile(ctx, req); err != nil {
 		t.Fatal(err)
 	}
-	if got := cli.modules[client.ObjectKeyFromObject(module)].Spec.Selector; got["pool"] != "new" {
-		t.Fatalf("KMM selector = %v after unbind, want new selector", got)
+	if got := cli.modules[client.ObjectKeyFromObject(module)].Spec.Selector; got["pool"] != "old" {
+		t.Fatalf("KMM selector = %v after unbind, want unchanged while KMM watch is disabled", got)
 	}
 	if _, ok := cli.deviceConfig.Status.NodeReservations[oldNode.Name]; !ok {
 		t.Fatal("reservation was released while KMM NMC and worker still referenced the node")
@@ -872,6 +878,7 @@ func TestVFSelectorDriftWaitsForUnbindThenKMMRelease(t *testing.T) {
 	if ready := helper.conditionUpdater.GetReadyCondition(cli.deviceConfig); ready == nil || ready.Status != metav1.ConditionFalse || ready.Reason != conditions.KMMModulePending {
 		t.Fatalf("DeviceConfig did not report pending KMM release: %+v", ready)
 	}
+	delete(cli.modules, client.ObjectKeyFromObject(module))
 
 	cli.nmcs[oldNode.Name].Spec.Modules = nil
 	if _, err := reconciler.Reconcile(ctx, req); err != nil {
@@ -905,6 +912,9 @@ func TestNonzeroVFSelectorDriftKeepsKMMSelectorUntilUnbind(t *testing.T) {
 	oldNode.Status.NodeInfo.BootID = "boot-1"
 	newNode := &v1.Node{ObjectMeta: metav1.ObjectMeta{Name: "new-node", Labels: map[string]string{"pool": "new"}}}
 	helper, dc, cli, scheme := lifecycleFixture(t, utils.DriverTypeVFPassthrough, true, oldNode, newNode)
+	helper.kmmWatchEnabled = false
+	disabled := false
+	dc.Spec.Driver.Enable = &disabled
 	dc.Generation = 1
 	dc.Status.ObservedGeneration = 1
 	dc.Spec.Selector = map[string]string{"pool": "new"}
@@ -920,7 +930,7 @@ func TestNonzeroVFSelectorDriftKeepsKMMSelectorUntilUnbind(t *testing.T) {
 		t.Fatal(err)
 	}
 	cli.modules[client.ObjectKeyFromObject(module)] = module.DeepCopy()
-	reconciler := &DeviceConfigReconciler{Client: cli, helper: helper, kmmWatchEnabled: true}
+	reconciler := &DeviceConfigReconciler{Client: cli, helper: helper, kmmWatchEnabled: false}
 	req := reconcile.Request{NamespacedName: client.ObjectKeyFromObject(dc)}
 
 	if _, err := reconciler.Reconcile(ctx, req); err != nil {

@@ -46,8 +46,7 @@ type kmmNodeReservationReconciler interface {
 }
 
 func (dcrh *deviceConfigReconcilerHelper) reconcileKMMNodeReservations(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig, selected *v1.NodeList) (bool, bool, error) {
-	if isVFIOConfig(devConfig) &&
-		(devConfig.Spec.Driver.DriverType != utils.DriverTypeVFPassthrough || !dcrh.shouldUseKMMOperatorLevel(devConfig)) {
+	if isVFIOConfig(devConfig) && devConfig.Spec.Driver.DriverType != utils.DriverTypeVFPassthrough {
 		return false, false, nil
 	}
 	if selected == nil {
@@ -58,13 +57,14 @@ func (dcrh *deviceConfigReconcilerHelper) reconcileKMMNodeReservations(ctx conte
 		selectedNames[node.Name] = struct{}{}
 	}
 	needsRelease := hasUnselectedReservation(devConfig, selectedNames)
-	if len(selected.Items) > 0 && !needsRelease {
+	if len(selected.Items) > 0 && !needsRelease && dcrh.shouldUseKMMOperatorLevel(devConfig) {
 		return false, false, nil
 	}
 
 	module := &kmmv1beta1.Module{}
 	moduleErr := dcrh.client.Get(ctx, types.NamespacedName{Namespace: devConfig.Namespace, Name: devConfig.Name}, module)
 	moduleFound := moduleErr == nil
+	moduleOwned := false
 	moduleUnavailable := meta.IsNoMatchError(moduleErr)
 	if moduleErr != nil && !k8serrors.IsNotFound(moduleErr) {
 		if !moduleUnavailable {
@@ -75,12 +75,27 @@ func (dcrh *deviceConfigReconcilerHelper) reconcileKMMNodeReservations(ctx conte
 	if moduleFound {
 		owner := metav1.GetControllerOf(module)
 		if owner != nil && owner.UID == devConfig.UID && owner.Kind == utils.KindDeviceConfig {
-			selector := deviceConfigKMMSelector(devConfig)
-			if !maps.Equal(module.Spec.Selector, selector) {
-				before := module.DeepCopy()
-				module.Spec.Selector = selector
-				if err := dcrh.client.Patch(ctx, module, client.MergeFrom(before)); err != nil {
-					return true, true, fmt.Errorf("updating KMM Module selector for DeviceConfig %s/%s: %w", devConfig.Namespace, devConfig.Name, err)
+			moduleOwned = true
+			if dcrh.shouldUseKMMOperatorLevel(devConfig) {
+				selector := deviceConfigKMMSelector(devConfig)
+				if !maps.Equal(module.Spec.Selector, selector) {
+					before := module.DeepCopy()
+					module.Spec.Selector = selector
+					if err := dcrh.client.Patch(ctx, module, client.MergeFrom(before)); err != nil {
+						return true, true, fmt.Errorf("updating KMM Module selector for DeviceConfig %s/%s: %w", devConfig.Namespace, devConfig.Name, err)
+					}
+				}
+			}
+		}
+		moduleSelector := labels.Set(module.Spec.Selector).AsSelector()
+		for _, node := range selected.Items {
+			if moduleSelector.Matches(labels.Set(node.Labels)) {
+				markOwnership := dcrh.markKMMReservationUnknown
+				if moduleOwned {
+					markOwnership = dcrh.markKMMReservationManaged
+				}
+				if err := markOwnership(ctx, devConfig, node.Name); err != nil {
+					return true, true, err
 				}
 			}
 		}
@@ -110,8 +125,22 @@ func (dcrh *deviceConfigReconcilerHelper) reconcileKMMNodeReservations(ctx conte
 			return true, true, fmt.Errorf("getting node %s while releasing KMM reservation: %w", nodeName, nodeErr)
 		}
 		reservation, _ := dcrh.nodeReservation(devConfig, nodeName)
+		if moduleFound && nodeErr != nil {
+			if reservation.KMMOwnership == amdv1alpha1.KMMOwnershipNeverManaged {
+				if err := dcrh.markKMMReservationUnknown(ctx, devConfig, nodeName); err != nil {
+					return true, true, err
+				}
+			}
+			pending = true
+			requeue = true
+			continue
+		}
 		if moduleFound && nodeErr == nil && labels.Set(module.Spec.Selector).AsSelector().Matches(labels.Set(node.Labels)) {
-			if err := dcrh.markKMMReservationManaged(ctx, devConfig, nodeName); err != nil {
+			markOwnership := dcrh.markKMMReservationUnknown
+			if moduleOwned {
+				markOwnership = dcrh.markKMMReservationManaged
+			}
+			if err := markOwnership(ctx, devConfig, nodeName); err != nil {
 				return true, true, err
 			}
 			pending = true
@@ -120,6 +149,7 @@ func (dcrh *deviceConfigReconcilerHelper) reconcileKMMNodeReservations(ctx conte
 		}
 		if moduleUnavailable && reservation.KMMOwnership != amdv1alpha1.KMMOwnershipNeverManaged {
 			pending = true
+			requeue = true
 			continue
 		}
 
@@ -127,6 +157,7 @@ func (dcrh *deviceConfigReconcilerHelper) reconcileKMMNodeReservations(ctx conte
 		if meta.IsNoMatchError(err) {
 			if reservation.KMMOwnership != amdv1alpha1.KMMOwnershipNeverManaged {
 				pending = true
+				requeue = true
 				continue
 			}
 			err = nil
@@ -139,14 +170,9 @@ func (dcrh *deviceConfigReconcilerHelper) reconcileKMMNodeReservations(ctx conte
 				return true, true, err
 			}
 			pending = true
-			requeue = !moduleUnavailable
+			requeue = true
 			continue
 		}
-		if moduleUnavailable && reservation.KMMOwnership != amdv1alpha1.KMMOwnershipNeverManaged {
-			pending = true
-			continue
-		}
-
 		delete(devConfig.Status.NodeModuleStatus, nodeName)
 		if err := dcrh.setNodeReservation(ctx, devConfig, nodeName, nil); err != nil {
 			return true, true, err
@@ -164,9 +190,41 @@ func (dcrh *deviceConfigReconcilerHelper) markKMMReservationManaged(ctx context.
 	return dcrh.setNodeReservation(ctx, devConfig, node, &reservation)
 }
 
+func (dcrh *deviceConfigReconcilerHelper) markKMMReservationUnknown(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig, node string) error {
+	reservation, _ := dcrh.nodeReservation(devConfig, node)
+	if reservation.KMMOwnership == amdv1alpha1.KMMOwnershipManaged || reservation.KMMOwnership == amdv1alpha1.KMMOwnershipUnknown {
+		return nil
+	}
+	reservation.KMMOwnership = amdv1alpha1.KMMOwnershipUnknown
+	return dcrh.setNodeReservation(ctx, devConfig, node, &reservation)
+}
+
 func hasUnselectedReservation(devConfig *amdv1alpha1.DeviceConfig, selected map[string]struct{}) bool {
 	for node := range devConfig.Status.NodeReservations {
 		if _, ok := selected[node]; !ok {
+			return true
+		}
+	}
+	return false
+}
+
+func hasUnselectedKMMReservation(devConfig *amdv1alpha1.DeviceConfig, selected *v1.NodeList) bool {
+	selectedNames := make(map[string]struct{})
+	if selected != nil {
+		for _, node := range selected.Items {
+			selectedNames[node.Name] = struct{}{}
+		}
+	}
+	if !devConfig.Status.NodeReservationsInitialized {
+		for node := range devConfig.Status.NodeModuleStatus {
+			if _, ok := selectedNames[node]; !ok {
+				return true
+			}
+		}
+		return false
+	}
+	for node, reservation := range devConfig.Status.NodeReservations {
+		if _, ok := selectedNames[node]; !ok && reservation.KMMOwnership != amdv1alpha1.KMMOwnershipNeverManaged {
 			return true
 		}
 	}
