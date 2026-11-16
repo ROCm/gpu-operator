@@ -46,7 +46,7 @@ type kmmNodeReservationReconciler interface {
 }
 
 func (dcrh *deviceConfigReconcilerHelper) reconcileKMMNodeReservations(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig, selected *v1.NodeList) (bool, bool, error) {
-	if isVFIOConfig(devConfig) && devConfig.Spec.Driver.DriverType != utils.DriverTypeVFPassthrough {
+	if isVFIOConfig(devConfig) && devConfig.Spec.Driver.DriverType != utils.DriverTypeVFPassthrough && !hasKMMRetirementPending(devConfig) {
 		return false, false, nil
 	}
 	if selected == nil {
@@ -238,8 +238,8 @@ func (dcrh *deviceConfigReconcilerHelper) reconcileVFIONodeRetirement(
 	module *kmmv1beta1.Module,
 	pods *v1.PodList,
 ) (pending, requeue, handled bool, err error) {
-	if devConfig.Spec.Driver.DriverType != utils.DriverTypeVFPassthrough ||
-		(!reservation.KMMRetirementPending && !k8serrors.IsNotFound(nodeErr)) {
+	if !reservation.KMMRetirementPending &&
+		(devConfig.Spec.Driver.DriverType != utils.DriverTypeVFPassthrough || !k8serrors.IsNotFound(nodeErr)) {
 		return false, false, false, nil
 	}
 	if nodeErr != nil && !k8serrors.IsNotFound(nodeErr) {

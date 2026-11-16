@@ -742,6 +742,37 @@ func TestVFIORejoinChecksTombstoneBeforeStaleCleanup(t *testing.T) {
 	}
 }
 
+func TestVFIORetirementTombstoneReleasesAfterSwitchToPFAndNodeRejoin(t *testing.T) {
+	ctx := context.Background()
+	returningNode := &v1.Node{ObjectMeta: metav1.ObjectMeta{Name: "returning-node", Labels: map[string]string{"pool": "return"}}}
+	helper, dc, _, _ := lifecycleFixture(t, utils.DriverTypePFPassthrough, true, returningNode)
+	dc.Spec.Selector = map[string]string{"pool": "selected"}
+	dc.Status.NodeReservationsInitialized = true
+	dc.Status.NodeReservations = map[string]amdv1alpha1.NodeReservationStatus{
+		returningNode.Name: {
+			KMMOwnership:          amdv1alpha1.KMMOwnershipNeverManaged,
+			KMMNodeLabels:         map[string]string{"pool": "retired"},
+			KMMNodeLabelsCaptured: true,
+			KMMRetirementPending:  true,
+		},
+	}
+	helper.updateNodeAssignments("test/dc", nodeListForReservations(dc.Status.NodeReservations), false)
+
+	pending, requeue, err := helper.reconcileKMMNodeReservations(ctx, dc, &v1.NodeList{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if pending || requeue {
+		t.Fatalf("clean rejoin result = pending %t, requeue %t; want tombstone released", pending, requeue)
+	}
+	if _, ok := dc.Status.NodeReservations[returningNode.Name]; ok {
+		t.Fatal("retired VF reservation remained after a clean rejoin in PF mode")
+	}
+	if _, ok := helper.nodeAssignments[returningNode.Name]; ok {
+		t.Fatal("node assignment remained after the PF-mode tombstone was safely released")
+	}
+}
+
 func TestVFIORejoinRetainsReservationWhenHistoricalKMMStatusExists(t *testing.T) {
 	ctx := context.Background()
 	returningNode := &v1.Node{ObjectMeta: metav1.ObjectMeta{Name: "returning-node", Labels: map[string]string{"pool": "return"}}}
