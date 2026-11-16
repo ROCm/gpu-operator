@@ -26,9 +26,12 @@ import (
 	"testing"
 
 	"github.com/ROCm/gpu-operator/api/v1alpha1"
+	mock_client "github.com/ROCm/gpu-operator/internal/client"
 	"github.com/stretchr/testify/assert"
+	"go.uber.org/mock/gomock"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 var (
@@ -279,6 +282,34 @@ func TestShouldUseKMM(t *testing.T) {
 
 	for _, tc := range testCases {
 		assert.Equal(t, ShouldUseKMM(tc.DevConfig), tc.Expect, fmt.Sprintf("test case %+v expect ShouldUseKMM() return %+v but got %+v", tc.Description, tc.Expect, ShouldUseKMM(tc.DevConfig)))
+	}
+}
+
+func TestUpdateDriverTypeNodeLabelCleansDisabledConfig(t *testing.T) {
+	ctx := context.Background()
+	disabled := false
+	devConfig := &v1alpha1.DeviceConfig{
+		ObjectMeta: metav1.ObjectMeta{Namespace: "test", Name: "dc"},
+		Spec: v1alpha1.DeviceConfigSpec{Driver: v1alpha1.DriverSpec{
+			Enable:     &disabled,
+			DriverType: DriverTypeVFPassthrough,
+		}},
+	}
+	label := GetDriverTypeNodeLabel(devConfig)
+	node := v1.Node{ObjectMeta: metav1.ObjectMeta{Name: "node", Labels: map[string]string{label: DriverTypeVFPassthrough}}}
+
+	ctrl := gomock.NewController(t)
+	kubeClient := mock_client.NewMockClient(ctrl)
+	kubeClient.EXPECT().Patch(ctx, gomock.Any(), gomock.Any()).Do(
+		func(_ context.Context, obj client.Object, _ client.Patch, _ ...client.PatchOption) {
+			if _, exists := obj.GetLabels()[label]; exists {
+				t.Errorf("driver type label %q was not removed", label)
+			}
+		},
+	).Return(nil)
+
+	if err := UpdateDriverTypeNodeLabel(ctx, kubeClient, devConfig, &v1.NodeList{Items: []v1.Node{node}}, true); err != nil {
+		t.Fatalf("cleanup failed: %v", err)
 	}
 }
 

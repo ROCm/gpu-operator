@@ -36,8 +36,8 @@ import (
 	"context"
 	"fmt"
 
+	amdv1alpha1 "github.com/ROCm/gpu-operator/api/v1alpha1"
 	utils "github.com/ROCm/gpu-operator/internal"
-	"github.com/ROCm/gpu-operator/internal/controllers/workermgr"
 	"github.com/go-logr/logr"
 	v1 "k8s.io/api/core/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
@@ -77,16 +77,12 @@ type PodEventHandlerAPI interface {
 	Generic(ctx context.Context, evt event.GenericEvent, q workqueue.TypedRateLimitingInterface[reconcile.Request])
 }
 
-func NewPodEventHandler(client client.Client, workerMgr workermgr.WorkerMgrAPI) PodEventHandlerAPI {
-	return &PodEventHandler{
-		client:    client,
-		workerMgr: workerMgr,
-	}
+func NewPodEventHandler(client client.Client) PodEventHandlerAPI {
+	return &PodEventHandler{client: client}
 }
 
 type PodEventHandler struct {
-	client    client.Client
-	workerMgr workermgr.WorkerMgrAPI
+	client client.Client
 }
 
 // Create handle pod create event
@@ -104,7 +100,19 @@ func (h *PodEventHandler) Delete(
 	evt event.TypedDeleteEvent[client.Object],
 	q workqueue.TypedRateLimitingInterface[reconcile.Request],
 ) {
-	// Handle delete event if needed
+	pod, ok := evt.Object.(*v1.Pod)
+	if !ok {
+		return
+	}
+	action, ok := pod.Labels[utils.WorkerActionLabelKey]
+	if !ok || action != utils.LoadVFIOAction && action != utils.UnloadVFIOAction {
+		return
+	}
+	_, nsn, ok := h.getWorkerDeviceConfig(ctx, pod, action)
+	if !ok {
+		return
+	}
+	q.Add(reconcile.Request{NamespacedName: nsn})
 }
 
 // Create handle pod generic event
@@ -168,51 +176,54 @@ func (h *PodEventHandler) Update(
 
 	// if the pod is workerMgr pod, do proper handling based on pod state
 	if action, ok := pod.Labels[utils.WorkerActionLabelKey]; ok {
-		h.handleWorkerMgrPodEvt(ctx, logger, pod, action)
+		h.handleWorkerMgrPodEvt(ctx, logger, pod, action, q)
 	}
 }
 
-func (h *PodEventHandler) handleWorkerMgrPodEvt(ctx context.Context, logger logr.Logger, pod *v1.Pod, action string) {
-	foundDeviceConfigOwner := false
-	var nsn types.NamespacedName
-	for _, owner := range pod.OwnerReferences {
-		if owner.Kind == utils.KindDeviceConfig {
-			nsn = types.NamespacedName{
-				Namespace: pod.Namespace,
-				Name:      owner.Name,
-			}
-			foundDeviceConfigOwner = true
-		}
+func (h *PodEventHandler) handleWorkerMgrPodEvt(ctx context.Context, logger logr.Logger, pod *v1.Pod, action string, q workqueue.TypedRateLimitingInterface[reconcile.Request]) {
+	devConfig, nsn, ok := h.getWorkerDeviceConfig(ctx, pod, action)
+	if !ok {
+		return
 	}
-	if !foundDeviceConfigOwner {
-		logger.Info(fmt.Sprintf("cannot find DeviceConfig owner for worker pod %+v", pod.GetObjectMeta()))
+	if action == utils.LoadVFIOAction &&
+		((devConfig.Spec.Driver.Enable != nil && !*devConfig.Spec.Driver.Enable) || !devConfig.DeletionTimestamp.IsZero()) {
+		q.Add(reconcile.Request{NamespacedName: nsn})
+		return
+	}
+	if !devConfig.DeletionTimestamp.IsZero() &&
+		(action != utils.UnloadVFIOAction || pod.Status.Phase != v1.PodSucceeded) {
+		q.Add(reconcile.Request{NamespacedName: nsn})
 		return
 	}
 	switch pod.Status.Phase {
 	case v1.PodSucceeded:
-		// if the worker pod already succeed
-		// modify the node label based on action
-		switch action {
-		case utils.LoadVFIOAction:
-			h.workerMgr.AddWorkReadyLabel(ctx, logger, nsn, pod.Spec.NodeName)
-		case utils.UnloadVFIOAction:
-			h.workerMgr.RemoveWorkReadyLabel(ctx, logger, nsn, pod.Spec.NodeName)
-		}
-		// remove the completed pod
-		logger.Info(fmt.Sprintf("remove worker pod %v after its completion", pod.Name))
-		err := h.client.Delete(ctx, pod)
-		if err != nil && !k8serrors.IsNotFound(err) {
-			logger.Error(err, fmt.Sprintf("failed to delete completed worker pod %v", pod.Name))
-			return
-		}
+		q.Add(reconcile.Request{NamespacedName: nsn})
 	case v1.PodFailed, v1.PodUnknown:
-		logger.Info(fmt.Sprintf("remove worker pod %v due to its %v status", pod.Name, pod.Status.Phase))
-		err := h.client.Delete(ctx, pod)
-		if err != nil && !k8serrors.IsNotFound(err) {
-			logger.Error(err, fmt.Sprintf("failed to delete stale worker pod %v", pod.Name))
-			return
-		}
+		logger.Info(fmt.Sprintf("retain worker pod %v due to its %v status", pod.Name, pod.Status.Phase))
+		q.Add(reconcile.Request{NamespacedName: nsn})
 	}
+}
+
+func (h *PodEventHandler) getWorkerDeviceConfig(ctx context.Context, pod *v1.Pod, action string) (*amdv1alpha1.DeviceConfig, types.NamespacedName, bool) {
+	if action != utils.LoadVFIOAction && action != utils.UnloadVFIOAction {
+		return nil, types.NamespacedName{}, false
+	}
+	owner := metav1.GetControllerOf(pod)
+	if owner == nil || owner.Kind != utils.KindDeviceConfig || pod.Name != fmt.Sprintf("worker-%v-%v", owner.Name, pod.Spec.NodeName) {
+		return nil, types.NamespacedName{}, false
+	}
+	nsn := types.NamespacedName{Namespace: pod.Namespace, Name: owner.Name}
+	devConfig := &amdv1alpha1.DeviceConfig{}
+	if err := h.client.Get(ctx, nsn, devConfig); err != nil {
+		if !k8serrors.IsNotFound(err) {
+			log.FromContext(ctx).Error(err, "failed to get DeviceConfig for worker pod", "pod", pod.Name)
+		}
+		return nil, types.NamespacedName{}, false
+	}
+	if owner.UID != devConfig.UID {
+		return nil, types.NamespacedName{}, false
+	}
+	return devConfig, nsn, true
 }
 
 type PodLabelPredicate struct {

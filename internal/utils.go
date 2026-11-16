@@ -465,35 +465,35 @@ func UpdateDriverTypeNodeLabel(ctx context.Context, cli client.Client, devConfig
 	if nodes == nil {
 		return fmt.Errorf("received nil node list")
 	}
-	if devConfig.Spec.Driver.Enable != nil && *devConfig.Spec.Driver.Enable {
-		var err error
-		for _, node := range nodes.Items {
-			var nodeCopy *v1.Node
-			if cleanup {
-				if _, ok := node.Labels[GetDriverTypeNodeLabel(devConfig)]; !ok {
-					// no need to clean up driver type node label if it is non-existing
-					continue
-				}
-				nodeCopy = node.DeepCopy()
-				delete(node.Labels, GetDriverTypeNodeLabel(devConfig))
-			} else {
-				if val, ok := node.Labels[GetDriverTypeNodeLabel(devConfig)]; ok && val == devConfig.Spec.Driver.DriverType {
-					// no need to patch the driver type node label if it is existing
-					continue
-				}
-				nodeCopy = node.DeepCopy()
-				if node.Labels == nil {
-					node.Labels = map[string]string{}
-				}
-				node.Labels[GetDriverTypeNodeLabel(devConfig)] = devConfig.Spec.Driver.DriverType
+	var err error
+	for _, node := range nodes.Items {
+		var nodeCopy *v1.Node
+		if cleanup {
+			if _, ok := node.Labels[GetDriverTypeNodeLabel(devConfig)]; !ok {
+				// no need to clean up driver type node label if it is non-existing
+				continue
 			}
-			if patchErr := cli.Patch(ctx, &node, client.MergeFrom(nodeCopy)); patchErr != nil {
-				err = errors.Join(err, patchErr)
+			nodeCopy = node.DeepCopy()
+			delete(node.Labels, GetDriverTypeNodeLabel(devConfig))
+		} else {
+			if devConfig.Spec.Driver.Enable == nil || !*devConfig.Spec.Driver.Enable {
+				return nil
 			}
+			if val, ok := node.Labels[GetDriverTypeNodeLabel(devConfig)]; ok && val == devConfig.Spec.Driver.DriverType {
+				// no need to patch the driver type node label if it is existing
+				continue
+			}
+			nodeCopy = node.DeepCopy()
+			if node.Labels == nil {
+				node.Labels = map[string]string{}
+			}
+			node.Labels[GetDriverTypeNodeLabel(devConfig)] = devConfig.Spec.Driver.DriverType
 		}
-		return err
+		if patchErr := cli.Patch(ctx, &node, client.MergeFrom(nodeCopy)); patchErr != nil {
+			err = errors.Join(err, patchErr)
+		}
 	}
-	return nil
+	return err
 }
 
 // ShouldUseKMM return true if KMM needs to be triggered otherwise return false

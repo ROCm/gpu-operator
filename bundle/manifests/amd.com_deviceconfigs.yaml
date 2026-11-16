@@ -599,6 +599,10 @@ spec:
                             - For CoreOS/RHEL: "https://custom-mirror.example.com/repos/amdgpu/6.2.2/el/9.4/main/x86_64"
                               This will be used as: "baseurl=${PACKAGE_REPO_URL}"
                           When empty (default), the URL is constructed as: ${amdgpuInstallerRepoURL}/amdgpu/${DRIVERS_VERSION}/${os}/${distro}
+                          For GIM VF passthrough builds, this value is instead the release directory base,
+                          not a complete artifact URL. The operator appends /<GIM_RELEASE_TAG>/<GIM_DEB_PACKAGE>
+                          or /<GIM_RELEASE_TAG>/<GIM_RPM_PACKAGE>; when empty, it uses the GitHub release directory
+                          https://github.com/amd/MxGPU-Virtualization/releases/download.
                           Security note: this URL is a trusted driver-build input that selects the package
                           source for a ring-0 kernel module installed on every node. Treat write access to
                           DeviceConfig as equivalent to choosing the driver's package source; only grant it
@@ -2019,6 +2023,48 @@ spec:
                 description: NodeModuleStatus contains per node status of driver module
                   installation
                 type: object
+              nodeReservations:
+                additionalProperties:
+                  properties:
+                    kmmNodeLabels:
+                      additionalProperties:
+                        type: string
+                      description: KMMNodeLabels stores the last complete labels observed
+                        for selector-safe retirement checks.
+                      type: object
+                    kmmNodeLabelsCaptured:
+                      description: KMMNodeLabelsCaptured distinguishes a captured
+                        empty label set from an unavailable snapshot.
+                      type: boolean
+                    kmmOwnership:
+                      description: KMMOwnership records whether KMM may still manage
+                        this node. Missing values are unknown.
+                      enum:
+                      - unknown
+                      - never-managed
+                      - managed
+                      type: string
+                    kmmRetirementPending:
+                      description: KMMRetirementPending preserves the node-name reservation
+                        until KMM state is checked on rejoin.
+                      type: boolean
+                    vfioBindingBootID:
+                      description: |-
+                        VFIOBindingBootID records the boot on which VFIO binding may have been attempted.
+                        It is set before load work starts and cleared only after successful cleanup.
+                      type: string
+                    vfioCleanupPending:
+                      description: VFIOCleanupPending indicates that the node must
+                        be unbound before it can be reused.
+                      type: boolean
+                  type: object
+                description: NodeReservations preserves accepted node ownership independently
+                  of readiness.
+                type: object
+              nodeReservationsInitialized:
+                description: NodeReservationsInitialized distinguishes a migrated
+                  empty set from legacy status.
+                type: boolean
               observedGeneration:
                 description: ObservedGeneration is the latest spec generation successfully
                   processed by the controller
