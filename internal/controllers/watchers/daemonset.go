@@ -35,6 +35,7 @@ package watchers
 import (
 	"context"
 	"fmt"
+	"reflect"
 	"strings"
 
 	v1 "k8s.io/api/apps/v1"
@@ -77,6 +78,10 @@ func (DaemonsetPredicate) Delete(e event.DeleteEvent) bool {
 	return ownedByDeviceConfig(e.Object)
 }
 
+func daemonsetStatusChanged(oldDS, newDS *v1.DaemonSet) bool {
+	return !reflect.DeepEqual(oldDS.Status, newDS.Status)
+}
+
 //go:generate mockgen -source=daemonset.go -package=watchers -destination=mock_daemonset.go DaemonsetEventHandlerAPI
 type DaemonsetEventHandlerAPI interface {
 	Create(ctx context.Context, evt event.CreateEvent, q workqueue.TypedRateLimitingInterface[reconcile.Request])
@@ -103,6 +108,7 @@ func (h *DaemonsetEventHandler) Create(ctx context.Context, evt event.CreateEven
 		return
 	}
 	h.patchDeviceConfigNodeStatus(ctx, evt.Object, devConfigName)
+	enqueueDeviceConfig(q, evt.Object, devConfigName)
 }
 
 // Create handle generic event
@@ -113,6 +119,7 @@ func (h *DaemonsetEventHandler) Generic(ctx context.Context, evt event.GenericEv
 		return
 	}
 	h.patchDeviceConfigNodeStatus(ctx, evt.Object, devConfigName)
+	enqueueDeviceConfig(q, evt.Object, devConfigName)
 }
 
 // Delete handle delete event
@@ -123,6 +130,7 @@ func (h *DaemonsetEventHandler) Delete(ctx context.Context, evt event.DeleteEven
 		return
 	}
 	h.patchDeviceConfigNodeStatus(ctx, evt.Object, devConfigName)
+	enqueueDeviceConfig(q, evt.Object, devConfigName)
 }
 
 // Update handle update event
@@ -134,16 +142,22 @@ func (h *DaemonsetEventHandler) Update(ctx context.Context, evt event.UpdateEven
 	}
 	h.patchDeviceConfigNodeStatus(ctx, evt.ObjectNew, devConfigName)
 	// if the managed daemonset got spec changed or deleted, reconcile the owner DeviceConfig
+	oldDS, oldOK := evt.ObjectOld.(*v1.DaemonSet)
+	newDS, newOK := evt.ObjectNew.(*v1.DaemonSet)
+	statusChanged := oldOK && newOK && daemonsetStatusChanged(oldDS, newDS)
 	if evt.ObjectOld.GetGeneration() != evt.ObjectNew.GetGeneration() ||
+		statusChanged ||
 		(evt.ObjectOld.GetDeletionTimestamp() == nil && evt.ObjectNew.GetDeletionTimestamp() != nil) ||
 		(evt.ObjectOld.GetDeletionTimestamp() != nil && evt.ObjectNew.GetDeletionTimestamp() == nil) {
-		q.Add(reconcile.Request{
-			NamespacedName: types.NamespacedName{
-				Namespace: evt.ObjectNew.GetNamespace(),
-				Name:      devConfigName,
-			},
-		})
+		enqueueDeviceConfig(q, evt.ObjectNew, devConfigName)
 	}
+}
+
+func enqueueDeviceConfig(q workqueue.TypedRateLimitingInterface[reconcile.Request], obj client.Object, name string) {
+	if q == nil {
+		return
+	}
+	q.Add(reconcile.Request{NamespacedName: types.NamespacedName{Namespace: obj.GetNamespace(), Name: name}})
 }
 
 func (h *DaemonsetEventHandler) patchDeviceConfigNodeStatus(ctx context.Context, obj client.Object, devConfigName string) {
@@ -189,7 +203,7 @@ func (h *DaemonsetEventHandler) handleMetricsExporterStatus(ds *v1.DaemonSet, de
 
 func (h *DaemonsetEventHandler) handleDevicePluginStatus(ds *v1.DaemonSet, devConfig *v1alpha1.DeviceConfig) bool {
 	devConfig.Status.DevicePlugin.AvailableNumber = ds.Status.NumberAvailable
-	devConfig.Status.DevicePlugin.NodesMatchingSelectorNumber = ds.Status.NumberAvailable
+	devConfig.Status.DevicePlugin.NodesMatchingSelectorNumber = ds.Status.DesiredNumberScheduled
 	devConfig.Status.DevicePlugin.DesiredNumber = ds.Status.DesiredNumberScheduled
 	return true
 }

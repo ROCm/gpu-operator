@@ -58,7 +58,6 @@ const (
 	pfPassthroughCommandArgs    = "./k8s-node-labeller -device-id"
 	defaultInitContainerImage   = "busybox:1.36"
 	defaultBlacklistFileName    = "blacklist-amdgpu.conf"
-	openShiftBlacklistFileName  = "blacklist-amdgpu-by-operator.conf"
 )
 
 //go:generate mockgen -source=nodelabeller.go -package=nodelabeller -destination=mock_nodelabeller.go NodeLabeller
@@ -98,10 +97,6 @@ func (nl *nodeLabeller) SetNodeLabellerAsDesired(ds *appsv1.DaemonSet, devConfig
 			Name:      "sys-volume",
 			MountPath: "/host-sys",
 		},
-		{
-			Name:      "etc-volume",
-			MountPath: "/host-etc",
-		},
 	}
 
 	hostPathDirectory := v1.HostPathDirectory
@@ -125,7 +120,14 @@ func (nl *nodeLabeller) SetNodeLabellerAsDesired(ds *appsv1.DaemonSet, devConfig
 				},
 			},
 		},
-		{
+	}
+
+	if !nl.isOpenShift {
+		initVolumeMounts = append(initVolumeMounts, v1.VolumeMount{
+			Name:      "etc-volume",
+			MountPath: "/host-etc",
+		})
+		volumes = append(volumes, v1.Volume{
 			Name: "etc-volume",
 			VolumeSource: v1.VolumeSource{
 				HostPath: &v1.HostPathVolumeSource{
@@ -133,15 +135,10 @@ func (nl *nodeLabeller) SetNodeLabellerAsDesired(ds *appsv1.DaemonSet, devConfig
 					Type: &hostPathDirectory,
 				},
 			},
-		},
+		})
 	}
 
-	blackListFileName := defaultBlacklistFileName
-	if nl.isOpenShift {
-		blackListFileName = openShiftBlacklistFileName
-	}
-
-	initContainerCommand := getNodeLabellerInitContainerCommand(devConfig, blackListFileName)
+	initContainerCommand := getNodeLabellerInitContainerCommand(devConfig, defaultBlacklistFileName, !nl.isOpenShift)
 	initContainerImage := defaultInitContainerImage
 	if devConfig.Spec.CommonConfig.InitContainerImage != "" {
 		initContainerImage = devConfig.Spec.CommonConfig.InitContainerImage
@@ -272,27 +269,21 @@ func getDevicePluginVersion(devConfig *amdv1alpha1.DeviceConfig) string {
 	return ""
 }
 
-func getNodeLabellerInitContainerCommand(devConfig *amdv1alpha1.DeviceConfig, blackListFileName string) []string {
-	if devConfig.Spec.Driver.Blacklist != nil && *devConfig.Spec.Driver.Blacklist {
-		// if users want to apply the blacklist, init container will add the amdgpu to the blacklist
-		initContainerCommand := []string{"sh", "-c", fmt.Sprintf("echo \"# added by gpu operator \nblacklist amdgpu\" > /host-etc/modprobe.d/%v; while [ ! -d /host-sys/class/kfd ] || [ ! -d /host-sys/module/amdgpu/drivers/ ]; do echo \"amdgpu driver is not loaded \"; sleep 2 ;done", blackListFileName)}
-		switch devConfig.Spec.Driver.DriverType {
-		case utils.DriverTypeVFPassthrough:
-			initContainerCommand = []string{"sh", "-c", fmt.Sprintf("echo \"# added by gpu operator \nblacklist amdgpu\" > /host-etc/modprobe.d/%v; while [ ! -d /host-sys/module/gim/drivers/ ]; do echo \"gim driver is not loaded \"; sleep 2 ;done", blackListFileName)}
-		case utils.DriverTypePFPassthrough:
-			initContainerCommand = []string{"sh", "-c", "true"}
-		}
-		return initContainerCommand
-	} else {
-		// if users disabled the KMM driver, or disabled the blacklist
-		// init container will remove any hanging amdgpu blacklist entry from the list
-		initContainerCommand := []string{"sh", "-c", fmt.Sprintf("rm -f /host-etc/modprobe.d/%v; while [ ! -d /host-sys/class/kfd ] || [ ! -d /host-sys/module/amdgpu/drivers/ ]; do echo \"amdgpu driver is not loaded \"; sleep 2 ;done", blackListFileName)}
-		switch devConfig.Spec.Driver.DriverType {
-		case utils.DriverTypeVFPassthrough:
-			initContainerCommand = []string{"sh", "-c", fmt.Sprintf("rm -f /host-etc/modprobe.d/%v; while [ ! -d /host-sys/module/gim/drivers/ ]; do echo \"gim driver is not loaded \"; sleep 2 ;done", blackListFileName)}
-		case utils.DriverTypePFPassthrough:
-			initContainerCommand = []string{"sh", "-c", "true"}
-		}
-		return initContainerCommand
+func getNodeLabellerInitContainerCommand(devConfig *amdv1alpha1.DeviceConfig, blacklistFileName string, manageBlacklist bool) []string {
+	if devConfig.Spec.Driver.DriverType == utils.DriverTypePFPassthrough {
+		return []string{"sh", "-c", "true"}
 	}
+
+	waitCommand := "while [ ! -d /host-sys/class/kfd ] || [ ! -d /host-sys/module/amdgpu/drivers/ ]; do echo \"amdgpu driver is not loaded \"; sleep 2 ;done"
+	if devConfig.Spec.Driver.DriverType == utils.DriverTypeVFPassthrough {
+		waitCommand = "while [ ! -d /host-sys/module/gim/drivers/ ]; do echo \"gim driver is not loaded \"; sleep 2 ;done"
+	}
+	if !manageBlacklist {
+		return []string{"sh", "-c", waitCommand}
+	}
+
+	if devConfig.Spec.Driver.Blacklist != nil && *devConfig.Spec.Driver.Blacklist {
+		return []string{"sh", "-c", fmt.Sprintf("echo \"# added by gpu operator \nblacklist amdgpu\" > /host-etc/modprobe.d/%v; %s", blacklistFileName, waitCommand)}
+	}
+	return []string{"sh", "-c", fmt.Sprintf("rm -f /host-etc/modprobe.d/%v; %s", blacklistFileName, waitCommand)}
 }

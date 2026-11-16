@@ -766,7 +766,7 @@ var _ = Describe("buildNodeAssignments", func() {
 		dcrh = newDeviceConfigReconcilerHelper(kubeClient, nil, nil, nil, nil, nil, nil, nil, nil, nil, false, true)
 	})
 
-	It("skips non-ready DeviceConfigs", func() {
+	It("restores node assignments while readiness is pending", func() {
 		dcList := &amdv1alpha1.DeviceConfigList{
 			Items: []amdv1alpha1.DeviceConfig{
 				{
@@ -784,9 +784,23 @@ var _ = Describe("buildNodeAssignments", func() {
 		}
 		err := dcrh.buildNodeAssignments(ctx, dcList)
 		Expect(err).ToNot(HaveOccurred())
+		err = dcrh.validateNodeAssignments("other/device-config", &v1.NodeList{Items: []v1.Node{{ObjectMeta: metav1.ObjectMeta{Name: "node-1"}}}})
+		Expect(err).To(HaveOccurred())
 	})
 
-	It("logs and skips conflicting DeviceConfigs instead of returning error", func() {
+	It("restores explicitly persisted reservations independently of readiness", func() {
+		dcList := &amdv1alpha1.DeviceConfigList{Items: []amdv1alpha1.DeviceConfig{{
+			ObjectMeta: metav1.ObjectMeta{Name: "dc-pending", Namespace: devConfigNamespace},
+			Status: amdv1alpha1.DeviceConfigStatus{
+				NodeReservationsInitialized: true,
+				NodeReservations:            map[string]amdv1alpha1.NodeReservationStatus{"node-pending": {VFIOCleanupPending: true}},
+			},
+		}}}
+		Expect(dcrh.buildNodeAssignments(ctx, dcList)).To(Succeed())
+		Expect(dcrh.validateNodeAssignments("other/device-config", &v1.NodeList{Items: []v1.Node{{ObjectMeta: metav1.ObjectMeta{Name: "node-pending"}}}})).To(HaveOccurred())
+	})
+
+	It("logs and rejects every conflicting persisted assignment", func() {
 		dc1 := makeReadyDeviceConfig("dc-1", devConfigNamespace, []string{"node-shared"})
 		dc2 := makeReadyDeviceConfig("dc-2", devConfigNamespace, []string{"node-shared"})
 
@@ -794,9 +808,12 @@ var _ = Describe("buildNodeAssignments", func() {
 			Items: []amdv1alpha1.DeviceConfig{dc1, dc2},
 		}
 
-		// Should NOT return an error — conflicts are logged and skipped
+		// Initialization retains every owner so validation can fail closed for all conflicts.
 		err := dcrh.buildNodeAssignments(ctx, dcList)
 		Expect(err).ToNot(HaveOccurred())
+		for _, name := range []string{"dc-1", "dc-2"} {
+			Expect(dcrh.validateNodeAssignments(types.NamespacedName{Namespace: devConfigNamespace, Name: name}.String(), &v1.NodeList{Items: []v1.Node{{ObjectMeta: metav1.ObjectMeta{Name: "node-shared"}}}})).To(HaveOccurred())
+		}
 	})
 
 	It("includes being-deleted DeviceConfigs in node assignments", func() {
