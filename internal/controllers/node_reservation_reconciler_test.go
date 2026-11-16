@@ -148,6 +148,46 @@ func TestNonVFIOReservationWaitsForKMMAndWorkerToReleaseNode(t *testing.T) {
 	}
 }
 
+func TestMissingNonVFIONodeRetainsReservationForKMMModuleRejoin(t *testing.T) {
+	ctx := context.Background()
+	node := &v1.Node{ObjectMeta: metav1.ObjectMeta{Name: "returning-node", Labels: map[string]string{"pool": "old"}}}
+	helper, dc, cli, scheme := lifecycleFixture(t, utils.DriverTypeContainer, true, node)
+	dc.Spec.Selector = map[string]string{"pool": "old"}
+	dc.Status.NodeReservationsInitialized = true
+	dc.Status.NodeReservations = map[string]amdv1alpha1.NodeReservationStatus{
+		node.Name: {KMMOwnership: amdv1alpha1.KMMOwnershipManaged},
+	}
+	module := &kmmv1beta1.Module{
+		ObjectMeta: metav1.ObjectMeta{Namespace: dc.Namespace, Name: dc.Name},
+		Spec:       kmmv1beta1.ModuleSpec{Selector: map[string]string{"pool": "old"}},
+	}
+	if err := controllerutil.SetControllerReference(dc, module, scheme); err != nil {
+		t.Fatal(err)
+	}
+	cli.modules[client.ObjectKeyFromObject(module)] = module.DeepCopy()
+	helper.updateNodeAssignments("test/dc", nodeListForReservations(dc.Status.NodeReservations), false)
+	delete(cli.nodes, node.Name)
+
+	pending, requeue, err := helper.reconcileKMMNodeReservations(ctx, dc, &v1.NodeList{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !pending || !requeue {
+		t.Fatalf("missing-node reconciliation = pending %t, requeue %t; want reservation held", pending, requeue)
+	}
+	if _, ok := dc.Status.NodeReservations[node.Name]; !ok {
+		t.Fatal("reservation was released while the owned Module still selected the missing node")
+	}
+	if _, ok := helper.nodeAssignments[node.Name]["test/dc"]; !ok {
+		t.Fatal("assignment was released before the node could safely rejoin")
+	}
+
+	cli.nodes[node.Name] = node.DeepCopy()
+	if err := helper.validateNodeAssignments("test/other", &v1.NodeList{Items: []v1.Node{*node}}); err == nil {
+		t.Fatal("competing DeviceConfig was allowed to claim the returning node")
+	}
+}
+
 func TestNeverManagedReservationReleasesWhenKMMAPIIsUnavailable(t *testing.T) {
 	oldNode := &v1.Node{ObjectMeta: metav1.ObjectMeta{Name: "old-node"}}
 	helper, dc, cli, _ := lifecycleFixture(t, utils.DriverTypeContainer, false, oldNode)

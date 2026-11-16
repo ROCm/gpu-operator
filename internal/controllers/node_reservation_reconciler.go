@@ -168,6 +168,16 @@ func (dcrh *deviceConfigReconcilerHelper) reconcileKMMNodeReservations(ctx conte
 				continue
 			}
 		}
+		if k8serrors.IsNotFound(nodeErr) && moduleFound && devConfig.Spec.Driver.DriverType != utils.DriverTypeVFPassthrough {
+			if reservation.KMMOwnership == amdv1alpha1.KMMOwnershipNeverManaged {
+				if err := dcrh.markKMMReservationUnknown(ctx, devConfig, nodeName); err != nil {
+					return true, true, err
+				}
+			}
+			pending = true
+			requeue = true
+			continue
+		}
 		if moduleFound && nodeErr == nil && labels.Set(module.Spec.Selector).AsSelector().Matches(labels.Set(node.Labels)) {
 			markOwnership := dcrh.markKMMReservationUnknown
 			if moduleOwned {
