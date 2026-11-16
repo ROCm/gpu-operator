@@ -1019,8 +1019,14 @@ func (dcrh *deviceConfigReconcilerHelper) finalizeDeviceConfig(ctx context.Conte
 	}
 
 	if !dcrh.kmmWatchEnabled {
-		// Skip KMM resources, but still remove this config's node-labeller labels.
-		if err := dcrh.updateNodeLabels(ctx, devConfig, nodes, true); err != nil {
+		// A persisted selector update can overlap another config even when
+		// assignment validation rejected it. Deletion bypasses that validation,
+		// so recheck ownership before removing shared labeller labels. Preserve
+		// KMM version labels: an independent KMM operator may still use them.
+		if err := dcrh.updateNodeLabelsIf(ctx, devConfig, nodes, false, func(node *v1.Node) (bool, error) {
+			selected, err := dcrh.nodeSelectedByOtherDeviceConfig(ctx, devConfig, node)
+			return !selected, err
+		}); err != nil {
 			return err
 		}
 		// When KMM watch is disabled, leave any existing KMM resources orphaned.
@@ -1506,20 +1512,25 @@ func (dcrh *deviceConfigReconcilerHelper) handleNodeLabeller(ctx context.Context
 		if !labelSelector.Matches(labels.Set(node.Labels)) {
 			return false, nil
 		}
-		configs, err := dcrh.listDeviceConfigs(ctx)
-		if err != nil {
-			return false, err
-		}
-		for _, config := range configs.Items {
-			if config.Namespace == devConfig.Namespace && config.Name == devConfig.Name {
-				continue
-			}
-			if labels.SelectorFromSet(config.Spec.Selector).Matches(labels.Set(node.Labels)) {
-				return false, nil
-			}
-		}
-		return true, nil
+		selected, err := dcrh.nodeSelectedByOtherDeviceConfig(ctx, devConfig, node)
+		return !selected, err
 	})
+}
+
+func (dcrh *deviceConfigReconcilerHelper) nodeSelectedByOtherDeviceConfig(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig, node *v1.Node) (bool, error) {
+	configs, err := dcrh.listDeviceConfigs(ctx)
+	if err != nil {
+		return false, err
+	}
+	for _, config := range configs.Items {
+		if config.Namespace == devConfig.Namespace && config.Name == devConfig.Name {
+			continue
+		}
+		if labels.SelectorFromSet(config.Spec.Selector).Matches(labels.Set(node.Labels)) {
+			return true, nil
+		}
+	}
+	return false, nil
 }
 
 func (dcrh *deviceConfigReconcilerHelper) handleModuleUpgrade(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig, nodes *v1.NodeList, delete bool) (ctrl.Result, error) {
@@ -1728,11 +1739,11 @@ func (dcrh *deviceConfigReconcilerHelper) updateNodeLabelsIf(ctx context.Context
 				logger.Info(fmt.Sprintf("updating node-labeller labels in %v", nodeObj.Name))
 				patch := client.MergeFrom(nodeObjCopy)
 				if shouldClean != nil {
-					// Automatic cleanup depends on selectors checked above. A
+					// Guarded cleanup depends on selectors checked above. A
 					// concurrent Node update must trigger another eligibility check.
 					patch = client.MergeFromWithOptions(nodeObjCopy, client.MergeFromWithOptimisticLock{})
 				}
-				// Explicit disable/delete cleanup retains its unconditional merge
+				// Unguarded disable/delete cleanup retains its unconditional merge
 				// patch, avoiding conflicts on unrelated Node status updates.
 				return dcrh.client.Patch(ctx, nodeObj, patch)
 			}

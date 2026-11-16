@@ -43,8 +43,8 @@ import (
 )
 
 func TestNodeLabellerFinalizationWithoutKMM(t *testing.T) {
-	for _, failPatch := range []bool{false, true} {
-		t.Run(fmt.Sprintf("patchFailure=%v", failPatch), func(t *testing.T) {
+	for _, failure := range []string{"none", "patch", "config list"} {
+		t.Run(failure, func(t *testing.T) {
 			g := NewWithT(t)
 			ctx := context.Background()
 			cfg := &amdv1alpha1.DeviceConfig{ObjectMeta: metav1.ObjectMeta{Name: "custom", Namespace: "test", Finalizers: []string{deviceConfigFinalizer}}, Spec: amdv1alpha1.DeviceConfigSpec{Driver: amdv1alpha1.DriverSpec{Enable: ptr.To(false)}}}
@@ -73,17 +73,24 @@ func TestNodeLabellerFinalizationWithoutKMM(t *testing.T) {
 				dsDeleted = true
 				return nil
 			})
+			cli.EXPECT().List(ctx, gomock.Any()).DoAndReturn(func(_ context.Context, list client.ObjectList, _ ...client.ListOption) error {
+				if failure == "config list" {
+					return fmt.Errorf("config list unavailable")
+				}
+				list.(*amdv1alpha1.DeviceConfigList).Items = []amdv1alpha1.DeviceConfig{*cfg.DeepCopy()}
+				return nil
+			}).AnyTimes()
 			finalizerPatched := false
 			cli.EXPECT().Patch(ctx, gomock.Any(), gomock.Any()).DoAndReturn(func(_ context.Context, obj client.Object, patch client.Patch, _ ...client.PatchOption) error {
 				if actual, ok := obj.(*v1.Node); ok {
-					if failPatch {
+					if failure == "patch" {
 						return fmt.Errorf("node patch unavailable")
 					}
 					data, err := patch.Data(obj)
 					g.Expect(err).NotTo(HaveOccurred())
 					var changes map[string]interface{}
 					g.Expect(json.Unmarshal(data, &changes)).To(Succeed())
-					g.Expect(changes["metadata"]).NotTo(HaveKey("resourceVersion"))
+					g.Expect(changes["metadata"]).To(HaveKeyWithValue("resourceVersion", node.ResourceVersion))
 					node = actual.DeepCopy()
 					return nil
 				}
@@ -95,15 +102,18 @@ func TestNodeLabellerFinalizationWithoutKMM(t *testing.T) {
 			err := helper.finalizeDeviceConfig(ctx, cfg, &v1.NodeList{Items: []v1.Node{*node.DeepCopy()}})
 			g.Expect(dsDeleted).To(BeTrue())
 			g.Expect(node.Labels).To(HaveKeyWithValue("amd.com/gpu.probe", "keep"))
-			if failPatch {
-				g.Expect(err).To(MatchError(ContainSubstring("node patch unavailable")))
+			// KMM may still manage an external Module when GPU operator watches
+			// are disabled. Its desired version must survive labeller cleanup.
+			g.Expect(node.Labels).To(HaveKeyWithValue(versionKey, "old"))
+			if failure != "none" {
+				g.Expect(err).To(MatchError(ContainSubstring("unavailable")))
+				g.Expect(node.Labels).To(HaveKey("amd.com/gpu.device-id"))
 				g.Expect(cfg.Finalizers).To(ContainElement(deviceConfigFinalizer))
 				g.Expect(finalizerPatched).To(BeFalse())
 			} else {
 				g.Expect(err).NotTo(HaveOccurred())
 				g.Expect(finalizerPatched).To(BeTrue())
 				g.Expect(cfg.Finalizers).NotTo(ContainElement(deviceConfigFinalizer))
-				g.Expect(node.Labels).NotTo(HaveKey(versionKey))
 			}
 		})
 	}
