@@ -294,7 +294,7 @@ func (r *DeviceConfigReconciler) Reconcile(ctx context.Context, req ctrl.Request
 		}
 	}
 	if len(nodes.Items) > 0 && devConfig.Spec.Driver.DriverType == utils.DriverTypeVFPassthrough &&
-		((r.kmmWatchEnabled && utils.ShouldUseKMM(devConfig)) || hasUnselectedKMMReservation(devConfig, nodes)) {
+		((r.kmmWatchEnabled && utils.ShouldUseKMM(devConfig)) || hasUnselectedKMMReservation(devConfig, nodes) || hasKMMRetirementPending(devConfig)) {
 		if vfioHelper, ok := r.helper.(vfioWorkerReconciler); ok {
 			hasCleanup, err := vfioHelper.hasVFIOCleanup(ctx, devConfig, nodes)
 			if err != nil {
@@ -348,7 +348,7 @@ func (r *DeviceConfigReconciler) Reconcile(ctx context.Context, req ctrl.Request
 					return res, err
 				}
 				if devConfig.Spec.Driver.DriverType == utils.DriverTypeVFPassthrough &&
-					((r.kmmWatchEnabled && utils.ShouldUseKMM(devConfig)) || hasUnselectedKMMReservation(devConfig, nodes)) {
+					((r.kmmWatchEnabled && utils.ShouldUseKMM(devConfig)) || hasUnselectedKMMReservation(devConfig, nodes) || hasKMMRetirementPending(devConfig)) {
 					hasCleanup, err = vfioHelper.hasVFIOCleanup(ctx, devConfig, nodes)
 					if err != nil {
 						return res, err
@@ -2092,8 +2092,29 @@ func (dcrh *deviceConfigReconcilerHelper) reserveNodeAssignments(ctx context.Con
 			}
 		}
 	}
+	observedNodes := make(map[string]v1.Node, len(nodes.Items))
+	for _, node := range nodes.Items {
+		observedNodes[node.Name] = node
+	}
+	for nodeName, status := range reservations {
+		node, ok := observedNodes[nodeName]
+		if !ok {
+			current := &v1.Node{}
+			err := dcrh.client.Get(ctx, types.NamespacedName{Name: nodeName}, current)
+			if k8serrors.IsNotFound(err) {
+				continue
+			}
+			if err != nil {
+				return fmt.Errorf("refreshing selector labels for reserved node %s: %w", nodeName, err)
+			}
+			node = *current
+		}
+		status.KMMNodeLabels = maps.Clone(node.Labels)
+		status.KMMNodeLabelsCaptured = true
+		reservations[nodeName] = status
+	}
 
-	changed := !devConfig.Status.NodeReservationsInitialized || !maps.Equal(devConfig.Status.NodeReservations, reservations)
+	changed := !devConfig.Status.NodeReservationsInitialized || !nodeReservationsEqual(devConfig.Status.NodeReservations, reservations)
 	devConfig.Status.NodeReservations = reservations
 	devConfig.Status.NodeReservationsInitialized = true
 	if changed {

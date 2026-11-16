@@ -1061,6 +1061,12 @@ type NodeReservationStatus struct {
 	// KMMOwnership records whether KMM may still manage this node. Missing values are unknown.
 	//+kubebuilder:validation:Enum=unknown;never-managed;managed
 	KMMOwnership KMMOwnership `json:"kmmOwnership,omitempty"`
+	// KMMNodeLabels stores the last complete labels observed for selector-safe retirement checks.
+	KMMNodeLabels map[string]string `json:"kmmNodeLabels,omitempty"`
+	// KMMNodeLabelsCaptured distinguishes a captured empty label set from an unavailable snapshot.
+	KMMNodeLabelsCaptured bool `json:"kmmNodeLabelsCaptured,omitempty"`
+	// KMMRetirementPending preserves the node-name reservation until KMM state is checked on rejoin.
+	KMMRetirementPending bool `json:"kmmRetirementPending,omitempty"`
 }
 
 // DeviceConfigStatus defines the observed state of Module.
