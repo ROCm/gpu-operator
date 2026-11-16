@@ -51,6 +51,9 @@ type lifecycleClient struct {
 	nmcs           map[string]*kmmv1beta1.NodeModulesConfig
 	moduleNoMatch  bool
 	nmcNoMatch     bool
+	moduleErr      error
+	nmcErr         error
+	workerErr      error
 }
 
 type lifecycleStatusWriter struct {
@@ -69,6 +72,9 @@ func (c *lifecycleClient) Status() client.SubResourceWriter {
 func (c *lifecycleClient) Get(_ context.Context, key client.ObjectKey, obj client.Object, _ ...client.GetOption) error {
 	switch out := obj.(type) {
 	case *v1.Pod:
+		if c.workerErr != nil {
+			return c.workerErr
+		}
 		if pod := c.pods[key]; pod != nil {
 			*out = *pod.DeepCopy()
 			return nil
@@ -81,6 +87,9 @@ func (c *lifecycleClient) Get(_ context.Context, key client.ObjectKey, obj clien
 		}
 		return k8serrors.NewNotFound(schema.GroupResource{Resource: "nodes"}, key.Name)
 	case *kmmv1beta1.Module:
+		if c.moduleErr != nil {
+			return c.moduleErr
+		}
 		if c.moduleNoMatch {
 			return &meta.NoKindMatchError{GroupKind: schema.GroupKind{Group: "kmm.sigs.k8s.io", Kind: "Module"}}
 		}
@@ -90,6 +99,9 @@ func (c *lifecycleClient) Get(_ context.Context, key client.ObjectKey, obj clien
 		}
 		return k8serrors.NewNotFound(schema.GroupResource{Resource: "modules"}, key.Name)
 	case *kmmv1beta1.NodeModulesConfig:
+		if c.nmcErr != nil {
+			return c.nmcErr
+		}
 		if c.nmcNoMatch {
 			return &meta.NoKindMatchError{GroupKind: schema.GroupKind{Group: "kmm.sigs.k8s.io", Kind: "NodeModulesConfig"}}
 		}

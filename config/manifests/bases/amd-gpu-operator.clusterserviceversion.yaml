@@ -423,8 +423,8 @@ spec:
           the URL is constructed as: ${amdgpuInstallerRepoURL}/amdgpu/${DRIVERS_VERSION}/${os}/${distro}
           For GIM VF passthrough builds, this value is instead the release directory
           base, not a complete artifact URL. The operator appends /<GIM_RELEASE_TAG>/<GIM_DEB_PACKAGE>
-          or /<GIM_RELEASE_TAG>/<GIM_RPM_PACKAGE>; when empty, it uses the GitHub release directory
-          https://github.com/amd/MxGPU-Virtualization/releases/download.
+          or /<GIM_RELEASE_TAG>/<GIM_RPM_PACKAGE>; when empty, it uses the GitHub
+          release directory https://github.com/amd/MxGPU-Virtualization/releases/download.
           Security note: this URL is a trusted driver-build input that selects the
           package source for a ring-0 kernel module installed on every node. Treat
           write access to DeviceConfig as equivalent to choosing the driver''s package
@@ -1042,16 +1042,17 @@ spec:
         path: metricsExporter.nodesMatchingSelectorNumber
         x-descriptors:
         - urn:alm:descriptor:com.amd.deviceconfigs:nodesMatchingSelectorNumber
-      - description: NodeReservations preserves accepted node ownership independently of readiness
-        displayName: NodeReservations
-        path: nodeReservations
-        x-descriptors:
-        - urn:alm:descriptor:com.amd.deviceconfigs:nodeReservations
       - description: NodeModuleStatus contains per node status of driver module installation
         displayName: NodeModuleStatus
         path: nodeModuleStatus
         x-descriptors:
         - urn:alm:descriptor:com.amd.deviceconfigs:nodeModuleStatus
+      - description: NodeReservations preserves accepted node ownership independently
+          of readiness.
+        displayName: NodeReservations
+        path: nodeReservations
+        x-descriptors:
+        - urn:alm:descriptor:com.amd.deviceconfigs:nodeReservations
       - description: number of the actually deployed and running pods
         displayName: AvailableNumber
         path: remediationWorkflow.availableNumber

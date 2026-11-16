@@ -27,8 +27,10 @@ import (
 	utils "github.com/ROCm/gpu-operator/internal"
 	"github.com/ROCm/gpu-operator/internal/conditions"
 	"github.com/ROCm/gpu-operator/internal/controllers/workermgr"
+	kmmv1beta1 "github.com/rh-ecosystem-edge/kernel-module-management/api/v1beta1"
 	v1 "k8s.io/api/core/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
+	meta "k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -244,6 +246,17 @@ func (dcrh *deviceConfigReconcilerHelper) nodeReservation(devConfig *amdv1alpha1
 	return amdv1alpha1.NodeReservationStatus{}, false
 }
 
+func nodeReservationsEqual(left, right map[string]amdv1alpha1.NodeReservationStatus) bool {
+	return maps.EqualFunc(left, right, func(a, b amdv1alpha1.NodeReservationStatus) bool {
+		return a.VFIOCleanupPending == b.VFIOCleanupPending &&
+			a.VFIOBindingBootID == b.VFIOBindingBootID &&
+			a.KMMOwnership == b.KMMOwnership &&
+			a.KMMNodeLabelsCaptured == b.KMMNodeLabelsCaptured &&
+			a.KMMRetirementPending == b.KMMRetirementPending &&
+			maps.Equal(a.KMMNodeLabels, b.KMMNodeLabels)
+	})
+}
+
 func (dcrh *deviceConfigReconcilerHelper) setNodeReservation(ctx context.Context, devConfig *amdv1alpha1.DeviceConfig, node string, status *amdv1alpha1.NodeReservationStatus) error {
 	reservations := make(map[string]amdv1alpha1.NodeReservationStatus)
 	if devConfig.Status.NodeReservationsInitialized {
@@ -262,7 +275,7 @@ func (dcrh *deviceConfigReconcilerHelper) setNodeReservation(ctx context.Context
 	} else {
 		reservations[node] = *status
 	}
-	if devConfig.Status.NodeReservationsInitialized && maps.Equal(devConfig.Status.NodeReservations, reservations) {
+	if devConfig.Status.NodeReservationsInitialized && nodeReservationsEqual(devConfig.Status.NodeReservations, reservations) {
 		return nil
 	}
 	devConfig.Status.NodeReservations = reservations
@@ -366,21 +379,79 @@ func (dcrh *deviceConfigReconcilerHelper) releaseUnneededStaleReservations(ctx c
 	if !devConfig.Status.NodeReservationsInitialized {
 		return nil
 	}
+	isPF := devConfig.Spec.Driver.DriverType == utils.DriverTypePFPassthrough
+	var pfModuleChecked, pfModuleFound bool
+	var pfWorkerPods *v1.PodList
 	for node := range devConfig.Status.NodeReservations {
 		if _, ok := selected[node]; ok {
 			continue
 		}
+		reservation, exists := dcrh.nodeReservation(devConfig, node)
+		if exists && reservation.KMMRetirementPending {
+			continue
+		}
+		if exists && (reservation.VFIOCleanupPending || reservation.VFIOBindingBootID != "") {
+			continue
+		}
 		if _, ok := cleanup[node]; ok {
-			if reservation, exists := dcrh.nodeReservation(devConfig, node); exists && reservation.VFIOCleanupPending {
+			_, err := dcrh.kmmPostProcessor.GetWorkerPod(ctx, devConfig, &v1.Node{ObjectMeta: metav1.ObjectMeta{Name: node}})
+			if err == nil {
 				continue
 			}
-			_, err := dcrh.kmmPostProcessor.GetWorkerPod(ctx, devConfig, &v1.Node{ObjectMeta: metav1.ObjectMeta{Name: node}})
-			if err == nil || !k8serrors.IsNotFound(err) {
+			if !k8serrors.IsNotFound(err) {
+				if isPF && exists && reservation.KMMOwnership == amdv1alpha1.KMMOwnershipUnknown {
+					return fmt.Errorf("checking VFIO worker before releasing PF reservation for node %s: %w", node, err)
+				}
 				continue
 			}
 		}
-		if reservation, exists := dcrh.nodeReservation(devConfig, node); exists &&
-			reservation.KMMOwnership != amdv1alpha1.KMMOwnershipNeverManaged {
+		if isPF && exists && reservation.KMMOwnership == amdv1alpha1.KMMOwnershipUnknown {
+			if moduleStatusShowsKMM(devConfig.Status.NodeModuleStatus[node]) {
+				continue
+			}
+			_, err := dcrh.kmmPostProcessor.GetWorkerPod(ctx, devConfig, &v1.Node{ObjectMeta: metav1.ObjectMeta{Name: node}})
+			if err == nil {
+				continue
+			}
+			if !k8serrors.IsNotFound(err) {
+				return fmt.Errorf("checking VFIO worker before releasing PF reservation for node %s: %w", node, err)
+			}
+			if !pfModuleChecked {
+				module := &kmmv1beta1.Module{}
+				err = dcrh.client.Get(ctx, types.NamespacedName{Namespace: devConfig.Namespace, Name: devConfig.Name}, module)
+				if err == nil {
+					pfModuleFound = true
+				} else if !k8serrors.IsNotFound(err) && !meta.IsNoMatchError(err) {
+					return fmt.Errorf("checking KMM Module before releasing PF reservation for node %s: %w", node, err)
+				}
+				pfModuleChecked = true
+			}
+			if pfModuleFound {
+				continue
+			}
+			if pfWorkerPods == nil {
+				pfWorkerPods = &v1.PodList{}
+				if err := dcrh.client.List(ctx, pfWorkerPods, client.InNamespace(devConfig.Namespace), client.MatchingLabels{
+					kmmModuleNameLabel:      devConfig.Name,
+					kmmWorkerComponentLabel: kmmWorkerComponent,
+				}); err != nil {
+					return fmt.Errorf("listing KMM workers before releasing PF reservation: %w", err)
+				}
+			}
+			managed, err := dcrh.nodeHasKMMModuleState(ctx, devConfig, node, pfWorkerPods)
+			if err != nil && !meta.IsNoMatchError(err) {
+				return fmt.Errorf("checking KMM state before releasing PF reservation for node %s: %w", node, err)
+			}
+			if managed {
+				continue
+			}
+			if err := dcrh.setNodeReservation(ctx, devConfig, node, nil); err != nil {
+				return err
+			}
+			delete(devConfig.Status.NodeModuleStatus, node)
+			continue
+		}
+		if exists && reservation.KMMOwnership != amdv1alpha1.KMMOwnershipNeverManaged {
 			continue
 		}
 		if err := dcrh.setNodeReservation(ctx, devConfig, node, nil); err != nil {
