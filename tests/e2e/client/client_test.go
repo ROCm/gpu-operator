@@ -22,15 +22,13 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	amdv1alpha1 "github.com/ROCm/gpu-operator/api/v1alpha1"
-	"k8s.io/client-go/kubernetes/scheme"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/client-go/rest"
 )
 
 func TestDeleteDeviceConfigUsesNamedRequest(t *testing.T) {
-	if err := amdv1alpha1.AddToScheme(scheme.Scheme); err != nil {
-		t.Fatal(err)
-	}
+	// Use the same serializer setup as the e2e client, without registering
+	// DeviceConfig in the Kubernetes scheme just for this test.
 	calls := 0
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		calls++
@@ -43,7 +41,7 @@ func TestDeleteDeviceConfigUsesNamedRequest(t *testing.T) {
 		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 			t.Error(err)
 		}
-		if body["kind"] != "DeleteOptions" || body["apiVersion"] != amdv1alpha1.GroupVersion.String() {
+		if body["kind"] != "DeleteOptions" || body["apiVersion"] != "v1" {
 			t.Errorf("expected DeleteOptions, got %v", body)
 		}
 		if _, ok := body["metadata"]; ok {
@@ -68,5 +66,58 @@ func TestDeleteDeviceConfigUsesNamedRequest(t *testing.T) {
 	}
 	if calls != 1 {
 		t.Fatal("empty name reached the server")
+	}
+}
+
+func TestDeleteDeviceConfigResponses(t *testing.T) {
+	for _, tc := range []struct {
+		name       string
+		statusCode int
+		body       string
+		checkError func(error) bool
+	}{
+		{
+			name:       "immediate deletion returns Status",
+			statusCode: http.StatusOK,
+			body:       `{"apiVersion":"v1","kind":"Status","status":"Success"}`,
+		},
+		{
+			name:       "finalizer pending returns DeviceConfig",
+			statusCode: http.StatusAccepted,
+			body:       `{"apiVersion":"amd.com/v1alpha1","kind":"DeviceConfig","metadata":{"name":"fixture","namespace":"test","deletionTimestamp":"2026-11-16T00:00:00Z","finalizers":["amd.com/deviceconfig-finalizer"]},"status":{}}`,
+		},
+		{
+			name:       "not found remains an error",
+			statusCode: http.StatusNotFound,
+			body:       `{"apiVersion":"v1","kind":"Status","status":"Failure","reason":"NotFound","code":404,"message":"deviceconfigs.amd.com fixture not found"}`,
+			checkError: apierrors.IsNotFound,
+		},
+		{
+			name:       "forbidden remains an error",
+			statusCode: http.StatusForbidden,
+			body:       `{"apiVersion":"v1","kind":"Status","status":"Failure","reason":"Forbidden","code":403,"message":"deviceconfigs.amd.com fixture is forbidden"}`,
+			checkError: apierrors.IsForbidden,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(tc.statusCode)
+				_, _ = w.Write([]byte(tc.body))
+			}))
+			defer server.Close()
+			cli, err := Client(&rest.Config{Host: server.URL})
+			if err != nil {
+				t.Fatal(err)
+			}
+			_, err = cli.DeviceConfigs("test").Delete("fixture")
+			if tc.checkError != nil {
+				if !tc.checkError(err) {
+					t.Fatalf("unexpected delete error: %v", err)
+				}
+			} else if err != nil {
+				t.Fatalf("successful delete returned an error: %v", err)
+			}
+		})
 	}
 }
