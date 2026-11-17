@@ -57,6 +57,9 @@ test-deviceconfig-node-labeller-bxk7x                             1/1     Runnin
 
 ## Device Plugin DeviceConfig
 
+For a custom worker-node selector example, label cleanup behavior, and recovery
+steps, see the [Node Labeller guide](node-labeller.md).
+
 | Field Name | Details |
 | --- | --- |
 | **EnableDevicePlugin** | Enable/Disable device plugin with True/False. Cannot be enabled simultaneously with DRA driver. |

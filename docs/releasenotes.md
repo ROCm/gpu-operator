@@ -1,5 +1,30 @@
 # Release Notes
 
+## Unreleased
+
+### Node Labeller Label Cleanup
+
+Fixed valid GPU labels being removed from custom-selected worker nodes without
+AMD Node Feature Discovery (NFD) labels. Automatic stale-label cleanup now runs
+only for DeviceConfig resources that select AMD NFD GPU or virtual GPU labels.
+It preserves worker nodes selected by another DeviceConfig, including across
+namespaces.
+
+Explicit labeller disablement and DeviceConfig deletion retain label cleanup.
+Deletion with Kernel Module Management (KMM) watching disabled (`kmm.watch=false`)
+also cleans labeller labels while preserving other configs' selected worker
+nodes, KMM version labels, and existing KMM resources.
+
+See the [Node Labeller guide](device_plugin/node-labeller.md) for configuration
+examples, recovery steps, and rollback guidance. When retiring a custom pool,
+clean its labels before releasing its worker nodes. Rolling back to an operator
+without this fix can reintroduce label loss. This change does not update the
+labeller container image or address the separate label-generation issue discussed
+in [ROCm/k8s-device-plugin#255](https://github.com/ROCm/k8s-device-plugin/pull/255).
+
+These changes are not part of an announced release yet. See
+[ROCm/gpu-operator#676](https://github.com/ROCm/gpu-operator/pull/676).
+
 ## GPU Operator v1.5.1 Release Notes
 
 The AMD GPU Operator v1.5.1 release extends hardware support to the **AMD Instinct™ MI350P** and **AMD Radeon™ AI PRO** GPU families, and updates the Device Metrics Exporter with configurable exporter arguments.
