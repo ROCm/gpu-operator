@@ -688,6 +688,7 @@ var _ = Describe("handleNodeLabeller", func() {
 			Namespace: devConfigNamespace,
 		},
 		Spec: amdv1alpha1.DeviceConfigSpec{
+			Selector: map[string]string{utils.NodeFeatureLabelAmdGpu: "true"},
 			DevicePlugin: amdv1alpha1.DevicePluginSpec{
 				EnableNodeLabeller: &enableNodeLabeller,
 			},

@@ -72,7 +72,7 @@ endif
 #
 # Add a chunk: drop <name>_test.go in this directory. Done.
 # Force an ordering: rename to NN_<name>_test.go (and CHUNK_SUITE_ key if
-# needed). Today only the driver-install suite needs explicit ordering.
+# needed). Driver-install and node-labeller regression chunks run first.
 #
 # Timeout: hardcoded -test.timeout=45m, sized for the slowest chunk
 # (cluster-core on cold-start CI). Override via TEST_ARGS.

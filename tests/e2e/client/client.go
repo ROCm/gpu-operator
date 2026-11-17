@@ -476,21 +476,20 @@ func (c *deviceConfigsClient) PatchRemediationWorkflowSpec(devCfg *v1alpha1.Devi
 	return &result, err
 }
 
+// Delete checks the request error without decoding the response, which may be
+// either a Status or a DeviceConfig. The object return is always nil; retain it
+// for compatibility with existing e2e callers, which only use the error.
 func (c *deviceConfigsClient) Delete(name string) (*v1alpha1.DeviceConfig, error) {
-	result := v1alpha1.DeviceConfig{}
 	err := c.restClient.
 		Delete().
 		Namespace(c.ns).
 		Resource("deviceConfigs").
-		Body(&v1alpha1.DeviceConfig{
-			ObjectMeta: metav1.ObjectMeta{
-				Name: name,
-			},
-		}).
+		Name(name).
+		Body(&metav1.DeleteOptions{}).
 		Do(context.TODO()).
-		Into(&result)
+		Error()
 
-	return &result, err
+	return nil, err
 }
 
 type RemediationWorkflowStatusClient struct {

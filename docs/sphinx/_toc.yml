@@ -53,6 +53,7 @@ subtrees:
   - caption: Device Plugin
     entries:
       - file: device_plugin/device-plugin
+      - file: device_plugin/node-labeller
       - file: device_plugin/resource-allocation
   - caption: DRA Driver
     entries:
