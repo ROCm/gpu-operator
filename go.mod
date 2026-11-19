@@ -1,6 +1,6 @@
 module github.com/ROCm/gpu-operator
 
-go 1.27.3
+go 1.27.4
 
 require (
 	github.com/argoproj/argo-workflows/v4 v4.0.6
