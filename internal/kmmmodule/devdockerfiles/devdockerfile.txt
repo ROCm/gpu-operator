@@ -16,14 +16,16 @@ RUN apt-get update && apt-get install -y bc \
     make \
     gcc \
     linux-headers-${KERNEL_FULL_VERSION} \
-    linux-modules-extra-${KERNEL_FULL_VERSION}
+    $$KERNEL_MODULES_PACKAGE-${KERNEL_FULL_VERSION}
 
 RUN wget ${REPO_URL} && \
     apt-get install ./$$DEV_DEB -y && \
     amdgpu-repo --amdgpu-build=$$AMDGPU_BUILD --rocm-build=$$ROCM_BUILD && \
     amdgpu-install --usecase=dkms -y
 
-RUN depmod ${KERNEL_FULL_VERSION}
+# KMM signs uncompressed module files.
+RUN find /lib/modules/${KERNEL_FULL_VERSION}/updates/dkms -name '*.ko.zst' -exec unzstd --rm {} + && \
+    depmod ${KERNEL_FULL_VERSION}
 
 FROM ubuntu:$$VERSION
 

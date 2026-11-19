@@ -20,7 +20,7 @@ RUN apt-get update && \
     wget \
     bc \
     linux-headers-${KERNEL_FULL_VERSION} \
-    linux-modules-extra-${KERNEL_FULL_VERSION} && \
+    $$KERNEL_MODULES_PACKAGE-${KERNEL_FULL_VERSION} && \
     apt-get clean
 
 RUN GIM_RELEASE_BASE="${PACKAGE_REPO_URL:-https://github.com/amd/MxGPU-Virtualization/releases/download}" && \
@@ -28,7 +28,9 @@ RUN GIM_RELEASE_BASE="${PACKAGE_REPO_URL:-https://github.com/amd/MxGPU-Virtualiz
     apt-get install --fix-broken -y "./${GIM_DEB_PACKAGE}" && \
     rm "${GIM_DEB_PACKAGE}"
 
-RUN depmod ${KERNEL_FULL_VERSION}
+# KMM signs uncompressed module files.
+RUN find /lib/modules/${KERNEL_FULL_VERSION}/updates/dkms -name '*.ko.zst' -exec unzstd --rm {} + && \
+    depmod ${KERNEL_FULL_VERSION}
 
 FROM $$BASEIMG_REGISTRY/ubuntu:$$VERSION
 

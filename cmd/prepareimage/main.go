@@ -123,7 +123,7 @@ func deriveConfigFromFlags() *Config {
 
 	flag.StringVar(&config.buildArgs.kernelFullVersion, "kernel-full-version", "", "The full version of the kernel. See the output of the 'uname -r' command. Example: '6.8.0-139-generic'. Required.")
 
-	flag.StringVar(&config.buildArgs.driversVersion, "drivers-version", "", "The version of the drivers. For supported versions, see AMD documentation. Required.")
+	flag.StringVar(&config.buildArgs.driversVersion, "drivers-version", "", "The driver version to install. If omitted, use the default for the selected OS. For supported versions, see AMD documentation.")
 
 	flag.StringVar(&config.imageName, "image-name", "", "The name of the image with the registry and repository path, but without the tag. Example: 'registry.example.com/project/amdgpu'. Required for docker-script, buildah-script, and podman-script output formats.")
 
@@ -145,16 +145,6 @@ func deriveConfigFromFlags() *Config {
 	flag.BoolVar(&config.useSourceImage, "use-source-image", false, "(OpenShift only) Use the source image to build the driver image.")
 
 	flag.StringVar(&config.buildArgs.sourceImageRepo, "source-image-repo", DefaultSourceImageRepo, "(OpenShift only) Source image repository.")
-
-	flag.StringVar(&config.buildArgs.gpgKeyURL, "gpg-key-url", "", "The full URL to the GPG key for package verification. When specified, this overrides the constrult GPG key URL. Example: 'https://custom-mirror.example.com/rocm/rocm.gpg.key'.")
-
-	flag.StringVar(&config.imageName, "image-name", "", "The name of the image with the registry and repository path, but without the tag. Example: 'registry.example.com/project/amdgpu'. Required for docker-script, buildah-script, and podman-script output formats.")
-
-	flag.BoolVar(&config.useSourceImage, "use-source-image", false, "(OpenShift only) Use the source image to build the driver image.")
-
-	flag.StringVar(&config.buildArgs.sourceImageRepo, "source-image-repo", DefaultSourceImageRepo, "(OpenShift only) Source image repository.")
-
-	flag.StringVar(&config.buildArgs.driverToolkitImage, "driver-toolkit-image", "", "(OpenShift only) DriverToolkit image, get it from `oc adm release info --image-for driver-toolkit`.")
 
 	flag.Parse()
 

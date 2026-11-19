@@ -1,6 +1,8 @@
 package main
 
 import (
+	"flag"
+	"os"
 	"strings"
 	"testing"
 
@@ -21,6 +23,25 @@ const (
 	driversVersion     = "31.40.1"
 	imageName          = "registry.example.com/project/amdgpu"
 )
+
+func TestDeriveConfigFromFlags(t *testing.T) {
+	originalFlags, originalArgs := flag.CommandLine, os.Args
+	t.Cleanup(func() {
+		flag.CommandLine, os.Args = originalFlags, originalArgs
+	})
+	flag.CommandLine = flag.NewFlagSet("prepareimage", flag.ContinueOnError)
+	os.Args = []string{"prepareimage",
+		"--os-pretty-name", "Ubuntu 26.04.1 LTS",
+		"--kernel-full-version", "7.0.0-43-generic",
+		"--drivers-version", "31.60",
+	}
+	config := deriveConfigFromFlags()
+	if config.osPrettyName != "Ubuntu 26.04.1 LTS" ||
+		config.buildArgs.kernelFullVersion != "7.0.0-43-generic" ||
+		config.buildArgs.driversVersion != "31.60" || config.OutputFormat != OutputFormatDockerfile {
+		t.Fatalf("unexpected flag configuration: %+v", config)
+	}
+}
 
 func TestCreateOutput(t *testing.T) {
 	tests := []struct {
