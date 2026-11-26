@@ -36,6 +36,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -45,6 +46,7 @@ import (
 
 	utils "github.com/ROCm/gpu-operator/internal"
 	v1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/apimachinery/pkg/labels"
@@ -813,28 +815,137 @@ func (h *upgradeMgrHelper) getPodsToDrainOrDelete(ctx context.Context, deviceCon
 		return nil, err
 	}
 
+	draAPIVersion := ""
+nextPod:
 	for _, pod := range pods.Items {
 		if strings.HasPrefix(pod.Name, fmt.Sprintf("%v-%v", deviceConfig.Name, "metrics-exporter")) || strings.HasPrefix(pod.Name, fmt.Sprintf("%v-%v", deviceConfig.Name, "device-config-manager")) || strings.HasPrefix(pod.Name, fmt.Sprintf("%v-%v", deviceConfig.Name, "device-plugin")) || strings.HasPrefix(pod.Name, fmt.Sprintf("%v-%v", deviceConfig.Name, "node-labeller")) || strings.HasPrefix(pod.Name, fmt.Sprintf("%v-%v", deviceConfig.Name, "test-runner")) || strings.HasPrefix(pod.Name, fmt.Sprintf("%v-%v", deviceConfig.Name, "dra-driver")) {
 			newPods = append(newPods, pod)
 			continue
 		}
-	podLoop:
 		for _, container := range pod.Spec.Containers {
 			for resourceName := range container.Resources.Requests {
 				if strings.HasPrefix(string(resourceName), amdResourceDomain) {
 					newPods = append(newPods, pod)
-					break podLoop
+					continue nextPod
 				}
 			}
 			for _, volumeMount := range container.VolumeMounts {
 				if strings.HasPrefix(volumeMount.MountPath, "/dev/dri") {
 					newPods = append(newPods, pod)
-					break podLoop
+					continue nextPod
 				}
 			}
 		}
+		// DRA injects devices through CDI, so such a pod has neither an amd.com request nor a /dev/dri mount.
+		holdsGPU, err := h.holdsAMDGPUClaim(ctx, &pod, &draAPIVersion)
+		if err != nil {
+			return nil, err
+		}
+		if holdsGPU {
+			newPods = append(newPods, pod)
+		}
 	}
 	return
+}
+
+// holdsAMDGPUClaim reports whether any ResourceClaim of the pod has a device allocated
+// by the AMD GPU DRA driver, whose name is also the name of its DeviceClass.
+// draAPIVersion caches the discovered resource.k8s.io version across calls; "" means not yet discovered.
+func (h *upgradeMgrHelper) holdsAMDGPUClaim(ctx context.Context, pod *v1.Pod, draAPIVersion *string) (bool, error) {
+	for _, claimName := range podClaimNames(pod) {
+		if *draAPIVersion == "" {
+			version, err := h.servedDRAAPIVersion()
+			if err != nil {
+				return false, err
+			}
+			*draAPIVersion = version
+		}
+		drivers, err := h.claimDrivers(ctx, *draAPIVersion, pod.Namespace, claimName)
+		if apierrors.IsNotFound(err) {
+			// A deleted claim holds no device; the claim of a terminating pod can go first.
+			continue
+		}
+		if err != nil {
+			return false, fmt.Errorf("pod %s/%s: failed to read ResourceClaim %s: %w", pod.Namespace, pod.Name, claimName, err)
+		}
+		if slices.Contains(drivers, deviceClassName) {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
+// podClaimNames returns the ResourceClaims the pod uses: named in its spec, generated
+// from a template, or created by the scheduler for a DRA extended resource request.
+// A template claim not generated yet, or not needed, has no name and holds no device.
+func podClaimNames(pod *v1.Pod) []string {
+	var names []string
+	for _, claim := range pod.Spec.ResourceClaims {
+		if claim.ResourceClaimName != nil {
+			names = append(names, *claim.ResourceClaimName)
+			continue
+		}
+		for _, status := range pod.Status.ResourceClaimStatuses {
+			if status.Name == claim.Name && status.ResourceClaimName != nil {
+				names = append(names, *status.ResourceClaimName)
+			}
+		}
+	}
+	if status := pod.Status.ExtendedResourceClaimStatus; status != nil && status.ResourceClaimName != "" {
+		names = append(names, status.ResourceClaimName)
+	}
+	return names
+}
+
+// servedDRAAPIVersion returns the highest resource.k8s.io version that serves resourceclaims.
+func (h *upgradeMgrHelper) servedDRAAPIVersion() (string, error) {
+	for _, version := range draAPIVersionPriority {
+		resources, err := h.k8sInterface.Discovery().ServerResourcesForGroupVersion("resource.k8s.io/" + version)
+		if apierrors.IsNotFound(err) {
+			continue
+		}
+		if err != nil {
+			return "", fmt.Errorf("failed to discover resource.k8s.io/%s: %w", version, err)
+		}
+		if slices.ContainsFunc(resources.APIResources, func(r metav1.APIResource) bool { return r.Name == "resourceclaims" }) {
+			return version, nil
+		}
+	}
+	return "", fmt.Errorf("API server serves resourceclaims in none of resource.k8s.io %v", draAPIVersionPriority)
+}
+
+// claimDrivers returns the driver of every device allocated to the ResourceClaim.
+func (h *upgradeMgrHelper) claimDrivers(ctx context.Context, version, namespace, name string) ([]string, error) {
+	var drivers []string
+	switch version {
+	case "v1":
+		claim, err := h.k8sInterface.ResourceV1().ResourceClaims(namespace).Get(ctx, name, metav1.GetOptions{})
+		if err != nil || claim.Status.Allocation == nil {
+			return nil, err
+		}
+		for _, result := range claim.Status.Allocation.Devices.Results {
+			drivers = append(drivers, result.Driver)
+		}
+	case "v1beta2":
+		claim, err := h.k8sInterface.ResourceV1beta2().ResourceClaims(namespace).Get(ctx, name, metav1.GetOptions{})
+		if err != nil || claim.Status.Allocation == nil {
+			return nil, err
+		}
+		for _, result := range claim.Status.Allocation.Devices.Results {
+			drivers = append(drivers, result.Driver)
+		}
+	case "v1beta1":
+		claim, err := h.k8sInterface.ResourceV1beta1().ResourceClaims(namespace).Get(ctx, name, metav1.GetOptions{})
+		if err != nil || claim.Status.Allocation == nil {
+			return nil, err
+		}
+		for _, result := range claim.Status.Allocation.Devices.Results {
+			drivers = append(drivers, result.Driver)
+		}
+	default:
+		return nil, fmt.Errorf("unsupported resource.k8s.io version %q", version)
+	}
+	return drivers, nil
 }
 
 func (h *upgradeMgrHelper) handleNodeUpgrade(ctx context.Context, deviceConfig amdv1alpha1.DeviceConfig, node v1.Node) {
