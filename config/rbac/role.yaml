@@ -216,6 +216,12 @@ rules:
   verbs:
   - create
 - apiGroups:
+  - resource.k8s.io
+  resources:
+  - resourceclaims
+  verbs:
+  - get
+- apiGroups:
   - security.openshift.io
   resourceNames:
   - privileged
